@@ -380,46 +380,71 @@ export class VisualMousePointer {
     pointerY: number;
     debugInfo?: string;
   } {
-    // Get current window dimensions - these should be stable if window size doesn't change
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
-    const docWidth = document.documentElement.clientWidth;
-    const docHeight = document.documentElement.clientHeight;
     const isInIframe = window.self !== window.top;
     const readyState = document.readyState;
     
-    console.log(`🖥️ [VisualMouse] getViewportInfo called: window=${windowWidth}x${windowHeight}, document=${docWidth}x${docHeight}, isInIframe=${isInIframe}, readyState=${readyState}`);
+    // Try to get dimensions from current window/frame
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    let source = 'current-window';
     
-    // Use window.innerWidth/Height as primary source (browser viewport size)
-    let width = windowWidth;
-    let height = windowHeight;
-    let source = 'window';
+    console.log(`🖥️ [VisualMouse] getViewportInfo called: current window=${width}x${height}, isInIframe=${isInIframe}, readyState=${readyState}`);
     
-    // If window dimensions are 0 or invalid (shouldn't happen for normal browser windows)
-    if (width <= 0 || height <= 0 || !isFinite(width) || !isFinite(height)) {
-      console.warn(`🖥️ [VisualMouse] Invalid window dimensions: ${width}x${height}, using document dimensions`);
+    // Check if current frame has valid dimensions
+    const currentFrameValid = width > 0 && height > 0 && isFinite(width) && isFinite(height);
+    
+    if (!currentFrameValid && isInIframe) {
+      // We're in an iframe with invalid dimensions, try to get dimensions from parent
+      console.log(`🖥️ [VisualMouse] Current iframe has invalid dimensions, trying parent window`);
       
-      // Try document dimensions as fallback
+      try {
+        // Check if we can access parent window (same-origin policy)
+        if (window.parent && window.parent !== window) {
+          const parentWidth = window.parent.innerWidth;
+          const parentHeight = window.parent.innerHeight;
+          
+          if (parentWidth > 0 && parentHeight > 0 && isFinite(parentWidth) && isFinite(parentHeight)) {
+            width = parentWidth;
+            height = parentHeight;
+            source = 'parent-window';
+            console.log(`🖥️ [VisualMouse] Using parent window dimensions: ${width}x${height}`);
+          } else {
+            console.warn(`🖥️ [VisualMouse] Parent window also has invalid dimensions: ${parentWidth}x${parentHeight}`);
+          }
+        }
+      } catch (error) {
+        // Cross-origin error, cannot access parent window
+        console.warn(`🖥️ [VisualMouse] Cannot access parent window due to cross-origin restrictions:`, error);
+      }
+    }
+    
+    // If still invalid, try document dimensions as last resort
+    if (width <= 0 || height <= 0 || !isFinite(width) || !isFinite(height)) {
+      console.warn(`🖥️ [VisualMouse] Invalid dimensions after all attempts: ${width}x${height}, trying document`);
+      
+      const docWidth = document.documentElement.clientWidth;
+      const docHeight = document.documentElement.clientHeight;
+      
       if (docWidth > 0 && docHeight > 0) {
         width = docWidth;
         height = docHeight;
         source = 'document';
         console.log(`🖥️ [VisualMouse] Using document dimensions: ${width}x${height}`);
       } else {
-        // Both window and document dimensions are invalid
-        console.error(`🖥️ [VisualMouse] CRITICAL: Both window and document dimensions are invalid! window=${windowWidth}x${windowHeight}, document=${docWidth}x${docHeight}`);
+        // All methods failed
+        console.error(`🖥️ [VisualMouse] ALL METHODS FAILED: current window=${window.innerWidth}x${window.innerHeight}, document=${docWidth}x${docHeight}, isInIframe=${isInIframe}`);
         
-        // This should not happen for normal web pages
-        // Return a small default that won't cause coordinate mapping disasters
-        width = 800;
-        height = 600;
-        source = 'emergency-default';
+        // Return special values that signal "no valid viewport available"
+        // The background script should handle this case
+        width = -1;  // Special value to indicate failure
+        height = -1;
+        source = 'failed';
       }
     }
     
-    // Ensure minimum values
-    const finalWidth = Math.max(1, width);
-    const finalHeight = Math.max(1, height);
+    // Ensure minimum values (unless they're the special failure values)
+    const finalWidth = width < 0 ? width : Math.max(1, width);
+    const finalHeight = height < 0 ? height : Math.max(1, height);
     
     console.log(`🖥️ [VisualMouse] Returning viewport: ${finalWidth}x${finalHeight}, source=${source}, devicePixelRatio=${window.devicePixelRatio || 1}`);
     

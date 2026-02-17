@@ -60,10 +60,10 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
   console.log(`🖥️ [Computer] Getting viewport size for tab ${tabId}`);
   
   try {
-    // First, try to get viewport size from content script
+    // First, try to get viewport size from content script in MAIN FRAME (frameId: 0)
     const response = await chrome.tabs.sendMessage(tabId, {
       type: 'get_viewport'
-    });
+    }, { frameId: 0 }); // Specify frameId: 0 for main frame only
     
     console.log(`🖥️ [Computer] Received response from content script:`, response);
     
@@ -71,9 +71,11 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
       const { width, height } = response.data;
       console.log(`🖥️ [Computer] Viewport size from content script: width=${width}, height=${height}`);
       
-      // Validate dimensions
-      if (typeof width === 'number' && width > 0 && isFinite(width) &&
-          typeof height === 'number' && height > 0 && isFinite(height)) {
+      // Validate dimensions - also check for special failure value (-1)
+      const isValid = typeof width === 'number' && typeof height === 'number' &&
+                     width > 0 && height > 0 && isFinite(width) && isFinite(height);
+      
+      if (isValid) {
         const size = { width, height };
         viewportSizes.set(tabId, size);
         viewportCacheTimestamps.set(tabId, Date.now());
@@ -81,6 +83,7 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
         return size;
       } else {
         console.warn(`⚠️ [Computer] Invalid dimensions received: width=${width} (type: ${typeof width}), height=${height} (type: ${typeof height})`);
+        // Don't return, fall through to backup methods
       }
     } else {
       console.warn(`⚠️ [Computer] Invalid response from content script:`, response);
