@@ -55,13 +55,8 @@ const viewportSizes = new Map<number, {width: number, height: number}>();
  * Get viewport size from content script
  */
 async function getViewportSize(tabId: number): Promise<{width: number, height: number}> {
-  // Return cached value if available
-  if (viewportSizes.has(tabId)) {
-    return viewportSizes.get(tabId)!;
-  }
-  
+  // Always try to get fresh viewport info from content script first
   try {
-    // Request viewport info from content script
     const response = await chrome.tabs.sendMessage(tabId, {
       type: 'get_viewport'
     });
@@ -70,16 +65,25 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
       const { width, height } = response.data;
       const size = { width: width || 1920, height: height || 1080 };
       viewportSizes.set(tabId, size);
-      console.log(`🖥️ [Computer] Viewport size for tab ${tabId}: ${size.width}x${size.height} (from content script: ${width}x${height})`);
+      console.log(`🖥️ [Computer] Fresh viewport size for tab ${tabId}: ${size.width}x${size.height} (content script returned: ${width}x${height})`);
       return size;
     }
   } catch (error) {
-    console.warn(`Failed to get viewport size for tab ${tabId}:`, error);
+    console.warn(`Failed to get fresh viewport size for tab ${tabId}:`, error);
+    // If we fail to get fresh data, fall through to cache/default
   }
   
-  // Fallback to reasonable defaults
+  // Fallback to cached value if available
+  if (viewportSizes.has(tabId)) {
+    const cached = viewportSizes.get(tabId)!;
+    console.log(`🔄 [Computer] Using cached viewport size: ${cached.width}x${cached.height}`);
+    return cached;
+  }
+  
+  // Ultimate fallback to reasonable defaults
   const defaultSize = { width: 1920, height: 1080 };
   viewportSizes.set(tabId, defaultSize);
+  console.log(`⚠️ [Computer] No viewport data available, using default: ${defaultSize.width}x${defaultSize.height}`);
   return defaultSize;
 }
 

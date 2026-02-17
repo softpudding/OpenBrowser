@@ -374,10 +374,15 @@ export class VisualMousePointer {
     pointerX: number;
     pointerY: number;
   } {
+    const width = window.innerWidth || document.documentElement.clientWidth || screen.width;
+    const height = window.innerHeight || document.documentElement.clientHeight || screen.availHeight;
+    
+    console.log(`🖥️ [VisualMouse] getViewportInfo called: window=${window.innerWidth}x${window.innerHeight}, document=${document.documentElement.clientWidth}x${document.documentElement.clientHeight}, screen=${screen.width}x${screen.availHeight}, returning=${width}x${height}`);
+    
     return {
-      width: window.innerWidth,
-      height: window.innerHeight,
-      devicePixelRatio: window.devicePixelRatio,
+      width: width,
+      height: height,
+      devicePixelRatio: window.devicePixelRatio || 1,
       pointerX: this.currentX,
       pointerY: this.currentY,
     };
