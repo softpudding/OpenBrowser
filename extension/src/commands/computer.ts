@@ -55,22 +55,81 @@ const viewportSizes = new Map<number, {width: number, height: number}>();
  * Get viewport size from content script
  */
 async function getViewportSize(tabId: number): Promise<{width: number, height: number}> {
-  // Always try to get fresh viewport info from content script first
-  try {
-    const response = await chrome.tabs.sendMessage(tabId, {
-      type: 'get_viewport'
-    });
-    
-    if (response?.success && response.data) {
-      const { width, height } = response.data;
-      const size = { width: width || 1920, height: height || 1080 };
-      viewportSizes.set(tabId, size);
-      console.log(`🖥️ [Computer] Fresh viewport size for tab ${tabId}: ${size.width}x${size.height} (content script returned: ${width}x${height})`);
-      return size;
+  // Try up to 2 times to get fresh viewport info from content script
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      console.log(`🖥️ [Computer] Attempt ${attempt}/2 to get fresh viewport size for tab ${tabId}`);
+      const response = await chrome.tabs.sendMessage(tabId, {
+        type: 'get_viewport'
+      });
+      
+      console.log(`🖥️ [Computer] Received response from content script for tab ${tabId} on attempt ${attempt}:`, response);
+      
+      if (response?.success && response.data) {
+        const { width, height } = response.data;
+        console.log(`🖥️ [Computer] Raw viewport data from content script: width=${width}, height=${height}`);
+        
+        // Validate the received dimensions
+        let validatedWidth = width;
+        let validatedHeight = height;
+        
+        if (typeof width !== 'number' || width <= 0 || !isFinite(width)) {
+          console.warn(`🖥️ [Computer] Invalid width received: ${width}, using default`);
+          validatedWidth = 1920;
+        }
+        
+        if (typeof height !== 'number' || height <= 0 || !isFinite(height)) {
+          console.warn(`🖥️ [Computer] Invalid height received: ${height}, using default`);
+          validatedHeight = 1080;
+        }
+        
+        const size = { width: validatedWidth, height: validatedHeight };
+        viewportSizes.set(tabId, size);
+        console.log(`🖥️ [Computer] Fresh viewport size for tab ${tabId}: ${size.width}x${size.height}`);
+        return size;
+      } else {
+        console.warn(`🖥️ [Computer] Invalid response from content script for tab ${tabId} on attempt ${attempt}:`, response);
+      }
+    } catch (error) {
+      console.error(`🖥️ [Computer] Failed to get fresh viewport size for tab ${tabId} on attempt ${attempt}:`, error);
+      console.error(`🖥️ [Computer] Error details:`, error instanceof Error ? error.message : 'Unknown error');
+      
+      // On first attempt failure, try to inject content script
+      if (attempt === 1) {
+        console.log(`🔄 [Computer] Attempting to inject content script into tab ${tabId}`);
+        try {
+          // Check if we have scripting permission
+          if (chrome.scripting) {
+            const tab = await chrome.tabs.get(tabId);
+            const url = tab.url || '';
+            
+            if (!url.startsWith('chrome://') && !url.startsWith('chrome-extension://')) {
+              await chrome.scripting.executeScript({
+                target: { tabId },
+                files: ['content.js'],
+              });
+              console.log(`✅ [Computer] Content script injected into tab ${tabId}`);
+              
+              // Wait for script to initialize
+              await new Promise(resolve => setTimeout(resolve, 300));
+            } else {
+              console.warn(`⚠️ [Computer] Cannot inject content script into restricted URL: ${url}`);
+            }
+          } else {
+            console.error(`❌ [Computer] chrome.scripting API not available`);
+          }
+        } catch (injectError) {
+          console.error(`❌ [Computer] Failed to inject content script into tab ${tabId}:`, injectError);
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 300));
+        continue; // Try again
+      }
     }
-  } catch (error) {
-    console.warn(`Failed to get fresh viewport size for tab ${tabId}:`, error);
-    // If we fail to get fresh data, fall through to cache/default
+    
+    // If we get here, the attempt failed but we're not retrying anymore
+    break;
   }
   
   // Fallback to cached value if available
@@ -83,7 +142,7 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
   // Ultimate fallback to reasonable defaults
   const defaultSize = { width: 1920, height: 1080 };
   viewportSizes.set(tabId, defaultSize);
-  console.log(`⚠️ [Computer] No viewport data available, using default: ${defaultSize.width}x${defaultSize.height}`);
+  console.log(`⚠️ [Computer] No viewport data available after all attempts, using default: ${defaultSize.width}x${defaultSize.height}`);
   return defaultSize;
 }
 

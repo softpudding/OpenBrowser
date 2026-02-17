@@ -373,29 +373,59 @@ export class VisualMousePointer {
     devicePixelRatio: number;
     pointerX: number;
     pointerY: number;
+    debugInfo?: string;
   } {
     // 优先使用window.innerWidth/Height，这是浏览器窗口的内部尺寸
     // 如果window尺寸为0（页面加载中），则使用document尺寸
     // 避免使用screen尺寸，因为它不是浏览器窗口尺寸
     let width = window.innerWidth;
     let height = window.innerHeight;
+    let source = 'window';
+    let debugInfo = '';
+    
+    // 检查是否在iframe中
+    const isInIframe = window.self !== window.top;
+    if (isInIframe) {
+      debugInfo += `In iframe, `;
+      console.log(`🖥️ [VisualMouse] Running in iframe, parent available: ${window.parent !== window}`);
+    }
     
     // 如果window尺寸为0，页面可能还在加载中，尝试document尺寸
     if (width <= 0 || height <= 0) {
       width = document.documentElement.clientWidth;
       height = document.documentElement.clientHeight;
+      source = 'document';
       console.warn(`🖥️ [VisualMouse] Window dimensions are 0, using document dimensions: ${width}x${height}`);
+      debugInfo += `window was 0, using document, `;
     }
     
-    // 如果document尺寸也是0，页面可能还未渲染，等待一下再重试
+    // 如果document尺寸也是0，页面可能还未渲染，尝试其他方法
     if (width <= 0 || height <= 0) {
       console.warn(`🖥️ [VisualMouse] Both window and document dimensions are 0. Page may still be loading.`);
-      // 返回较小的默认值而不是屏幕尺寸，避免坐标映射错误
-      width = 800;
-      height = 600;
+      debugInfo += `both window and document were 0, `;
+      
+      // 尝试获取屏幕尺寸作为最后的手段（但注意：这不是浏览器窗口尺寸）
+      const screenWidth = window.screen?.width || 0;
+      const screenHeight = window.screen?.height || 0;
+      
+      // 如果是全屏或类似情况，使用屏幕尺寸的合理比例
+      if (screenWidth > 0 && screenHeight > 0) {
+        width = Math.floor(screenWidth * 0.8);  // 使用屏幕尺寸的80%作为估计
+        height = Math.floor(screenHeight * 0.8);
+        source = 'screen-estimate';
+        console.log(`🖥️ [VisualMouse] Using screen estimate: ${width}x${height} (screen: ${screenWidth}x${screenHeight})`);
+        debugInfo += `using screen estimate ${width}x${height}, `;
+      } else {
+        // 返回较小的默认值而不是屏幕尺寸，避免坐标映射错误
+        width = 800;
+        height = 600;
+        source = 'default';
+        console.warn(`🖥️ [VisualMouse] No valid dimensions found, using default: ${width}x${height}`);
+        debugInfo += `using default ${width}x${height}, `;
+      }
     }
     
-    console.log(`🖥️ [VisualMouse] getViewportInfo: window=${window.innerWidth}x${window.innerHeight}, document=${document.documentElement.clientWidth}x${document.documentElement.clientHeight}, returning=${width}x${height}`);
+    console.log(`🖥️ [VisualMouse] getViewportInfo: window=${window.innerWidth}x${window.innerHeight}, document=${document.documentElement.clientWidth}x${document.documentElement.clientHeight}, screen=${window.screen?.width}x${window.screen?.height}, source=${source}, returning=${width}x${height}, isInIframe=${isInIframe}`);
     
     return {
       width: Math.max(1, width),  // 确保至少为1，避免除以0
@@ -403,6 +433,7 @@ export class VisualMousePointer {
       devicePixelRatio: window.devicePixelRatio || 1,
       pointerX: this.currentX,
       pointerY: this.currentY,
+      debugInfo: debugInfo.trim(),
     };
   }
 
