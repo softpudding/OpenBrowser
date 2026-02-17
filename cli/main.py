@@ -361,6 +361,104 @@ def interactive(ctx):
                 break
             elif cmd.lower() == 'help':
                 _print_interactive_help()
+            elif cmd.lower() == 'reset':
+                # Reset mouse shortcut
+                result = ctx.obj['client'].mouse_reset()
+                _print_result(result)
+            elif cmd.lower().startswith('click'):
+                # Click shortcut: click [left|right|middle]
+                parts = cmd.lower().split()
+                button = parts[1] if len(parts) > 1 else 'left'
+                if button not in ['left', 'right', 'middle']:
+                    click.echo("❌ Invalid button. Use: click [left|right|middle]")
+                    continue
+                result = ctx.obj['client'].mouse_click(button)
+                _print_result(result)
+            elif cmd.lower().startswith('move'):
+                # Move shortcut: move <dx> <dy>
+                parts = cmd.split()
+                if len(parts) != 3:
+                    click.echo("❌ Invalid move command. Use: move <dx> <dy>")
+                    continue
+                try:
+                    dx = int(parts[1])
+                    dy = int(parts[2])
+                    result = ctx.obj['client'].mouse_move(dx, dy)
+                    _print_result(result)
+                except ValueError:
+                    click.echo("❌ Invalid coordinates. Use integers.")
+            elif cmd.lower().startswith('scroll'):
+                # Scroll shortcut: scroll <direction> [amount]
+                parts = cmd.split()
+                if len(parts) < 2:
+                    click.echo("❌ Invalid scroll command. Use: scroll <up|down|left|right> [amount]")
+                    continue
+                direction = parts[1].lower()
+                if direction not in ['up', 'down', 'left', 'right']:
+                    click.echo("❌ Invalid direction. Use: up, down, left, right")
+                    continue
+                amount = int(parts[2]) if len(parts) > 2 else 100
+                result = ctx.obj['client'].mouse_scroll(direction, amount)
+                _print_result(result)
+            elif cmd.lower().startswith('type '):
+                # Type shortcut: type <text>
+                text = cmd[5:]  # Remove "type " prefix
+                result = ctx.obj['client'].keyboard_type(text)
+                _print_result(result)
+            elif cmd.lower().startswith('press '):
+                # Press shortcut: press <key> [modifiers...]
+                parts = cmd.split()
+                if len(parts) < 2:
+                    click.echo("❌ Invalid press command. Use: press <key> [modifier1 modifier2...]")
+                    continue
+                key = parts[1]
+                modifiers = parts[2:] if len(parts) > 2 else []
+                result = ctx.obj['client'].keyboard_press(key, modifiers)
+                _print_result(result)
+            elif cmd.lower() == 'screenshot':
+                # Screenshot shortcut
+                result = ctx.obj['client'].screenshot()
+                _print_result(result)
+            elif cmd.lower().startswith('tabs '):
+                # Tabs shortcuts: tabs list, tabs open <url>, tabs close <id>, tabs switch <id>
+                parts = cmd.split()
+                if len(parts) < 2:
+                    click.echo("❌ Invalid tabs command. Use: tabs list|open|close|switch")
+                    continue
+                
+                action = parts[1].lower()
+                if action == 'list':
+                    result = ctx.obj['client'].get_tabs()
+                    _print_tabs_result(result)
+                elif action == 'open':
+                    if len(parts) < 3:
+                        click.echo("❌ Missing URL. Use: tabs open <url>")
+                        continue
+                    url = parts[2]
+                    result = ctx.obj['client'].tab_open(url)
+                    _print_result(result)
+                elif action == 'close':
+                    if len(parts) < 3:
+                        click.echo("❌ Missing tab ID. Use: tabs close <tab_id>")
+                        continue
+                    try:
+                        tab_id = int(parts[2])
+                        result = ctx.obj['client'].tab_close(tab_id)
+                        _print_result(result)
+                    except ValueError:
+                        click.echo("❌ Invalid tab ID. Use integer.")
+                elif action == 'switch':
+                    if len(parts) < 3:
+                        click.echo("❌ Missing tab ID. Use: tabs switch <tab_id>")
+                        continue
+                    try:
+                        tab_id = int(parts[2])
+                        result = ctx.obj['client'].tab_switch(tab_id)
+                        _print_result(result)
+                    except ValueError:
+                        click.echo("❌ Invalid tab ID. Use integer.")
+                else:
+                    click.echo("❌ Unknown tabs action. Use: list, open, close, switch")
             else:
                 # Try to parse as JSON command
                 try:
@@ -368,7 +466,7 @@ def interactive(ctx):
                     result = ctx.obj['client'].execute_command(command)
                     _print_result(result)
                 except json.JSONDecodeError:
-                    click.echo("❌ Invalid command. Use JSON format or type 'help'")
+                    click.echo("❌ Invalid command. Use shortcut format or type 'help'")
                     
         except KeyboardInterrupt:
             click.echo("\n👋 Goodbye!")
@@ -389,16 +487,49 @@ def _print_result(result: Dict[str, Any]):
             click.echo(f"   Error: {result['error']}")
 
 
+def _print_tabs_result(result: Dict[str, Any]):
+    """Print tabs result in a formatted way"""
+    if result.get('success') and 'data' in result and 'tabs' in result['data']:
+        tabs = result['data']['tabs']
+        click.echo(f"Found {len(tabs)} tabs:")
+        click.echo("")
+        
+        for i, tab in enumerate(tabs):
+            active = "✓" if tab.get('active') else " "
+            click.echo(f"  {active} [{tab['id']}] {tab.get('title', 'No title')}")
+            click.echo(f"      {tab.get('url', 'No URL')}")
+            if i < len(tabs) - 1:
+                click.echo("")
+    else:
+        _print_result(result)
+
+
 def _print_interactive_help():
     """Print interactive mode help"""
     click.echo("")
     click.echo("Available commands:")
     click.echo("")
+    click.echo("  Shortcut Commands:")
+    click.echo("    reset                    - Reset mouse to center")
+    click.echo("    click [left|right|middle] - Click mouse button (default: left)")
+    click.echo("    move <dx> <dy>          - Move mouse relative")
+    click.echo("    scroll <up|down|left|right> [amount] - Scroll (default: down, 100)")
+    click.echo("    type <text>             - Type text")
+    click.echo("    press <key> [modifiers] - Press special key")
+    click.echo("    screenshot              - Capture screenshot")
+    click.echo("    tabs list               - List all tabs")
+    click.echo("    tabs open <url>         - Open new tab")
+    click.echo("    tabs close <tab_id>     - Close tab")
+    click.echo("    tabs switch <tab_id>    - Switch to tab")
+    click.echo("")
     click.echo("  JSON Commands (send directly to API):")
     click.echo("    {\"type\": \"mouse_move\", \"dx\": 100, \"dy\": 50}")
     click.echo("    {\"type\": \"mouse_click\", \"button\": \"left\"}")
+    click.echo("    {\"type\": \"reset_mouse\"}")
     click.echo("    {\"type\": \"keyboard_type\", \"text\": \"Hello World\"}")
     click.echo("    {\"type\": \"screenshot\"}")
+    click.echo("    {\"type\": \"tab\", \"action\": \"open\", \"url\": \"https://example.com\"}")
+    click.echo("    {\"type\": \"get_tabs\"}")
     click.echo("")
     click.echo("  Special Commands:")
     click.echo("    help     - Show this help")

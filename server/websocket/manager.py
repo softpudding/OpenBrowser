@@ -34,6 +34,8 @@ class WebSocketManager:
             # Add additional options for better compatibility
             origins=None,  # Allow all origins for local development
             compression=None,
+            # Increase max message size for large data like screenshots
+            max_size=100 * 1024 * 1024,  # 100 MB - for screenshot data
         )
         self._running = True
         logger.info(f"WebSocket server started on ws://{host}:{port}")
