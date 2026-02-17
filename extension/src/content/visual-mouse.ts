@@ -13,16 +13,8 @@ export class VisualMousePointer {
   private pointerColor: string = '#3B82F6'; // Blue color matching AIPex
   private glowColor: string = '#3B82F6'; // Glow color matching AIPex
   private isDragging: boolean = false;
-  
-  // Cached viewport dimensions to ensure consistency
-  private cachedViewportWidth: number = 0;
-  private cachedViewportHeight: number = 0;
-  private cachedDevicePixelRatio: number = 1;
-  private cacheTimestamp: number = 0;
-  private readonly CACHE_TTL = 1000; // Cache for 1 second
 
   constructor() {
-    this.updateViewportCache();
     this.createPointer();
     this.initializeEventListeners();
   }
@@ -153,12 +145,9 @@ export class VisualMousePointer {
       });
     }
 
-    // Track window resize to keep pointer visible and update cache
+    // Track window resize to keep pointer visible
     window.addEventListener('resize', () => {
       console.log(`🖥️ [VisualMouse] Window resized: ${window.innerWidth}x${window.innerHeight}`);
-      
-      // Update viewport cache on resize
-      this.updateViewportCache();
       
       if (this.pointerElement) {
         // Keep pointer within bounds
@@ -380,74 +369,8 @@ export class VisualMousePointer {
   }
 
   /**
-   * Update viewport cache with fresh measurements
-   */
-  private updateViewportCache(): void {
-    // 尝试获取视口尺寸
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    let source = 'window';
-    
-    // 检查是否在iframe中
-    const isInIframe = window.self !== window.top;
-    
-    console.log(`🖥️ [VisualMouse] updateViewportCache: window=${width}x${height}, document=${document.documentElement.clientWidth}x${document.documentElement.clientHeight}, readyState=${document.readyState}, isInIframe=${isInIframe}`);
-    
-    // 如果window尺寸无效（<=0），尝试使用document尺寸
-    if (width <= 0 || height <= 0) {
-      const docWidth = document.documentElement.clientWidth;
-      const docHeight = document.documentElement.clientHeight;
-      
-      if (docWidth > 0 || docHeight > 0) {
-        width = docWidth > 0 ? docWidth : width;
-        height = docHeight > 0 ? docHeight : height;
-        source = 'document';
-      }
-    }
-    
-    // 如果尺寸仍然无效，尝试屏幕估计
-    if (width <= 0 || height <= 0) {
-      const screenWidth = window.screen?.availWidth || window.screen?.width || 0;
-      const screenHeight = window.screen?.availHeight || window.screen?.height || 0;
-      
-      if (screenWidth > 0 && screenHeight > 0) {
-        // 使用屏幕可用尺寸的90%作为保守估计
-        width = Math.floor(screenWidth * 0.9);
-        height = Math.floor(screenHeight * 0.9);
-        source = 'screen-estimate';
-      } else {
-        // 返回合理的默认值
-        width = 1920;
-        height = 1080;
-        source = 'default';
-      }
-    }
-    
-    // 确保最小值
-    this.cachedViewportWidth = Math.max(1, width);
-    this.cachedViewportHeight = Math.max(1, height);
-    this.cachedDevicePixelRatio = window.devicePixelRatio || 1;
-    this.cacheTimestamp = Date.now();
-    
-    console.log(`🖥️ [VisualMouse] Viewport cache updated: ${this.cachedViewportWidth}x${this.cachedViewportHeight}, source=${source}, devicePixelRatio=${this.cachedDevicePixelRatio}`);
-  }
-  
-  /**
-   * Check if cache is still valid
-   */
-  private isCacheValid(): boolean {
-    const cacheAge = Date.now() - this.cacheTimestamp;
-    const isValid = cacheAge < this.CACHE_TTL && this.cachedViewportWidth > 0 && this.cachedViewportHeight > 0;
-    
-    if (!isValid) {
-      console.log(`🖥️ [VisualMouse] Cache invalid or expired: age=${cacheAge}ms, width=${this.cachedViewportWidth}, height=${this.cachedViewportHeight}, TTL=${this.CACHE_TTL}ms`);
-    }
-    
-    return isValid;
-  }
-  
-  /**
-   * Get viewport information with caching for consistency
+   * Get current viewport information
+   * This should return the actual browser window size, not affected by page rendering
    */
   getViewportInfo(): {
     width: number;
@@ -457,41 +380,56 @@ export class VisualMousePointer {
     pointerY: number;
     debugInfo?: string;
   } {
-    // 如果缓存无效或过期，更新缓存
-    if (!this.isCacheValid()) {
-      console.log(`🖥️ [VisualMouse] Cache invalid, updating...`);
-      this.updateViewportCache();
-    } else {
-      const cacheAge = Date.now() - this.cacheTimestamp;
-      console.log(`🖥️ [VisualMouse] Using cached viewport: ${this.cachedViewportWidth}x${this.cachedViewportHeight}, age=${cacheAge}ms`);
-    }
-    
-    // 记录当前实时尺寸以供调试
-    const currentWindowSize = `${window.innerWidth}x${window.innerHeight}`;
-    const currentDocumentSize = `${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`;
-    const isInIframe = window.self !== window.top;
-    
-    console.log(`🖥️ [VisualMouse] Current real-time sizes: window=${currentWindowSize}, document=${currentDocumentSize}, isInIframe=${isInIframe}, readyState=${document.readyState}`);
-    
-    // 检查实时尺寸是否与缓存有显著差异
+    // Get current window dimensions - these should be stable if window size doesn't change
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
-    const widthDiff = Math.abs(windowWidth - this.cachedViewportWidth);
-    const heightDiff = Math.abs(windowHeight - this.cachedViewportHeight);
-    const significantChange = widthDiff > 50 || heightDiff > 50; // 超过50像素的差异
+    const docWidth = document.documentElement.clientWidth;
+    const docHeight = document.documentElement.clientHeight;
+    const isInIframe = window.self !== window.top;
+    const readyState = document.readyState;
     
-    if (significantChange && windowWidth > 0 && windowHeight > 0) {
-      console.log(`🖥️ [VisualMouse] Significant size change detected: cached=${this.cachedViewportWidth}x${this.cachedViewportHeight}, current=${windowWidth}x${windowHeight}, diff=${widthDiff}x${heightDiff}. Updating cache.`);
-      this.updateViewportCache();
+    console.log(`🖥️ [VisualMouse] getViewportInfo called: window=${windowWidth}x${windowHeight}, document=${docWidth}x${docHeight}, isInIframe=${isInIframe}, readyState=${readyState}`);
+    
+    // Use window.innerWidth/Height as primary source (browser viewport size)
+    let width = windowWidth;
+    let height = windowHeight;
+    let source = 'window';
+    
+    // If window dimensions are 0 or invalid (shouldn't happen for normal browser windows)
+    if (width <= 0 || height <= 0 || !isFinite(width) || !isFinite(height)) {
+      console.warn(`🖥️ [VisualMouse] Invalid window dimensions: ${width}x${height}, using document dimensions`);
+      
+      // Try document dimensions as fallback
+      if (docWidth > 0 && docHeight > 0) {
+        width = docWidth;
+        height = docHeight;
+        source = 'document';
+        console.log(`🖥️ [VisualMouse] Using document dimensions: ${width}x${height}`);
+      } else {
+        // Both window and document dimensions are invalid
+        console.error(`🖥️ [VisualMouse] CRITICAL: Both window and document dimensions are invalid! window=${windowWidth}x${windowHeight}, document=${docWidth}x${docHeight}`);
+        
+        // This should not happen for normal web pages
+        // Return a small default that won't cause coordinate mapping disasters
+        width = 800;
+        height = 600;
+        source = 'emergency-default';
+      }
     }
     
+    // Ensure minimum values
+    const finalWidth = Math.max(1, width);
+    const finalHeight = Math.max(1, height);
+    
+    console.log(`🖥️ [VisualMouse] Returning viewport: ${finalWidth}x${finalHeight}, source=${source}, devicePixelRatio=${window.devicePixelRatio || 1}`);
+    
     return {
-      width: this.cachedViewportWidth,
-      height: this.cachedViewportHeight,
-      devicePixelRatio: this.cachedDevicePixelRatio,
+      width: finalWidth,
+      height: finalHeight,
+      devicePixelRatio: window.devicePixelRatio || 1,
       pointerX: this.currentX,
       pointerY: this.currentY,
-      debugInfo: `cached viewport, cache age=${Date.now() - this.cacheTimestamp}ms, isInIframe=${isInIframe}`,
+      debugInfo: `source=${source}, isInIframe=${isInIframe}, readyState=${readyState}`,
     };
   }
 
