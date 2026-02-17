@@ -57,16 +57,22 @@ export async function captureScreenshot(
     console.warn('[Screenshot] Failed to get viewport dimensions:', e);
   }
 
-  // Get image dimensions
-  const img = new Image();
-  await new Promise((resolve, reject) => {
-    img.onload = resolve;
-    img.onerror = reject;
-    img.src = dataUrl;
-  });
-
-  const imageWidth = img.width;
-  const imageHeight = img.height;
+  // Get image dimensions - we can't use Image in background script
+  // Instead, we'll extract dimensions from data URL or use reasonable defaults
+  let imageWidth = 1920;
+  let imageHeight = 1080;
+  
+  try {
+    // Try to extract dimensions from data URL (base64 encoded)
+    // For PNG format, we could parse the IHDR chunk, but it's complex
+    // For now, use viewport dimensions if available
+    if (viewport) {
+      imageWidth = viewport.width;
+      imageHeight = viewport.height;
+    }
+  } catch (e) {
+    console.warn('[Screenshot] Failed to get image dimensions:', e);
+  }
 
   // Cache screenshot metadata for computer tool
   if (viewport) {
@@ -96,7 +102,10 @@ export async function captureScreenshot(
 
 /**
  * Compress image for transmission
+ * NOTE: This function is disabled because it uses DOM APIs (Image, canvas)
+ * which are not available in background script context.
  */
+/*
 async function compressImage(
   dataUrl: string,
   quality: number = 0.6,
@@ -130,3 +139,4 @@ async function compressImage(
     img.src = dataUrl;
   });
 }
+*/

@@ -9,9 +9,9 @@ export class VisualMousePointer {
   private currentX: number = 0;
   private currentY: number = 0;
   private isVisible: boolean = true;
-  private pointerSize: number = 20; // Not used for SVG pointer, kept for compatibility
-  private pointerColor: string = '#333333'; // Dark gray for more traditional mouse pointer
-  private pointerBorderColor: string = '#ffffff';
+  private pointerSize: number = 48; // Size matching AIPex
+  private pointerColor: string = '#3B82F6'; // Blue color matching AIPex
+  private glowColor: string = '#3B82F6'; // Glow color matching AIPex
   private isDragging: boolean = false;
 
   constructor() {
@@ -33,28 +33,72 @@ export class VisualMousePointer {
     this.pointerElement = document.createElement('div');
     this.pointerElement.id = 'chrome-control-visual-mouse';
     
-    // Apply styles - now a realistic mouse pointer
+    // Apply styles - AIPex style blue fluorescent cursor
     Object.assign(this.pointerElement.style, {
       position: 'fixed',
-      width: '32px',
-      height: '32px',
+      width: `${this.pointerSize}px`,
+      height: `${this.pointerSize}px`,
       pointerEvents: 'none',
       zIndex: '2147483647', // Maximum z-index
       opacity: '0.9',
-      transform: 'translate(-2px, -2px)', // Offset to match pointer tip
+      transform: 'translate(-50%, -50%)', // Center the cursor
       transition: 'transform 0.1s ease-out, opacity 0.2s ease, filter 0.2s ease',
-      filter: 'drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.5))',
+      filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3))',
     } as CSSStyleDeclaration);
 
-    // Create the mouse pointer using CSS (arrow shape)
+    // Create the mouse pointer using AIPex-style blue fluorescent cursor
     const pointerSvg = `
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Pointer outline for visibility -->
-        <path d="M2 2 L28 2 L10 28 L8 24 L2 2 Z" fill="black" fill-opacity="0.3"/>
-        <!-- Main pointer -->
-        <path d="M1 1 L27 1 L9 27 L7 23 L1 1 Z" fill="${this.pointerColor}"/>
-        <!-- Pointer tip highlight -->
-        <path d="M1 1 L5 1 L1 5 Z" fill="white" fill-opacity="0.8"/>
+      <svg width="${this.pointerSize}" height="${this.pointerSize}" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="chrome-control-cursor-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color: ${this.pointerColor}; stop-opacity: 1" />
+            <stop offset="100%" style="stop-color: ${this.pointerColor}; stop-opacity: 0.8" />
+          </linearGradient>
+          <radialGradient id="chrome-control-pulse-gradient" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" style="stop-color: ${this.glowColor}; stop-opacity: 1" />
+            <stop offset="100%" style="stop-color: ${this.glowColor}; stop-opacity: 0" />
+          </radialGradient>
+          <filter id="chrome-control-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        
+        <!-- Outer glow ring -->
+        <circle cx="24" cy="24" r="20" fill="url(#chrome-control-pulse-gradient)" opacity="0.4" />
+        
+        <!-- Middle glow ring -->
+        <circle cx="24" cy="24" r="15" fill="${this.glowColor}" opacity="0.3" />
+        
+        <!-- Outer white border for visibility -->
+        <path d="M10 6 L38 24 L24 26 L18 42 L10 6 Z" fill="white" stroke="white" stroke-width="1" />
+        
+        <!-- Main arrow with gradient -->
+        <path d="M12 8 L36 24 L24 25.5 L19 40 L12 8 Z" 
+              fill="url(#chrome-control-cursor-gradient)" 
+              stroke="white" 
+              stroke-width="2" 
+              stroke-linejoin="round"
+              filter="url(#chrome-control-glow)" />
+        
+        <!-- Inner highlight for 3D effect -->
+        <path d="M14 10 L30 22 L24 23 L20 34 L14 10 Z" 
+              fill="rgba(147, 197, 253, 0.5)" 
+              stroke="none" />
+              
+        <!-- Pulsing animation -->
+        <style>
+          @keyframes pulse-glow {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.7; }
+          }
+          #chrome-control-visual-mouse svg circle:first-child {
+            animation: pulse-glow 2s ease-in-out infinite;
+          }
+        </style>
       </svg>
     `;
     

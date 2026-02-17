@@ -75,23 +75,30 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           command.dy
         );
         
-        // Update visual mouse position (relative movement)
-        const visualUpdateSuccess = await updateVisualMouse(tabIdForMove, {
-          x: command.dx,
-          y: command.dy,
-          action: 'move',
-          relative: true,
-        });
+        // Update visual mouse position using actual screen coordinates
+        let visualUpdateSuccess = false;
+        let visualMessage = '';
         
-        let finalMessage = moveResult.message;
-        if (!visualUpdateSuccess) {
-          finalMessage = `${moveResult.message} (Visual mouse update failed - content script may not be loaded)`;
-          console.log('⚠️ Visual mouse update failed for mouse_move command');
+        if (moveResult.success && moveResult.data?.actualPosition) {
+          const { actualPosition } = moveResult.data;
+          visualUpdateSuccess = await updateVisualMouse(tabIdForMove, {
+            x: actualPosition.x,
+            y: actualPosition.y,
+            action: 'move',
+            relative: false, // Send absolute coordinates
+          });
+          
+          if (!visualUpdateSuccess) {
+            visualMessage = ' (Visual mouse update failed - content script may not be loaded)';
+            console.log('⚠️ Visual mouse update failed for mouse_move command');
+          }
+        } else {
+          console.warn('Cannot update visual mouse: moveResult missing actualPosition', moveResult);
         }
         
         return {
           success: true,
-          message: finalMessage,
+          message: moveResult.message + visualMessage,
           data: {
             ...moveResult.data,
             visualUpdateSuccess,
@@ -198,13 +205,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         const tabIdForReset = command.tab_id || await getCurrentTabId();
         const resetResult = await computer.resetMousePosition(tabIdForReset);
         
-        // Update visual mouse to center
-        await updateVisualMouse(tabIdForReset, {
-          x: 960,  // Default center X
-          y: 540,  // Default center Y
-          action: 'move',
-          relative: false,
-        });
+        // Update visual mouse to actual screen center
+        if (resetResult.success && resetResult.data?.actualPosition) {
+          const { actualPosition } = resetResult.data;
+          await updateVisualMouse(tabIdForReset, {
+            x: actualPosition.x,
+            y: actualPosition.y,
+            action: 'move',
+            relative: false,
+          });
+        } else {
+          console.warn('Cannot update visual mouse for reset: missing actualPosition', resetResult);
+        }
         
         return {
           success: true,
