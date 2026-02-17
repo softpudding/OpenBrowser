@@ -169,12 +169,18 @@ npm run typecheck            # TypeScript type checking
   - Command routing to appropriate handlers
   - Response sending back to server
   - Extension lifecycle management
-  - Visual mouse pointer coordination and cleanup
+  - Visual mouse pointer coordination and single-tab display management
 - **Key Functions**:
+  - `handleCommand()`: Main command dispatcher for all automation operations
   - `cleanupVisualMouseInAllTabs()`: Destroys visual mouse pointers in all tabs on disconnect
-  - `updateVisualMouse()`: Sends mouse position/action updates to content scripts
+  - `cleanupVisualMouseInTab()`: Destroys visual mouse pointer in a specific tab
+  - `updateVisualMouse()`: Sends mouse position/action updates to content scripts with tab switching logic
   - `getViewportInfo()`: Retrieves viewport dimensions from content script
   - `injectContentScriptManually()`: Manually injects content script into tabs when needed
+- **State Management**:
+  - `currentActiveTabId`: Tracks the tab currently displaying visual mouse pointer
+  - Tab switching automatically cleans up previous tab's visual mouse
+  - Automatic cleanup on WebSocket disconnect and tab closure
 
 #### `extension/src/content/index.ts`
 - **Purpose**: Content script running in web pages
@@ -371,17 +377,25 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Look for "Current iframe has invalid dimensions, trying parent window" messages
   - Verify main frame content script injection (check webpage console)
 
-#### 11. Visual Mouse Pointer Remains After Extension Disconnect
-- **Cause**: No cleanup mechanism for visual mouse pointers when WebSocket disconnects
-- **Symptoms**: Mouse pointer overlay stays visible on pages after server stops or extension disconnects
+#### 11. Visual Mouse Pointer Remains After Extension Disconnect or Shows on All Tabs
+- **Cause**: 
+  1. No cleanup mechanism for visual mouse pointers when WebSocket disconnects
+  2. Mouse pointers showing on all tabs instead of just the currently active tab
+- **Symptoms**: 
+  - Mouse pointer overlay stays visible on pages after server stops or extension disconnects
+  - Blue cursor appears on multiple tabs simultaneously
+  - Switching tabs leaves mouse pointer on previous tab
 - **Fix**:
-  - Added WebSocket disconnect event handling in `WebSocketClient`
-  - Implemented `cleanupVisualMouseInAllTabs()` function to destroy pointers in all tabs
-  - Automatic cleanup triggered on WebSocket disconnect
+  - **Active tab tracking**: Background script tracks `currentActiveTabId` for visual mouse display
+  - **Tab switching cleanup**: `updateVisualMouse()` cleans up previous tab's pointer when switching tabs
+  - **Targeted cleanup**: `cleanupVisualMouseInTab()` function for single tab cleanup
+  - **Disconnect handling**: WebSocket disconnect triggers full cleanup and resets `currentActiveTabId`
+  - **Tab close handling**: `chrome.tabs.onRemoved` listener resets active tab when tab closes
 - **Debug**:
-  - Check extension background logs for "Cleaning up visual mouse pointers in all tabs"
-  - Verify `visual_mouse_destroy` messages are sent to all tabs
-  - Monitor page console for visual mouse cleanup
+  - Check extension background logs for "Switching from tab X to tab Y, cleaning up old visual mouse"
+  - Look for "Current active tab set to: X" messages
+  - Monitor "Cleaning up visual mouse pointers in all tabs" on disconnect
+  - Verify `visual_mouse_destroy` messages are sent to tabs
 
 #### 12. Type Command Shows Success But No Text Appears
 - **Cause**: CDP key events not properly configured for text input, especially for non-ASCII characters
