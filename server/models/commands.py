@@ -22,6 +22,7 @@ class TabAction(str, Enum):
     CLOSE = "close"
     LIST = "list"
     SWITCH = "switch"
+    INIT = "init"
 
 
 class BaseCommand(BaseModel):
@@ -136,9 +137,10 @@ class TabCommand(BaseCommand):
     
     @validator('url')
     def validate_url(cls, v, values):
-        if values.get('action') == TabAction.OPEN:
+        action = values.get('action')
+        if action in [TabAction.OPEN, TabAction.INIT]:
             if not v:
-                raise ValueError("URL is required for open action")
+                raise ValueError(f"URL is required for {action} action")
             # Ensure URL has protocol
             if not re.match(r'^https?://', v):
                 v = f'https://{v}'
