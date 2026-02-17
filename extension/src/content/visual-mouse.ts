@@ -374,14 +374,32 @@ export class VisualMousePointer {
     pointerX: number;
     pointerY: number;
   } {
-    const width = window.innerWidth || document.documentElement.clientWidth || screen.width;
-    const height = window.innerHeight || document.documentElement.clientHeight || screen.availHeight;
+    // 优先使用window.innerWidth/Height，这是浏览器窗口的内部尺寸
+    // 如果window尺寸为0（页面加载中），则使用document尺寸
+    // 避免使用screen尺寸，因为它不是浏览器窗口尺寸
+    let width = window.innerWidth;
+    let height = window.innerHeight;
     
-    console.log(`🖥️ [VisualMouse] getViewportInfo called: window=${window.innerWidth}x${window.innerHeight}, document=${document.documentElement.clientWidth}x${document.documentElement.clientHeight}, screen=${screen.width}x${screen.availHeight}, returning=${width}x${height}`);
+    // 如果window尺寸为0，页面可能还在加载中，尝试document尺寸
+    if (width <= 0 || height <= 0) {
+      width = document.documentElement.clientWidth;
+      height = document.documentElement.clientHeight;
+      console.warn(`🖥️ [VisualMouse] Window dimensions are 0, using document dimensions: ${width}x${height}`);
+    }
+    
+    // 如果document尺寸也是0，页面可能还未渲染，等待一下再重试
+    if (width <= 0 || height <= 0) {
+      console.warn(`🖥️ [VisualMouse] Both window and document dimensions are 0. Page may still be loading.`);
+      // 返回较小的默认值而不是屏幕尺寸，避免坐标映射错误
+      width = 800;
+      height = 600;
+    }
+    
+    console.log(`🖥️ [VisualMouse] getViewportInfo: window=${window.innerWidth}x${window.innerHeight}, document=${document.documentElement.clientWidth}x${document.documentElement.clientHeight}, returning=${width}x${height}`);
     
     return {
-      width: width,
-      height: height,
+      width: Math.max(1, width),  // 确保至少为1，避免除以0
+      height: Math.max(1, height),
       devicePixelRatio: window.devicePixelRatio || 1,
       pointerX: this.currentX,
       pointerY: this.currentY,
