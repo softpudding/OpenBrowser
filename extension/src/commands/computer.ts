@@ -373,11 +373,19 @@ async function resetMousePosition(
   // Reset to center of preset coordinate system (0,0)
   mousePositions.set(tabId, { x: PRESET_CENTER_X, y: PRESET_CENTER_Y });
   
+  // Clear cached viewport size to force fresh retrieval from content script
+  // This ensures we get the correct viewport size after window resize (e.g., exiting fullscreen)
+  viewportSizes.delete(tabId);
+  
   // Get actual viewport size for coordinate mapping and CDP movement
   const viewport = await getViewportSize(tabId);
   const { actualX, actualY } = presetToActualCoords(PRESET_CENTER_X, PRESET_CENTER_Y, viewport);
   
-  console.log(`Mouse reset: preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) viewport(${viewport.width}x${viewport.height})`);
+  // Round coordinates to nearest integer for CDP
+  const roundedX = Math.round(actualX);
+  const roundedY = Math.round(actualY);
+  
+  console.log(`Mouse reset: preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) rounded(${roundedX}, ${roundedY}) viewport(${viewport.width}x${viewport.height})`);
   
   const attached = await debuggerManager.safeAttachDebugger(tabId);
   if (!attached) {
@@ -401,15 +409,15 @@ async function resetMousePosition(
     // Move mouse to actual screen center position
     await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
-      x: actualX,
-      y: actualY,
+      x: roundedX,
+      y: roundedY,
     });
 
-    console.log(`🖱️ [Computer] Mouse reset to actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) preset(0, 0)`);
+    console.log(`🖱️ [Computer] Mouse reset to actual(${roundedX}, ${roundedY}) preset(0, 0)`);
     
     return {
       success: true,
-      message: `Mouse reset to preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) [viewport: ${viewport.width}x${viewport.height}]`,
+      message: `Mouse reset to preset(0, 0) -> actual(${roundedX}, ${roundedY}) [viewport: ${viewport.width}x${viewport.height}]`,
       data: {
         presetPosition: { x: PRESET_CENTER_X, y: PRESET_CENTER_Y },
         actualPosition: { x: actualX, y: actualY },
