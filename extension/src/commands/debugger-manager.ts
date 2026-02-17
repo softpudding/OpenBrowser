@@ -125,6 +125,20 @@ export class DebuggerManager {
           } else {
             this.debuggerAttachedTabs.add(tabId);
             console.log('✅ [DEBUG] Debugger attached successfully');
+            
+            // After attaching debugger, we can try to ensure page is responsive
+            // by sending a simple command to check if page is ready
+            setTimeout(() => {
+              // Try to get page info to verify debugger is working
+              chrome.debugger.sendCommand({ tabId }, 'Page.getLayoutMetrics', {}, () => {
+                if (chrome.runtime.lastError) {
+                  console.warn('⚠️ [DEBUG] Page may not be fully responsive:', chrome.runtime.lastError.message);
+                } else {
+                  console.log('✅ [DEBUG] Page is responsive');
+                }
+              });
+            }, 100);
+            
             resolve(true);
           }
         });

@@ -71,6 +71,53 @@ wsClient.onMessage(async (data) => {
 });
 
 /**
+ * Activate a tab to ensure it's visible and responsive for automation
+ * Chrome may throttle or pause background tabs, so we need to ensure
+ * the tab is fully activated and ready for automation
+ */
+async function activateTabForAutomation(tabId: number): Promise<void> {
+  console.log(`🔧 Activating tab ${tabId} for automation...`);
+  
+  try {
+    // Get tab info to get window ID
+    const tab = await chrome.tabs.get(tabId);
+    
+    // Check if tab is already active and window is focused
+    if (tab.active) {
+      // Tab is already active, check if window is focused
+      const window = await chrome.windows.get(tab.windowId);
+      if (window.focused) {
+        console.log(`✅ Tab ${tabId} is already active and window is focused`);
+        return; // Already fully active
+      }
+    }
+    
+    // First, activate the window (bring to front)
+    if (tab.windowId) {
+      await chrome.windows.update(tab.windowId, { focused: true });
+      console.log(`✅ Window ${tab.windowId} focused`);
+    }
+    
+    // Then, activate the tab within the window
+    await chrome.tabs.update(tabId, { active: true });
+    console.log(`✅ Tab ${tabId} activated`);
+    
+    // Wait for tab to fully activate and render
+    // Chrome needs time to resume rendering and JavaScript execution
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Additional check: ensure tab is now active
+    const updatedTab = await chrome.tabs.get(tabId);
+    if (!updatedTab.active) {
+      console.warn(`⚠️ Tab ${tabId} may not be fully activated after update`);
+    }
+  } catch (error) {
+    console.error(`⚠️ Failed to fully activate tab ${tabId}:`, error);
+    // Continue anyway - the command might still work
+  }
+}
+
+/**
  * Handle incoming commands
  */
 async function handleCommand(command: Command): Promise<CommandResponse> {
@@ -80,6 +127,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
     switch (command.type) {
       case 'mouse_move':
         const tabIdForMove = command.tab_id || await getCurrentTabId();
+        // Activate tab to ensure it's responsive for automation
+        await activateTabForAutomation(tabIdForMove);
         const moveResult = await computer.performMouseMove(
           tabIdForMove,
           command.dx,
@@ -119,6 +168,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'mouse_click':
         const tabIdForClick = command.tab_id || await getCurrentTabId();
+        // Activate tab to ensure it's responsive for automation
+        await activateTabForAutomation(tabIdForClick);
         const clickResult = await computer.performClick(
           tabIdForClick,
           0, 0, // Coordinates - will need to be provided or tracked
@@ -142,6 +193,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'mouse_scroll':
         const tabIdForScroll = command.tab_id || await getCurrentTabId();
+        // Activate tab to ensure it's responsive for automation
+        await activateTabForAutomation(tabIdForScroll);
         const scrollResult = await computer.performScroll(
           tabIdForScroll,
           0, 0, // Coordinates - will need to be provided
@@ -165,6 +218,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'keyboard_type':
         const tabIdForType = command.tab_id || await getCurrentTabId();
+        // Activate tab to ensure it's responsive for automation
+        await activateTabForAutomation(tabIdForType);
         const typeResult = await computer.performType(
           tabIdForType,
           command.text
@@ -183,6 +238,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'keyboard_press':
         const tabIdForKeyPress = command.tab_id || await getCurrentTabId();
+        // Activate tab to ensure it's responsive for automation
+        await activateTabForAutomation(tabIdForKeyPress);
         const keyResult = await computer.performKeyPress(
           tabIdForKeyPress,
           command.key,
@@ -200,8 +257,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         };
 
       case 'screenshot':
+        const tabIdForScreenshot = command.tab_id || await getCurrentTabId();
+        // Activate tab to ensure it's responsive for automation
+        await activateTabForAutomation(tabIdForScreenshot);
         const screenshotResult = await captureScreenshot(
-          command.tab_id,
+          tabIdForScreenshot,
           command.include_cursor !== false,
           command.quality || 90
         );
@@ -214,6 +274,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'reset_mouse':
         const tabIdForReset = command.tab_id || await getCurrentTabId();
+        // Activate tab to ensure it's responsive for automation
+        await activateTabForAutomation(tabIdForReset);
         const resetResult = await computer.resetMousePosition(tabIdForReset);
         
         // Update visual mouse to actual screen center
@@ -266,6 +328,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             if (!command.tab_id) {
               throw new Error('tab_id is required for switch action');
             }
+            // Activate tab (including window focus) for automation
+            await activateTabForAutomation(command.tab_id);
             const switchResult = await tabs.switchToTab(command.tab_id);
             return {
               success: true,

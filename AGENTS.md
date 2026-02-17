@@ -412,6 +412,34 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Ensure debugger is attached (should show "Debugger attached successfully")
   - Test with simple ASCII text first (e.g., "hello") to isolate character encoding issues
 
+#### 13. Commands Hang Until Switching to Chrome Tab (Background Tab Responsiveness)
+- **Cause**: Chrome throttles or pauses JavaScript execution and rendering in background tabs to save resources
+- **Symptoms**: 
+  - CLI commands hang indefinitely or timeout when Chrome tab is not active/focused
+  - Commands complete instantly when switching to the Chrome tab
+  - Particularly affects `reset_mouse`, `mouse_move`, `keyboard_type` and other automation commands
+- **Technical Background**:
+  - Chrome's Page Lifecycle API: Background tabs may enter "frozen" or "discarded" states
+  - JavaScript timers and requestAnimationFrame are throttled in background tabs
+  - Some CDP commands may wait for page to become responsive
+- **Fix**:
+  - **Automatic tab activation**: `activateTabForAutomation()` ensures tab is brought to foreground before commands
+  - **Enhanced activation logic**: Checks if tab/window is already active to avoid unnecessary switching
+  - **CDP command retries**: Added retry mechanism with exponential backoff for timeout errors
+  - **Page responsiveness checks**: `Page.getLayoutMetrics` call to verify page is ready
+  - **Increased timeout**: Default CDP timeout increased from 10s to 15s for background tabs
+  - **Debugger state verification**: Additional checks after debugger attachment
+- **Debug**:
+  - Check logs for "🔧 Activating tab X for automation..."
+  - Look for "✅ Tab X is already active and window is focused" or "✅ Window X focused"
+  - Monitor CDP retry logs: "🔧 [CDP] Sending command '...' (attempt X/Y)"
+  - Check for "🔍 [Computer] Ensuring page is responsive for tab X..."
+  - Look for timeout or background tab related error messages
+- **Advanced Configuration** (if needed):
+  - Chrome flags: `--disable-background-timer-throttling`, `--disable-renderer-backgrounding`
+  - Experimental: Enable "Background tab throttling protection" in chrome://flags
+  - Note: These flags affect Chrome globally and may impact performance/battery life
+
 ### Debug Logging
 
 ```bash

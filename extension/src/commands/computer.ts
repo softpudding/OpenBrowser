@@ -479,6 +479,20 @@ async function resetMousePosition(
   const cdpCommander = new CdpCommander(tabId);
 
   try {
+    // Before moving mouse, ensure page is responsive by checking if we can send a simple command
+    console.log(`🔍 [Computer] Ensuring page is responsive for tab ${tabId}...`);
+    try {
+      // Try to get page metrics to check responsiveness
+      await cdpCommander.sendCommand('Page.getLayoutMetrics', {}, 5000, 1);
+      console.log(`✅ [Computer] Page is responsive`);
+    } catch (pageCheckError) {
+      console.warn(`⚠️ [Computer] Page responsiveness check failed:`, pageCheckError);
+      console.log(`ℹ️ [Computer] This may be a background tab, continuing with mouse reset anyway...`);
+    }
+    
+    // Add a small delay to ensure any pending operations are complete
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     // Move mouse to actual screen center position
     await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
