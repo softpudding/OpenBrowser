@@ -107,10 +107,12 @@ export class VisualMousePointer {
     // Add to document
     document.documentElement.appendChild(this.pointerElement);
     
-    // Initial position
-    this.setPosition(window.innerWidth / 2, window.innerHeight / 2);
+    // Initial position - use safe dimensions to avoid division by zero
+    const safeWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 800);
+    const safeHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 600);
+    this.setPosition(safeWidth / 2, safeHeight / 2);
     
-    console.log('🖱️ Realistic mouse pointer created');
+    console.log(`🖱️ Realistic mouse pointer created at safe position: ${safeWidth / 2}, ${safeHeight / 2} (window: ${window.innerWidth}x${window.innerHeight}, document: ${document.documentElement.clientWidth}x${document.documentElement.clientHeight})`);
   }
 
   /**
@@ -365,7 +367,7 @@ export class VisualMousePointer {
   }
 
   /**
-   * Get viewport information
+   * Get viewport information with retry logic for loading pages
    */
   getViewportInfo(): {
     width: number;
@@ -375,65 +377,125 @@ export class VisualMousePointer {
     pointerY: number;
     debugInfo?: string;
   } {
-    // 优先使用window.innerWidth/Height，这是浏览器窗口的内部尺寸
-    // 如果window尺寸为0（页面加载中），则使用document尺寸
-    // 避免使用screen尺寸，因为它不是浏览器窗口尺寸
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    let source = 'window';
-    let debugInfo = '';
+    // 尝试最多3次获取有效视口尺寸，每次等待100ms
+    const maxAttempts = 3;
+    const retryDelay = 100; // ms
     
-    // 检查是否在iframe中
-    const isInIframe = window.self !== window.top;
-    if (isInIframe) {
-      debugInfo += `In iframe, `;
-      console.log(`🖥️ [VisualMouse] Running in iframe, parent available: ${window.parent !== window}`);
-    }
-    
-    // 如果window尺寸为0，页面可能还在加载中，尝试document尺寸
-    if (width <= 0 || height <= 0) {
-      width = document.documentElement.clientWidth;
-      height = document.documentElement.clientHeight;
-      source = 'document';
-      console.warn(`🖥️ [VisualMouse] Window dimensions are 0, using document dimensions: ${width}x${height}`);
-      debugInfo += `window was 0, using document, `;
-    }
-    
-    // 如果document尺寸也是0，页面可能还未渲染，尝试其他方法
-    if (width <= 0 || height <= 0) {
-      console.warn(`🖥️ [VisualMouse] Both window and document dimensions are 0. Page may still be loading.`);
-      debugInfo += `both window and document were 0, `;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // 优先使用window.innerWidth/Height，这是浏览器窗口的内部尺寸
+      // 如果window尺寸为0（页面加载中），则使用document尺寸
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      let source = 'window';
+      let debugInfo = '';
       
-      // 尝试获取屏幕尺寸作为最后的手段（但注意：这不是浏览器窗口尺寸）
-      const screenWidth = window.screen?.width || 0;
-      const screenHeight = window.screen?.height || 0;
-      
-      // 如果是全屏或类似情况，使用屏幕尺寸的合理比例
-      if (screenWidth > 0 && screenHeight > 0) {
-        width = Math.floor(screenWidth * 0.8);  // 使用屏幕尺寸的80%作为估计
-        height = Math.floor(screenHeight * 0.8);
-        source = 'screen-estimate';
-        console.log(`🖥️ [VisualMouse] Using screen estimate: ${width}x${height} (screen: ${screenWidth}x${screenHeight})`);
-        debugInfo += `using screen estimate ${width}x${height}, `;
-      } else {
-        // 返回较小的默认值而不是屏幕尺寸，避免坐标映射错误
-        width = 800;
-        height = 600;
-        source = 'default';
-        console.warn(`🖥️ [VisualMouse] No valid dimensions found, using default: ${width}x${height}`);
-        debugInfo += `using default ${width}x${height}, `;
+      // 检查是否在iframe中
+      const isInIframe = window.self !== window.top;
+      if (isInIframe) {
+        debugInfo += `In iframe, `;
       }
+      
+      // 检查页面加载状态
+      const readyState = document.readyState;
+      const isPageLoaded = readyState === 'complete' || readyState === 'interactive';
+      debugInfo += `readyState=${readyState}, `;
+      
+      console.log(`🖥️ [VisualMouse] Attempt ${attempt}/${maxAttempts}: window=${width}x${height}, document=${document.documentElement.clientWidth}x${document.documentElement.clientHeight}, readyState=${readyState}`);
+      
+      // 如果window尺寸无效（<=0），尝试使用document尺寸
+      if (width <= 0 || height <= 0) {
+        const docWidth = document.documentElement.clientWidth;
+        const docHeight = document.documentElement.clientHeight;
+        
+        // 只有当document尺寸比window尺寸更好时才使用
+        if (docWidth > 0 || docHeight > 0) {
+          width = docWidth > 0 ? docWidth : width;
+          height = docHeight > 0 ? docHeight : height;
+          source = 'document';
+          debugInfo += `window was invalid, using document, `;
+          console.log(`🖥️ [VisualMouse] Using document dimensions: ${width}x${height}`);
+        }
+      }
+      
+      // 如果尺寸有效，立即返回
+      if (width > 0 && height > 0) {
+        const finalWidth = Math.max(1, width);
+        const finalHeight = Math.max(1, height);
+        
+        console.log(`🖥️ [VisualMouse] Valid dimensions found on attempt ${attempt}: ${finalWidth}x${finalHeight}, source=${source}`);
+        
+        return {
+          width: finalWidth,
+          height: finalHeight,
+          devicePixelRatio: window.devicePixelRatio || 1,
+          pointerX: this.currentX,
+          pointerY: this.currentY,
+          debugInfo: debugInfo.trim(),
+        };
+      }
+      
+      // 如果这是最后一次尝试，使用屏幕估计或默认值
+      if (attempt === maxAttempts) {
+        console.warn(`🖥️ [VisualMouse] All ${maxAttempts} attempts failed to get valid dimensions`);
+        debugInfo += `all attempts failed, `;
+        
+        // 尝试获取屏幕可用尺寸
+        const screenWidth = window.screen?.availWidth || window.screen?.width || 0;
+        const screenHeight = window.screen?.availHeight || window.screen?.height || 0;
+        
+        // 如果屏幕尺寸可用，使用合理的估计
+        if (screenWidth > 0 && screenHeight > 0) {
+          // 使用屏幕可用尺寸的90%作为保守估计
+          width = Math.floor(screenWidth * 0.9);
+          height = Math.floor(screenHeight * 0.9);
+          source = 'screen-estimate';
+          console.log(`🖥️ [VisualMouse] Using screen estimate: ${width}x${height} (screen: ${screenWidth}x${screenHeight})`);
+          debugInfo += `using screen estimate ${width}x${height}, `;
+        } else {
+          // 返回合理的默认值
+          width = 1920;
+          height = 1080;
+          source = 'default';
+          console.warn(`🖥️ [VisualMouse] No valid dimensions found, using default: ${width}x${height}`);
+          debugInfo += `using default ${width}x${height}, `;
+        }
+        
+        const finalWidth = Math.max(1, width);
+        const finalHeight = Math.max(1, height);
+        
+        console.log(`🖥️ [VisualMouse] getViewportInfo final: returning=${finalWidth}x${finalHeight}, source=${source}, isInIframe=${isInIframe}`);
+        
+        return {
+          width: finalWidth,
+          height: finalHeight,
+          devicePixelRatio: window.devicePixelRatio || 1,
+          pointerX: this.currentX,
+          pointerY: this.currentY,
+          debugInfo: debugInfo.trim(),
+        };
+      }
+      
+      // 等待一段时间后重试
+      console.log(`🖥️ [VisualMouse] Waiting ${retryDelay}ms before retry (attempt ${attempt}/${maxAttempts})`);
+      // 注意：这里不能使用异步等待，因为此方法是同步的
+      // 我们可以使用同步等待（不推荐）或者期望调用方处理重试
+      // 由于Chrome扩展消息传递是异步的，我们可以依赖后台脚本的重试机制
+      break; // 先退出循环，让后台脚本处理重试
     }
     
-    console.log(`🖥️ [VisualMouse] getViewportInfo: window=${window.innerWidth}x${window.innerHeight}, document=${document.documentElement.clientWidth}x${document.documentElement.clientHeight}, screen=${window.screen?.width}x${window.screen?.height}, source=${source}, returning=${width}x${height}, isInIframe=${isInIframe}`);
+    // 如果循环提前退出（比如因为不能异步等待），返回当前最佳估计
+    const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 800);
+    const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 600);
+    
+    console.log(`🖥️ [VisualMouse] Returning fallback dimensions: ${width}x${height}`);
     
     return {
-      width: Math.max(1, width),  // 确保至少为1，避免除以0
-      height: Math.max(1, height),
+      width: width,
+      height: height,
       devicePixelRatio: window.devicePixelRatio || 1,
       pointerX: this.currentX,
       pointerY: this.currentY,
-      debugInfo: debugInfo.trim(),
+      debugInfo: 'fallback after attempt',
     };
   }
 

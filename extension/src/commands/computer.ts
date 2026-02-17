@@ -55,10 +55,48 @@ const viewportSizes = new Map<number, {width: number, height: number}>();
  * Get viewport size from content script
  */
 async function getViewportSize(tabId: number): Promise<{width: number, height: number}> {
-  // Try up to 2 times to get fresh viewport info from content script
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  // Try up to 5 times to get fresh viewport info from content script
+  // This helps with pages that are still loading or have dynamic content
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    // Calculate wait time for this attempt (exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms)
+    const waitTime = attempt === 1 ? 0 : 100 * Math.pow(2, attempt - 2);
+    
+    if (waitTime > 0) {
+      console.log(`⏱️ [Computer] Waiting ${waitTime}ms before attempt ${attempt}/5`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    // On first attempt failure, try to inject content script
+    if (attempt === 2) { // 在第一次失败后的第二次尝试前注入
+      console.log(`🔄 [Computer] Attempting to inject content script into tab ${tabId}`);
+      try {
+        // Check if we have scripting permission
+        if (chrome.scripting) {
+          const tab = await chrome.tabs.get(tabId);
+          const url = tab.url || '';
+          
+          if (!url.startsWith('chrome://') && !url.startsWith('chrome-extension://')) {
+            await chrome.scripting.executeScript({
+              target: { tabId },
+              files: ['content.js'],
+            });
+            console.log(`✅ [Computer] Content script injected into tab ${tabId}`);
+            
+            // Wait for script to initialize
+            await new Promise(resolve => setTimeout(resolve, 300));
+          } else {
+            console.warn(`⚠️ [Computer] Cannot inject content script into restricted URL: ${url}`);
+          }
+        } else {
+          console.error(`❌ [Computer] chrome.scripting API not available`);
+        }
+      } catch (injectError) {
+        console.error(`❌ [Computer] Failed to inject content script into tab ${tabId}:`, injectError);
+      }
+    }
+    
     try {
-      console.log(`🖥️ [Computer] Attempt ${attempt}/2 to get fresh viewport size for tab ${tabId}`);
+      console.log(`🖥️ [Computer] Attempt ${attempt}/5 to get fresh viewport size for tab ${tabId}`);
       const response = await chrome.tabs.sendMessage(tabId, {
         type: 'get_viewport'
       });
@@ -69,18 +107,31 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
         const { width, height } = response.data;
         console.log(`🖥️ [Computer] Raw viewport data from content script: width=${width}, height=${height}`);
         
-        // Validate the received dimensions
+        // Validate and correct the received dimensions
         let validatedWidth = width;
         let validatedHeight = height;
+        let correctionInfo = '';
         
-        if (typeof width !== 'number' || width <= 0 || !isFinite(width)) {
-          console.warn(`🖥️ [Computer] Invalid width received: ${width}, using default`);
-          validatedWidth = 1920;
-        }
+        const isWidthValid = typeof width === 'number' && width > 0 && isFinite(width);
+        const isHeightValid = typeof height === 'number' && height > 0 && isFinite(height);
         
-        if (typeof height !== 'number' || height <= 0 || !isFinite(height)) {
-          console.warn(`🖥️ [Computer] Invalid height received: ${height}, using default`);
-          validatedHeight = 1080;
+        if (isWidthValid && isHeightValid) {
+          // Both dimensions are valid
+          correctionInfo = 'both valid';
+        } else if (isWidthValid && !isHeightValid) {
+          // Width valid but height invalid - estimate height based on 16:9 aspect ratio
+          validatedHeight = Math.round(validatedWidth * 9 / 16);
+          correctionInfo = `height estimated from width (${width} -> ${validatedHeight})`;
+          console.warn(`🖥️ [Computer] Invalid height received: ${height}, estimating from width ${width} to ${validatedHeight} (16:9 ratio)`);
+        } else if (!isWidthValid && isHeightValid) {
+          // Height valid but width invalid - estimate width based on 16:9 aspect ratio
+          validatedWidth = Math.round(validatedHeight * 16 / 9);
+          correctionInfo = `width estimated from height (${height} -> ${validatedWidth})`;
+          console.warn(`🖥️ [Computer] Invalid width received: ${width}, estimating from height ${height} to ${validatedWidth} (16:9 ratio)`);
+        } else {
+          // Both dimensions invalid - continue to next attempt
+          console.warn(`🖥️ [Computer] Both dimensions invalid: width=${width}, height=${height}, will retry`);
+          continue; // Try again
         }
         
         const size = { width: validatedWidth, height: validatedHeight };
@@ -89,47 +140,15 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
         return size;
       } else {
         console.warn(`🖥️ [Computer] Invalid response from content script for tab ${tabId} on attempt ${attempt}:`, response);
+        // Continue to next attempt
+        continue;
       }
     } catch (error) {
       console.error(`🖥️ [Computer] Failed to get fresh viewport size for tab ${tabId} on attempt ${attempt}:`, error);
       console.error(`🖥️ [Computer] Error details:`, error instanceof Error ? error.message : 'Unknown error');
-      
-      // On first attempt failure, try to inject content script
-      if (attempt === 1) {
-        console.log(`🔄 [Computer] Attempting to inject content script into tab ${tabId}`);
-        try {
-          // Check if we have scripting permission
-          if (chrome.scripting) {
-            const tab = await chrome.tabs.get(tabId);
-            const url = tab.url || '';
-            
-            if (!url.startsWith('chrome://') && !url.startsWith('chrome-extension://')) {
-              await chrome.scripting.executeScript({
-                target: { tabId },
-                files: ['content.js'],
-              });
-              console.log(`✅ [Computer] Content script injected into tab ${tabId}`);
-              
-              // Wait for script to initialize
-              await new Promise(resolve => setTimeout(resolve, 300));
-            } else {
-              console.warn(`⚠️ [Computer] Cannot inject content script into restricted URL: ${url}`);
-            }
-          } else {
-            console.error(`❌ [Computer] chrome.scripting API not available`);
-          }
-        } catch (injectError) {
-          console.error(`❌ [Computer] Failed to inject content script into tab ${tabId}:`, injectError);
-        }
-        
-        // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, 300));
-        continue; // Try again
-      }
+      // Continue to next attempt
+      continue;
     }
-    
-    // If we get here, the attempt failed but we're not retrying anymore
-    break;
   }
   
   // Fallback to cached value if available
