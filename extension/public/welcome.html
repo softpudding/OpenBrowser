@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Chrome Control - Welcome</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .logo {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #4285f4;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .connected {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        .disconnected {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        h2 {
+            color: #4285f4;
+            margin-top: 0;
+        }
+        code {
+            background-color: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">🖥️ Local Chrome Control</div>
+        <p>Chrome extension for browser automation via Local Chrome Server</p>
+    </div>
+
+    <div id="status" class="status disconnected">
+        🔴 Disconnected from Local Chrome Server
+    </div>
+    
+    <div id="connection-details" style="display: none; margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+        <h3 style="margin-top: 0; color: #666;">Connection Details</h3>
+        <div id="http-status">Checking HTTP server...</div>
+        <div id="ws-status">Checking WebSocket server...</div>
+        <div id="extension-status">Checking extension status...</div>
+    </div>
+
+    <div class="section">
+        <h2>Getting Started</h2>
+        <ol>
+            <li>Make sure the <strong>Local Chrome Server</strong> is running:
+                <code>local-chrome-server serve</code>
+            </li>
+            <li>The extension will automatically connect to the server</li>
+            <li>Use the CLI or REST API to control the browser:
+                <code>chrome-cli --help</code>
+            </li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>Available Commands</h2>
+        <ul>
+            <li><strong>Mouse Control:</strong> Move, click, scroll</li>
+            <li><strong>Keyboard Input:</strong> Type text, press keys</li>
+            <li><strong>Screenshots:</strong> Capture with mouse cursor</li>
+            <li><strong>Tab Management:</strong> Open, close, switch tabs</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>API Endpoints</h2>
+        <p>Server runs at: <code>http://127.0.0.1:8765</code></p>
+        <ul>
+            <li><code>POST /command</code> - Execute any command</li>
+            <li><code>POST /mouse/move</code> - Move mouse</li>
+            <li><code>POST /keyboard/type</code> - Type text</li>
+            <li><code>POST /screenshot</code> - Capture screenshot</li>
+            <li><code>GET /tabs</code> - List all tabs</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Troubleshooting</h2>
+        <ul>
+            <li>Check if server is running: <code>chrome-cli status</code></li>
+            <li>Verify extension is enabled in Chrome extensions page</li>
+            <li>Check browser console for errors (F12 → Console)</li>
+            <li>Restart server and refresh extension if needed</li>
+        </ul>
+    </div>
+
+    <script>
+        // Check connection status
+        function checkConnection() {
+            fetch('http://127.0.0.1:8765/health')
+                .then(response => {
+                    const statusEl = document.getElementById('status');
+                    if (response.ok) {
+                        statusEl.className = 'status connected';
+                        statusEl.innerHTML = '✅ Connected to Local Chrome Server';
+                    } else {
+                        statusEl.className = 'status disconnected';
+                        statusEl.innerHTML = '🔴 Disconnected from Local Chrome Server';
+                    }
+                })
+                .catch(() => {
+                    const statusEl = document.getElementById('status');
+                    statusEl.className = 'status disconnected';
+                    statusEl.innerHTML = '🔴 Disconnected from Local Chrome Server';
+                });
+        }
+
+        // Check connection every 5 seconds
+        checkConnection();
+        setInterval(checkConnection, 5000);
+    </script>
+</body>
+</html>

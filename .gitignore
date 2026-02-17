@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Server
+*.log
+screenshots/
+chrome_server.log
+
+# Node/Extension
+node_modules/
+dist/
+*.tgz
+.npm
+.yarn-integrity
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Test outputs
+.coverage
+htmlcov/
+.pytest_cache/
+test_results/
+
+# Reference directory (external reference material)
+reference/
