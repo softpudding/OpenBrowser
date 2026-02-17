@@ -242,7 +242,7 @@ async function performClick(
     mousePositions.set(tabId, { x: targetX, y: targetY });
   }
 
-  // Try to use screenshot metadata if available, otherwise use raw coordinates
+  // Try to use screenshot metadata if available, otherwise convert preset coordinates to actual coordinates
   let xCss = targetX;
   let yCss = targetY;
   const metadata = screenshotCache.get(tabId);
@@ -256,8 +256,13 @@ async function performClick(
       `🖱️ [Computer] ${button}_click at screenshot (${targetX},${targetY}) -> CSS (${xCss},${yCss})`,
     );
   } else {
+    // No screenshot metadata, convert preset coordinates to actual screen coordinates
+    const viewport = await getViewportSize(tabId);
+    const { actualX, actualY } = presetToActualCoords(targetX, targetY, viewport);
+    xCss = actualX;
+    yCss = actualY;
     console.log(
-      `🖱️ [Computer] ${button}_click at (${xCss},${yCss}) (no screenshot metadata)`,
+      `🖱️ [Computer] ${button}_click at preset (${targetX},${targetY}) -> actual (${xCss},${yCss}) viewport(${viewport.width}x${viewport.height})`,
     );
   }
 
@@ -271,46 +276,64 @@ async function performClick(
 
   try {
     // First, move mouse to the target position (hover) before clicking
-    await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
-      type: 'mouseMoved',
-      x: xCss,
-      y: yCss,
-    });
+    console.log(`🖱️ [Computer] Moving mouse to (${xCss}, ${yCss}) before click`);
+    try {
+      await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: xCss,
+        y: yCss,
+      });
+      console.log(`✅ [Computer] Mouse move command successful`);
+    } catch (moveError) {
+      console.error(`❌ [Computer] Mouse move command failed:`, moveError);
+      throw moveError;
+    }
 
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Perform click sequence
     for (let i = 0; i < clickCount; i++) {
-      await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
-        type: 'mousePressed',
-        x: xCss,
-        y: yCss,
-        button: buttonType,
-        clickCount: 1,
-      });
+      console.log(`🖱️ [Computer] Sending mousePressed at (${xCss}, ${yCss}) with button: ${buttonType}`);
+      try {
+        await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
+          type: 'mousePressed',
+          x: xCss,
+          y: yCss,
+          button: buttonType,
+          clickCount: 1,
+        });
+        console.log(`✅ [Computer] mousePressed command successful`);
+      } catch (pressError) {
+        console.error(`❌ [Computer] mousePressed command failed:`, pressError);
+        throw pressError;
+      }
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
-        type: 'mouseReleased',
-        x: xCss,
-        y: yCss,
-        button: buttonType,
-        clickCount: 1,
-      });
+      console.log(`🖱️ [Computer] Sending mouseReleased at (${xCss}, ${yCss}) with button: ${buttonType}`);
+      try {
+        await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
+          type: 'mouseReleased',
+          x: xCss,
+          y: yCss,
+          button: buttonType,
+          clickCount: 1,
+        });
+        console.log(`✅ [Computer] mouseReleased command successful`);
+      } catch (releaseError) {
+        console.error(`❌ [Computer] mouseReleased command failed:`, releaseError);
+        throw releaseError;
+      }
 
       if (i < clickCount - 1) {
         await new Promise((resolve) => setTimeout(resolve, 80));
       }
     }
 
-    // Update tracked position (in case it changed slightly)
-    mousePositions.set(tabId, { x: xCss, y: yCss });
-
     return {
       success: true,
-      message: `Successfully performed ${button} click at (${xCss}, ${yCss})`,
-      coordinates: { xCss, yCss },
+      message: `Successfully performed ${button} click at preset (${targetX}, ${targetY}) -> actual (${xCss}, ${yCss})`,
+      coordinates: { preset: { x: targetX, y: targetY }, actual: { x: xCss, y: yCss } },
     };
   } finally {
     await debuggerManager.safeDetachDebugger(tabId);
