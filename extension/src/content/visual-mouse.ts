@@ -15,8 +15,12 @@ export class VisualMousePointer {
   private isDragging: boolean = false;
 
   constructor() {
+    console.log('🖱️ [VisualMouse] Constructor called');
+    console.log('🖱️ [VisualMouse] Document readyState:', document.readyState);
+    console.log('🖱️ [VisualMouse] Window dimensions:', window.innerWidth, 'x', window.innerHeight);
     this.createPointer();
     this.initializeEventListeners();
+    console.log('🖱️ [VisualMouse] Constructor completed');
   }
 
   /**
@@ -105,14 +109,24 @@ export class VisualMousePointer {
     this.pointerElement.innerHTML = pointerSvg;
 
     // Add to document
+    console.log('🖱️ [VisualMouse] Adding pointer element to document...');
     document.documentElement.appendChild(this.pointerElement);
+    console.log('🖱️ [VisualMouse] Pointer element added to document, checking parent:', this.pointerElement.parentElement?.tagName);
     
     // Initial position - use safe dimensions to avoid division by zero
     const safeWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 800);
     const safeHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 600);
+    console.log('🖱️ [VisualMouse] Safe dimensions:', safeWidth, 'x', safeHeight);
     this.setPosition(safeWidth / 2, safeHeight / 2);
     
-    console.log(`🖱️ Realistic mouse pointer created at safe position: ${safeWidth / 2}, ${safeHeight / 2} (window: ${window.innerWidth}x${window.innerHeight}, document: ${document.documentElement.clientWidth}x${document.documentElement.clientHeight})`);
+    console.log(`🖱️ [VisualMouse] Realistic mouse pointer created at safe position: ${safeWidth / 2}, ${safeHeight / 2} (window: ${window.innerWidth}x${window.innerHeight}, document: ${document.documentElement.clientWidth}x${document.documentElement.clientHeight})`);
+    console.log('🖱️ [VisualMouse] Pointer element styles:', {
+      left: this.pointerElement.style.left,
+      top: this.pointerElement.style.top,
+      position: this.pointerElement.style.position,
+      zIndex: this.pointerElement.style.zIndex,
+      opacity: this.pointerElement.style.opacity,
+    });
   }
 
   /**
@@ -171,6 +185,9 @@ export class VisualMousePointer {
    * Handle mouse update from background script
    */
   handleMouseUpdate(data: any): void {
+    console.log('🖱️ [VisualMouse] handleMouseUpdate called with data:', data);
+    console.log('🖱️ [VisualMouse] Current pointer element:', this.pointerElement ? 'exists' : 'null');
+    
     const { x, y, action, relative } = data;
 
     // Handle position updates (if x and y are provided)
@@ -179,15 +196,19 @@ export class VisualMousePointer {
         // Relative movement
         this.currentX += x;
         this.currentY += y;
+        console.log('🖱️ [VisualMouse] Relative move: from', this.currentX - x, this.currentY - y, 'to', this.currentX, this.currentY);
       } else {
         // Absolute position
         this.currentX = x;
         this.currentY = y;
+        console.log('🖱️ [VisualMouse] Absolute move to:', x, y);
       }
 
       // Clamp to viewport bounds
       this.currentX = Math.max(0, Math.min(this.currentX, window.innerWidth));
       this.currentY = Math.max(0, Math.min(this.currentY, window.innerHeight));
+
+      console.log('🖱️ [VisualMouse] Clamped to:', this.currentX, this.currentY, '(viewport:', window.innerWidth, 'x', window.innerHeight, ')');
 
       // Update visual position
       this.setPosition(this.currentX, this.currentY);
@@ -212,15 +233,22 @@ export class VisualMousePointer {
    * Set visual pointer position
    */
   setPosition(x: number, y: number): void {
+    console.log('🖱️ [VisualMouse] setPosition called:', x, y);
+    
     this.currentX = x;
     this.currentY = y;
 
     if (this.pointerElement) {
+      console.log('🖱️ [VisualMouse] Setting pointer element position:', x, y);
       this.pointerElement.style.left = `${x}px`;
       this.pointerElement.style.top = `${y}px`;
 
       // Update cursor style based on position
       this.updateCursorStyle();
+    } else {
+      console.error('🖱️ [VisualMouse] ERROR: pointerElement is null!');
+      console.error('🖱️ [VisualMouse] Attempting to recreate pointer...');
+      this.createPointer();
     }
   }
 

@@ -5,10 +5,16 @@
 
 import { VisualMousePointer } from './visual-mouse';
 
-console.log('🖥️ Local Chrome Control content script loaded');
+console.log('🖥️ Local Chrome Control content script loaded', {
+  location: window.location.href,
+  readyState: document.readyState,
+  timestamp: Date.now()
+});
 
 // Initialize visual mouse pointer
+console.log('🖥️ Creating VisualMousePointer instance...');
 const visualMouse = new VisualMousePointer();
+console.log('🖥️ VisualMousePointer instance created');
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
