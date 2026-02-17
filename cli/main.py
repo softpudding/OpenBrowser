@@ -115,6 +115,15 @@ class ChromeCLIClient:
         }
         return self.execute_command(command)
         
+    def tab_init(self, url: str) -> Dict[str, Any]:
+        """Initialize a new managed session with starting URL"""
+        command = {
+            "type": "tab",
+            "action": "init",
+            "url": url
+        }
+        return self.execute_command(command)
+        
     def tab_close(self, tab_id: int) -> Dict[str, Any]:
         """Close tab"""
         command = {
@@ -302,6 +311,15 @@ def list(ctx):
 @tabs.command()
 @click.argument('url')
 @click.pass_context
+def init(ctx, url):
+    """Initialize a new managed session with starting URL"""
+    result = ctx.obj['client'].tab_init(url)
+    _print_result(result)
+
+
+@tabs.command()
+@click.argument('url')
+@click.pass_context
 def open(ctx, url):
     """Open new tab"""
     result = ctx.obj['client'].tab_open(url)
@@ -420,16 +438,23 @@ def interactive(ctx):
                 result = ctx.obj['client'].screenshot()
                 _print_result(result)
             elif cmd.lower().startswith('tabs '):
-                # Tabs shortcuts: tabs list, tabs open <url>, tabs close <id>, tabs switch <id>
+                # Tabs shortcuts: tabs list, tabs init <url>, tabs open <url>, tabs close <id>, tabs switch <id>
                 parts = cmd.split()
                 if len(parts) < 2:
-                    click.echo("❌ Invalid tabs command. Use: tabs list|open|close|switch")
+                    click.echo("❌ Invalid tabs command. Use: tabs list|init|open|close|switch")
                     continue
                 
                 action = parts[1].lower()
                 if action == 'list':
                     result = ctx.obj['client'].get_tabs()
                     _print_tabs_result(result)
+                elif action == 'init':
+                    if len(parts) < 3:
+                        click.echo("❌ Missing URL. Use: tabs init <url>")
+                        continue
+                    url = parts[2]
+                    result = ctx.obj['client'].tab_init(url)
+                    _print_result(result)
                 elif action == 'open':
                     if len(parts) < 3:
                         click.echo("❌ Missing URL. Use: tabs open <url>")
@@ -458,7 +483,7 @@ def interactive(ctx):
                     except ValueError:
                         click.echo("❌ Invalid tab ID. Use integer.")
                 else:
-                    click.echo("❌ Unknown tabs action. Use: list, open, close, switch")
+                    click.echo("❌ Unknown tabs action. Use: list, init, open, close, switch")
             else:
                 # Try to parse as JSON command
                 try:
@@ -518,6 +543,7 @@ def _print_interactive_help():
     click.echo("    press <key> [modifiers] - Press special key")
     click.echo("    screenshot              - Capture screenshot")
     click.echo("    tabs list               - List all tabs")
+    click.echo("    tabs init <url>         - Initialize new managed session")
     click.echo("    tabs open <url>         - Open new tab")
     click.echo("    tabs close <tab_id>     - Close tab")
     click.echo("    tabs switch <tab_id>    - Switch to tab")
