@@ -10,9 +10,20 @@ import type { Command, CommandResponse } from '../types';
 
 console.log('🚀 Local Chrome Control extension starting...');
 
+// Track current active tab with visual mouse
+let currentActiveTabId: number | null = null;
+
 // Initialize WebSocket connection
 wsClient.connect().catch((error) => {
   console.error('Failed to connect to WebSocket server:', error);
+});
+
+// Listen for tab removal to cleanup visual mouse
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (currentActiveTabId === tabId) {
+    console.log(`🗑️ Active tab ${tabId} was closed, resetting currentActiveTabId`);
+    currentActiveTabId = null;
+  }
 });
 
 // Listen for commands from WebSocket server
@@ -317,6 +328,19 @@ async function updateVisualMouse(tabId: number, data: any): Promise<boolean> {
   try {
     console.log(`🎯 Attempting to update visual mouse for tab ${tabId}:`, data);
     
+    // Check if we're switching to a new tab
+    if (currentActiveTabId !== null && currentActiveTabId !== tabId) {
+      console.log(`🔄 Switching from tab ${currentActiveTabId} to tab ${tabId}, cleaning up old visual mouse`);
+      // Clean up visual mouse in the previously active tab
+      await cleanupVisualMouseInTab(currentActiveTabId).catch(err => {
+        console.log(`Non-critical error cleaning up old tab ${currentActiveTabId}:`, err);
+      });
+    }
+    
+    // Update current active tab
+    currentActiveTabId = tabId;
+    console.log(`📌 Current active tab set to: ${currentActiveTabId}`);
+    
     // Check if tab is accessible (not chrome:// page)
     const tab = await chrome.tabs.get(tabId);
     const url = tab.url || '';
@@ -478,6 +502,45 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 /**
+ * Clean up visual mouse pointer in a specific tab
+ */
+async function cleanupVisualMouseInTab(tabId: number): Promise<boolean> {
+  console.log(`🧹 Cleaning up visual mouse pointer in tab ${tabId}...`);
+  
+  try {
+    // Skip chrome:// and chrome-extension:// pages
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.url?.startsWith('chrome://') || tab.url?.startsWith('chrome-extension://')) {
+      console.log(`⚠️ Skipping cleanup for restricted URL: ${tab.url}`);
+      return false;
+    }
+    
+    // Check if content script is loaded in this tab
+    const contentScriptLoaded = await isContentScriptInjected(tabId);
+    
+    if (contentScriptLoaded) {
+      // Send destroy command to visual mouse
+      await chrome.tabs.sendMessage(tabId, {
+        type: 'visual_mouse_destroy'
+      }).catch(() => {
+        // Content script might not respond (e.g., page reloaded)
+        console.log(`Tab ${tabId} content script not responsive for cleanup`);
+        return false;
+      });
+      
+      console.log(`✅ Cleaned up visual mouse pointer in tab ${tabId}`);
+      return true;
+    } else {
+      console.log(`Tab ${tabId} does not have content script loaded`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`❌ Failed to clean up visual mouse in tab ${tabId}:`, error);
+    return false;
+  }
+}
+
+/**
  * Clean up visual mouse pointers in all tabs when extension disconnects
  */
 async function cleanupVisualMouseInAllTabs(): Promise<void> {
@@ -546,6 +609,10 @@ setInterval(() => {
 // Register disconnect handler to cleanup visual mouse pointers
 wsClient.onDisconnect(() => {
   console.log('🔄 WebSocket disconnected, cleaning up visual mouse pointers...');
+  // Reset current active tab
+  currentActiveTabId = null;
+  console.log('📌 Current active tab reset to null');
+  // Clean up all visual mouse pointers
   cleanupVisualMouseInAllTabs().catch(console.error);
 });
 
