@@ -478,6 +478,53 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 /**
+ * Clean up visual mouse pointers in all tabs when extension disconnects
+ */
+async function cleanupVisualMouseInAllTabs(): Promise<void> {
+  console.log('🧹 Cleaning up visual mouse pointers in all tabs...');
+  
+  try {
+    // Get all tabs in all windows
+    const tabs = await chrome.tabs.query({});
+    
+    let cleanupCount = 0;
+    
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      
+      // Skip chrome:// and chrome-extension:// pages
+      if (tab.url?.startsWith('chrome://') || tab.url?.startsWith('chrome-extension://')) {
+        continue;
+      }
+      
+      try {
+        // Check if content script is loaded in this tab
+        const contentScriptLoaded = await isContentScriptInjected(tab.id);
+        
+        if (contentScriptLoaded) {
+          // Send destroy command to visual mouse
+          await chrome.tabs.sendMessage(tab.id, {
+            type: 'visual_mouse_destroy'
+          }).catch(() => {
+            // Content script might not respond (e.g., page reloaded)
+            console.log(`Tab ${tab.id} content script not responsive for cleanup`);
+          });
+          
+          cleanupCount++;
+        }
+      } catch (error) {
+        // Tab might have been closed or content script not available
+        console.log(`Failed to clean up visual mouse in tab ${tab.id}:`, error);
+      }
+    }
+    
+    console.log(`✅ Cleaned up visual mouse pointers in ${cleanupCount} tab(s)`);
+  } catch (error) {
+    console.error('❌ Failed to cleanup visual mouse pointers:', error);
+  }
+}
+
+/**
  * Handle extension startup
  */
 chrome.runtime.onStartup.addListener(() => {
@@ -495,5 +542,11 @@ setInterval(() => {
     wsClient.connect().catch(console.error);
   }
 }, 10000); // Check every 10 seconds
+
+// Register disconnect handler to cleanup visual mouse pointers
+wsClient.onDisconnect(() => {
+  console.log('🔄 WebSocket disconnected, cleaning up visual mouse pointers...');
+  cleanupVisualMouseInAllTabs().catch(console.error);
+});
 
 console.log('✅ Local Chrome Control extension ready');

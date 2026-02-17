@@ -15,6 +15,7 @@ export class WebSocketClient {
   private isConnecting = false;
   private messageHandlers: ((data: any) => void)[] = [];
   private responseHandlers = new Map<string, (response: CommandResponse) => void>();
+  private disconnectHandlers: (() => void)[] = [];
 
   constructor(url: string = DEFAULT_WS_URL) {
     this.url = url;
@@ -43,6 +44,9 @@ export class WebSocketClient {
           console.log(`WebSocket disconnected from ${this.url}: code=${event.code}, reason=${event.reason}, wasClean=${event.wasClean}`);
           this.isConnecting = false;
           this.ws = null;
+          
+          // Notify disconnect handlers
+          this.notifyDisconnect();
           
           // Attempt to reconnect if not intentionally closed
           if (event.code !== 1000 && this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -142,6 +146,27 @@ export class WebSocketClient {
         handler(data);
       } catch (error) {
         console.error('Error in message handler:', error);
+      }
+    }
+  }
+
+  onDisconnect(handler: () => void): void {
+    this.disconnectHandlers.push(handler);
+  }
+
+  offDisconnect(handler: () => void): void {
+    const index = this.disconnectHandlers.indexOf(handler);
+    if (index > -1) {
+      this.disconnectHandlers.splice(index, 1);
+    }
+  }
+
+  private notifyDisconnect(): void {
+    for (const handler of this.disconnectHandlers) {
+      try {
+        handler();
+      } catch (error) {
+        console.error('Error in disconnect handler:', error);
       }
     }
   }
