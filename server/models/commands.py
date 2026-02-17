@@ -72,6 +72,11 @@ class MouseScrollCommand(BaseCommand):
     amount: int = Field(default=100, ge=1, le=1000, description="Scroll amount in pixels")
 
 
+class ResetMouseCommand(BaseCommand):
+    """Reset mouse position to screen center"""
+    type: Literal["reset_mouse"] = "reset_mouse"
+
+
 class KeyboardTypeCommand(BaseCommand):
     """Type text at current focus"""
     type: Literal["keyboard_type"] = "keyboard_type"
@@ -176,6 +181,7 @@ Command = Union[
     MouseMoveCommand,
     MouseClickCommand,
     MouseScrollCommand,
+    ResetMouseCommand,
     KeyboardTypeCommand,
     KeyboardPressCommand,
     ScreenshotCommand,
@@ -195,6 +201,7 @@ def parse_command(data: dict) -> Command:
         "mouse_move": MouseMoveCommand,
         "mouse_click": MouseClickCommand,
         "mouse_scroll": MouseScrollCommand,
+        "reset_mouse": ResetMouseCommand,
         "keyboard_type": KeyboardTypeCommand,
         "keyboard_press": KeyboardPressCommand,
         "screenshot": ScreenshotCommand,

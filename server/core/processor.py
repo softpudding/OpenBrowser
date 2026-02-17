@@ -7,6 +7,7 @@ from datetime import datetime
 from server.models.commands import (
     Command, CommandResponse, parse_command,
     MouseMoveCommand, MouseClickCommand, MouseScrollCommand,
+    ResetMouseCommand,
     KeyboardTypeCommand, KeyboardPressCommand, ScreenshotCommand,
     TabCommand, GetTabsCommand
 )
@@ -54,6 +55,8 @@ class CommandProcessor:
                 return await self._execute_tab_command(command)
             elif isinstance(command, GetTabsCommand):
                 return await self._execute_get_tabs(command)
+            elif isinstance(command, ResetMouseCommand):
+                return await self._execute_reset_mouse(command)
             else:
                 raise ValueError(f"Unknown command type: {command.type}")
                 
@@ -109,6 +112,11 @@ class CommandProcessor:
         
     async def _execute_get_tabs(self, command: GetTabsCommand) -> CommandResponse:
         """Execute get tabs command"""
+        response = await ws_manager.send_command(command)
+        return response
+        
+    async def _execute_reset_mouse(self, command: ResetMouseCommand) -> CommandResponse:
+        """Execute reset mouse command"""
         response = await ws_manager.send_command(command)
         return response
         
