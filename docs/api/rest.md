@@ -95,8 +95,8 @@ Error responses:
 - `keyboard_type`: Type text
 - `keyboard_press`: Press key with modifiers
 - `screenshot`: Capture screenshot
-- `tab`: Tab operations (open, close, switch, list)
-- `get_tabs`: Get list of all tabs
+- `tab`: Tab operations (init, open, close, switch, list)
+- `get_tabs`: Get list of all tabs (shows only managed tabs when session initialized)
 
 **Response**:
 ```json
@@ -340,18 +340,35 @@ Error responses:
 **Request Body**:
 ```json
 {
-  "action": "open",  // "open", "close", "switch", "list"
-  "url": "https://example.com",  // required for "open"
+  "action": "open",  // "init", "open", "close", "switch", "list"
+  "url": "https://example.com",  // required for "init" and "open"
   "tab_id": 123,  // required for "close", "switch"
   "command_id": "tab-1"
 }
 ```
 
 **Actions**:
-- `open`: Open new tab with specified URL
+- `init`: Initialize new managed session with starting URL (creates tab group)
+- `open`: Open new tab with specified URL (automatically added to managed tab group)
 - `close`: Close specified tab
 - `switch`: Switch to specified tab
-- `list`: List all tabs (no additional parameters needed)
+- `list`: List all tabs (shows only managed tabs when session initialized)
+
+**Response for "init"**:
+```json
+{
+  "success": true,
+  "message": "Session initialized with https://example.com",
+  "data": {
+    "tabId": 456,
+    "groupId": 1070690641,
+    "url": "https://example.com/",
+    "isManaged": true
+  },
+  "command_id": "tab-1",
+  "timestamp": 1678886400.123
+}
+```
 
 **Response for "open"**:
 ```json
@@ -495,6 +512,13 @@ curl -X POST http://127.0.0.1:8765/screenshot \
   -H "Content-Type: application/json" \
   -d '{"include_cursor": true, "quality": 90}' \
   -o screenshot.json
+```
+
+**Initialize managed session**:
+```bash
+curl -X POST http://127.0.0.1:8765/tabs \
+  -H "Content-Type: application/json" \
+  -d '{"action": "init", "url": "https://example.com"}'
 ```
 
 **Open new tab**:

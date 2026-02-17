@@ -48,7 +48,10 @@ chrome-cli interactive
 # Check server status
 chrome-cli status
 
-# List tabs
+# Initialize managed session (creates tab group)
+chrome-cli tabs init https://example.com
+
+# List tabs (shows only managed tabs)
 chrome-cli tabs list
 
 # Take screenshot
@@ -107,7 +110,7 @@ chrome-cli mouse move --dx 100 --dy 50
 - **Mouse Control**: Move, click, scroll with relative coordinates
 - **Keyboard Input**: Type text, press special keys with modifiers
 - **Screenshot Capture**: Real-time screenshots with mouse cursor
-- **Tab Management**: Open, close, switch, list tabs
+- **Tab Management**: Open, close, switch, list tabs with tab group isolation and explicit session initialization
 
 ### Multiple Interfaces
 - **REST API**: HTTP/JSON interface for programmatic access

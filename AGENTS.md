@@ -84,8 +84,13 @@ npm run typecheck            # TypeScript type checking
 - **Key Components**:
   - `BaseCommand`: Base class for all commands
   - Command types: `MouseMoveCommand`, `MouseClickCommand`, `KeyboardTypeCommand`, etc.
+  - `TabCommand`: Tab management command with `TabAction` enum (OPEN, CLOSE, LIST, SWITCH, INIT)
   - `parse_command()`: Factory function to create commands from JSON
 - **Validation**: Uses Pydantic for schema validation
+- **Recent Updates**:
+  - Added `INIT` action to `TabAction` enum for explicit session initialization
+  - Updated URL validator to support both `OPEN` and `INIT` actions
+  - `INIT` action requires URL parameter and creates managed tab group
 
 #### `server/core/config.py`
 - **Purpose**: Configuration management
@@ -160,15 +165,18 @@ npm run typecheck            # TypeScript type checking
   - `debugger-manager.ts`: Debugger attachment/detachment management
   - `computer.ts`: Mouse, keyboard, scroll operations (adapted from AIPex)
   - `screenshot.ts`: Screenshot capture with metadata caching
-  - `tabs.ts`: Tab management operations
+  - `tabs.ts`: Tab management operations with filtered listing (`getAllTabs(managedOnly=true)`)
   - `tab-manager.ts`: Tab group management and isolation (inspired by MANUS design)
 
 #### `extension/src/commands/tab-manager.ts`
 - **Purpose**: Advanced tab management with Chrome tab groups for visual isolation and organization
 - **Design Inspiration**: Based on MANUS Chrome Plugin's tab group isolation concept
 - **Key Features**:
+  - **Explicit Session Initialization**: `initializeSession(url)` method for explicit control session start
   - **Tab Group Creation/Management**: Creates "Local Chrome Control" tab group for visual separation
   - **Automatic Tab Management**: Automatically adds controlled tabs to the managed group
+  - **Filtered Tab Listing**: `getAllTabs(managedOnly=true)` shows only managed tabs when session initialized
+  - **Session State Tracking**: `isSessionInitialized()` checks if tab group exists and has managed tabs
   - **Status Visualization**: Shows real-time status via emoji indicators (🔵 active, ⚪ idle, 🔴 disconnected)
   - **Activity Tracking**: Monitors tab activity to update status automatically
   - **Backward Compatibility**: Falls back to simple tab management when tabGroups API unavailable (Chrome < 89)
@@ -177,16 +185,20 @@ npm run typecheck            # TypeScript type checking
   - `ManagedTab` interface: Tracks tab metadata and management state
   - Status update system with automatic idle detection
   - Event listeners for tab/group lifecycle management
+  - Session initialization and state management methods
 - **Integration**:
   - Automatically initializes on extension startup
   - Updates status based on WebSocket connection state
+  - `tabs init <url>` command triggers explicit session initialization
   - All automation commands automatically ensure tabs are managed
   - Enhanced `tabs.openTab()` to use managed tab groups
+  - `getAllTabs()` filters to managed tabs only when session is initialized
 - **Tab Group Benefits**:
   - **Visual Isolation**: Controlled tabs grouped separately from user's regular tabs
   - **Easy Management**: Users can easily close all controlled tabs by closing the group
   - **Status Visibility**: Group title shows real-time system status
   - **Organization**: Keeps automation sessions organized and contained
+  - **Explicit Control**: User decides when to start a managed session with `tabs init` command
 
 #### `extension/src/background/index.ts`
 - **Purpose**: Background script - main extension logic

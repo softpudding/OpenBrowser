@@ -8,7 +8,12 @@ A local server for controlling Chrome browser via Chrome extension with visual-b
 - **Mouse Control**: Move, click, scroll with relative coordinates and boundary checking
 - **Keyboard Input**: Type text, press special keys with visual feedback
 - **Screenshot Capture**: Real-time screenshots with mouse cursor
-- **Tab Management**: Open, close, switch, list tabs with precise tab targeting
+- **Advanced Tab Management**: 
+  - **Tab Group Isolation**: Managed tabs organized in "Local Chrome Control" tab group for visual separation
+  - **Explicit Session Initialization**: `tabs init <url>` command for explicit control session start
+  - **Filtered Tab Listing**: `tabs list` shows only managed tabs when session is initialized
+  - **Backward Compatibility**: Shows all tabs with managed status when no active session
+  - **Status Visualization**: Tab group title shows real-time status (🔵 active, ⚪ idle, 🔴 disconnected)
 - **Multiple Interfaces**: REST API, WebSocket, CLI with readline support for arrow key editing
 - **Coordinate Mapping**: Handles resolution differences between preset and actual screens
 - **Visual-Only Operations**: No HTML selector dependencies, purely pixel-based
@@ -100,7 +105,7 @@ chrome-cli interactive
 | `/keyboard/type` | POST | Type text |
 | `/keyboard/press` | POST | Press special key |
 | `/screenshot` | POST | Capture screenshot |
-| `/tabs` | POST | Tab management (open, close, switch) |
+| `/tabs` | POST | Tab management (init, open, close, switch) |
 | `/tabs` | GET | List all tabs |
 | `/ws` | WS | WebSocket for real-time commands |
 
@@ -137,8 +142,12 @@ Commands are JSON objects with the following structure:
    - `screenshot`: Capture screenshot with optional cursor
 
 4. **Tab Commands**
-   - `tab`: Open, close, switch tabs
-   - `get_tabs`: Get list of all tabs
+   - `tab`: Init, open, close, switch tabs
+     - `init`: Initialize new managed session with starting URL (creates tab group)
+     - `open`: Open new tab (automatically added to managed tab group)
+     - `close`: Close specific tab
+     - `switch`: Switch to specific tab
+   - `get_tabs`: Get list of all tabs (shows only managed tabs when session initialized)
 
 ## Coordinate System
 
@@ -185,7 +194,10 @@ response = requests.post(f"{server_url}/screenshot", json={
 ### CLI Examples
 
 ```bash
-# List all tabs
+# Initialize a new managed session (creates tab group)
+chrome-cli tabs init https://example.com
+
+# List tabs (shows only managed tabs when session initialized)
 chrome-cli tabs list
 
 # Click at position (relative to preset resolution)

@@ -51,6 +51,14 @@
    - 滚动方向指示
    - 拖拽状态显示
 
+5. **高级标签组管理** (新增)
+   - **标签组隔离**：受控标签页组织在"Local Chrome Control"标签组中，实现视觉隔离
+   - **显式会话初始化**：`tabs init <url>`命令显式启动控制会话，替代自动使用第一个标签页
+   - **过滤标签列表**：`tabs list`在会话初始化后只显示受控标签页
+   - **向后兼容性**：未初始化时显示所有标签页并标记管理状态
+   - **状态可视化**：标签组标题显示实时状态（🔵 活动, ⚪ 空闲, 🔴 断开连接）
+   - **MANUS设计灵感**：参考MANUS Chrome插件的标签组隔离概念
+
 ### 🔧 技术实现细节
 
 - **扩展架构**：Background script处理命令，Content script显示可视化指针
@@ -64,13 +72,16 @@
 # 启动服务器
 uv run local-chrome-server serve --log-level DEBUG
 
+# 显式初始化控制会话（创建标签组）
+uv run chrome-cli tabs init https://example.com
+
 # 交互式控制（支持箭头键编辑）
 uv run chrome-cli interactive
 
 # 一键重置鼠标到屏幕中心
 uv run chrome-cli mouse reset
 
-# 精确控制特定标签页
+# 精确控制特定标签页（过滤显示受控标签页）
 uv run chrome-cli tabs list
 uv run chrome-cli mouse move --dx 100 --dy 50 --tab-id <ID>
 ```
@@ -78,8 +89,15 @@ uv run chrome-cli mouse move --dx 100 --dy 50 --tab-id <ID>
 ### 📋 待解决的问题
 
 1. **截图功能**：WebSocket连接在某些情况下断开导致失败
-2. **多标签页同步**：需要更好的标签页状态管理
+2. **视觉鼠标指针显示问题**：在某些情况下光标不显示（已添加详细调试日志）
 3. **性能优化**：大规模截图传输的压缩和缓存
+
+### ✅ 已解决的问题
+
+1. **多标签页同步**：通过标签组管理实现更好的标签页状态管理
+   - 显式会话初始化 (`tabs init <url>`)
+   - 标签组视觉隔离
+   - 过滤标签列表显示
 
 ### 🎯 设计原则验证
 

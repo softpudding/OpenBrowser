@@ -292,8 +292,29 @@ chrome-cli screenshot capture --include-metadata
 
 ### Tab Commands
 
+#### `init` - Initialize managed session
+Initialize a new managed session with starting URL. Creates "Local Chrome Control" tab group.
+
+```bash
+chrome-cli tabs init [OPTIONS] URL
+```
+
+**Options**:
+- `--help`: Show help
+
+**Examples**:
+```bash
+# Initialize session with example.com
+chrome-cli tabs init https://example.com
+
+# Initialize with Google
+chrome-cli tabs init https://google.com
+```
+
+**Note**: After initialization, `tabs list` will show only managed tabs in the tab group.
+
 #### `list` - List all tabs
-List all open tabs.
+List all open tabs. When a managed session is initialized, shows only managed tabs.
 
 ```bash
 chrome-cli tabs list [OPTIONS]
@@ -385,8 +406,9 @@ chrome-cli interactive [OPTIONS]
 - `mouse click [button]`: Click mouse
 - `keyboard type <text>`: Type text
 - `screenshot [filename]`: Capture screenshot
-- `tabs list`: List tabs
-- `tabs open <url>`: Open tab
+- `tabs init <url>`: Initialize managed session
+- `tabs list`: List tabs (filtered when session initialized)
+- `tabs open <url>`: Open tab (added to managed group)
 - `tabs switch <id>`: Switch tab
 - `help`: Show help
 - `exit`: Exit interactive mode
@@ -394,11 +416,13 @@ chrome-cli interactive [OPTIONS]
 **Example session**:
 ```
 $ chrome-cli interactive
+> tabs init https://example.com
+✅ Session initialized with https://example.com
+
 > tabs list
-✅ Found 3 tabs:
-  1. [123] Google - https://google.com (active)
-  2. [456] GitHub - https://github.com
-  3. [789] Local file - file:///test.html
+✅ Found 2 managed tabs:
+  1. [123] about:blank
+  2. [456] Example Domain - https://example.com/ (active)
 
 > mouse move 100 50
 ✅ Mouse moved by (100, 50) pixels
