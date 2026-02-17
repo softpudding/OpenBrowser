@@ -274,6 +274,17 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Verify mouse position tracking is working in background logs
   - Test with small movements first
 
+#### 7. Mouse Reset Position Incorrect After Exiting Fullscreen Mode
+- **Cause**: Cached viewport size not updated after window resize, causing coordinate mapping errors
+- **Fix**: 
+  - Clear viewport cache before reset: `viewportSizes.delete(tabId)` in `resetMousePosition`
+  - Ensure coordinates are rounded to integers for CDP mouse movement
+  - Verify content script is providing fresh viewport size via `get_viewport` message
+- **Debug**:
+  - Check extension background logs for viewport size reported by content script
+  - Verify actual viewport dimensions match reported values
+  - Reload page to ensure content script is injected and responding
+
 ### Debug Logging
 
 ```bash
