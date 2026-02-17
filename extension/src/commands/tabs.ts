@@ -2,11 +2,17 @@
  * Tab Management Tool
  */
 
+import { tabManager } from './tab-manager';
+
 /**
  * Get all tabs across all windows
  */
 export async function getAllTabs(): Promise<any> {
   const tabs = await chrome.tabs.query({});
+  
+  // Get managed tabs for additional info
+  const managedTabs = tabManager.getManagedTabs();
+  const managedTabIds = new Set(managedTabs.map(t => t.tabId));
   
   return {
     success: true,
@@ -17,8 +23,11 @@ export async function getAllTabs(): Promise<any> {
       active: tab.active,
       windowId: tab.windowId,
       index: tab.index,
+      isManaged: tab.id ? managedTabIds.has(tab.id) : false,
     })),
+    managedTabs: managedTabs,
     count: tabs.length,
+    managedCount: managedTabs.length,
   };
 }
 
@@ -32,14 +41,32 @@ export async function openTab(url: string): Promise<any> {
     targetUrl = `https://${url}`;
   }
   
-  const tab = await chrome.tabs.create({ url: targetUrl, active: true });
-  
-  return {
-    success: true,
-    tabId: tab.id,
-    url: tab.url,
-    message: `Opened new tab: ${targetUrl}`,
-  };
+  // Use tab manager to open managed tab
+  try {
+    const managedTab = await tabManager.openManagedTab(targetUrl, true);
+    
+    return {
+      success: true,
+      tabId: managedTab.tabId,
+      groupId: managedTab.groupId,
+      url: targetUrl,
+      message: `Opened new managed tab: ${targetUrl}`,
+      isManaged: true,
+    };
+  } catch (error) {
+    console.error('Failed to open managed tab, falling back to regular tab:', error);
+    
+    // Fallback to regular tab creation
+    const tab = await chrome.tabs.create({ url: targetUrl, active: true });
+    
+    return {
+      success: true,
+      tabId: tab.id,
+      url: tab.url,
+      message: `Opened new tab: ${targetUrl} (not managed)`,
+      isManaged: false,
+    };
+  }
 }
 
 /**

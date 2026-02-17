@@ -161,6 +161,32 @@ npm run typecheck            # TypeScript type checking
   - `computer.ts`: Mouse, keyboard, scroll operations (adapted from AIPex)
   - `screenshot.ts`: Screenshot capture with metadata caching
   - `tabs.ts`: Tab management operations
+  - `tab-manager.ts`: Tab group management and isolation (inspired by MANUS design)
+
+#### `extension/src/commands/tab-manager.ts`
+- **Purpose**: Advanced tab management with Chrome tab groups for visual isolation and organization
+- **Design Inspiration**: Based on MANUS Chrome Plugin's tab group isolation concept
+- **Key Features**:
+  - **Tab Group Creation/Management**: Creates "Local Chrome Control" tab group for visual separation
+  - **Automatic Tab Management**: Automatically adds controlled tabs to the managed group
+  - **Status Visualization**: Shows real-time status via emoji indicators (🔵 active, ⚪ idle, 🔴 disconnected)
+  - **Activity Tracking**: Monitors tab activity to update status automatically
+  - **Backward Compatibility**: Falls back to simple tab management when tabGroups API unavailable (Chrome < 89)
+- **Core Components**:
+  - `TabManager` class: Singleton manager for tab group operations
+  - `ManagedTab` interface: Tracks tab metadata and management state
+  - Status update system with automatic idle detection
+  - Event listeners for tab/group lifecycle management
+- **Integration**:
+  - Automatically initializes on extension startup
+  - Updates status based on WebSocket connection state
+  - All automation commands automatically ensure tabs are managed
+  - Enhanced `tabs.openTab()` to use managed tab groups
+- **Tab Group Benefits**:
+  - **Visual Isolation**: Controlled tabs grouped separately from user's regular tabs
+  - **Easy Management**: Users can easily close all controlled tabs by closing the group
+  - **Status Visibility**: Group title shows real-time system status
+  - **Organization**: Keeps automation sessions organized and contained
 
 #### `extension/src/background/index.ts`
 - **Purpose**: Background script - main extension logic

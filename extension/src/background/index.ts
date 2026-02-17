@@ -6,16 +6,36 @@ import { wsClient } from '../websocket/client';
 import { computer } from '../commands/computer';
 import { captureScreenshot } from '../commands/screenshot';
 import { tabs } from '../commands/tabs';
+import { tabManager } from '../commands/tab-manager';
 import type { Command, CommandResponse } from '../types';
 
 console.log('🚀 Local Chrome Control extension starting...');
+
+// Initialize tab manager
+tabManager.initialize().then(() => {
+  console.log('✅ Tab manager initialized');
+}).catch((error) => {
+  console.error('❌ Failed to initialize tab manager:', error);
+});
 
 // Track current active tab with visual mouse
 let currentActiveTabId: number | null = null;
 
 // Initialize WebSocket connection
-wsClient.connect().catch((error) => {
+wsClient.connect().then(() => {
+  // Update tab manager status when connected
+  tabManager.updateStatus('idle');
+  console.log('🌐 WebSocket connected, tab manager status updated');
+}).catch((error) => {
   console.error('Failed to connect to WebSocket server:', error);
+  // Update tab manager status when connection fails
+  tabManager.updateStatus('disconnected');
+});
+
+// Listen for WebSocket disconnection
+wsClient.onDisconnect(() => {
+  console.log('🌐 WebSocket disconnected, updating tab manager status');
+  tabManager.updateStatus('disconnected');
 });
 
 // Listen for tab removal to cleanup visual mouse
@@ -127,6 +147,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
     switch (command.type) {
       case 'mouse_move':
         const tabIdForMove = command.tab_id || await getCurrentTabId();
+        // Ensure tab is managed by tab manager
+        await tabManager.ensureTabManaged(tabIdForMove);
+        // Update tab activity for status tracking
+        tabManager.updateTabActivity(tabIdForMove);
         // Activate tab to ensure it's responsive for automation
         await activateTabForAutomation(tabIdForMove);
         const moveResult = await computer.performMouseMove(
@@ -168,6 +192,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'mouse_click':
         const tabIdForClick = command.tab_id || await getCurrentTabId();
+        // Ensure tab is managed by tab manager
+        await tabManager.ensureTabManaged(tabIdForClick);
+        // Update tab activity for status tracking
+        tabManager.updateTabActivity(tabIdForClick);
         // Activate tab to ensure it's responsive for automation
         await activateTabForAutomation(tabIdForClick);
         const clickResult = await computer.performClick(
@@ -193,6 +221,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'mouse_scroll':
         const tabIdForScroll = command.tab_id || await getCurrentTabId();
+        // Ensure tab is managed by tab manager
+        await tabManager.ensureTabManaged(tabIdForScroll);
+        // Update tab activity for status tracking
+        tabManager.updateTabActivity(tabIdForScroll);
         // Activate tab to ensure it's responsive for automation
         await activateTabForAutomation(tabIdForScroll);
         const scrollResult = await computer.performScroll(
@@ -218,6 +250,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'keyboard_type':
         const tabIdForType = command.tab_id || await getCurrentTabId();
+        // Ensure tab is managed by tab manager
+        await tabManager.ensureTabManaged(tabIdForType);
+        // Update tab activity for status tracking
+        tabManager.updateTabActivity(tabIdForType);
         // Activate tab to ensure it's responsive for automation
         await activateTabForAutomation(tabIdForType);
         const typeResult = await computer.performType(
@@ -238,6 +274,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'keyboard_press':
         const tabIdForKeyPress = command.tab_id || await getCurrentTabId();
+        // Ensure tab is managed by tab manager
+        await tabManager.ensureTabManaged(tabIdForKeyPress);
+        // Update tab activity for status tracking
+        tabManager.updateTabActivity(tabIdForKeyPress);
         // Activate tab to ensure it's responsive for automation
         await activateTabForAutomation(tabIdForKeyPress);
         const keyResult = await computer.performKeyPress(
@@ -258,6 +298,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'screenshot':
         const tabIdForScreenshot = command.tab_id || await getCurrentTabId();
+        // Ensure tab is managed by tab manager
+        await tabManager.ensureTabManaged(tabIdForScreenshot);
+        // Update tab activity for status tracking
+        tabManager.updateTabActivity(tabIdForScreenshot);
         // Activate tab to ensure it's responsive for automation
         await activateTabForAutomation(tabIdForScreenshot);
         const screenshotResult = await captureScreenshot(
@@ -274,6 +318,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'reset_mouse':
         const tabIdForReset = command.tab_id || await getCurrentTabId();
+        // Ensure tab is managed by tab manager
+        await tabManager.ensureTabManaged(tabIdForReset);
+        // Update tab activity for status tracking
+        tabManager.updateTabActivity(tabIdForReset);
         // Activate tab to ensure it's responsive for automation
         await activateTabForAutomation(tabIdForReset);
         const resetResult = await computer.resetMousePosition(tabIdForReset);
@@ -328,6 +376,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             if (!command.tab_id) {
               throw new Error('tab_id is required for switch action');
             }
+            // Ensure tab is managed by tab manager
+            await tabManager.ensureTabManaged(command.tab_id);
+            // Update tab activity for status tracking
+            tabManager.updateTabActivity(command.tab_id);
             // Activate tab (including window focus) for automation
             await activateTabForAutomation(command.tab_id);
             const switchResult = await tabs.switchToTab(command.tab_id);
