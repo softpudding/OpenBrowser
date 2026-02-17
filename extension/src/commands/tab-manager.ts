@@ -140,6 +140,65 @@ export class TabManager {
   }
 
   /**
+   * Initialize a new managed session with a starting URL
+   * This creates the tab group and opens the first tab
+   */
+  async initializeSession(startUrl: string): Promise<ManagedTab> {
+    console.log(`🚀 [TabManager] Initializing new session with URL: ${startUrl}`);
+    
+    // Ensure URL has protocol
+    let targetUrl = startUrl;
+    if (!startUrl.match(/^https?:\/\//)) {
+      targetUrl = `https://${startUrl}`;
+    }
+    
+    // First, ensure we have a tab group
+    if (!this.mainGroupId && chrome.tabGroups) {
+      console.log('📁 [TabManager] Creating new tab group for session initialization');
+      // Get current window
+      const currentWindow = await chrome.windows.getCurrent();
+      this.mainGroupId = await this.createTabGroup(currentWindow.id);
+      console.log(`✅ [TabManager] Created new tab group with ID: ${this.mainGroupId}`);
+    }
+    
+    // Create the first tab
+    const tab = await chrome.tabs.create({ url: targetUrl, active: true });
+    
+    if (!tab.id) {
+      throw new Error('Failed to create tab for session initialization');
+    }
+    
+    // Add to management
+    await this.addTabToManagement(tab.id);
+    
+    // Update tab group status
+    await this.updateStatus('active');
+    
+    console.log(`✅ [TabManager] Session initialized with tab ${tab.id} in group ${this.mainGroupId}`);
+    
+    const managedTab = this.managedTabs.get(tab.id);
+    if (!managedTab) {
+      throw new Error('Failed to retrieve managed tab after creation');
+    }
+    
+    return managedTab;
+  }
+
+  /**
+   * Check if session is initialized (has a tab group and at least one managed tab)
+   */
+  isSessionInitialized(): boolean {
+    return this.mainGroupId !== null && this.managedTabs.size > 0;
+  }
+
+  /**
+   * Get only managed tabs (filtered list)
+   */
+  getManagedTabsOnly(): ManagedTab[] {
+    return Array.from(this.managedTabs.values());
+  }
+
+  /**
    * Open a new tab and add it to the managed tab group
    */
   async openManagedTab(url: string, active: boolean = true): Promise<ManagedTab> {

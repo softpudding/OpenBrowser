@@ -6,29 +6,65 @@ import { tabManager } from './tab-manager';
 
 /**
  * Get all tabs across all windows
+ * @param managedOnly If true, only returns tabs in the managed tab group
  */
-export async function getAllTabs(): Promise<any> {
-  const tabs = await chrome.tabs.query({});
+export async function getAllTabs(managedOnly: boolean = true): Promise<any> {
+  let tabs;
   
-  // Get managed tabs for additional info
-  const managedTabs = tabManager.getManagedTabs();
-  const managedTabIds = new Set(managedTabs.map(t => t.tabId));
-  
-  return {
-    success: true,
-    tabs: tabs.map((tab) => ({
-      id: tab.id,
-      url: tab.url,
-      title: tab.title,
-      active: tab.active,
-      windowId: tab.windowId,
-      index: tab.index,
-      isManaged: tab.id ? managedTabIds.has(tab.id) : false,
-    })),
-    managedTabs: managedTabs,
-    count: tabs.length,
-    managedCount: managedTabs.length,
-  };
+  if (managedOnly && tabManager.isSessionInitialized()) {
+    // Only get managed tabs
+    const managedTabs = tabManager.getManagedTabs();
+    const managedTabIds = managedTabs.map(t => t.tabId);
+    
+    // Query only the managed tabs
+    if (managedTabIds.length > 0) {
+      tabs = await chrome.tabs.query({});
+      // Filter to only managed tabs
+      tabs = tabs.filter(tab => tab.id && managedTabIds.includes(tab.id));
+    } else {
+      tabs = [];
+    }
+    
+    return {
+      success: true,
+      tabs: tabs.map((tab) => ({
+        id: tab.id,
+        url: tab.url,
+        title: tab.title,
+        active: tab.active,
+        windowId: tab.windowId,
+        index: tab.index,
+        isManaged: true,
+      })),
+      count: tabs.length,
+      managedOnly: true,
+      message: `Found ${tabs.length} managed tab(s)`,
+    };
+  } else {
+    // Get all tabs (backward compatibility)
+    tabs = await chrome.tabs.query({});
+    
+    // Get managed tabs for info
+    const managedTabs = tabManager.getManagedTabs();
+    const managedTabIds = new Set(managedTabs.map(t => t.tabId));
+    
+    return {
+      success: true,
+      tabs: tabs.map((tab) => ({
+        id: tab.id,
+        url: tab.url,
+        title: tab.title,
+        active: tab.active,
+        windowId: tab.windowId,
+        index: tab.index,
+        isManaged: tab.id ? managedTabIds.has(tab.id) : false,
+      })),
+      count: tabs.length,
+      managedCount: managedTabs.length,
+      managedOnly: false,
+      message: `Found ${tabs.length} tab(s) (${managedTabs.length} managed)`,
+    };
+  }
 }
 
 /**

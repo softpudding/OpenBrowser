@@ -348,6 +348,24 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'tab':
         switch (command.action) {
+          case 'init':
+            if (!command.url) {
+              throw new Error('URL is required for init action');
+            }
+            // Initialize a new managed session with the given URL
+            const initResult = await tabManager.initializeSession(command.url);
+            return {
+              success: true,
+              message: `Session initialized with ${command.url}`,
+              data: {
+                tabId: initResult.tabId,
+                groupId: initResult.groupId,
+                url: initResult.url,
+                isManaged: true,
+              },
+              timestamp: Date.now(),
+            };
+
           case 'open':
             if (!command.url) {
               throw new Error('URL is required for open action');
