@@ -113,6 +113,11 @@ npm run typecheck            # TypeScript type checking
   - `WebSocketManager`: Manages connections and message routing
   - `ws_manager`: Global instance
 - **Protocol**: JSON-based message format with command/response pattern
+- **Features**:
+  - Support for large messages (100MB max size) for screenshot transmission
+  - Command timeout handling (30 seconds default)
+  - Automatic response matching using command_id
+  - Connection management with ping/pong keepalive
 
 #### `server/api/main.py`
 - **Purpose**: FastAPI application with REST and WebSocket endpoints
@@ -139,9 +144,14 @@ npm run typecheck            # TypeScript type checking
 #### `extension/src/websocket/client.ts`
 - **Purpose**: WebSocket client for server communication
 - **Key Components**:
-  - `WebSocketClient`: Manages connection, reconnection, message handling
+  - `WebSocketClient`: Manages connection, reconnection, message handling, disconnect events
   - `wsClient`: Global instance
 - **Configuration**: Default URL `ws://127.0.0.1:8766`
+- **Features**:
+  - Automatic reconnection with exponential backoff (max 10 attempts)
+  - Command/response pattern with timeout handling (30 seconds)
+  - Disconnect event notification system for cleanup tasks
+  - Large message support (100MB) for screenshot transmission
 
 #### `extension/src/commands/`
 - **Purpose**: Chrome automation implementations
@@ -159,14 +169,26 @@ npm run typecheck            # TypeScript type checking
   - Command routing to appropriate handlers
   - Response sending back to server
   - Extension lifecycle management
+  - Visual mouse pointer coordination and cleanup
+- **Key Functions**:
+  - `cleanupVisualMouseInAllTabs()`: Destroys visual mouse pointers in all tabs on disconnect
+  - `updateVisualMouse()`: Sends mouse position/action updates to content scripts
+  - `getViewportInfo()`: Retrieves viewport dimensions from content script
+  - `injectContentScriptManually()`: Manually injects content script into tabs when needed
 
 #### `extension/src/content/index.ts`
 - **Purpose**: Content script running in web pages
 - **Current Functionality**: 
-  - Initializes visual mouse pointer
+  - Initializes visual mouse pointer via `VisualMousePointer` class
   - Handles mouse position updates from background script
-  - Provides viewport information
-  - Manages visual feedback for mouse actions
+  - Provides viewport information with iframe detection and fallback
+  - Manages visual feedback for mouse actions (clicks, moves, scrolls)
+  - Responds to cleanup commands (`visual_mouse_destroy`)
+- **Message Handlers**:
+  - `get_viewport`: Returns viewport dimensions and device info
+  - `visual_mouse_update`: Updates mouse position/action on screen
+  - `visual_mouse_position`: Returns current visual mouse position
+  - `visual_mouse_destroy`: Removes visual mouse pointer from page
 
 #### `extension/src/content/visual-mouse.ts`
 - **Purpose**: Visual mouse pointer overlay for operator feedback
@@ -176,6 +198,11 @@ npm run typecheck            # TypeScript type checking
   - Visual animations for clicks (purple pulse), scrolls (blue movement), dragging (orange)
   - Automatic boundary checking and position tracking
   - Toggle visibility with Ctrl+Shift+M shortcut
+  - Advanced viewport dimension detection with iframe handling
+- **Key Methods**:
+  - `getViewportInfo()`: Returns viewport dimensions, handles iframe cases, tries parent window
+  - `handleMouseUpdate()`: Updates pointer position and triggers animations
+  - `destroy()`: Removes pointer from DOM and cleans up event listeners
 - **Integration**: Communicates with background script via Chrome messaging API
 
 ### CLI Module
@@ -184,12 +211,25 @@ npm run typecheck            # TypeScript type checking
 - **Purpose**: Command-line interface for interacting with server
 - **Commands**:
   - `status`: Check server health
-  - `mouse move/click/scroll`: Mouse operations
+  - `mouse move/click/scroll/reset`: Mouse operations
   - `keyboard type/press`: Keyboard operations
   - `screenshot capture`: Screenshot capture
   - `tabs list/open/close/switch`: Tab management
-  - `interactive`: Interactive REPL mode
+  - `interactive`: Interactive REPL mode with shortcut commands
   - `script`: Execute commands from JSON file
+
+**Interactive Mode Shortcut Commands**:
+  - `reset`: Reset mouse to center
+  - `click [left|right|middle]`: Click mouse button (default: left)
+  - `move <dx> <dy>`: Move mouse relative
+  - `scroll <up|down|left|right> [amount]`: Scroll (default: down, 100)
+  - `type <text>`: Type text
+  - `press <key> [modifiers]`: Press special key
+  - `screenshot`: Capture screenshot
+  - `tabs list`: List all tabs
+  - `tabs open <url>`: Open new tab
+  - `tabs close <tab_id>`: Close tab
+  - `tabs switch <tab_id>`: Switch to tab
 
 ## Testing
 
@@ -295,6 +335,53 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Content script uses `window.innerWidth/Height` first, falls back to `document.documentElement.clientWidth/Height`
   - If both are zero, returns 800x600 (now improved to use screen estimate when available)
   - Background script validates dimensions and falls back to 1920x1080 if invalid
+
+#### 8. Screenshot Timeout or Connection Reset
+- **Cause**: Large screenshot images exceed WebSocket default message size limit
+- **Symptoms**: Screenshot command times out with "Read timed out" error, WebSocket disconnects with code 1009
+- **Fix**: 
+  - Increased WebSocket server `max_size` to 100MB (`100 * 1024 * 1024`)
+  - Extension sends uncompressed PNG screenshots via data URLs
+- **Debug**:
+  - Check server logs for WebSocket disconnection messages
+  - Verify WebSocket server started with increased message size
+  - Test with smaller viewport sizes to confirm basic functionality
+
+#### 9. Click Commands Show Success But Page Doesn't Respond
+- **Cause**: Mouse click coordinates not converted from preset system to actual screen coordinates
+- **Symptoms**: CLI shows "Command executed successfully" but no action occurs on webpage
+- **Fix**:
+  - Updated `performClick` function to convert preset coordinates to actual screen coordinates
+  - Added detailed CDP command logging for `mouseMoved`, `mousePressed`, `mouseReleased`
+  - Same coordinate conversion logic as `performMouseMove` function
+- **Debug**:
+  - Check extension background logs for coordinate conversion: `preset (x,y) -> actual (x,y)`
+  - Verify CDP commands are being sent: Look for "Sending mousePressed" and "mousePressed command successful" logs
+  - Ensure debugger is attached to tab (should show "Debugger attached successfully")
+
+#### 10. Iframe Viewport Size Returns Zero or Incorrect Dimensions
+- **Cause**: Content script injected into iframe instead of main window, returning iframe dimensions
+- **Symptoms**: Viewport size reports 0 height or very small dimensions, coordinate mapping fails
+- **Fix**:
+  - Send `get_viewport` messages only to main frame (`frameId: 0`)
+  - Enhanced content script to try parent window dimensions when in iframe
+  - Return special failure value (-1) when no valid dimensions found
+- **Debug**:
+  - Check content script logs for `isInIframe=true` 
+  - Look for "Current iframe has invalid dimensions, trying parent window" messages
+  - Verify main frame content script injection (check webpage console)
+
+#### 11. Visual Mouse Pointer Remains After Extension Disconnect
+- **Cause**: No cleanup mechanism for visual mouse pointers when WebSocket disconnects
+- **Symptoms**: Mouse pointer overlay stays visible on pages after server stops or extension disconnects
+- **Fix**:
+  - Added WebSocket disconnect event handling in `WebSocketClient`
+  - Implemented `cleanupVisualMouseInAllTabs()` function to destroy pointers in all tabs
+  - Automatic cleanup triggered on WebSocket disconnect
+- **Debug**:
+  - Check extension background logs for "Cleaning up visual mouse pointers in all tabs"
+  - Verify `visual_mouse_destroy` messages are sent to all tabs
+  - Monitor page console for visual mouse cleanup
 
 ### Debug Logging
 
