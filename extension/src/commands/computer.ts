@@ -50,6 +50,8 @@ const PRESET_MAX_Y = PRESET_HEIGHT / 2;  // 720
 const mousePositions = new Map<number, {x: number, y: number}>();
 // Cache viewport sizes per tab
 const viewportSizes = new Map<number, {width: number, height: number}>();
+// Cache timestamps for viewport sizes
+const viewportCacheTimestamps = new Map<number, number>();
 
 /**
  * Get viewport size from content script
@@ -136,7 +138,8 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
         
         const size = { width: validatedWidth, height: validatedHeight };
         viewportSizes.set(tabId, size);
-        console.log(`🖥️ [Computer] Fresh viewport size for tab ${tabId}: ${size.width}x${size.height}`);
+        viewportCacheTimestamps.set(tabId, Date.now());
+        console.log(`🖥️ [Computer] Fresh viewport size for tab ${tabId}: ${size.width}x${size.height} (cached at ${new Date().toISOString()})`);
         return size;
       } else {
         console.warn(`🖥️ [Computer] Invalid response from content script for tab ${tabId} on attempt ${attempt}:`, response);
@@ -154,14 +157,17 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
   // Fallback to cached value if available
   if (viewportSizes.has(tabId)) {
     const cached = viewportSizes.get(tabId)!;
-    console.log(`🔄 [Computer] Using cached viewport size: ${cached.width}x${cached.height}`);
+    const cacheTime = viewportCacheTimestamps.get(tabId) || Date.now();
+    const cacheAge = Date.now() - cacheTime;
+    console.log(`🔄 [Computer] Using cached viewport size: ${cached.width}x${cached.height} (cached ${cacheAge}ms ago)`);
     return cached;
   }
   
   // Ultimate fallback to reasonable defaults
   const defaultSize = { width: 1920, height: 1080 };
   viewportSizes.set(tabId, defaultSize);
-  console.log(`⚠️ [Computer] No viewport data available after all attempts, using default: ${defaultSize.width}x${defaultSize.height}`);
+  viewportCacheTimestamps.set(tabId, Date.now());
+  console.log(`⚠️ [Computer] No viewport data available after all attempts, using default: ${defaultSize.width}x${defaultSize.height} (cached at ${new Date().toISOString()})`);
   return defaultSize;
 }
 
@@ -453,7 +459,9 @@ async function resetMousePosition(
   
   // Clear cached viewport size to force fresh retrieval from content script
   // This ensures we get the correct viewport size after window resize (e.g., exiting fullscreen)
+  console.log(`🧹 [Computer] Clearing viewport cache for tab ${tabId} before reset`);
   viewportSizes.delete(tabId);
+  viewportCacheTimestamps.delete(tabId);
   
   // Get actual viewport size for coordinate mapping and CDP movement
   const viewport = await getViewportSize(tabId);
