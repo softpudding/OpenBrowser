@@ -383,6 +383,21 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Verify `visual_mouse_destroy` messages are sent to all tabs
   - Monitor page console for visual mouse cleanup
 
+#### 12. Type Command Shows Success But No Text Appears
+- **Cause**: CDP key events not properly configured for text input, especially for non-ASCII characters
+- **Symptoms**: CLI shows "Command executed successfully" and extension logs show "Typing: ..." but no text appears in input fields
+- **Fix**:
+  - Use `Input.insertText` CDP command as primary method (simpler and more reliable)
+  - Fall back to character-by-character `keyDown`/`char`/`keyUp` events if insertText fails
+  - Proper handling of ASCII vs non-ASCII characters (Chinese, Unicode)
+  - Added detailed logging for each CDP command success/failure
+- **Debug**:
+  - Check extension background logs for "Attempting to use Input.insertText"
+  - Look for "Input.insertText successful" or "Input.insertText failed" messages
+  - Monitor character-by-character typing logs if fallback is used
+  - Ensure debugger is attached (should show "Debugger attached successfully")
+  - Test with simple ASCII text first (e.g., "hello") to isolate character encoding issues
+
 ### Debug Logging
 
 ```bash

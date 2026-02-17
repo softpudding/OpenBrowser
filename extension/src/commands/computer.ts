@@ -531,30 +531,99 @@ async function performType(
   const cdpCommander = new CdpCommander(tabId);
 
   try {
+    console.log(`⌨️ [Computer] Starting to type: "${text}" (${text.length} characters)`);
+    
+    // First, try to use Input.insertText which is more reliable for text input
+    // This is especially important for non-ASCII characters like Chinese
+    console.log(`⌨️ [Computer] Attempting to use Input.insertText for faster/better text input`);
+    try {
+      await cdpCommander.sendCommand('Input.insertText', {
+        text: text,
+      });
+      console.log(`✅ [Computer] Input.insertText successful for entire text`);
+      return {
+        success: true,
+        message: `Successfully typed: "${text}" (using Input.insertText)`,
+      };
+    } catch (insertTextError) {
+      console.warn(`⚠️ [Computer] Input.insertText failed, falling back to key events:`, insertTextError);
+      console.log(`⌨️ [Computer] Falling back to character-by-character typing`);
+    }
+    
+    // Fallback to character-by-character typing if insertText fails
     // Type each character
-    for (const char of text) {
-      await cdpCommander.sendCommand('Input.dispatchKeyEvent', {
-        type: 'keyDown',
-        key: char,
-        code: `Key${char.toUpperCase()}`,
-        windowsVirtualKeyCode: char.toUpperCase().charCodeAt(0),
-      });
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const charCode = char.charCodeAt(0);
+      const isAscii = charCode < 128;
+      
+      console.log(`⌨️ [Computer] Typing character ${i+1}/${text.length}: "${char}" (code: ${charCode}, isAscii: ${isAscii})`);
+      
+      // For ASCII characters, we can use virtual key codes
+      // For non-ASCII (like Chinese characters), we need to use Unicode approach
+      const windowsVirtualKeyCode = isAscii ? char.toUpperCase().charCodeAt(0) : 0;
+      const code = isAscii ? `Key${char.toUpperCase()}` : '';
+      
+      // Send keyDown event
+      console.log(`⌨️ [Computer] Sending keyDown for "${char}"`);
+      try {
+        await cdpCommander.sendCommand('Input.dispatchKeyEvent', {
+          type: 'keyDown',
+          key: char,
+          code: code,
+          windowsVirtualKeyCode: windowsVirtualKeyCode,
+        });
+        console.log(`✅ [Computer] keyDown successful for "${char}"`);
+      } catch (keyDownError) {
+        console.error(`❌ [Computer] keyDown failed for "${char}":`, keyDownError);
+        throw keyDownError;
+      }
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      
+      // Send char event (important for text input, especially non-ASCII)
+      console.log(`⌨️ [Computer] Sending char event for "${char}"`);
+      try {
+        await cdpCommander.sendCommand('Input.dispatchKeyEvent', {
+          type: 'char',
+          key: char,
+          code: code,
+          windowsVirtualKeyCode: windowsVirtualKeyCode,
+          text: char,  // text field is important for char events
+        });
+        console.log(`✅ [Computer] char event successful for "${char}"`);
+      } catch (charError) {
+        console.error(`❌ [Computer] char event failed for "${char}":`, charError);
+        // Continue anyway, some browsers might not support char event
+      }
 
-      await cdpCommander.sendCommand('Input.dispatchKeyEvent', {
-        type: 'keyUp',
-        key: char,
-        code: `Key${char.toUpperCase()}`,
-        windowsVirtualKeyCode: char.toUpperCase().charCodeAt(0),
-      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      
+      // Send keyUp event
+      console.log(`⌨️ [Computer] Sending keyUp for "${char}"`);
+      try {
+        await cdpCommander.sendCommand('Input.dispatchKeyEvent', {
+          type: 'keyUp',
+          key: char,
+          code: code,
+          windowsVirtualKeyCode: windowsVirtualKeyCode,
+        });
+        console.log(`✅ [Computer] keyUp successful for "${char}"`);
+      } catch (keyUpError) {
+        console.error(`❌ [Computer] keyUp failed for "${char}":`, keyUpError);
+        throw keyUpError;
+      }
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Longer delay between characters for readability
+      if (i < text.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
     }
 
+    console.log(`✅ [Computer] Finished typing all ${text.length} characters`);
     return {
       success: true,
-      message: `Successfully typed: "${text}"`,
+      message: `Successfully typed: "${text}" (using fallback key events)`,
     };
   } finally {
     await debuggerManager.safeDetachDebugger(tabId);
