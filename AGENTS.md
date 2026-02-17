@@ -274,16 +274,27 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Verify mouse position tracking is working in background logs
   - Test with small movements first
 
-#### 7. Mouse Reset Position Incorrect After Exiting Fullscreen Mode
-- **Cause**: Cached viewport size not updated after window resize, causing coordinate mapping errors
+#### 7. Mouse Reset Position Incorrect or Inconsistent
+- **Cause**: Intermittent failure to retrieve viewport size from content script, causing coordinate mapping errors
+- **Common Scenarios**:
+  - First reset works, second fails: Content script may not be responding to `get_viewport` messages
+  - After exiting fullscreen mode: Cached viewport size not updated
+  - In iframes or special page states: Content script may report zero or incorrect dimensions
 - **Fix**: 
   - Clear viewport cache before reset: `viewportSizes.delete(tabId)` in `resetMousePosition`
   - Ensure coordinates are rounded to integers for CDP mouse movement
-  - Verify content script is providing fresh viewport size via `get_viewport` message
+  - Enhanced retry logic (2 attempts) with content script injection on failure
+  - Improved validation of received viewport dimensions
 - **Debug**:
   - Check extension background logs for viewport size reported by content script
   - Verify actual viewport dimensions match reported values
+  - Open webpage console (F12) to check content script logs for `getViewportInfo` calls
+  - Check if content script is injected: Look for "Local Chrome Control content script loaded" in webpage console
   - Reload page to ensure content script is injected and responding
+- **Technical Details**:
+  - Content script uses `window.innerWidth/Height` first, falls back to `document.documentElement.clientWidth/Height`
+  - If both are zero, returns 800x600 (now improved to use screen estimate when available)
+  - Background script validates dimensions and falls back to 1920x1080 if invalid
 
 ### Debug Logging
 
