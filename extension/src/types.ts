@@ -6,6 +6,7 @@ export interface BaseCommand {
   type: string;
   command_id?: string;
   timestamp?: number;
+  tab_id?: number;
 }
 
 export interface MouseMoveCommand extends BaseCommand {
@@ -26,6 +27,10 @@ export interface MouseScrollCommand extends BaseCommand {
   type: 'mouse_scroll';
   direction: ScrollDirection;
   amount: number;
+}
+
+export interface ResetMouseCommand extends BaseCommand {
+  type: 'reset_mouse';
 }
 
 export interface KeyboardTypeCommand extends BaseCommand {
@@ -61,6 +66,7 @@ export type Command =
   | MouseMoveCommand
   | MouseClickCommand
   | MouseScrollCommand
+  | ResetMouseCommand
   | KeyboardTypeCommand
   | KeyboardPressCommand
   | ScreenshotCommand

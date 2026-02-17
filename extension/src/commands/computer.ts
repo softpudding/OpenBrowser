@@ -70,6 +70,7 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
       const { width, height } = response.data;
       const size = { width: width || 1920, height: height || 1080 };
       viewportSizes.set(tabId, size);
+      console.log(`🖥️ [Computer] Viewport size for tab ${tabId}: ${size.width}x${size.height} (from content script: ${width}x${height})`);
       return size;
     }
   } catch (error) {
@@ -171,7 +172,7 @@ async function performClick(
   tabId: number,
   x: number,
   y: number,
-  button: 'left' | 'right',
+  button: 'left' | 'right' | 'middle',
   clickCount: number = 1,
 ): Promise<any> {
   // If coordinates are (0,0), use our tracked mouse position
@@ -380,10 +381,11 @@ async function resetMousePosition(
     
     return {
       success: true,
-      message: `Mouse position reset tracked to preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}). Actual movement may be limited.`,
+      message: `Mouse position reset tracked to preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) [viewport: ${viewport.width}x${viewport.height}]. Actual movement may be limited.`,
       data: {
         presetPosition: { x: PRESET_CENTER_X, y: PRESET_CENTER_Y },
         actualPosition: { x: actualX, y: actualY },
+        viewport: viewport,
         reset: true,
       },
     };
@@ -403,7 +405,7 @@ async function resetMousePosition(
     
     return {
       success: true,
-      message: `Mouse reset to preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)})`,
+      message: `Mouse reset to preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) [viewport: ${viewport.width}x${viewport.height}]`,
       data: {
         presetPosition: { x: PRESET_CENTER_X, y: PRESET_CENTER_Y },
         actualPosition: { x: actualX, y: actualY },
@@ -416,11 +418,12 @@ async function resetMousePosition(
     
     return {
       success: false,
-      message: `Failed to reset mouse via CDP, but position tracked to preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)})`,
+      message: `Failed to reset mouse via CDP, but position tracked to preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) [viewport: ${viewport.width}x${viewport.height}]`,
       error: error instanceof Error ? error.message : 'Unknown error',
       data: {
         trackedPresetPosition: { x: PRESET_CENTER_X, y: PRESET_CENTER_Y },
         actualPosition: { x: actualX, y: actualY },
+        viewport: viewport,
       },
     };
   } finally {
