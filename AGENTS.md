@@ -919,6 +919,27 @@ The agent understands natural language and can execute:
    - **Workaround**: Use synchronous HTTP API calls instead of WebSocket for tool execution
    - **Check**: Ensure `QueueVisualizer.on_event()` is being called for all event types
 
+### Isolation Improvements (February 2026)
+
+**Problem**: AI-managed tabs were interfering with user browsing:
+1. AI operations (e.g., `reset_mouse`) activated managed tabs, stealing focus from user's active tab
+2. When user switched back to their tab, AI commands could target the wrong tab (user's active tab)
+
+**Solution**: Implemented background automation mode:
+1. **No tab activation**: Modified `activateTabForAutomation()` to prepare tabs without activating them
+2. **Managed tab priority**: Updated `getCurrentTabId()` to prefer managed tabs over active tab
+3. **Background tab creation**: Changed `initializeSession()`, `openManagedTab()`, and `openTab()` to create tabs as non-active (`active: false`)
+4. **Visual mouse handling**: Visual mouse pointers remain in managed tabs but are hidden when user switches away
+
+**Benefits**:
+- AI operations run in background without disrupting user's browsing experience
+- Commands reliably target managed tabs even when user switches tabs
+- Tab group isolation is preserved while avoiding focus stealing
+
+**Configuration**: All changes are enabled by default. No configuration needed.
+
+**Testing**: Verify that `tabs init <url>` creates a tab in the background, and subsequent `reset_mouse` or `mouse_move` commands do not switch tabs.
+
 ### Future Enhancements
 
 1. **Improved Visual Recognition**:
