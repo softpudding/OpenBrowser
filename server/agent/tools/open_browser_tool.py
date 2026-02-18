@@ -148,9 +148,6 @@ class OpenBrowserObservation(Observation):
                 result_str = result_str[:50000] + "... (truncated)"
             text_parts.append(f"📜 JavaScript execution result: {result_str}")
         
-        if self.screenshot_data_url:
-            text_parts.append("🖼️  Screenshot captured (1280x720 pixels)")
-        
         text_content = "\n".join(text_parts)
         content_items.append(TextContent(text=text_content))
         
