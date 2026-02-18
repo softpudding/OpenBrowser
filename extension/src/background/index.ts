@@ -9,6 +9,7 @@ import { tabs } from '../commands/tabs';
 import { tabManager } from '../commands/tab-manager';
 import { debuggerManager } from '../commands/debugger-manager';
 import { CdpCommander } from '../commands/cdp-commander';
+import { javascript } from '../commands/javascript';
 import type { Command, CommandResponse } from '../types';
 
 console.log('🚀 OpenBrowser extension starting...');
@@ -155,8 +156,14 @@ async function activateTabForAutomation(tabId: number): Promise<() => Promise<vo
     // Also bring the window to front if needed
     if (tab.windowId && originalWindowId !== tab.windowId) {
       try {
-        await chrome.windows.update(tab.windowId, { focused: true });
-        console.log(`✅ Window ${tab.windowId} focused`);
+        // Check if window is already focused to avoid unnecessary flashing
+        const window = await chrome.windows.get(tab.windowId);
+        if (!window.focused) {
+          await chrome.windows.update(tab.windowId, { focused: true });
+          console.log(`✅ Window ${tab.windowId} focused`);
+        } else {
+          console.log(`✅ Window ${tab.windowId} is already focused`);
+        }
       } catch (windowError) {
         console.warn(`⚠️ Could not focus window ${tab.windowId}:`, windowError);
       }
@@ -208,8 +215,20 @@ async function activateTabForAutomation(tabId: number): Promise<() => Promise<vo
           
           // Restore window focus if different
           if (originalWindowId && originalWindowId !== tab.windowId) {
-            await chrome.windows.update(originalWindowId, { focused: true });
-            console.log(`✅ Restored user's tab ${originalActiveTabId} and window ${originalWindowId}`);
+            // Check if window is already focused to avoid unnecessary flashing
+            try {
+              const window = await chrome.windows.get(originalWindowId);
+              if (!window.focused) {
+                await chrome.windows.update(originalWindowId, { focused: true });
+                console.log(`✅ Restored user's tab ${originalActiveTabId} and window ${originalWindowId}`);
+              } else {
+                console.log(`✅ Restored user's tab ${originalActiveTabId} (window already focused)`);
+              }
+            } catch (windowError) {
+              console.warn(`⚠️ Could not check/restore window focus:`, windowError);
+              // Try to focus anyway as fallback
+              await chrome.windows.update(originalWindowId, { focused: true }).catch(console.error);
+            }
           } else {
             console.log(`✅ Restored user's tab ${originalActiveTabId}`);
           }
@@ -616,6 +635,33 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           data: getTabsResult,
           timestamp: Date.now(),
         };
+
+      case 'javascript_execute':
+        const tabIdForJS = command.tab_id || await getCurrentTabId();
+        // Ensure tab is managed by tab manager
+        await tabManager.ensureTabManaged(tabIdForJS);
+        // Update tab activity for status tracking
+        tabManager.updateTabActivity(tabIdForJS);
+        // Temporarily activate tab for automation and get restore function
+        const restoreJS = await activateTabForAutomation(tabIdForJS);
+        try {
+          const jsResult = await javascript.executeJavaScript(
+            tabIdForJS,
+            command.script,
+            command.return_by_value !== false, // default: true
+            command.await_promise === true,    // default: false
+            command.timeout || 30000           // default: 30000ms
+          );
+          return {
+            success: true,
+            message: 'JavaScript executed successfully',
+            data: jsResult,
+            timestamp: Date.now(),
+          };
+        } finally {
+          // Restore user's original tab after command execution
+          await restoreJS();
+        }
 
       default:
         throw new Error(`Unknown command type: ${(command as any).type}`);

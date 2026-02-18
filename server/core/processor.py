@@ -9,7 +9,7 @@ from server.models.commands import (
     MouseMoveCommand, MouseClickCommand, MouseScrollCommand,
     ResetMouseCommand,
     KeyboardTypeCommand, KeyboardPressCommand, ScreenshotCommand,
-    TabCommand, GetTabsCommand
+    TabCommand, GetTabsCommand, JavascriptExecuteCommand
 )
 from server.websocket.manager import ws_manager
 from server.core.coordinates import coord_manager
@@ -36,7 +36,8 @@ class CommandProcessor:
         from server.models.commands import (
             TabCommand, GetTabsCommand, ScreenshotCommand,
             MouseMoveCommand, MouseClickCommand, MouseScrollCommand,
-            ResetMouseCommand, KeyboardTypeCommand, KeyboardPressCommand
+            ResetMouseCommand, KeyboardTypeCommand, KeyboardPressCommand,
+            JavascriptExecuteCommand
         )
         
         # Check if we should auto-fill tab_id
@@ -107,6 +108,8 @@ class CommandProcessor:
                 return await self._execute_get_tabs(command)
             elif isinstance(command, ResetMouseCommand):
                 return await self._execute_reset_mouse(command)
+            elif isinstance(command, JavascriptExecuteCommand):
+                return await self._execute_javascript_execute(command)
             else:
                 raise ValueError(f"Unknown command type: {command.type}")
                 
@@ -178,6 +181,11 @@ class CommandProcessor:
         
     async def _execute_reset_mouse(self, command: ResetMouseCommand) -> CommandResponse:
         """Execute reset mouse command"""
+        response = await self._send_prepared_command(command)
+        return response
+        
+    async def _execute_javascript_execute(self, command: JavascriptExecuteCommand) -> CommandResponse:
+        """Execute JavaScript code in browser tab"""
         response = await self._send_prepared_command(command)
         return response
         

@@ -64,6 +64,14 @@ export interface GetTabsCommand extends BaseCommand {
   managed_only?: boolean;
 }
 
+export interface JavascriptExecuteCommand extends BaseCommand {
+  type: 'javascript_execute';
+  script: string;
+  return_by_value?: boolean;
+  await_promise?: boolean;
+  timeout?: number;
+}
+
 export type Command = 
   | MouseMoveCommand
   | MouseClickCommand
@@ -73,7 +81,8 @@ export type Command =
   | KeyboardPressCommand
   | ScreenshotCommand
   | TabCommand
-  | GetTabsCommand;
+  | GetTabsCommand
+  | JavascriptExecuteCommand;
 
 export interface CommandResponse {
   success: boolean;

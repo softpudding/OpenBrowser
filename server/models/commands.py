@@ -157,6 +157,28 @@ class GetTabsCommand(BaseCommand):
     )
 
 
+class JavascriptExecuteCommand(BaseCommand):
+    """Execute JavaScript code in browser tab"""
+    type: Literal["javascript_execute"] = "javascript_execute"
+    script: str = Field(
+        description="JavaScript code to execute"
+    )
+    return_by_value: bool = Field(
+        default=True,
+        description="If true, returns result as serializable JSON value"
+    )
+    await_promise: bool = Field(
+        default=False,
+        description="If true, waits for Promise resolution"
+    )
+    timeout: int = Field(
+        default=30000,
+        ge=100,
+        le=120000,
+        description="Execution timeout in milliseconds (100-120000)"
+    )
+
+
 class CommandResponse(BaseModel):
     """Response from command execution"""
     success: bool
@@ -194,6 +216,7 @@ Command = Union[
     ScreenshotCommand,
     TabCommand,
     GetTabsCommand,
+    JavascriptExecuteCommand,
 ]
 
 
@@ -214,6 +237,7 @@ def parse_command(data: dict) -> Command:
         "screenshot": ScreenshotCommand,
         "tab": TabCommand,
         "get_tabs": GetTabsCommand,
+        "javascript_execute": JavascriptExecuteCommand,
     }
     
     if cmd_type not in command_map:

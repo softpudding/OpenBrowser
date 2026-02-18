@@ -83,14 +83,21 @@ npm run typecheck            # TypeScript type checking
 - **Purpose**: Command schema definitions and validation
 - **Key Components**:
   - `BaseCommand`: Base class for all commands
-  - Command types: `MouseMoveCommand`, `MouseClickCommand`, `KeyboardTypeCommand`, etc.
-  - `TabCommand`: Tab management command with `TabAction` enum (OPEN, CLOSE, LIST, SWITCH, INIT)
+  - Command types: `MouseMoveCommand`, `MouseClickCommand`, `KeyboardTypeCommand`, `JavascriptExecuteCommand`, etc.
+  - `TabCommand`: Tab management command with `TabAction` enum (OPEN, CLOSE, LIST, SWITCH, INIT, REFRESH)
   - `parse_command()`: Factory function to create commands from JSON
 - **Validation**: Uses Pydantic for schema validation
 - **Recent Updates**:
+  - Added `JavascriptExecuteCommand` for executing JavaScript code in browser tabs
   - Added `INIT` action to `TabAction` enum for explicit session initialization
+  - Added `REFRESH` action to `TabAction` enum for tab refresh functionality
   - Updated URL validator to support both `OPEN` and `INIT` actions
   - `INIT` action requires URL parameter and creates managed tab group
+- **JavaScript Execution Support**:
+  - `JavascriptExecuteCommand`: Executes JavaScript code with options for return value serialization and Promise handling
+  - Parameters: `script` (required), `return_by_value` (default: true), `await_promise` (default: false), `timeout` (default: 30000ms)
+  - Returns: CDP result object with value or exception details
+  - Integrated with tab management system for isolated execution in managed tabs
 
 #### `server/core/config.py`
 - **Purpose**: Configuration management
@@ -199,6 +206,42 @@ npm run typecheck            # TypeScript type checking
   - **Status Visibility**: Group title shows real-time system status
   - **Organization**: Keeps automation sessions organized and contained
   - **Explicit Control**: User decides when to start a managed session with `tabs init` command
+
+#### `extension/src/commands/javascript.ts`
+- **Purpose**: JavaScript code execution in browser tabs via Chrome DevTools Protocol
+- **Key Features**:
+  - **CDP Integration**: Uses `Runtime.evaluate` for JavaScript execution with full page context access
+  - **Return Value Support**: Can return serializable JSON values from JavaScript execution
+  - **Promise Support**: Optionally waits for Promise resolution with `await_promise` parameter
+  - **Error Handling**: Captures JavaScript exceptions with detailed stack traces
+  - **Type Safety**: Full TypeScript type definitions for CDP responses
+- **Core Components**:
+  - `executeJavaScript()`: Main function for executing JavaScript with comprehensive options
+  - `evaluateJavaScript()`: Simplified wrapper for common evaluation use cases
+  - `RuntimeEvaluateResult` interface: Type definition for CDP response
+- **Parameters**:
+  - `script`: JavaScript code to execute (string)
+  - `return_by_value`: Return result as serializable JSON (default: true)
+  - `await_promise`: Wait for Promise resolution (default: false)
+  - `timeout`: Execution timeout in milliseconds (default: 30000)
+- **Usage Examples**:
+  ```typescript
+  // Get page title
+  await javascript.executeJavaScript(tabId, "document.title");
+  
+  // Execute complex script with return value
+  const result = await javascript.executeJavaScript(tabId, 
+    "({title: document.title, url: window.location.href})");
+    
+  // Handle Promise
+  await javascript.executeJavaScript(tabId,
+    "fetch('/api/data').then(r => r.json())", true, true);
+  ```
+- **Integration**: 
+  - Added as new command type `javascript_execute` to command system
+  - Integrated into background script command handler
+  - Available via CLI, API, and AI agent tools
+  - Supports managed tab isolation and background execution
 
 #### `extension/src/background/index.ts`
 - **Purpose**: Background script - main extension logic
@@ -886,6 +929,7 @@ The agent understands natural language and can execute:
 - **Navigation**: "Open google.com", "Go to Wikipedia"
 - **Search**: "Search for Python tutorials", "Type 'hello world' in the search box"
 - **Interaction**: "Click the login button", "Scroll down the page"
+- **JavaScript Execution**: "Get the page title", "Extract all links from the page", "Execute custom JavaScript code"
 - **Tab Management**: "Open a new tab", "Switch to the second tab"
 - **Form Filling**: "Enter username and password", "Submit the form"
 

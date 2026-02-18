@@ -8,7 +8,55 @@ import { CdpCommander } from './cdp-commander';
 import { debuggerManager } from './debugger-manager';
 
 /**
- * Resize image using content script (Canvas API)
+ * Resize image using OffscreenCanvas (preferred, avoids tab activation)
+ */
+async function resizeImageWithOffscreenCanvas(
+  dataUrl: string,
+  targetWidth: number = 1280,
+  targetHeight: number = 720,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Check if OffscreenCanvas is available
+    if (typeof OffscreenCanvas === 'undefined') {
+      reject(new Error('OffscreenCanvas not available'));
+      return;
+    }
+    
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = new OffscreenCanvas(targetWidth, targetHeight);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get 2d context'));
+          return;
+        }
+        
+        // Draw image resized to target dimensions
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+        
+        // Convert to data URL (PNG format)
+        canvas.convertToBlob({ type: 'image/png' }).then(blob => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const resizedDataUrl = reader.result as string;
+            console.log(`✅ [Screenshot] Image resized with OffscreenCanvas: ${img.width}x${img.height} → ${targetWidth}x${targetHeight}`);
+            resolve(resizedDataUrl);
+          };
+          reader.onerror = () => reject(new Error('Failed to read blob'));
+          reader.readAsDataURL(blob);
+        }).catch(reject);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Resize image using content script (Canvas API) as fallback
  */
 async function resizeImageInContentScript(
   tabId: number,
@@ -16,27 +64,37 @@ async function resizeImageInContentScript(
   targetWidth: number = 1280,
   targetHeight: number = 720,
 ): Promise<string> {
+  console.log(`🖼️ [Screenshot] Attempting to resize image for tab ${tabId} to ${targetWidth}×${targetHeight}`);
+  
+  // First try OffscreenCanvas (avoids tab activation)
   try {
-    console.log(`🖼️ [Screenshot] Requesting image resize in tab ${tabId} to ${targetWidth}×${targetHeight}`);
+    const result = await resizeImageWithOffscreenCanvas(dataUrl, targetWidth, targetHeight);
+    console.log(`✅ [Screenshot] Image resized successfully using OffscreenCanvas`);
+    return result;
+  } catch (offscreenError) {
+    console.warn('⚠️ [Screenshot] OffscreenCanvas resize failed, falling back to content script:', offscreenError);
     
-    const response = await chrome.tabs.sendMessage(tabId, {
-      type: 'resize_image',
-      data: {
-        dataUrl,
-        targetWidth,
-        targetHeight,
-      },
-    });
-    
-    if (response?.success && response.resizedDataUrl) {
-      console.log(`✅ [Screenshot] Image resized successfully: ${response.originalSize} → ${response.resizedSize} bytes`);
-      return response.resizedDataUrl;
-    } else {
-      throw new Error(response?.error || 'Failed to resize image');
+    // Fallback to content script (may cause tab activation)
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, {
+        type: 'resize_image',
+        data: {
+          dataUrl,
+          targetWidth,
+          targetHeight,
+        },
+      });
+      
+      if (response?.success && response.resizedDataUrl) {
+        console.log(`✅ [Screenshot] Image resized via content script: ${response.originalSize} → ${response.resizedSize} bytes`);
+        return response.resizedDataUrl;
+      } else {
+        throw new Error(response?.error || 'Failed to resize image');
+      }
+    } catch (error) {
+      console.error('❌ [Screenshot] Failed to resize image in content script:', error);
+      throw error;
     }
-  } catch (error) {
-    console.error('❌ [Screenshot] Failed to resize image in content script:', error);
-    throw error;
   }
 }
 
@@ -69,80 +127,130 @@ async function captureScreenshotWithCDP(
       console.warn('Page.enable may already be enabled:', e);
     }
     
-    // Try to get viewport size from content script first (more reliable)
-    let viewportFromContentScript: {width: number, height: number, x?: number, y?: number} | null = null;
-    try {
-      const viewportResponse = await chrome.tabs.sendMessage(tabId, {
-        type: 'get_viewport'
-      });
-      if (viewportResponse?.success && viewportResponse.data) {
-        const { width, height } = viewportResponse.data;
-        if (width > 0 && height > 0) {
-          viewportFromContentScript = { width, height, x: 0, y: 0 };
-          console.log(`👁️ [Screenshot] Got viewport from content script: ${width}x${height}`);
-        }
-      }
-    } catch (e) {
-      console.warn('⚠️ [Screenshot] Failed to get viewport from content script:', e);
-    }
-    
-    // Get layout metrics to determine viewport size (fallback)
+    // Get layout metrics to determine viewport size (avoid content script messages)
     const layoutMetrics = await cdpCommander.sendCommand<any>('Page.getLayoutMetrics', {});
     
     console.log(`📐 [Screenshot] Layout metrics:`, JSON.stringify(layoutMetrics, null, 2));
     
     // Calculate viewport dimensions
     const visualViewport = layoutMetrics.visualViewport;
+    const layoutViewport = layoutMetrics.layoutViewport;
     const contentSize = layoutMetrics.contentSize;
+    const cssVisualViewport = layoutMetrics.cssVisualViewport;
+    const cssLayoutViewport = layoutMetrics.cssLayoutViewport;
+    const cssContentSize = layoutMetrics.cssContentSize;
     
-    // Get device pixel ratio from content script if possible
+    console.log(`📊 [Screenshot] CDP Metrics - CSS Visual: ${JSON.stringify(cssVisualViewport)}, CSS Layout: ${JSON.stringify(cssLayoutViewport)}, Visual: ${JSON.stringify(visualViewport)}, Layout: ${JSON.stringify(layoutViewport)}, Content: ${JSON.stringify(contentSize)}`);
+    
+    // Device pixel ratio estimation - we need a better approach
+    // visualViewport.scale might give us the zoom level, not device pixel ratio
+    // For now, use default of 1 and rely on CDP's scaling
     let devicePixelRatio = 1;
-    try {
-      const dpResponse = await chrome.tabs.sendMessage(tabId, {
-        type: 'get_device_pixel_ratio'
-      });
-      if (dpResponse?.success && dpResponse.devicePixelRatio) {
-        devicePixelRatio = dpResponse.devicePixelRatio;
-      }
-    } catch (e) {
-      console.warn('⚠️ [Screenshot] Failed to get device pixel ratio, using 1:', e);
+    
+    // Try to get device pixel ratio from visualViewport.scale if available
+    if (visualViewport && typeof visualViewport.scale === 'number' && visualViewport.scale > 0) {
+      // visualViewport.scale is zoom level (e.g., 1.0 = 100%, 2.0 = 200%)
+      // This is NOT device pixel ratio, but might help with scaling
+      console.log(`📱 [Screenshot] Visual viewport scale: ${visualViewport.scale}`);
     }
     
-    console.log(`📱 [Screenshot] Device pixel ratio: ${devicePixelRatio}`);
+    // Calculate device pixel ratio from CSS vs device viewport dimensions if available
+    if (cssVisualViewport && cssVisualViewport.clientWidth > 0 && visualViewport && visualViewport.clientWidth > 0) {
+      const calculatedRatio = visualViewport.clientWidth / cssVisualViewport.clientWidth;
+      if (calculatedRatio > 0 && Math.abs(calculatedRatio - Math.round(calculatedRatio)) < 0.1) {
+        devicePixelRatio = Math.round(calculatedRatio);
+        console.log(`✅ [Screenshot] Calculated device pixel ratio from CSS vs device viewport: ${devicePixelRatio}`);
+      }
+    }
     
-    // Determine viewport dimensions - prefer content script, then CDP metrics
+    // If not calculated, try alternative: use window.devicePixelRatio from CDP Runtime.evaluate
+    if (devicePixelRatio === 1) {
+      try {
+        const devicePixelRatioResult = await cdpCommander.sendCommand<any>('Runtime.evaluate', {
+          expression: 'window.devicePixelRatio',
+          returnByValue: true,
+        });
+        if (devicePixelRatioResult && devicePixelRatioResult.result && devicePixelRatioResult.result.value) {
+          devicePixelRatio = devicePixelRatioResult.result.value;
+          console.log(`✅ [Screenshot] Got device pixel ratio from CDP Runtime.evaluate: ${devicePixelRatio}`);
+        }
+      } catch (e) {
+        console.warn('⚠️ [Screenshot] Failed to get device pixel ratio from Runtime.evaluate:', e);
+      }
+    }
+    
+    console.log(`📱 [Screenshot] Using device pixel ratio: ${devicePixelRatio}`);
+    
+    // Determine viewport dimensions from CDP metrics (avoid content script messages)
+    // Prefer CSS viewport dimensions for clip parameters (CDP expects CSS pixels)
     let viewportWidth, viewportHeight, viewportX, viewportY;
     
-    if (viewportFromContentScript) {
-      // Use viewport size from content script (most reliable)
-      viewportWidth = viewportFromContentScript.width;
-      viewportHeight = viewportFromContentScript.height;
-      viewportX = viewportFromContentScript.x || 0;
-      viewportY = viewportFromContentScript.y || 0;
-      console.log(`✅ [Screenshot] Using viewport from content script: ${viewportWidth}x${viewportHeight} at (${viewportX}, ${viewportY})`);
-    } else if (visualViewport && visualViewport.clientWidth > 0 && visualViewport.clientHeight > 0) {
-      // Visual viewport gives the currently visible area (accounts for zoom, scroll)
-      viewportWidth = Math.floor(visualViewport.clientWidth);
-      viewportHeight = Math.floor(visualViewport.clientHeight);
-      viewportX = Math.floor(visualViewport.pageX);
-      viewportY = Math.floor(visualViewport.pageY);
-      console.log(`👁️ [Screenshot] Using visual viewport: ${viewportWidth}x${viewportHeight} at (${viewportX}, ${viewportY})`);
-    } else if (layoutMetrics.layoutViewport && layoutMetrics.layoutViewport.clientWidth > 0) {
-      // Use layout viewport (the viewport excluding scrollbars)
-      const layoutViewport = layoutMetrics.layoutViewport;
-      viewportWidth = Math.floor(layoutViewport.clientWidth);
-      viewportHeight = Math.floor(layoutViewport.clientHeight);
+    // For screenshot, we want the currently visible area (visual viewport)
+    // But we need to capture from the top-left of the visible area, not current scroll position
+    if (cssVisualViewport && cssVisualViewport.clientWidth > 0 && cssVisualViewport.clientHeight > 0) {
+      // Use CSS visual viewport (CSS pixels)
+      viewportWidth = Math.floor(cssVisualViewport.clientWidth);
+      viewportHeight = Math.floor(cssVisualViewport.clientHeight);
+      // Always capture from top-left of visible area, not from scroll position
       viewportX = 0;
       viewportY = 0;
-      console.log(`📐 [Screenshot] Using layout viewport: ${viewportWidth}x${viewportHeight}`);
+      console.log(`👁️ [Screenshot] Using CSS visual viewport: ${viewportWidth}x${viewportHeight} (scroll was at ${cssVisualViewport.pageX}, ${cssVisualViewport.pageY})`);
+      
+      // Compare with layout viewport for debugging
+      if (cssLayoutViewport) {
+        console.log(`📊 [Screenshot] CSS Layout viewport: ${cssLayoutViewport.clientWidth}x${cssLayoutViewport.clientHeight}, ratio: ${cssVisualViewport.clientWidth / cssLayoutViewport.clientWidth}`);
+      }
+    } else if (cssLayoutViewport && cssLayoutViewport.clientWidth > 0 && cssLayoutViewport.clientHeight > 0) {
+      // Fallback to CSS layout viewport if CSS visual viewport not available
+      viewportWidth = Math.floor(cssLayoutViewport.clientWidth);
+      viewportHeight = Math.floor(cssLayoutViewport.clientHeight);
+      viewportX = 0;
+      viewportY = 0;
+      console.log(`📐 [Screenshot] Using CSS layout viewport: ${viewportWidth}x${viewportHeight}`);
+    } else if (visualViewport && visualViewport.clientWidth > 0 && visualViewport.clientHeight > 0) {
+      // Fallback to device pixel visual viewport (convert to CSS pixels using devicePixelRatio)
+      viewportWidth = Math.floor(visualViewport.clientWidth / devicePixelRatio);
+      viewportHeight = Math.floor(visualViewport.clientHeight / devicePixelRatio);
+      viewportX = 0;
+      viewportY = 0;
+      console.log(`👁️ [Screenshot] Using device visual viewport (converted to CSS): ${viewportWidth}x${viewportHeight} (device: ${visualViewport.clientWidth}x${visualViewport.clientHeight}, scroll was at ${visualViewport.pageX}, ${visualViewport.pageY})`);
+    } else if (layoutViewport && layoutViewport.clientWidth > 0 && layoutViewport.clientHeight > 0) {
+      // Fallback to device pixel layout viewport (convert to CSS pixels)
+      viewportWidth = Math.floor(layoutViewport.clientWidth / devicePixelRatio);
+      viewportHeight = Math.floor(layoutViewport.clientHeight / devicePixelRatio);
+      viewportX = 0;
+      viewportY = 0;
+      console.log(`📐 [Screenshot] Using device layout viewport (converted to CSS): ${viewportWidth}x${viewportHeight}`);
     } else {
       // Fall back to content size (entire page) - LAST RESORT
-      viewportWidth = Math.floor(contentSize.width);
-      viewportHeight = Math.floor(contentSize.height);
+      // Use CSS content size if available, otherwise device content size
+      if (cssContentSize && cssContentSize.width > 0 && cssContentSize.height > 0) {
+        viewportWidth = Math.floor(cssContentSize.width);
+        viewportHeight = Math.floor(cssContentSize.height);
+      } else {
+        viewportWidth = Math.floor(contentSize.width / devicePixelRatio);
+        viewportHeight = Math.floor(contentSize.height / devicePixelRatio);
+      }
       viewportX = 0;
       viewportY = 0;
       console.log(`⚠️ [Screenshot] WARNING: Using content size (entire page): ${viewportWidth}x${viewportHeight}. This may be too large!`);
     }
+    
+    // Safety check: ensure viewport dimensions are reasonable
+    if (viewportWidth <= 0 || viewportHeight <= 0) {
+      console.error(`❌ [Screenshot] Invalid viewport dimensions: ${viewportWidth}x${viewportHeight}. Using fallback 1280x720.`);
+      viewportWidth = 1280;
+      viewportHeight = 720;
+      viewportX = 0;
+      viewportY = 0;
+    }
+    
+    // Additional check: if dimensions seem too small (less than 640x360), warn
+    if (viewportWidth < 640 || viewportHeight < 360) {
+      console.warn(`⚠️ [Screenshot] Viewport dimensions very small: ${viewportWidth}x${viewportHeight}. Page might be zoomed or CDP metrics incorrect.`);
+    }
+    
+    console.log(`🎯 [Screenshot] Final viewport for capture: ${viewportWidth}x${viewportHeight} at (${viewportX}, ${viewportY})`);
     
     // For screenshot, we need to consider device pixel ratio
     // CDP captureScreenshot expects CSS pixels, but returns device pixels

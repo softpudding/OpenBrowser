@@ -163,6 +163,27 @@ class ChromeCLIClient:
         }
         return self.execute_command(command)
 
+    def javascript_execute(self, script: str, tab_id: Optional[int] = None, 
+                          return_by_value: bool = True, await_promise: bool = False,
+                          timeout: int = 30000) -> Dict[str, Any]:
+        """Execute JavaScript code in browser tab
+        Args:
+            script: JavaScript code to execute
+            tab_id: Target tab ID (None = current managed tab)
+            return_by_value: If True, returns result as serializable JSON value
+            await_promise: If True, waits for Promise resolution
+            timeout: Execution timeout in milliseconds
+        """
+        command = {
+            "type": "javascript_execute",
+            "script": script,
+            "tab_id": tab_id,
+            "return_by_value": return_by_value,
+            "await_promise": await_promise,
+            "timeout": timeout
+        }
+        return self.execute_command(command)
+
 
 @click.group()
 @click.option('--server', default=DEFAULT_SERVER_URL, help='Server URL')
@@ -389,6 +410,50 @@ def refresh(ctx, tab_id):
     _print_result(result)
 
 
+@cli.group()
+def javascript():
+    """JavaScript execution commands"""
+
+
+@javascript.command()
+@click.argument('script')
+@click.option('--tab-id', type=int, help='Target tab ID (default: current managed tab)')
+@click.option('--no-return-value', is_flag=True, help='Do not return serializable value (raw result object)')
+@click.option('--await-promise', is_flag=True, help='Wait for Promise resolution')
+@click.option('--timeout', default=30000, type=int, help='Execution timeout in milliseconds')
+@click.pass_context
+def execute(ctx, script, tab_id, no_return_value, await_promise, timeout):
+    """Execute JavaScript code in browser tab"""
+    result = ctx.obj['client'].javascript_execute(
+        script=script,
+        tab_id=tab_id,
+        return_by_value=not no_return_value,
+        await_promise=await_promise,
+        timeout=timeout
+    )
+    _print_result(result)
+    # If successful and has result data, print it nicely
+    if result.get('success') and result.get('data') and result['data'].get('result'):
+        import json
+        result_data = result['data']['result']
+        if result_data.get('value') is not None:
+            click.echo("\nResult value:")
+            try:
+                # Try to pretty print JSON if it's JSON serializable
+                if isinstance(result_data['value'], (dict, list)):
+                    click.echo(json.dumps(result_data['value'], indent=2))
+                else:
+                    click.echo(str(result_data['value']))
+            except:
+                click.echo(str(result_data['value']))
+        elif result_data.get('type') == 'undefined':
+            click.echo("\nResult: undefined")
+        else:
+            click.echo(f"\nResult type: {result_data.get('type')}")
+            if result_data.get('description'):
+                click.echo(f"Description: {result_data.get('description')}")
+
+
 @cli.command()
 @click.pass_context
 def interactive(ctx):
@@ -502,6 +567,35 @@ def interactive(ctx):
                             sys.stdout.write(f"  Resized to preset coordinate system (1280x720)\n")
                 else:
                     _print_result(result)
+            elif cmd.lower().startswith('javascript '):
+                # JavaScript execution shortcut: javascript <script>
+                script = cmd[11:]  # Remove "javascript " prefix
+                if not script:
+                    click.echo("❌ Missing JavaScript code. Use: javascript <script>")
+                    continue
+                
+                try:
+                    result = ctx.obj['client'].javascript_execute(script=script)
+                    _print_result(result)
+                    
+                    # Print result value if available
+                    if result.get('success') and result.get('data') and result['data'].get('result'):
+                        result_data = result['data']['result']
+                        if result_data.get('value') is not None:
+                            import json
+                            try:
+                                if isinstance(result_data['value'], (dict, list)):
+                                    click.echo(f"Result: {json.dumps(result_data['value'], indent=2)}")
+                                else:
+                                    click.echo(f"Result: {result_data['value']}")
+                            except:
+                                click.echo(f"Result: {result_data['value']}")
+                        elif result_data.get('type') == 'undefined':
+                            click.echo("Result: undefined")
+                        else:
+                            click.echo(f"Result type: {result_data.get('type')}")
+                except Exception as e:
+                    click.echo(f"❌ JavaScript execution failed: {e}")
             elif cmd.lower().startswith('tabs '):
                 # Tabs shortcuts: tabs list, tabs init <url>, tabs open <url>, tabs close <id>, tabs switch <id>
                 parts = cmd.split()
@@ -684,6 +778,7 @@ def _print_interactive_help():
     click.echo("    type <text>             - Type text")
     click.echo("    press <key> [modifiers] - Press special key")
     click.echo("    screenshot              - Capture screenshot")
+    click.echo("    javascript <script>     - Execute JavaScript code")
     click.echo("    tabs list               - List all tabs")
     click.echo("    tabs init <url>         - Initialize new managed session")
     click.echo("    tabs open <url>         - Open new tab")
@@ -696,6 +791,7 @@ def _print_interactive_help():
     click.echo("    {\"type\": \"reset_mouse\"}")
     click.echo("    {\"type\": \"keyboard_type\", \"text\": \"Hello World\"}")
     click.echo("    {\"type\": \"screenshot\"}")
+    click.echo("    {\"type\": \"javascript_execute\", \"script\": \"document.title\"}")
     click.echo("    {\"type\": \"tab\", \"action\": \"open\", \"url\": \"https://example.com\"}")
     click.echo("    {\"type\": \"get_tabs\"}")
     click.echo("")
