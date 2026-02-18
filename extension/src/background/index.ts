@@ -466,10 +466,12 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         }
 
       case 'get_tabs':
-        const getTabsResult = await tabs.getAllTabs();
+        // Support managed_only parameter (default: true for backward compatibility)
+        const managedOnly = command.managed_only !== false; // true if undefined or true
+        const getTabsResult = await tabs.getAllTabs(managedOnly);
         return {
           success: true,
-          message: `Found ${getTabsResult.count} tabs`,
+          message: getTabsResult.message || `Found ${getTabsResult.count} tabs`,
           data: getTabsResult,
           timestamp: Date.now(),
         };

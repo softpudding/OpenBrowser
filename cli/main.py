@@ -142,10 +142,15 @@ class ChromeCLIClient:
         }
         return self.execute_command(command)
         
-    def get_tabs(self) -> Dict[str, Any]:
-        """Get list of all tabs"""
+    def get_tabs(self, managed_only: bool = True) -> Dict[str, Any]:
+        """Get list of tabs
+        Args:
+            managed_only: If True, only returns managed tabs (default).
+                          If False, returns all tabs.
+        """
         command = {
-            "type": "get_tabs"
+            "type": "get_tabs",
+            "managed_only": managed_only
         }
         return self.execute_command(command)
 
@@ -291,22 +296,36 @@ def tabs():
 
 
 @tabs.command()
+@click.option('--all', 'show_all', is_flag=True, help='Show all tabs (not just managed)')
 @click.pass_context
-def list(ctx):
-    """List all tabs"""
-    result = ctx.obj['client'].get_tabs()
+def list(ctx, show_all):
+    """List tabs (managed tabs by default, use --all for all tabs)"""
+    result = ctx.obj['client'].get_tabs(managed_only=not show_all)
     
     if result.get('success') and 'data' in result and 'tabs' in result['data']:
         tabs = result['data']['tabs']
-        click.echo(f"Found {len(tabs)} tabs:")
-        click.echo("")
+        managed_only = result['data'].get('managedOnly', True)
         
-        for i, tab in enumerate(tabs):
-            active = "✓" if tab.get('active') else " "
-            click.echo(f"  {active} [{tab['id']}] {tab.get('title', 'No title')}")
-            click.echo(f"      {tab.get('url', 'No URL')}")
-            if i < len(tabs) - 1:
-                click.echo("")
+        if len(tabs) == 0:
+            if managed_only:
+                click.echo("📭 No managed tabs found.")
+                click.echo("   Use 'tabs init <url>' to start a managed session, or 'tabs list --all' to see all tabs.")
+            else:
+                click.echo("📭 No tabs found.")
+        else:
+            if managed_only:
+                click.echo(f"📋 Found {len(tabs)} managed tab(s):")
+            else:
+                click.echo(f"📋 Found {len(tabs)} tab(s) ({result['data'].get('managedCount', 0)} managed):")
+            click.echo("")
+            
+            for i, tab in enumerate(tabs):
+                active = "✓" if tab.get('active') else " "
+                managed_indicator = "🔒 " if tab.get('isManaged') else "   "
+                click.echo(f"  {active} {managed_indicator}[{tab['id']}] {tab.get('title', 'No title')}")
+                click.echo(f"      {tab.get('url', 'No URL')}")
+                if i < len(tabs) - 1:
+                    click.echo("")
     else:
         _print_result(result)
 
