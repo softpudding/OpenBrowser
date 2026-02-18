@@ -32,10 +32,36 @@ class CommandProcessor:
         """
         command_dict = command.dict()
         
-        # Add tab_id if command has tab_id field and it's not set
-        # and we have a current tab
+        # Import command types for type checking
+        from server.models.commands import (
+            TabCommand, GetTabsCommand, ScreenshotCommand,
+            MouseMoveCommand, MouseClickCommand, MouseScrollCommand,
+            ResetMouseCommand, KeyboardTypeCommand, KeyboardPressCommand
+        )
+        
+        # Check if we should auto-fill tab_id
+        should_fill_tab_id = False
+        
         if hasattr(command, 'tab_id') and command.tab_id is None and self._current_tab_id is not None:
+            # Check command type to decide if we should fill tab_id
+            if isinstance(command, TabCommand):
+                # For tab commands, only fill tab_id for certain actions
+                # init and open create new tabs - don't fill
+                # close and switch need specific tab_id - don't fill if not specified
+                # list gets all tabs - don't fill
+                # So generally don't auto-fill for TabCommand
+                should_fill_tab_id = False
+            elif isinstance(command, GetTabsCommand):
+                # GetTabsCommand gets all tabs, doesn't need tab_id
+                should_fill_tab_id = False
+            else:
+                # For other commands (mouse, keyboard, screenshot, reset_mouse)
+                # auto-fill tab_id to target current managed tab
+                should_fill_tab_id = True
+        
+        if should_fill_tab_id:
             command_dict['tab_id'] = self._current_tab_id
+            logger.debug(f"Auto-filled tab_id {self._current_tab_id} for {command.type} command")
             
         return command_dict
     

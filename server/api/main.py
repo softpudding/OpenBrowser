@@ -182,12 +182,13 @@ async def keyboard_press(key: str, modifiers: list = None):
 
 
 @app.post("/screenshot")
-async def screenshot(tab_id: int = None, include_cursor: bool = True, quality: int = 90):
+async def screenshot(tab_id: int = None, include_cursor: bool = True, include_visual_mouse: bool = True, quality: int = 90):
     """Capture screenshot"""
     command = {
         "type": "screenshot",
         "tab_id": tab_id,
         "include_cursor": include_cursor,
+        "include_visual_mouse": include_visual_mouse,
         "quality": quality
     }
     return await execute_command(command)
@@ -206,10 +207,11 @@ async def tab_action(action: str, url: str = None, tab_id: int = None):
 
 
 @app.get("/tabs")
-async def get_tabs():
+async def get_tabs(managed_only: bool = True):
     """Get list of all tabs"""
     command = {
-        "type": "get_tabs"
+        "type": "get_tabs",
+        "managed_only": managed_only
     }
     return await execute_command(command)
 

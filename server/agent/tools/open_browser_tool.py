@@ -20,6 +20,8 @@ from pydantic import Field, SecretStr
 from openhands.sdk import Action, Observation, ImageContent, TextContent
 from openhands.sdk.tool import ToolExecutor, ToolDefinition, register_tool
 
+logger = logging.getLogger(__name__)
+
 from server.core.processor import command_processor
 from server.models.commands import (
     MouseMoveCommand, MouseClickCommand, MouseScrollCommand,
@@ -161,7 +163,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
     
     async def _execute_action(self, action: OpenBrowserAction) -> OpenBrowserObservation:
         """Execute a browser action asynchronously"""
-        print(f"DEBUG: _execute_action called with action_type={action.type}, params={action.parameters}")
+        logger.debug(f"DEBUG: _execute_action called with action_type={action.type}, params={action.parameters}")
         try:
             # Get action type and parameters
             action_type = action.type
@@ -270,12 +272,12 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 raise ValueError(f"Unknown action type: {action_type}")
             
             # Get current state after operation
-            print(f"DEBUG: Getting tabs after action...")
+            logger.debug(f"DEBUG: Getting tabs after action...")
             tabs_obs = await self._get_tabs()
-            print(f"DEBUG: tabs_obs: success={tabs_obs.success if tabs_obs else 'None'}, data keys={list(tabs_obs.data.keys()) if tabs_obs and tabs_obs.data else 'None'}")
-            print(f"DEBUG: Getting screenshot after action...")
+            logger.debug(f"DEBUG: tabs_obs: success={tabs_obs.success if tabs_obs else 'None'}, data keys={list(tabs_obs.data.keys()) if tabs_obs and tabs_obs.data else 'None'}")
+            logger.debug(f"DEBUG: Getting screenshot after action...")
             screenshot_obs = await self._get_screenshot()
-            print(f"DEBUG: screenshot_obs: success={screenshot_obs.success if screenshot_obs else 'None'}, data keys={list(screenshot_obs.data.keys()) if screenshot_obs and screenshot_obs.data else 'None'}")
+            logger.debug(f"DEBUG: screenshot_obs: success={screenshot_obs.success if screenshot_obs else 'None'}, data keys={list(screenshot_obs.data.keys()) if screenshot_obs and screenshot_obs.data else 'None'}")
             mouse_position = self._get_mouse_position()  # TODO: Track mouse position
             
             # Get tab data from tabs observation
@@ -311,9 +313,9 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             )
             
         except Exception as e:
-            print(f"DEBUG: _execute_action caught exception: {e}")
+            logger.debug(f"DEBUG: _execute_action caught exception: {e}")
             import traceback
-            traceback.print_exc()
+            logger.error(traceback.format_exc())
             logger.error(f"Error executing browser action: {e}")
             return OpenBrowserObservation(
                 success=False,
@@ -325,7 +327,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
     
     def _execute_action_sync(self, action: OpenBrowserAction) -> OpenBrowserObservation:
         """Execute a browser action synchronously via HTTP"""
-        print(f"DEBUG: _execute_action_sync called with action_type={action.type}, params={action.parameters}")
+        logger.debug(f"DEBUG: _execute_action_sync called with action_type={action.type}, params={action.parameters}")
         try:
             # Get action type and parameters
             action_type = action.type
@@ -434,13 +436,13 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 raise ValueError(f"Unknown action type: {action_type}")
             
             # Get current state after operation
-            print(f"DEBUG: Getting tabs after action (sync)...")
+            logger.debug(f"DEBUG: Getting tabs after action (sync)...")
             tabs_result = self._get_tabs_sync()
-            print(f"DEBUG: tabs_result: success={tabs_result.get('success')}, data keys={list(tabs_result.get('data', {}).keys()) if tabs_result.get('data') else 'None'}")
+            logger.debug(f"DEBUG: tabs_result: success={tabs_result.get('success')}, data keys={list(tabs_result.get('data', {}).keys()) if tabs_result.get('data') else 'None'}")
             
-            print(f"DEBUG: Getting screenshot after action (sync)...")
+            logger.debug(f"DEBUG: Getting screenshot after action (sync)...")
             screenshot_result = self._get_screenshot_sync()
-            print(f"DEBUG: screenshot_result: success={screenshot_result.get('success')}, data keys={list(screenshot_result.get('data', {}).keys()) if screenshot_result.get('data') else 'None'}")
+            logger.debug(f"DEBUG: screenshot_result: success={screenshot_result.get('success')}, data keys={list(screenshot_result.get('data', {}).keys()) if screenshot_result.get('data') else 'None'}")
             
             mouse_position = self._get_mouse_position()  # TODO: Track mouse position
             
@@ -468,7 +470,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                         # Convert base64 to data URL
                         screenshot_data_url = f"data:image/png;base64,{image_data}"
                     else:
-                        print(f"DEBUG: Unexpected image_data type: {type(image_data)}")
+                        logger.debug(f"DEBUG: Unexpected image_data type: {type(image_data)}")
             
             # Extract success from result_dict
             success = False
@@ -490,9 +492,9 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             )
             
         except Exception as e:
-            print(f"DEBUG: _execute_action_sync caught exception: {e}")
+            logger.debug(f"DEBUG: _execute_action_sync caught exception: {e}")
             import traceback
-            traceback.print_exc()
+            logger.error(traceback.format_exc())
             logger.error(f"Error executing browser action (sync): {e}")
             return OpenBrowserObservation(
                 success=False,
@@ -505,36 +507,36 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
     def __call__(self, action: OpenBrowserAction, conversation=None) -> OpenBrowserObservation:
         """Execute a browser action and return observation"""
         # Use synchronous HTTP API to avoid event loop competition with WebSocket
-        print(f"DEBUG: OpenBrowserTool.__call__ called with action: {action.type}, params: {action.parameters}")
-        print(f"DEBUG: Current thread: {threading.current_thread().name}")
+        logger.debug(f"DEBUG: OpenBrowserTool.__call__ called with action: {action.type}, params: {action.parameters}")
+        logger.debug(f"DEBUG: Current thread: {threading.current_thread().name}")
         
         try:
             # Use synchronous execution (avoids event loop issues)
-            print(f"DEBUG: Using synchronous HTTP API for tool execution")
+            logger.debug(f"DEBUG: Using synchronous HTTP API for tool execution")
             obs = self._execute_action_sync(action)
-            print(f"DEBUG: OpenBrowserTool.__call__ returning observation: success={obs.success}, message={obs.message}, tabs_count={len(obs.tabs)}, has_screenshot={obs.screenshot_data_url is not None}")
+            logger.debug(f"DEBUG: OpenBrowserTool.__call__ returning observation: success={obs.success}, message={obs.message}, tabs_count={len(obs.tabs)}, has_screenshot={obs.screenshot_data_url is not None}")
             return obs
                 
         except Exception as e:
-            print(f"DEBUG: OpenBrowserTool.__call__ exception: {e}")
+            logger.debug(f"DEBUG: OpenBrowserTool.__call__ exception: {e}")
             import traceback
-            traceback.print_exc()
+            logger.error(traceback.format_exc())
             raise
     
     async def _execute_command(self, command) -> Any:
         """Execute a command through the existing command processor"""
-        print(f"DEBUG: _execute_command called with command type: {command.type if hasattr(command, 'type') else type(command).__name__}")
+        logger.debug(f"DEBUG: _execute_command called with command type: {command.type if hasattr(command, 'type') else type(command).__name__}")
         try:
             result = await command_processor.execute(command)
-            print(f"DEBUG: _execute_command returned: success={result.success if result else 'None'}")
+            logger.debug(f"DEBUG: _execute_command returned: success={result.success if result else 'None'}")
             return result
         except Exception as e:
-            print(f"DEBUG: _execute_command exception: {e}")
+            logger.debug(f"DEBUG: _execute_command exception: {e}")
             raise
     
     def _execute_command_sync(self, command) -> Any:
         """Execute a command synchronously via HTTP"""
-        print(f"DEBUG: _execute_command_sync called with command type: {command.type if hasattr(command, 'type') else type(command).__name__}")
+        logger.debug(f"DEBUG: _execute_command_sync called with command type: {command.type if hasattr(command, 'type') else type(command).__name__}")
         try:
             # Convert command to dict using model_dump
             cmd_dict = command.model_dump()
@@ -546,26 +548,26 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             )
             response.raise_for_status()
             result = response.json()
-            print(f"DEBUG: _execute_command_sync returned: success={result.get('success')}")
+            logger.debug(f"DEBUG: _execute_command_sync returned: success={result.get('success')}")
             return result
         except Exception as e:
-            print(f"DEBUG: _execute_command_sync exception: {e}")
+            logger.debug(f"DEBUG: _execute_command_sync exception: {e}")
             raise
     
     async def _get_tabs(self) -> Any:
         """Get current tab list"""
-        print(f"DEBUG: _get_tabs called, sending GetTabsCommand")
-        command = GetTabsCommand()
+        logger.debug(f"DEBUG: _get_tabs called, sending GetTabsCommand")
+        command = GetTabsCommand(managed_only=True)
         result = await command_processor.execute(command)
-        print(f"DEBUG: _get_tabs result: success={result.success if result else 'None'}, data type={type(result.data) if result else 'None'}")
+        logger.debug(f"DEBUG: _get_tabs result: success={result.success if result else 'None'}, data type={type(result.data) if result else 'None'}")
         return result
     
     async def _get_screenshot(self) -> Any:
         """Capture screenshot"""
-        print(f"DEBUG: _get_screenshot called, sending ScreenshotCommand")
-        command = ScreenshotCommand(include_cursor=True, quality=90)
+        logger.debug(f"DEBUG: _get_screenshot called, sending ScreenshotCommand")
+        command = ScreenshotCommand(include_cursor=True, include_visual_mouse=True, quality=90)
         result = await command_processor.execute(command)
-        print(f"DEBUG: _get_screenshot result: success={result.success if result else 'None'}, data type={type(result.data) if result else 'None'}")
+        logger.debug(f"DEBUG: _get_screenshot result: success={result.success if result else 'None'}, data type={type(result.data) if result else 'None'}")
         return result
     
     def _get_mouse_position(self) -> Optional[Dict[str, int]]:
@@ -576,18 +578,18 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
 
     def _get_tabs_sync(self) -> Any:
         """Get current tab list synchronously"""
-        print(f"DEBUG: _get_tabs_sync called, sending GetTabsCommand via HTTP")
-        command = GetTabsCommand()
+        logger.debug(f"DEBUG: _get_tabs_sync called, sending GetTabsCommand via HTTP")
+        command = GetTabsCommand(managed_only=True)
         result = self._execute_command_sync(command)
-        print(f"DEBUG: _get_tabs_sync result: success={result.get('success')}, data keys={list(result.get('data', {}).keys()) if result.get('data') else 'None'}")
+        logger.debug(f"DEBUG: _get_tabs_sync result: success={result.get('success')}, data keys={list(result.get('data', {}).keys()) if result.get('data') else 'None'}")
         return result
 
     def _get_screenshot_sync(self) -> Any:
         """Capture screenshot synchronously"""
-        print(f"DEBUG: _get_screenshot_sync called, sending ScreenshotCommand via HTTP")
-        command = ScreenshotCommand(include_cursor=True, quality=90)
+        logger.debug(f"DEBUG: _get_screenshot_sync called, sending ScreenshotCommand via HTTP")
+        command = ScreenshotCommand(include_cursor=True, include_visual_mouse=True, quality=90)
         result = self._execute_command_sync(command)
-        print(f"DEBUG: _get_screenshot_sync result: success={result.get('success')}, data keys={list(result.get('data', {}).keys()) if result.get('data') else 'None'}")
+        logger.debug(f"DEBUG: _get_screenshot_sync result: success={result.get('success')}, data keys={list(result.get('data', {}).keys()) if result.get('data') else 'None'}")
         return result
 
 
