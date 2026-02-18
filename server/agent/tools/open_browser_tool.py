@@ -281,26 +281,44 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 
                 # Extract JavaScript execution result for observation
                 javascript_result = None
-                if result and result.success and result.data:
+                
+                # Set initial message
+                script = action.script
+                if len(script) > 50:
+                    message = f"Executed JavaScript: '{script[:50]}...'"
+                else:
+                    message = f"Executed JavaScript: '{script}'"
+                
+                if result and result.data:
                     js_data = result.data
                     # JavaScript module returns result in 'result' field
-                    if 'result' in js_data:
-                        js_result = js_data['result']
-                        # CDP result object has 'value' field when returnByValue is true
-                        if isinstance(js_result, dict) and 'value' in js_result:
-                            javascript_result = js_result['value']
+                    if isinstance(js_data, dict):
+                        if 'result' in js_data:
+                            js_result = js_data['result']
+                            # CDP result object has 'value' field when returnByValue is true
+                            if isinstance(js_result, dict) and 'value' in js_result:
+                                javascript_result = js_result['value']
+                            else:
+                                javascript_result = js_result
+                        # Also check for direct 'value' in data
+                        elif 'value' in js_data:
+                            javascript_result = js_data['value']
                         else:
-                            javascript_result = js_result
-                    # Also check for direct 'value' in data
-                    elif 'value' in js_data:
-                        javascript_result = js_data['value']
+                            # If no result or value, use the entire data dict
+                            javascript_result = js_data
+                    else:
+                        # If data is not a dict (e.g., string error), use it as result
+                        javascript_result = js_data
                     
-                    # If we have a result, update message to include it
-                    if javascript_result is not None:
+                    # If we have a result, update message to include it (only for successful executions)
+                    if javascript_result is not None and result.success:
                         result_str = str(javascript_result)
                         if len(result_str) > 50000:
                             result_str = result_str[:50000] + '... (Truncated because too long)'
-                        message = "Javascript Execution Result:\n" + result_str
+                        message = f"{message} - Result: {result_str}"
+                elif result and result.error:
+                    # If there's an error but no data, use error as javascript_result
+                    javascript_result = result.error
                     
             else:
                 raise ValueError(f"Unknown action type: {action_type}")
@@ -509,26 +527,36 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                     message = f"Executed JavaScript: '{script}'"
                 
                 # Extract JavaScript execution result for observation
-                if result_dict and result_dict.get('success') and result_dict.get('data'):
+                if result_dict and result_dict.get('data'):
                     js_data = result_dict['data']
                     # JavaScript module returns result in 'result' field
-                    if 'result' in js_data:
-                        js_result = js_data['result']
-                        # CDP result object has 'value' field when returnByValue is true
-                        if isinstance(js_result, dict) and 'value' in js_result:
-                            javascript_result = js_result['value']
+                    if isinstance(js_data, dict):
+                        if 'result' in js_data:
+                            js_result = js_data['result']
+                            # CDP result object has 'value' field when returnByValue is true
+                            if isinstance(js_result, dict) and 'value' in js_result:
+                                javascript_result = js_result['value']
+                            else:
+                                javascript_result = js_result
+                        # Also check for direct 'value' in data
+                        elif 'value' in js_data:
+                            javascript_result = js_data['value']
                         else:
-                            javascript_result = js_result
-                    # Also check for direct 'value' in data
-                    elif 'value' in js_data:
-                        javascript_result = js_data['value']
+                            # If no result or value, use the entire data dict
+                            javascript_result = js_data
+                    else:
+                        # If data is not a dict (e.g., string error), use it as result
+                        javascript_result = js_data
                     
-                    # If we have a result, update message to include it
-                    if javascript_result is not None:
+                    # If we have a result, update message to include it (only for successful executions)
+                    if javascript_result is not None and result_dict.get('success'):
                         result_str = str(javascript_result)
                         if len(result_str) > 100:
                             result_str = result_str[:100] + '...'
                         message = f"{message} - Result: {result_str}"
+                elif result_dict and result_dict.get('error'):
+                    # If there's an error but no data, use error as javascript_result
+                    javascript_result = result_dict['error']
                     
             else:
                 raise ValueError(f"Unknown action type: {action_type}")
@@ -571,14 +599,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 if tabs_result.get('success') and tabs_result.get('data') and 'tabs' in tabs_result['data']:
                     tabs_data = tabs_result['data']['tabs']
             elif action_type == "javascript_execute":
-                # Also get tabs for javascript execution to show context
-                logger.debug(f"DEBUG: Getting tabs after javascript execution (sync)...")
-                tabs_result = self._get_tabs_sync()
-                logger.debug(f"DEBUG: tabs_result: success={tabs_result.get('success')}, data keys={list(tabs_result.get('data', {}).keys()) if tabs_result.get('data') else 'None'}")
-                
-                if tabs_result.get('success') and tabs_result.get('data') and 'tabs' in tabs_result['data']:
-                    tabs_data = tabs_result['data']['tabs']
-            
+                pass
             # 3. Collect mouse position only for mouse operations
             if action_type in ["mouse_move", "mouse_click", "mouse_scroll"]:
                 mouse_position = self._get_mouse_position()  # TODO: Track mouse position

@@ -433,6 +433,33 @@
 
         .info-value {
             color: #cccccc;
+            word-break: break-all;
+            max-width: 250px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        .refresh-button {
+            margin-left: 8px;
+            font-size: 10px;
+            padding: 2px 6px;
+            background: #333333;
+            border: 1px solid #555555;
+            color: #cccccc;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .refresh-button:hover {
+            background: #444444;
+            border-color: #666666;
+            color: #ffffff;
+        }
+        
+        .refresh-button:active {
+            background: #222222;
+            transform: scale(0.95);
         }
 
         .event-stats {
@@ -679,6 +706,7 @@
                         <div class="info-line">
                             <span class="info-label">Conversation:</span>
                             <span class="info-value" id="conversation-id">None</span>
+                            <button class="refresh-button" id="refresh-conversation-btn" title="Refresh conversation ID" onclick="refreshConversationId()">↻</button>
                         </div>
                     </div>
                 </div>
@@ -768,6 +796,7 @@
         };
         let events = []; // Store all events for filtering
         let currentImageUrl = null; // Track current displayed image URL
+        let cwdWarningShown = false; // Track if CWD warning has been shown
         
         // Server URL configuration
         const isFileProtocol = window.location.protocol === 'file:';
@@ -878,6 +907,9 @@
                         timestamp: new Date().toISOString()
                     });
                 }
+                
+                // Reset CWD warning flag when CWD changes
+                cwdWarningShown = false;
             });
             
             // Initialize image click handlers
@@ -961,21 +993,23 @@
                 return;
             }
             
+            // Check if CWD is /tmp and show warning (only once, and only if user hasn't changed from default)
+            const normalizedCwd = cwd.trim();
+            const isDefaultTmp = normalizedCwd === '/tmp' && cwdInput.value === '/tmp';
+            if (isDefaultTmp && !cwdWarningShown) {
+                addEvent({
+                    type: 'SystemEvent',
+                    text: 'SYSTEM WARNING: Using default /tmp directory. Consider setting a specific working directory for better file management.',
+                    timestamp: new Date().toISOString()
+                });
+                cwdWarningShown = true;
+            }
+            
             // Create or use existing conversation
             let conversationId = currentConversationId;
             if (!conversationId) {
                 try {
                     // Get cwd from input field (already validated)
-                    
-                    // Check if CWD starts with /tmp and show warning
-                    const normalizedCwd = cwd.trim();
-                    if (/^\/tmp(\/|$)/.test(normalizedCwd)) {
-                        addEvent({
-                            type: 'SystemEvent',
-                            text: 'SYSTEM WARNING: Current working directory is under /tmp. File operations will be limited to temporary storage.',
-                            timestamp: new Date().toISOString()
-                        });
-                    }
                     
                     const response = await fetch(apiUrl('agent/conversations'), {
                         method: 'POST',
@@ -1423,7 +1457,7 @@
             }
             
             // Update display
-            document.getElementById('event-count').innerHTML = `EVENTS: <span>${eventCounters.total}</span>`;
+            document.getElementById('event-count').innerHTML = `EVENTS: <span>${escapeHtml(eventCounters.total)}</span>`;
             document.getElementById('stat-total').textContent = eventCounters.total;
             document.getElementById('stat-message').textContent = eventCounters.message;
             document.getElementById('stat-action').textContent = eventCounters.action;
@@ -1470,13 +1504,13 @@
             let metadataHtml = '';
             if (event.type === 'MessageEvent') {
                 if (event.role) {
-                    metadataHtml += `<div class="event-meta"><small>Role: ${event.role}</small></div>`;
+                    metadataHtml += `<div class="event-meta"><small>Role: ${escapeHtml(event.role)}</small></div>`;
                 }
                 if (event.activated_skills && event.activated_skills.length > 0) {
-                    metadataHtml += `<div class="event-meta"><small>Skills: ${event.activated_skills.join(', ')}</small></div>`;
+                    metadataHtml += `<div class="event-meta"><small>Skills: ${escapeHtml(event.activated_skills.join(', '))}</small></div>`;
                 }
                 if (event.sender) {
-                    metadataHtml += `<div class="event-meta"><small>Sender: ${event.sender}</small></div>`;
+                    metadataHtml += `<div class="event-meta"><small>Sender: ${escapeHtml(event.sender)}</small></div>`;
                 }
             }
             
@@ -1516,21 +1550,25 @@
         
         // Escape HTML special characters
         function escapeHtml(text) {
-            if (!text) return '';
+            if (text === null || text === undefined) return '';
             const div = document.createElement('div');
-            div.textContent = text;
+            div.textContent = String(text);
             return div.innerHTML;
         }
         
         // Format content for display
         function formatContent(content) {
-            if (!content) return '';
+            if (content === null || content === undefined) return '';
+            
+            // First escape HTML to prevent XSS
+            content = escapeHtml(content);
             
             // Convert line breaks
             content = content.replace(/\n/g, '<br>');
             
             // Add prompt style to lines that start with certain patterns
-            content = content.replace(/^(\s*)(>|\$|#)/gm, '$1<span class="prompt-line">$2</span>');
+            // Note: '>' is escaped as '&gt;', '$' and '#' don't need escaping
+            content = content.replace(/^(\s*)(&gt;|\$|#)/gm, '$1<span class="prompt-line">$2</span>');
             
             return content;
         }
@@ -1657,12 +1695,34 @@
         function updateConversationIdDisplay() {
             const display = document.getElementById('conversation-id');
             if (currentConversationId) {
-                const shortId = currentConversationId.substring(0, 8) + '...';
-                display.textContent = shortId;
+                display.textContent = currentConversationId;
                 display.title = currentConversationId;
             } else {
                 display.textContent = 'None';
                 display.title = '';
+            }
+        }
+        
+        // Refresh conversation ID from server
+        async function refreshConversationId() {
+            // Clear current conversation ID to force creation of a new one on next command
+            const oldConversationId = currentConversationId;
+            currentConversationId = null;
+            localStorage.removeItem('openbrowser_conversation_id');
+            updateConversationIdDisplay();
+            
+            if (oldConversationId) {
+                addEvent({
+                    type: 'SystemEvent',
+                    text: `Cleared conversation ID: ${oldConversationId}. A new UUID will be generated on next command.`,
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                addEvent({
+                    type: 'SystemEvent',
+                    text: 'No active conversation. A new UUID will be generated on next command.',
+                    timestamp: new Date().toISOString()
+                });
             }
         }
         
