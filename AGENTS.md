@@ -539,6 +539,49 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Verify "Updating visual mouse for tab X" logs
   - Monitor content script response for visual mouse update
 
+#### 17. Chrome Extension Randomly Disconnects from Server Layer
+- **Cause**: Multiple factors including Service Worker termination, WebSocket connection instability, and content script injection failures
+- **Symptoms**:
+  - WebSocket disconnects with code 1001 ("going away") after ~30 seconds of inactivity
+  - Extension shows "Disconnected" status until page is refreshed
+  - `"Receiving end does not exist"` errors when communicating with content scripts
+  - `"WebSocket connection failed"` errors in extension background console
+  - Visual mouse pointer disappears or stops updating
+- **Root Causes**:
+  1. **Service Worker Lifecycle**: Chrome Manifest V3 terminates service workers after ~30 seconds of inactivity
+  2. **WebSocket Fragility**: Fixed retry intervals without exponential backoff cause "thundering herd" effect
+  3. **Content Script Injection**: Scripts fail to inject on certain pages or require page reloads
+  4. **Background Tab Throttling**: Chrome throttles JavaScript execution in background tabs
+- **Comprehensive Fix** (Implemented Feb 2025):
+  1. **Service Worker Keepalive**:
+     - Added `"alarms"` permission to manifest.json
+     - Created 6-second keepalive alarm (`chrome.alarms.create('keepAlive', { periodInMinutes: 0.1 })`)
+     - Added 20-second self-message ping to prevent termination
+  2. **Enhanced WebSocket Stability**:
+     - **Exponential Backoff Retry**: 3s → 6s → 12s → 24s → 48s (capped at 60s)
+     - **Random Jitter**: Added up to 1s random delay to prevent simultaneous reconnections
+     - **Heartbeat Detection**: 20-second ping / 30-second pong timeout
+     - **Smart Error Handling**: Skip reconnection for normal closures (code 1000) and policy violations (1008)
+  3. **Robust Content Script Management**:
+     - **3-attempt Retry**: With exponential backoff (1s, 2s, 4s)
+     - **Intelligent Injection**: Skip `chrome://` pages, better error messages
+     - **Auto-injection Fallback**: Attempt to inject content script if not detected
+  4. **Type Safety Improvements**:
+     - Added `'init'` to `TabAction` type
+     - Added `managed_only` property to `GetTabsCommand`
+     - Fixed various TypeScript compilation errors
+- **Debug**:
+  - Check Service Worker status: `chrome://serviceworker-internals/`
+  - Monitor WebSocket logs: Look for "Attempting to reconnect" with exponential delays
+  - Verify alarms are working: Check extension background logs for "Keep-alive alarm triggered"
+  - Test content script injection: Use `chrome-cli reset_mouse` command to trigger detection
+  - Monitor connection lifecycle: Look for "WebSocket connected" → "Heartbeat started" → "Received pong" logs
+- **Technical Details**:
+  - Service Worker alarms prevent termination but don't guarantee immediate wake-up
+  - WebSocket heartbeat helps detect "zombie" connections that appear open but aren't responsive
+  - Content script retry logic handles race conditions between page load and extension activation
+  - The combination of alarms + heartbeat + exponential backoff provides defense-in-depth
+
 ## Coordinate System Documentation
 
 ### Simulated Coordinate System (User Perspective)

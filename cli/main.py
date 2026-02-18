@@ -606,7 +606,6 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
                 # Save the file
                 with open(filename, 'wb') as f:
                     f.write(base64.b64decode(image_data))
-                
                 saved_path = filename
             except Exception as e:
                 return None
