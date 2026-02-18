@@ -649,21 +649,33 @@
             // Handle incoming events
             eventSource.addEventListener('agent_event', function(event) {
                 try {
-                    const data = JSON.parse(event.data);
-                    processEvent(data);
+                    if (event.data && typeof event.data === 'string' && event.data.trim() !== '') {
+                        const data = JSON.parse(event.data);
+                        processEvent(data);
+                    } else {
+                        console.error('agent_event received empty or invalid data:', event.data);
+                    }
                 } catch (error) {
-                    console.error('Error parsing agent_event:', error);
+                    console.error('Error parsing agent_event:', error, 'data:', event.data);
                 }
             });
             
             eventSource.addEventListener('complete', function(event) {
                 try {
-                    const data = JSON.parse(event.data);
-                    addEvent({
-                        type: 'SystemEvent',
-                        text: `Conversation completed: ${data.message || 'Done'}`,
-                        timestamp: new Date().toISOString()
-                    });
+                    if (event.data && typeof event.data === 'string' && event.data.trim() !== '') {
+                        const data = JSON.parse(event.data);
+                        addEvent({
+                            type: 'SystemEvent',
+                            text: `Conversation completed: ${data.message || 'Done'}`,
+                            timestamp: new Date().toISOString()
+                        });
+                    } else {
+                        addEvent({
+                            type: 'SystemEvent',
+                            text: 'Conversation completed',
+                            timestamp: new Date().toISOString()
+                        });
+                    }
                     
                     // Re-enable send button
                     isProcessing = false;
@@ -675,18 +687,45 @@
                         eventSource = null;
                     }
                 } catch (error) {
-                    console.error('Error parsing complete event:', error);
+                    console.error('Error parsing complete event:', error, 'data:', event.data);
+                    addEvent({
+                        type: 'SystemEvent',
+                        text: 'Conversation completed with error',
+                        timestamp: new Date().toISOString()
+                    });
+                    isProcessing = false;
+                    document.getElementById('send-button').disabled = false;
                 }
             });
             
             eventSource.addEventListener('error', function(event) {
                 try {
-                    const data = JSON.parse(event.data);
-                    addEvent({
-                        type: 'ErrorEvent',
-                        text: `Error: ${data.error || data.message || 'Unknown error'}`,
-                        timestamp: new Date().toISOString()
-                    });
+                    // Check if event.data exists and is a non-empty string (not undefined/null)
+                    if (event.data && typeof event.data === 'string' && event.data.trim() !== '') {
+                        // Try to parse as JSON if it doesn't look like a simple string
+                        if (event.data.trim().startsWith('{') && event.data.trim().endsWith('}')) {
+                            const data = JSON.parse(event.data);
+                            addEvent({
+                                type: 'ErrorEvent',
+                                text: `Error: ${data.error || data.message || 'Unknown error'}`,
+                                timestamp: new Date().toISOString()
+                            });
+                        } else {
+                            // If it's a string but not JSON, show it as-is
+                            addEvent({
+                                type: 'ErrorEvent',
+                                text: `Error: ${event.data}`,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    } else {
+                        // Generic SSE error when event.data is undefined, null, or empty
+                        addEvent({
+                            type: 'ErrorEvent',
+                            text: 'SSE connection error',
+                            timestamp: new Date().toISOString()
+                        });
+                    }
                     
                     // Re-enable send button
                     isProcessing = false;
@@ -701,7 +740,7 @@
                     console.error('Error parsing error event:', error);
                     addEvent({
                         type: 'ErrorEvent',
-                        text: `SSE Error: ${event.type}`,
+                        text: `SSE Error: ${error.message}`,
                         timestamp: new Date().toISOString()
                     });
                 }
