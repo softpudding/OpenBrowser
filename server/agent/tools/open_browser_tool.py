@@ -180,6 +180,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             # Convert to appropriate server command based on type
             result = None
             message = ""
+            javascript_result = None  # Store JavaScript execution result
             
             if action_type == "mouse_move":
                 # Validate required parameters
@@ -287,26 +288,43 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                     message = f"Executed JavaScript: '{script[:50]}...'"
                 else:
                     message = f"Executed JavaScript: '{script}'"
+                
+                # Extract JavaScript execution result for observation
+                javascript_result = None
+                if result and result.success and result.data:
+                    js_data = result.data
+                    # JavaScript module returns result in 'result' field
+                    if 'result' in js_data:
+                        js_result = js_data['result']
+                        # CDP result object has 'value' field when returnByValue is true
+                        if isinstance(js_result, dict) and 'value' in js_result:
+                            javascript_result = js_result['value']
+                        else:
+                            javascript_result = js_result
+                    # Also check for direct 'value' in data
+                    elif 'value' in js_data:
+                        javascript_result = js_data['value']
+                    
+                    # If we have a result, update message to include it
+                    if javascript_result is not None:
+                        result_str = str(javascript_result)
+                        if len(result_str) > 100:
+                            result_str = result_str[:100] + '...'
+                        message = f"{message} - Result: {result_str}"
                     
             else:
                 raise ValueError(f"Unknown action type: {action_type}")
             
-            # Get current state after operation
-            logger.debug(f"DEBUG: Getting tabs after action...")
-            tabs_obs = await self._get_tabs()
-            logger.debug(f"DEBUG: tabs_obs: success={tabs_obs.success if tabs_obs else 'None'}, data keys={list(tabs_obs.data.keys()) if tabs_obs and tabs_obs.data else 'None'}")
+            # Determine what data to collect based on action type
+            tabs_data = []
+            mouse_position = None
+            screenshot_data_url = None
+            
+            # 1. Always collect screenshot for visual feedback (but don't include in text)
             logger.debug(f"DEBUG: Getting screenshot after action...")
             screenshot_obs = await self._get_screenshot()
             logger.debug(f"DEBUG: screenshot_obs: success={screenshot_obs.success if screenshot_obs else 'None'}, data keys={list(screenshot_obs.data.keys()) if screenshot_obs and screenshot_obs.data else 'None'}")
-            mouse_position = self._get_mouse_position()  # TODO: Track mouse position
             
-            # Get tab data from tabs observation
-            tabs_data = []
-            if tabs_obs.success and tabs_obs.data and 'tabs' in tabs_obs.data:
-                tabs_data = tabs_obs.data['tabs']
-            
-            # Get screenshot data URL
-            screenshot_data_url = None
             if screenshot_obs.success and screenshot_obs.data:
                 # Try to extract image data
                 image_data = None
@@ -323,13 +341,38 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                         # Convert base64 to data URL
                         screenshot_data_url = f"data:image/png;base64,{image_data}"
             
+            # 2. Collect tabs data only for tab operations
+            if action_type == "tab":
+                logger.debug(f"DEBUG: Getting tabs after tab action...")
+                tabs_obs = await self._get_tabs()
+                logger.debug(f"DEBUG: tabs_obs: success={tabs_obs.success if tabs_obs else 'None'}, data keys={list(tabs_obs.data.keys()) if tabs_obs and tabs_obs.data else 'None'}")
+                
+                if tabs_obs.success and tabs_obs.data and 'tabs' in tabs_obs.data:
+                    tabs_data = tabs_obs.data['tabs']
+            elif action_type == "javascript_execute":
+                # Also get tabs for javascript execution to show context
+                logger.debug(f"DEBUG: Getting tabs after javascript execution...")
+                tabs_obs = await self._get_tabs()
+                logger.debug(f"DEBUG: tabs_obs: success={tabs_obs.success if tabs_obs else 'None'}, data keys={list(tabs_obs.data.keys()) if tabs_obs and tabs_obs.data else 'None'}")
+                
+                if tabs_obs.success and tabs_obs.data and 'tabs' in tabs_obs.data:
+                    tabs_data = tabs_obs.data['tabs']
+            
+            # 3. Collect mouse position only for mouse operations
+            if action_type in ["mouse_move", "mouse_click", "mouse_scroll"]:
+                mouse_position = self._get_mouse_position()  # TODO: Track mouse position
+                logger.debug(f"DEBUG: Got mouse position for {action_type}: {mouse_position}")
+            
+            # 4. javascript_result is already set in javascript_execute branch
+            
             return OpenBrowserObservation(
                 success=result.success if result else False,
                 message=message,
                 error=result.error if result else None,
                 tabs=tabs_data,
                 mouse_position=mouse_position,
-                screenshot_data_url=screenshot_data_url
+                screenshot_data_url=screenshot_data_url,
+                javascript_result=javascript_result
             )
             
         except ValueError as e:
@@ -500,24 +543,16 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             else:
                 raise ValueError(f"Unknown action type: {action_type}")
             
-            # Get current state after operation
-            logger.debug(f"DEBUG: Getting tabs after action (sync)...")
-            tabs_result = self._get_tabs_sync()
-            logger.debug(f"DEBUG: tabs_result: success={tabs_result.get('success')}, data keys={list(tabs_result.get('data', {}).keys()) if tabs_result.get('data') else 'None'}")
+            # Determine what data to collect based on action type
+            tabs_data = []
+            mouse_position = None
+            screenshot_data_url = None
             
+            # 1. Always collect screenshot for visual feedback (but don't include in text)
             logger.debug(f"DEBUG: Getting screenshot after action (sync)...")
             screenshot_result = self._get_screenshot_sync()
             logger.debug(f"DEBUG: screenshot_result: success={screenshot_result.get('success')}, data keys={list(screenshot_result.get('data', {}).keys()) if screenshot_result.get('data') else 'None'}")
             
-            mouse_position = self._get_mouse_position()  # TODO: Track mouse position
-            
-            # Get tab data from tabs result
-            tabs_data = []
-            if tabs_result.get('success') and tabs_result.get('data') and 'tabs' in tabs_result['data']:
-                tabs_data = tabs_result['data']['tabs']
-            
-            # Get screenshot data URL
-            screenshot_data_url = None
             if screenshot_result.get('success') and screenshot_result.get('data'):
                 # Try to extract image data
                 image_data = None
@@ -536,6 +571,30 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                         screenshot_data_url = f"data:image/png;base64,{image_data}"
                     else:
                         logger.debug(f"DEBUG: Unexpected image_data type: {type(image_data)}")
+            
+            # 2. Collect tabs data only for tab operations
+            if action_type == "tab":
+                logger.debug(f"DEBUG: Getting tabs after tab action (sync)...")
+                tabs_result = self._get_tabs_sync()
+                logger.debug(f"DEBUG: tabs_result: success={tabs_result.get('success')}, data keys={list(tabs_result.get('data', {}).keys()) if tabs_result.get('data') else 'None'}")
+                
+                if tabs_result.get('success') and tabs_result.get('data') and 'tabs' in tabs_result['data']:
+                    tabs_data = tabs_result['data']['tabs']
+            elif action_type == "javascript_execute":
+                # Also get tabs for javascript execution to show context
+                logger.debug(f"DEBUG: Getting tabs after javascript execution (sync)...")
+                tabs_result = self._get_tabs_sync()
+                logger.debug(f"DEBUG: tabs_result: success={tabs_result.get('success')}, data keys={list(tabs_result.get('data', {}).keys()) if tabs_result.get('data') else 'None'}")
+                
+                if tabs_result.get('success') and tabs_result.get('data') and 'tabs' in tabs_result['data']:
+                    tabs_data = tabs_result['data']['tabs']
+            
+            # 3. Collect mouse position only for mouse operations
+            if action_type in ["mouse_move", "mouse_click", "mouse_scroll"]:
+                mouse_position = self._get_mouse_position()  # TODO: Track mouse position
+                logger.debug(f"DEBUG: Got mouse position for {action_type}: {mouse_position}")
+            
+            # 4. javascript_result is already set in javascript_execute branch
             
             # Extract success from result_dict
             success = False
