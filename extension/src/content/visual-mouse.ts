@@ -38,13 +38,14 @@ export class VisualMousePointer {
     this.pointerElement.id = 'chrome-control-visual-mouse';
     
     // Apply styles - AIPex style blue fluorescent cursor
+    // Start hidden (opacity: 0) - will be shown when active tab
     Object.assign(this.pointerElement.style, {
       position: 'fixed',
       width: `${this.pointerSize}px`,
       height: `${this.pointerSize}px`,
       pointerEvents: 'none',
       zIndex: '2147483647', // Maximum z-index
-      opacity: '0.9',
+      opacity: '0', // Start hidden
       transform: 'translate(-50%, -50%)', // Center the cursor
       transition: 'transform 0.1s ease-out, opacity 0.2s ease, filter 0.2s ease',
       filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3))',
@@ -187,6 +188,15 @@ export class VisualMousePointer {
   handleMouseUpdate(data: any): void {
     console.log('🖱️ [VisualMouse] handleMouseUpdate called with data:', data);
     console.log('🖱️ [VisualMouse] Current pointer element:', this.pointerElement ? 'exists' : 'null');
+    
+    // Ensure pointer exists and is visible (this is an active tab)
+    if (!this.pointerElement) {
+      console.log('🖱️ [VisualMouse] Pointer element does not exist, recreating...');
+      this.createPointer();
+    }
+    
+    // Show the pointer since we're receiving updates (tab is active)
+    this.show();
     
     const { x, y, action, relative } = data;
 
@@ -379,14 +389,38 @@ export class VisualMousePointer {
   }
 
   /**
+   * Show the pointer (make it visible)
+   */
+  show(): void {
+    this.isVisible = true;
+    if (this.pointerElement) {
+      this.pointerElement.style.opacity = '0.8';
+      console.log('🖱️ [VisualMouse] Pointer shown');
+    }
+  }
+
+  /**
+   * Hide the pointer (make it invisible)
+   */
+  hide(): void {
+    this.isVisible = false;
+    if (this.pointerElement) {
+      this.pointerElement.style.opacity = '0';
+      console.log('🖱️ [VisualMouse] Pointer hidden');
+    }
+  }
+
+  /**
    * Toggle pointer visibility
    */
   toggleVisibility(): void {
-    this.isVisible = !this.isVisible;
-    if (this.pointerElement) {
-      this.pointerElement.style.opacity = this.isVisible ? '0.8' : '0';
-      console.log(`Visual mouse ${this.isVisible ? 'shown' : 'hidden'}`);
+    const wasVisible = this.isVisible;
+    if (wasVisible) {
+      this.hide();
+    } else {
+      this.show();
     }
+    console.log(`🖱️ [VisualMouse] Pointer ${wasVisible ? 'hidden' : 'shown'} (toggled)`);
   }
 
   /**
@@ -487,12 +521,19 @@ export class VisualMousePointer {
   }
 
   /**
-   * Clean up
+   * Clean up (remove pointer from DOM)
    */
   destroy(): void {
     if (this.pointerElement) {
       this.pointerElement.remove();
       this.pointerElement = null;
     }
+  }
+
+  /**
+   * Hide pointer without removing from DOM (for tab switching)
+   */
+  hidePointer(): void {
+    this.hide();
   }
 }

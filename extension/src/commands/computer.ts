@@ -198,6 +198,7 @@ function getOrInitializeMousePosition(tabId: number): {x: number, y: number} {
 
 /**
  * Convert screenshot pixel coordinates to viewport CSS pixels
+ * Handles both resized screenshots (2560×1440) and original screenshots
  */
 function screenshotToCssPixels(
   x: number,
@@ -205,10 +206,38 @@ function screenshotToCssPixels(
   metadata: ScreenshotMetadata,
 ): { xCss: number; yCss: number } {
   const { imageWidth, imageHeight, viewportWidth, viewportHeight } = metadata;
-
-  // Map from screenshot pixels to viewport CSS pixels
-  const xCss = Math.round((x / imageWidth) * viewportWidth);
-  const yCss = Math.round((y / imageHeight) * viewportHeight);
+  
+  // Check if screenshot is already resized to preset coordinate system dimensions
+  const isResizedToPreset = imageWidth === PRESET_WIDTH && imageHeight === PRESET_HEIGHT;
+  
+  let screenshotX: number;
+  let screenshotY: number;
+  
+  if (isResizedToPreset) {
+    // Screenshot is already 2560×1440 - use direct mapping from simulated coordinates
+    // Convert from simulated coordinates (center-based) to screenshot pixel coordinates (top-left based)
+    // Simulated: (-1280, -720) to (1280, 720), center at (0, 0)
+    // Screenshot pixels: (0, 0) to (2559, 1439), top-left at (0, 0)
+    screenshotX = x + PRESET_WIDTH / 2;
+    screenshotY = y + PRESET_HEIGHT / 2;
+    
+    console.log(`🖼️ [Computer] Screenshot is preset size (${PRESET_WIDTH}×${PRESET_HEIGHT}), using direct mapping`);
+  } else {
+    // Original screenshot with different dimensions - need to convert
+    // First, convert simulated coordinates to preset coordinate system pixels
+    const presetX = x + PRESET_WIDTH / 2;
+    const presetY = y + PRESET_HEIGHT / 2;
+    
+    // Then scale from preset dimensions to actual screenshot dimensions
+    screenshotX = Math.round((presetX / PRESET_WIDTH) * imageWidth);
+    screenshotY = Math.round((presetY / PRESET_HEIGHT) * imageHeight);
+    
+    console.log(`🖼️ [Computer] Screenshot is ${imageWidth}×${imageHeight}, scaling from preset coordinates`);
+  }
+  
+  // Now scale screenshot pixel coordinates to viewport CSS pixels
+  const xCss = Math.round((screenshotX / imageWidth) * viewportWidth);
+  const yCss = Math.round((screenshotY / imageHeight) * viewportHeight);
 
   // Clamp to viewport bounds
   return {
@@ -242,29 +271,14 @@ async function performClick(
     mousePositions.set(tabId, { x: targetX, y: targetY });
   }
 
-  // Try to use screenshot metadata if available, otherwise convert preset coordinates to actual coordinates
-  let xCss = targetX;
-  let yCss = targetY;
-  const metadata = screenshotCache.get(tabId);
-  
-  if (metadata) {
-    // Convert screenshot coordinates to CSS pixels
-    const converted = screenshotToCssPixels(targetX, targetY, metadata);
-    xCss = converted.xCss;
-    yCss = converted.yCss;
-    console.log(
-      `🖱️ [Computer] ${button}_click at screenshot (${targetX},${targetY}) -> CSS (${xCss},${yCss})`,
-    );
-  } else {
-    // No screenshot metadata, convert preset coordinates to actual screen coordinates
-    const viewport = await getViewportSize(tabId);
-    const { actualX, actualY } = presetToActualCoords(targetX, targetY, viewport);
-    xCss = actualX;
-    yCss = actualY;
-    console.log(
-      `🖱️ [Computer] ${button}_click at preset (${targetX},${targetY}) -> actual (${xCss},${yCss}) viewport(${viewport.width}x${viewport.height})`,
-    );
-  }
+  // Convert preset coordinates to actual screen coordinates (consistent with mouse_move and scroll)
+  const viewport = await getViewportSize(tabId);
+  const { actualX, actualY } = presetToActualCoords(targetX, targetY, viewport);
+  const xCss = actualX;
+  const yCss = actualY;
+  console.log(
+    `🖱️ [Computer] ${button}_click at preset (${targetX},${targetY}) -> actual (${xCss},${yCss}) viewport(${viewport.width}x${viewport.height})`,
+  );
 
   const attached = await debuggerManager.safeAttachDebugger(tabId);
   if (!attached) {
@@ -710,14 +724,32 @@ async function performScroll(
   direction: 'up' | 'down' | 'left' | 'right',
   amount: number = 100,
 ): Promise<any> {
-  const metadata = screenshotCache.get(tabId);
-  if (!metadata) {
-    throw new Error(
-      'No screenshot metadata found. Please take a screenshot first.',
-    );
+  // If coordinates are (0,0), use our tracked mouse position (like performClick does)
+  let targetX = x;
+  let targetY = y;
+  
+  if (x === 0 && y === 0) {
+    // Use tracked mouse position
+    const trackedPos = getOrInitializeMousePosition(tabId);
+    targetX = trackedPos.x;
+    targetY = trackedPos.y;
+    console.log(`🖱️ [Computer] Using tracked mouse position for scroll: (${targetX}, ${targetY})`);
+  } else {
+    // Update our tracked position to the provided coordinates
+    mousePositions.set(tabId, { x: targetX, y: targetY });
   }
-
-  const { xCss, yCss } = screenshotToCssPixels(x, y, metadata);
+  
+  // Get viewport size for coordinate mapping (like mouse_move does)
+  const viewport = await getViewportSize(tabId);
+  
+  // Convert preset coordinates to actual screen coordinates
+  const { actualX, actualY } = presetToActualCoords(targetX, targetY, viewport);
+  
+  // Round coordinates to integers for CDP
+  const roundedX = Math.round(actualX);
+  const roundedY = Math.round(actualY);
+  
+  console.log(`🖱️ [Computer] Scroll at preset(${targetX}, ${targetY}) -> actual(${roundedX}, ${roundedY}) viewport(${viewport.width}x${viewport.height}) direction:${direction} amount:${amount}`);
 
   const attached = await debuggerManager.safeAttachDebugger(tabId);
   if (!attached) {
@@ -727,11 +759,11 @@ async function performScroll(
   const cdpCommander = new CdpCommander(tabId);
 
   try {
-    // Move mouse to position first
+    // Move mouse to position first (optional but keeps behavior consistent)
     await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
-      x: xCss,
-      y: yCss,
+      x: roundedX,
+      y: roundedY,
     });
 
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -758,15 +790,22 @@ async function performScroll(
     // Perform scroll
     await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseWheel',
-      x: xCss,
-      y: yCss,
+      x: roundedX,
+      y: roundedY,
       deltaX,
       deltaY,
     });
 
     return {
       success: true,
-      message: `Successfully scrolled ${direction} at (${xCss}, ${yCss})`,
+      message: `Successfully scrolled ${direction} at preset(${targetX}, ${targetY}) -> actual(${roundedX}, ${roundedY})`,
+      data: {
+        presetPosition: { x: targetX, y: targetY },
+        actualPosition: { x: roundedX, y: roundedY },
+        viewport: viewport,
+        direction: direction,
+        amount: amount,
+      },
     };
   } finally {
     await debuggerManager.safeDetachDebugger(tabId);

@@ -478,6 +478,157 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Experimental: Enable "Background tab throttling protection" in chrome://flags
   - Note: These flags affect Chrome globally and may impact performance/battery life
 
+#### 14. Scroll Command Fails with "No screenshot metadata found"
+- **Cause**: Scroll command incorrectly depended on screenshot metadata for coordinate conversion instead of using viewport size like mouse move commands
+- **Symptoms**: 
+  - `scroll down 1000` command fails with "No screenshot metadata found. Please take a screenshot first."
+  - Scroll command requires screenshot before working, while mouse move works without screenshot
+- **Fix**:
+  - Updated `performScroll` function to use `getViewportSize()` and `presetToActualCoords()` like mouse move commands
+  - Added same logic as `performClick`: if coordinates are (0,0), use tracked mouse position
+  - Removed dependency on `screenshotCache` and `screenshotToCssPixels()` function
+- **Technical Details**:
+  - Scroll now uses preset coordinate system (center at 0,0, 2560x1440)
+  - Converts preset coordinates to actual screen coordinates using viewport dimensions
+  - Scrolls at current mouse position when coordinates are (0,0)
+- **Debug**:
+  - Check extension logs for "Scroll at preset(X, Y) -> actual(X, Y) viewport(WxH)"
+  - Look for "Using tracked mouse position for scroll: (X, Y)" messages
+  - Verify viewport size is being retrieved correctly from content script
+
+#### 15. Visual Mouse Pointer Shows on All Tabs Instead of Just Managed Tabs
+- **Cause**: Content script injected into all tabs via manifest.json `content_scripts` configuration, creating visual mouse pointer in every tab
+- **Symptoms**: 
+  - Blue visual mouse pointer appears on all open tabs, not just managed/controlled tabs
+  - Mouse pointer remains visible even when switching to non-managed tabs
+  - Multiple mouse pointers visible across different tabs simultaneously
+- **Fix**:
+  - **Default hidden state**: Modified visual mouse pointer to start with opacity: 0 (invisible)
+  - **Active tab tracking**: Added `chrome.tabs.onActivated` listener to hide pointer in previous tab
+  - **Show on update**: Visual mouse only becomes visible when receiving `visual_mouse_update` message (i.e., when tab is active and receiving commands)
+  - **Hide instead of destroy**: Changed `visual_mouse_destroy` handler to hide pointer (`hidePointer()`) rather than remove it from DOM
+- **Technical Details**:
+  - Visual mouse pointer element created with `opacity: 0` in constructor
+  - `handleMouseUpdate()` shows pointer and recreates if needed
+  - Tab activation listener automatically hides pointer in previous tab
+  - Pointer remains in DOM but invisible when tab is not active
+- **Debug**:
+  - Check extension background logs for "Tab activated: X, previous active tab: Y"
+  - Look for "Cleaning up visual mouse in previous tab X" messages
+  - Monitor content script logs: "Pointer shown" and "Pointer hidden" messages
+  - Verify pointer opacity changes between 0 (hidden) and 0.8 (visible)
+
+#### 16. Visual Mouse Doesn't Appear After `tabs init` Without Calling `reset`
+- **Cause**: `tabs init` command only created the tab and tab group but didn't initialize mouse position or show visual mouse pointer
+- **Symptoms**: 
+  - After `tabs init www.zhihu.com`, visual mouse pointer doesn't appear
+  - User must manually call `reset` to make mouse pointer visible
+  - Initial session lacks visual feedback for mouse position
+- **Fix**:
+  - Enhanced `tabs init` command handler to automatically reset mouse position and show visual mouse pointer
+  - Added same logic as `reset_mouse` command: calls `computer.resetMousePosition()` and `updateVisualMouse()`
+  - Ensures new sessions start with visible mouse pointer at screen center
+- **Technical Details**:
+  - `tabs init` now activates tab, resets mouse position, and sends visual mouse update
+  - Uses actual screen coordinates from `resetMousePosition` result
+  - Includes error handling for content script injection if needed
+  - Returns success status for mouse reset and visual update
+- **Debug**:
+  - Check logs for "Session initialized with URL: ..."
+  - Look for "Mouse reset: preset(0, 0) -> actual(X, Y)" messages
+  - Verify "Updating visual mouse for tab X" logs
+  - Monitor content script response for visual mouse update
+
+## Coordinate System Documentation
+
+### Simulated Coordinate System (User Perspective)
+
+The Local Chrome Server uses a **simulated coordinate system** (also called **preset coordinate system**) for all mouse and automation operations. This system provides a consistent reference frame regardless of actual screen resolution.
+
+#### Coordinate System Specifications
+
+1. **Resolution**: 2560×1440 pixels (2K resolution)
+2. **Origin**: Center of the screen at (0, 0)
+3. **X-axis Range**: -1280 to 1280 (left to right)
+4. **Y-axis Range**: -720 to 720 (top to bottom)
+5. **Positive Directions**:
+   - **Right**: Positive X (+X)
+   - **Down**: Positive Y (+Y)
+   - **Left**: Negative X (-X)
+   - **Up**: Negative Y (-Y)
+
+#### Key Points
+
+- **Center-based system**: Unlike traditional screen coordinates (top-left origin), this system uses the center of the screen as (0, 0)
+- **Consistent scaling**: Commands like `mouse move 100 0` move 100 pixels to the right in the simulated coordinate system, which is automatically scaled to the actual screen resolution
+- **Boundary clamping**: Coordinates are automatically clamped to stay within the viewport bounds
+
+#### Coordinate Conversion Flow
+
+```
+User Command (simulated coordinates)
+    ↓
+Preset Coordinate System (-1280 to 1280, -720 to 720)
+    ↓
+Scale based on actual viewport size
+    ↓  
+Actual Screen Coordinates (0 to viewport.width-1, 0 to viewport.height-1)
+    ↓
+Chrome DevTools Protocol (CDP) commands
+```
+
+#### Examples
+
+| Simulated Coordinate | Screen Position |
+|---------------------|-----------------|
+| (0, 0)              | Screen center   |
+| (-1280, -720)       | Top-left corner |
+| (1280, 720)         | Bottom-right corner |
+| (-640, 360)         | Left-center, upper half |
+
+#### Screenshot Coordinate Mapping
+
+Screenshots are automatically scaled to match the simulated coordinate system (2560×1440 pixels). This ensures consistent coordinate mapping between:
+- **Simulated coordinates** (user commands)
+- **Screenshot pixel coordinates** (for visual analysis/AI processing)
+- **Actual screen coordinates** (for browser automation)
+
+**Important**: All screenshot-based operations (click detection, visual recognition) should use the simulated coordinate system for consistency.
+
+### Screenshot Resizing Implementation
+
+To ensure consistent coordinate mapping, screenshots are automatically resized to match the simulated coordinate system dimensions (2560×1440 pixels).
+
+#### How It Works
+
+1. **Capture**: Original screenshot captured via Chrome's `captureVisibleTab` API
+2. **Resize**: Image resized to 2560×1440 using Canvas API in content script
+3. **Metadata**: Screenshot metadata updated with preset dimensions
+4. **Mapping**: Coordinate mapping uses preset dimensions for all calculations
+
+#### Technical Details
+
+- **Resizing Method**: Canvas 2D context `drawImage()` with scaling
+- **Image Format**: PNG (lossless) to maintain visual quality
+- **Performance**: Resizing happens in content script to access Canvas API
+- **Fallback**: If resizing fails, original image is used with appropriate coordinate scaling
+
+#### Coordinate Conversion Example
+
+When a user clicks at simulated coordinate `(100, -50)`:
+1. Convert to screenshot pixel: `(100 + 1280, -50 + 720) = (1380, 670)`
+2. Since screenshot is 2560×1440, this maps directly to pixel (1380, 670)
+3. Convert to actual screen coordinates based on viewport size
+
+#### API Changes
+
+The `captureScreenshot` function now accepts a `resizeToPreset` parameter (default: `true`):
+```typescript
+captureScreenshot(tabId?, includeCursor?, quality?, resizeToPreset?)
+```
+
+When `resizeToPreset` is `true`, screenshots are automatically resized to 2560×1440, ensuring 1:1 mapping between simulated coordinates and screenshot pixels.
+
 ### Debug Logging
 
 ```bash

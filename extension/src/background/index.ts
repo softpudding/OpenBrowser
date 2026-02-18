@@ -46,6 +46,29 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 });
 
+// Listen for tab activation to manage visual mouse visibility
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  const newTabId = activeInfo.tabId;
+  console.log(`🔍 Tab activated: ${newTabId}, previous active tab: ${currentActiveTabId}`);
+  
+  // Clean up visual mouse in previous tab if it was managed
+  if (currentActiveTabId !== null && currentActiveTabId !== newTabId) {
+    try {
+      console.log(`🔄 Cleaning up visual mouse in previous tab ${currentActiveTabId}`);
+      await cleanupVisualMouseInTab(currentActiveTabId);
+    } catch (error) {
+      console.error(`⚠️ Failed to cleanup visual mouse in tab ${currentActiveTabId}:`, error);
+    }
+  }
+  
+  // Update current active tab
+  currentActiveTabId = newTabId;
+  
+  // If this tab is managed, update visual mouse position (optional)
+  // We don't send visual_mouse_update here because we don't know the mouse position
+  // The next command will update it if needed
+});
+
 // Listen for commands from WebSocket server
 wsClient.onMessage(async (data) => {
   // Only handle command messages (not responses or server messages)
@@ -354,6 +377,25 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             }
             // Initialize a new managed session with the given URL
             const initResult = await tabManager.initializeSession(command.url);
+            
+            // Activate tab for automation (ensures it's ready)
+            await activateTabForAutomation(initResult.tabId);
+            
+            // Initialize mouse position to screen center (like reset command)
+            const resetResult = await computer.resetMousePosition(initResult.tabId);
+            
+            // Update visual mouse to actual screen center
+            let visualUpdateSuccess = false;
+            if (resetResult.success && resetResult.data?.actualPosition) {
+              const { actualPosition } = resetResult.data;
+              visualUpdateSuccess = await updateVisualMouse(initResult.tabId, {
+                x: actualPosition.x,
+                y: actualPosition.y,
+                action: 'move',
+                relative: false,
+              });
+            }
+            
             return {
               success: true,
               message: `Session initialized with ${command.url}`,
@@ -362,6 +404,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 groupId: initResult.groupId,
                 url: initResult.url,
                 isManaged: true,
+                mouseReset: resetResult.success,
+                visualUpdateSuccess,
               },
               timestamp: Date.now(),
             };

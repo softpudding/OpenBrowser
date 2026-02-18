@@ -6,12 +6,46 @@
 import { cacheScreenshotMetadata } from './computer';
 
 /**
+ * Resize image using content script (Canvas API)
+ */
+async function resizeImageInContentScript(
+  tabId: number,
+  dataUrl: string,
+  targetWidth: number = 2560,
+  targetHeight: number = 1440,
+): Promise<string> {
+  try {
+    console.log(`🖼️ [Screenshot] Requesting image resize in tab ${tabId} to ${targetWidth}×${targetHeight}`);
+    
+    const response = await chrome.tabs.sendMessage(tabId, {
+      type: 'resize_image',
+      data: {
+        dataUrl,
+        targetWidth,
+        targetHeight,
+      },
+    });
+    
+    if (response?.success && response.resizedDataUrl) {
+      console.log(`✅ [Screenshot] Image resized successfully: ${response.originalSize} → ${response.resizedSize} bytes`);
+      return response.resizedDataUrl;
+    } else {
+      throw new Error(response?.error || 'Failed to resize image');
+    }
+  } catch (error) {
+    console.error('❌ [Screenshot] Failed to resize image in content script:', error);
+    throw error;
+  }
+}
+
+/**
  * Capture screenshot of visible tab
  */
 export async function captureScreenshot(
   tabId?: number,
   includeCursor: boolean = true,
   quality: number = 90,
+  resizeToPreset: boolean = true,  // Whether to resize to preset coordinate system dimensions (2560×1440)
 ): Promise<any> {
   // Resolve tab ID if not provided
   let targetTabId = tabId;
@@ -61,6 +95,7 @@ export async function captureScreenshot(
   // Instead, we'll extract dimensions from data URL or use reasonable defaults
   let imageWidth = 1920;
   let imageHeight = 1080;
+  let finalImageData = dataUrl;
   
   try {
     // Try to extract dimensions from data URL (base64 encoded)
@@ -73,7 +108,33 @@ export async function captureScreenshot(
   } catch (e) {
     console.warn('[Screenshot] Failed to get image dimensions:', e);
   }
-
+  
+  // Resize image to preset coordinate system dimensions if requested
+  if (resizeToPreset && viewport) {
+    try {
+      const PRESET_WIDTH = 2560;
+      const PRESET_HEIGHT = 1440;
+      
+      console.log(`🖼️ [Screenshot] Resizing image from ${imageWidth}×${imageHeight} to ${PRESET_WIDTH}×${PRESET_HEIGHT}`);
+      
+      finalImageData = await resizeImageInContentScript(
+        targetTabId,
+        dataUrl,
+        PRESET_WIDTH,
+        PRESET_HEIGHT
+      );
+      
+      // Update image dimensions to preset size
+      imageWidth = PRESET_WIDTH;
+      imageHeight = PRESET_HEIGHT;
+      
+      console.log(`✅ [Screenshot] Image resized to preset coordinate system dimensions`);
+    } catch (resizeError) {
+      console.warn('⚠️ [Screenshot] Failed to resize image, using original:', resizeError);
+      // Continue with original image
+    }
+  }
+  
   // Cache screenshot metadata for computer tool
   if (viewport) {
     cacheScreenshotMetadata(
@@ -87,7 +148,7 @@ export async function captureScreenshot(
 
   return {
     success: true,
-    imageData: dataUrl,
+    imageData: finalImageData,
     metadata: {
       tabId: targetTabId,
       width: imageWidth,
@@ -96,6 +157,7 @@ export async function captureScreenshot(
       viewportHeight: viewport?.height ?? 0,
       url: tab.url,
       title: tab.title,
+      resizedToPreset: resizeToPreset && viewport !== undefined,
     },
   };
 }
