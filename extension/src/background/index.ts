@@ -7,6 +7,8 @@ import { computer } from '../commands/computer';
 import { captureScreenshot } from '../commands/screenshot';
 import { tabs } from '../commands/tabs';
 import { tabManager } from '../commands/tab-manager';
+import { debuggerManager } from '../commands/debugger-manager';
+import { CdpCommander } from '../commands/cdp-commander';
 import type { Command, CommandResponse } from '../types';
 
 console.log('🚀 OpenBrowser extension starting...');
@@ -114,35 +116,122 @@ wsClient.onMessage(async (data) => {
 });
 
 /**
- * Ensure a tab is responsive for automation without activating it
- * Chrome may throttle or pause background tabs, so we need to ensure
- * the tab is responsive for CDP commands without stealing focus from user
+ * Temporarily activate tab for automation, then restore user's original active tab
+ * Chrome throttles background tabs, so we need to temporarily activate
+ * the tab for CDP commands to work, but restore the user's browsing state afterwards
  */
-async function activateTabForAutomation(tabId: number): Promise<void> {
-  console.log(`🔧 Ensuring tab ${tabId} is responsive for automation (background mode)...`);
+async function activateTabForAutomation(tabId: number): Promise<() => Promise<void>> {
+  console.log(`🔧 Temporarily activating tab ${tabId} for automation...`);
+  
+  let restoreFn: () => Promise<void> = async () => {};
+  let originalActiveTabId: number | null = null;
+  let originalWindowId: number | null = null;
   
   try {
-    // Get tab info to check if it's accessible
+    // Get tab info
     const tab = await chrome.tabs.get(tabId);
     
     // Check if tab is a normal webpage (not chrome:// etc.)
     const url = tab.url || '';
     if (url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
-      console.log(`⚠️ Tab ${tabId} is a restricted URL, skipping responsiveness check`);
-      return;
+      console.log(`⚠️ Tab ${tabId} is a restricted URL, skipping activation`);
+      return restoreFn;
     }
     
-    // Check if debugger is already attached
-    // We'll let the individual command functions handle debugger attachment
-    // This function just logs and optionally wakes up the page
+    // Check if tab is already active
+    if (tab.active) {
+      console.log(`✅ Tab ${tabId} is already active, no need to switch`);
+      return restoreFn;
+    }
     
-    // Note: We intentionally do NOT activate the tab or window
-    // to avoid stealing focus from the user's current active tab
+    // Save current user's active tab before switching
+    const [userActiveTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (userActiveTab?.id) {
+      originalActiveTabId = userActiveTab.id;
+      originalWindowId = userActiveTab.windowId;
+      console.log(`📝 Saving user's original active tab: ${originalActiveTabId} in window ${originalWindowId}`);
+    } else {
+      console.log(`📝 No user active tab found, will only activate target tab`);
+    }
     
-    console.log(`✅ Tab ${tabId} prepared for background automation (no activation)`);
+    // Temporarily activate the automation tab
+    console.log(`🔄 Temporarily activating automation tab ${tabId}`);
+    await chrome.tabs.update(tabId, { active: true });
+    
+    // Also bring the window to front if needed
+    if (tab.windowId && originalWindowId !== tab.windowId) {
+      try {
+        await chrome.windows.update(tab.windowId, { focused: true });
+        console.log(`✅ Window ${tab.windowId} focused`);
+      } catch (windowError) {
+        console.warn(`⚠️ Could not focus window ${tab.windowId}:`, windowError);
+      }
+    }
+    
+    // Enhanced wake-up sequence for background tabs
+    console.log(`⏳ Enhanced wake-up sequence for tab ${tabId}...`);
+    
+    // 1. Initial delay for tab activation
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
+    // 2. Try to attach debugger early to wake up CDP connection
+    try {
+      console.log(`🔧 Attempting early debugger attachment to wake up tab ${tabId}...`);
+      const attached = await debuggerManager.safeAttachDebugger(tabId);
+      if (attached) {
+        console.log(`✅ Early debugger attached successfully`);
+        
+        // 3. Send a simple CDP command to ensure page is responsive
+        try {
+          const cdpCommander = new CdpCommander(tabId);
+          await cdpCommander.sendCommand('Page.getLayoutMetrics', {}, 3000, 1);
+          console.log(`✅ Page is responsive after wake-up`);
+        } catch (cdpError) {
+          console.warn(`⚠️ Page responsiveness check failed, continuing anyway:`, cdpError);
+        }
+        
+        // Note: We don't detach debugger here - individual commands will handle it
+      } else {
+        console.warn(`⚠️ Early debugger attachment failed, continuing anyway`);
+      }
+    } catch (debuggerError) {
+      console.warn(`⚠️ Early debugger attachment error:`, debuggerError);
+      // Continue anyway - the main command will try to attach debugger
+    }
+    
+    // 4. Additional delay for rendering
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    console.log(`✅ Tab ${tabId} fully activated and ready for automation`);
+    
+    // Create restore function that will be called after command execution
+    restoreFn = async () => {
+      if (originalActiveTabId && originalActiveTabId !== tabId) {
+        console.log(`🔄 Restoring user's original tab ${originalActiveTabId}...`);
+        try {
+          // Restore user's original tab
+          await chrome.tabs.update(originalActiveTabId, { active: true });
+          
+          // Restore window focus if different
+          if (originalWindowId && originalWindowId !== tab.windowId) {
+            await chrome.windows.update(originalWindowId, { focused: true });
+            console.log(`✅ Restored user's tab ${originalActiveTabId} and window ${originalWindowId}`);
+          } else {
+            console.log(`✅ Restored user's tab ${originalActiveTabId}`);
+          }
+        } catch (restoreError) {
+          console.error(`⚠️ Failed to restore user's tab:`, restoreError);
+        }
+      } else {
+        console.log(`✅ No restoration needed (original tab was ${originalActiveTabId})`);
+      }
+    };
+    
+    return restoreFn;
+    
   } catch (error) {
-    console.error(`⚠️ Failed to prepare tab ${tabId} for automation:`, error);
-    // Continue anyway - the command might still work
+    console.error(`⚠️ Failed to activate tab ${tabId} for automation:`, error);
+    return restoreFn;
   }
 }
 
@@ -160,13 +249,14 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(tabIdForMove);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForMove);
-        // Activate tab to ensure it's responsive for automation
-        await activateTabForAutomation(tabIdForMove);
-        const moveResult = await computer.performMouseMove(
-          tabIdForMove,
-          command.dx,
-          command.dy
-        );
+        // Temporarily activate tab for automation and get restore function
+        const restoreMove = await activateTabForAutomation(tabIdForMove);
+        try {
+          const moveResult = await computer.performMouseMove(
+            tabIdForMove,
+            command.dx,
+            command.dy
+          );
         
         // Update visual mouse position using actual screen coordinates
         let visualUpdateSuccess = false;
@@ -189,15 +279,19 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           console.warn('Cannot update visual mouse: moveResult missing actualPosition', moveResult);
         }
         
-        return {
-          success: true,
-          message: moveResult.message + visualMessage,
-          data: {
-            ...moveResult.data,
-            visualUpdateSuccess,
-          },
-          timestamp: Date.now(),
-        };
+          return {
+            success: true,
+            message: moveResult.message + visualMessage,
+            data: {
+              ...moveResult.data,
+              visualUpdateSuccess,
+            },
+            timestamp: Date.now(),
+          };
+        } finally {
+          // Restore user's original tab after command execution
+          await restoreMove();
+        }
 
       case 'mouse_click':
         const tabIdForClick = command.tab_id || await getCurrentTabId();
@@ -205,28 +299,33 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(tabIdForClick);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForClick);
-        // Activate tab to ensure it's responsive for automation
-        await activateTabForAutomation(tabIdForClick);
-        const clickResult = await computer.performClick(
-          tabIdForClick,
-          0, 0, // Coordinates - will need to be provided or tracked
-          command.button || 'left',
-          command.count || (command.double ? 2 : 1)
-        );
-        
-        // Update visual mouse for click
-        await updateVisualMouse(tabIdForClick, {
-          action: 'click',
-          button: command.button || 'left',
-          count: command.count || (command.double ? 2 : 1),
-        });
-        
-        return {
-          success: true,
-          message: clickResult.message,
-          data: clickResult,
-          timestamp: Date.now(),
-        };
+        // Temporarily activate tab for automation and get restore function
+        const restoreClick = await activateTabForAutomation(tabIdForClick);
+        try {
+          const clickResult = await computer.performClick(
+            tabIdForClick,
+            0, 0, // Coordinates - will need to be provided or tracked
+            command.button || 'left',
+            command.count || (command.double ? 2 : 1)
+          );
+          
+          // Update visual mouse for click
+          await updateVisualMouse(tabIdForClick, {
+            action: 'click',
+            button: command.button || 'left',
+            count: command.count || (command.double ? 2 : 1),
+          });
+          
+          return {
+            success: true,
+            message: clickResult.message,
+            data: clickResult,
+            timestamp: Date.now(),
+          };
+        } finally {
+          // Restore user's original tab after command execution
+          await restoreClick();
+        }
 
       case 'mouse_scroll':
         const tabIdForScroll = command.tab_id || await getCurrentTabId();
@@ -234,28 +333,33 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(tabIdForScroll);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForScroll);
-        // Activate tab to ensure it's responsive for automation
-        await activateTabForAutomation(tabIdForScroll);
-        const scrollResult = await computer.performScroll(
-          tabIdForScroll,
-          0, 0, // Coordinates - will need to be provided
-          command.direction,
-          command.amount || 100
-        );
-        
-        // Update visual mouse for scroll
-        await updateVisualMouse(tabIdForScroll, {
-          action: 'scroll',
-          direction: command.direction,
-          amount: command.amount || 100,
-        });
-        
-        return {
-          success: true,
-          message: scrollResult.message,
-          data: scrollResult,
-          timestamp: Date.now(),
-        };
+        // Temporarily activate tab for automation and get restore function
+        const restoreScroll = await activateTabForAutomation(tabIdForScroll);
+        try {
+          const scrollResult = await computer.performScroll(
+            tabIdForScroll,
+            0, 0, // Coordinates - will need to be provided
+            command.direction,
+            command.amount || 100
+          );
+          
+          // Update visual mouse for scroll
+          await updateVisualMouse(tabIdForScroll, {
+            action: 'scroll',
+            direction: command.direction,
+            amount: command.amount || 100,
+          });
+          
+          return {
+            success: true,
+            message: scrollResult.message,
+            data: scrollResult,
+            timestamp: Date.now(),
+          };
+        } finally {
+          // Restore user's original tab after command execution
+          await restoreScroll();
+        }
 
       case 'keyboard_type':
         const tabIdForType = command.tab_id || await getCurrentTabId();
@@ -263,23 +367,28 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(tabIdForType);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForType);
-        // Activate tab to ensure it's responsive for automation
-        await activateTabForAutomation(tabIdForType);
-        const typeResult = await computer.performType(
-          tabIdForType,
-          command.text
-        );
-        
-        // Visual feedback for typing (optional - could show typing indicator)
-        // For now, just log it
-        console.log(`⌨️ Typing: "${command.text}"`);
-        
-        return {
-          success: true,
-          message: typeResult.message,
-          data: typeResult,
-          timestamp: Date.now(),
-        };
+        // Temporarily activate tab for automation and get restore function
+        const restoreType = await activateTabForAutomation(tabIdForType);
+        try {
+          const typeResult = await computer.performType(
+            tabIdForType,
+            command.text
+          );
+          
+          // Visual feedback for typing (optional - could show typing indicator)
+          // For now, just log it
+          console.log(`⌨️ Typing: "${command.text}"`);
+          
+          return {
+            success: true,
+            message: typeResult.message,
+            data: typeResult,
+            timestamp: Date.now(),
+          };
+        } finally {
+          // Restore user's original tab after command execution
+          await restoreType();
+        }
 
       case 'keyboard_press':
         const tabIdForKeyPress = command.tab_id || await getCurrentTabId();
@@ -287,23 +396,28 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(tabIdForKeyPress);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForKeyPress);
-        // Activate tab to ensure it's responsive for automation
-        await activateTabForAutomation(tabIdForKeyPress);
-        const keyResult = await computer.performKeyPress(
-          tabIdForKeyPress,
-          command.key,
-          command.modifiers
-        );
-        
-        // Visual feedback for key press (optional)
-        console.log(`⌨️ Key press: ${command.key}${command.modifiers ? ` with modifiers: ${command.modifiers.join('+')}` : ''}`);
-        
-        return {
-          success: true,
-          message: keyResult.message,
-          data: keyResult,
-          timestamp: Date.now(),
-        };
+        // Temporarily activate tab for automation and get restore function
+        const restoreKeyPress = await activateTabForAutomation(tabIdForKeyPress);
+        try {
+          const keyResult = await computer.performKeyPress(
+            tabIdForKeyPress,
+            command.key,
+            command.modifiers
+          );
+          
+          // Visual feedback for key press (optional)
+          console.log(`⌨️ Key press: ${command.key}${command.modifiers ? ` with modifiers: ${command.modifiers.join('+')}` : ''}`);
+          
+          return {
+            success: true,
+            message: keyResult.message,
+            data: keyResult,
+            timestamp: Date.now(),
+          };
+        } finally {
+          // Restore user's original tab after command execution
+          await restoreKeyPress();
+        }
 
       case 'screenshot':
         const tabIdForScreenshot = command.tab_id || await getCurrentTabId();
@@ -311,64 +425,68 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(tabIdForScreenshot);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForScreenshot);
-        // Activate tab to ensure it's responsive for automation
-        await activateTabForAutomation(tabIdForScreenshot);
-        
-        // Update visual mouse pointer to ensure it's visible in screenshot
-        // Only update if visual mouse is not explicitly disabled
-        if (command.include_visual_mouse !== false) {
-          try {
-            // Get current mouse position in preset coordinate system
-            const mousePosition = computer.getMousePosition(tabIdForScreenshot);
-            console.log(`🎯 Current mouse position (preset): (${mousePosition.x}, ${mousePosition.y})`);
-            
-            // Get viewport size for coordinate conversion
-            const viewport = await computer.getViewportSize(tabIdForScreenshot);
-            console.log(`🖥️ Viewport size: ${viewport.width}x${viewport.height}`);
-            
-            // Convert preset coordinates to actual screen coordinates
-            const { actualX, actualY } = computer.presetToActualCoords(
-              mousePosition.x,
-              mousePosition.y,
-              viewport
-            );
-            
-            // Round to integers for display
-            const roundedX = Math.round(actualX);
-            const roundedY = Math.round(actualY);
-            console.log(`🎯 Converted to actual coordinates: (${roundedX}, ${roundedY})`);
-            
-            // Update visual mouse with actual coordinates
-            await updateVisualMouse(tabIdForScreenshot, {
-              x: roundedX,
-              y: roundedY,
-              action: 'move',
-              relative: false,
-            });
-            console.log(`✅ Visual mouse updated for screenshot at position (${roundedX}, ${roundedY})`);
-            
-            // Wait for visual mouse DOM updates to render before taking screenshot
-            // This ensures the visual mouse is fully visible in the screenshot
-            console.log(`⏳ Waiting 150ms for visual mouse rendering...`);
-            await new Promise(resolve => setTimeout(resolve, 150));
-          } catch (visualMouseError) {
-            console.warn('⚠️ Failed to update visual mouse for screenshot, continuing anyway:', visualMouseError);
+        // Temporarily activate tab for automation and get restore function
+        const restoreScreenshot = await activateTabForAutomation(tabIdForScreenshot);
+        try {
+          // Update visual mouse pointer to ensure it's visible in screenshot
+          // Only update if visual mouse is not explicitly disabled
+          if (command.include_visual_mouse !== false) {
+            try {
+              // Get current mouse position in preset coordinate system
+              const mousePosition = computer.getMousePosition(tabIdForScreenshot);
+              console.log(`🎯 Current mouse position (preset): (${mousePosition.x}, ${mousePosition.y})`);
+              
+              // Get viewport size for coordinate conversion
+              const viewport = await computer.getViewportSize(tabIdForScreenshot);
+              console.log(`🖥️ Viewport size: ${viewport.width}x${viewport.height}`);
+              
+              // Convert preset coordinates to actual screen coordinates
+              const { actualX, actualY } = computer.presetToActualCoords(
+                mousePosition.x,
+                mousePosition.y,
+                viewport
+              );
+              
+              // Round to integers for display
+              const roundedX = Math.round(actualX);
+              const roundedY = Math.round(actualY);
+              console.log(`🎯 Converted to actual coordinates: (${roundedX}, ${roundedY})`);
+              
+              // Update visual mouse with actual coordinates
+              await updateVisualMouse(tabIdForScreenshot, {
+                x: roundedX,
+                y: roundedY,
+                action: 'move',
+                relative: false,
+              });
+              console.log(`✅ Visual mouse updated for screenshot at position (${roundedX}, ${roundedY})`);
+              
+              // Wait for visual mouse DOM updates to render before taking screenshot
+              // This ensures the visual mouse is fully visible in the screenshot
+              console.log(`⏳ Waiting 150ms for visual mouse rendering...`);
+              await new Promise(resolve => setTimeout(resolve, 150));
+            } catch (visualMouseError) {
+              console.warn('⚠️ Failed to update visual mouse for screenshot, continuing anyway:', visualMouseError);
+            }
           }
+          
+          const screenshotResult = await captureScreenshot(
+            tabIdForScreenshot,
+            command.include_cursor !== false,
+            command.quality || 90,
+            true, // resizeToPreset
+            200   // waitForRender: additional wait time after visual mouse update (ms)
+          );
+          return {
+            success: true,
+            message: 'Screenshot captured',
+            data: screenshotResult,
+            timestamp: Date.now(),
+          };
+        } finally {
+          // Restore user's original tab after command execution
+          await restoreScreenshot();
         }
-        
-        const screenshotResult = await captureScreenshot(
-          tabIdForScreenshot,
-          command.include_cursor !== false,
-          command.quality || 90,
-          true, // resizeToPreset
-          200   // waitForRender: additional wait time after visual mouse update (ms)
-        );
-        return {
-          success: true,
-          message: 'Screenshot captured',
-          data: screenshotResult,
-          timestamp: Date.now(),
-        };
 
       case 'reset_mouse':
         const tabIdForReset = command.tab_id || await getCurrentTabId();
@@ -376,29 +494,34 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(tabIdForReset);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForReset);
-        // Activate tab to ensure it's responsive for automation
-        await activateTabForAutomation(tabIdForReset);
-        const resetResult = await computer.resetMousePosition(tabIdForReset);
-        
-        // Update visual mouse to actual screen center
-        if (resetResult.success && resetResult.data?.actualPosition) {
-          const { actualPosition } = resetResult.data;
-          await updateVisualMouse(tabIdForReset, {
-            x: actualPosition.x,
-            y: actualPosition.y,
-            action: 'move',
-            relative: false,
-          });
-        } else {
-          console.warn('Cannot update visual mouse for reset: missing actualPosition', resetResult);
+        // Temporarily activate tab for automation and get restore function
+        const restoreReset = await activateTabForAutomation(tabIdForReset);
+        try {
+          const resetResult = await computer.resetMousePosition(tabIdForReset);
+          
+          // Update visual mouse to actual screen center
+          if (resetResult.success && resetResult.data?.actualPosition) {
+            const { actualPosition } = resetResult.data;
+            await updateVisualMouse(tabIdForReset, {
+              x: actualPosition.x,
+              y: actualPosition.y,
+              action: 'move',
+              relative: false,
+            });
+          } else {
+            console.warn('Cannot update visual mouse for reset: missing actualPosition', resetResult);
+          }
+          
+          return {
+            success: true,
+            message: resetResult.message,
+            data: resetResult,
+            timestamp: Date.now(),
+          };
+        } finally {
+          // Restore user's original tab after command execution
+          await restoreReset();
         }
-        
-        return {
-          success: true,
-          message: resetResult.message,
-          data: resetResult,
-          timestamp: Date.now(),
-        };
 
       case 'tab':
         switch (command.action) {
@@ -409,37 +532,41 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             // Initialize a new managed session with the given URL
             const initResult = await tabManager.initializeSession(command.url);
             
-            // Activate tab for automation (ensures it's ready)
-            await activateTabForAutomation(initResult.tabId);
-            
-            // Initialize mouse position to screen center (like reset command)
-            const resetResult = await computer.resetMousePosition(initResult.tabId);
-            
-            // Update visual mouse to actual screen center
-            let visualUpdateSuccess = false;
-            if (resetResult.success && resetResult.data?.actualPosition) {
-              const { actualPosition } = resetResult.data;
-              visualUpdateSuccess = await updateVisualMouse(initResult.tabId, {
-                x: actualPosition.x,
-                y: actualPosition.y,
-                action: 'move',
-                relative: false,
-              });
+            // Temporarily activate tab for initialization and get restore function
+            const restoreInit = await activateTabForAutomation(initResult.tabId);
+            try {
+              // Initialize mouse position to screen center (like reset command)
+              const resetResult = await computer.resetMousePosition(initResult.tabId);
+              
+              // Update visual mouse to actual screen center
+              let visualUpdateSuccess = false;
+              if (resetResult.success && resetResult.data?.actualPosition) {
+                const { actualPosition } = resetResult.data;
+                visualUpdateSuccess = await updateVisualMouse(initResult.tabId, {
+                  x: actualPosition.x,
+                  y: actualPosition.y,
+                  action: 'move',
+                  relative: false,
+                });
+              }
+              
+              return {
+                success: true,
+                message: `Session initialized with ${command.url}`,
+                data: {
+                  tabId: initResult.tabId,
+                  groupId: initResult.groupId,
+                  url: initResult.url,
+                  isManaged: true,
+                  mouseReset: resetResult.success,
+                  visualUpdateSuccess,
+                },
+                timestamp: Date.now(),
+              };
+            } finally {
+              // Restore user's original tab after initialization
+              await restoreInit();
             }
-            
-            return {
-              success: true,
-              message: `Session initialized with ${command.url}`,
-              data: {
-                tabId: initResult.tabId,
-                groupId: initResult.groupId,
-                url: initResult.url,
-                isManaged: true,
-                mouseReset: resetResult.success,
-                visualUpdateSuccess,
-              },
-              timestamp: Date.now(),
-            };
 
           case 'open':
             if (!command.url) {
@@ -473,15 +600,20 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             await tabManager.ensureTabManaged(command.tab_id);
             // Update tab activity for status tracking
             tabManager.updateTabActivity(command.tab_id);
-            // Activate tab (including window focus) for automation
-            await activateTabForAutomation(command.tab_id);
-            const switchResult = await tabs.switchToTab(command.tab_id);
-            return {
-              success: true,
-              message: switchResult.message,
-              data: switchResult,
-              timestamp: Date.now(),
-            };
+            // Temporarily activate tab for automation and get restore function
+            const restoreSwitch = await activateTabForAutomation(command.tab_id);
+            try {
+              const switchResult = await tabs.switchToTab(command.tab_id);
+              return {
+                success: true,
+                message: switchResult.message,
+                data: switchResult,
+                timestamp: Date.now(),
+              };
+            } finally {
+              // Restore user's original tab after command execution
+              await restoreSwitch();
+            }
 
           case 'list':
             const listResult = await tabs.getAllTabs();
@@ -500,15 +632,20 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             await tabManager.ensureTabManaged(command.tab_id);
             // Update tab activity for status tracking
             tabManager.updateTabActivity(command.tab_id);
-            // Prepare tab for automation (no activation for refresh)
-            await activateTabForAutomation(command.tab_id);
-            const refreshResult = await tabs.refreshTab(command.tab_id);
-            return {
-              success: true,
-              message: refreshResult.message,
-              data: refreshResult,
-              timestamp: Date.now(),
-            };
+            // Temporarily activate tab for automation and get restore function
+            const restoreRefresh = await activateTabForAutomation(command.tab_id);
+            try {
+              const refreshResult = await tabs.refreshTab(command.tab_id);
+              return {
+                success: true,
+                message: refreshResult.message,
+                data: refreshResult,
+                timestamp: Date.now(),
+              };
+            } finally {
+              // Restore user's original tab after command execution
+              await restoreRefresh();
+            }
 
           default:
             throw new Error(`Unknown tab action: ${command.action}`);

@@ -43,17 +43,17 @@ class BaseCommand(BaseModel):
 
 
 class MouseMoveCommand(BaseCommand):
-    """Move mouse relative to current position"""
+    """Move mouse to absolute position in preset coordinate system"""
     type: Literal["mouse_move"] = "mouse_move"
-    dx: int = Field(
-        description="Horizontal movement (positive = right, negative = left)",
-        ge=-5000,
-        le=5000
+    x: int = Field(
+        description="X coordinate in preset coordinate system (0 to 1280, left to right)",
+        ge=0,
+        le=1280
     )
-    dy: int = Field(
-        description="Vertical movement (positive = down, negative = up)",
-        ge=-5000,
-        le=5000
+    y: int = Field(
+        description="Y coordinate in preset coordinate system (0 to 720, top to bottom)",
+        ge=0,
+        le=720
     )
     duration: Optional[float] = Field(
         default=0.1,

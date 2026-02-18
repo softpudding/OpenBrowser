@@ -11,8 +11,8 @@ export interface BaseCommand {
 
 export interface MouseMoveCommand extends BaseCommand {
   type: 'mouse_move';
-  dx: number;
-  dy: number;
+  x: number;
+  y: number;
   duration?: number;
 }
 

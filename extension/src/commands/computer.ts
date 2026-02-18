@@ -36,17 +36,17 @@ export function cacheScreenshotMetadata(
 }
 
 // Preset coordinate system configuration
-// Center at (0,0), 720P resolution (1280x720) - standard coordinate system
+// Top-left origin (0,0), 720P resolution (1280x720) - new coordinate system
 const PRESET_WIDTH = 1280;
 const PRESET_HEIGHT = 720;
-const PRESET_CENTER_X = 0;
-const PRESET_CENTER_Y = 0;
-const PRESET_MIN_X = -PRESET_WIDTH / 2;  // -640
-const PRESET_MAX_X = PRESET_WIDTH / 2;   // 640
-const PRESET_MIN_Y = -PRESET_HEIGHT / 2; // -360
-const PRESET_MAX_Y = PRESET_HEIGHT / 2;  // 360
+const PRESET_CENTER_X = 640;  // Center of screen in new coordinate system
+const PRESET_CENTER_Y = 360;  // Center of screen in new coordinate system
+const PRESET_MIN_X = 0;  // Left edge
+const PRESET_MAX_X = PRESET_WIDTH;   // Right edge (1280)
+const PRESET_MIN_Y = 0;  // Top edge
+const PRESET_MAX_Y = PRESET_HEIGHT;  // Bottom edge (720)
 
-// Track mouse positions in PRESET coordinate system (center-based)
+// Track mouse positions in PRESET coordinate system (top-left origin)
 const mousePositions = new Map<number, {x: number, y: number}>();
 // Cache viewport sizes per tab
 const viewportSizes = new Map<number, {width: number, height: number}>();
@@ -136,9 +136,9 @@ export async function getViewportSize(tabId: number): Promise<{width: number, he
 }
 
 /**
- * Convert preset coordinates (center-based) to actual screen coordinates
- * @param presetX X in preset coordinate system (center at 0)
- * @param presetY Y in preset coordinate system (center at 0)  
+ * Convert preset coordinates (top-left origin) to actual screen coordinates
+ * @param presetX X in preset coordinate system (top-left at 0, 0 to 1280)
+ * @param presetY Y in preset coordinate system (top-left at 0, 0 to 720)  
  * @param viewport Actual viewport size
  * @returns Actual screen coordinates (top-left based)
  */
@@ -147,13 +147,9 @@ export function presetToActualCoords(
   presetY: number,
   viewport: {width: number, height: number}
 ): {actualX: number, actualY: number} {
-  // Convert from center-based to top-left based
-  const presetXTopLeft = presetX + PRESET_WIDTH / 2;
-  const presetYTopLeft = presetY + PRESET_HEIGHT / 2;
-  
-  // Scale to actual viewport
-  const actualX = (presetXTopLeft / PRESET_WIDTH) * viewport.width;
-  const actualY = (presetYTopLeft / PRESET_HEIGHT) * viewport.height;
+  // Scale to actual viewport (preset is already top-left based)
+  const actualX = (presetX / PRESET_WIDTH) * viewport.width;
+  const actualY = (presetY / PRESET_HEIGHT) * viewport.height;
   
   // Clamp to viewport bounds
   return {
@@ -167,21 +163,20 @@ export function presetToActualCoords(
  * @param actualX X in actual screen coordinates (top-left based)
  * @param actualY Y in actual screen coordinates (top-left based)
  * @param viewport Actual viewport size
- * @returns Preset coordinates (center-based)
+ * @returns Preset coordinates (top-left based, 0-1280, 0-720)
  */
 function actualToPresetCoords(
   actualX: number,
   actualY: number,
   viewport: {width: number, height: number}
 ): {presetX: number, presetY: number} {
-  // Scale to preset coordinate system
-  const presetXTopLeft = (actualX / viewport.width) * PRESET_WIDTH;
-  const presetYTopLeft = (actualY / viewport.height) * PRESET_HEIGHT;
+  // Scale to preset coordinate system (already top-left based)
+  const presetX = (actualX / viewport.width) * PRESET_WIDTH;
+  const presetY = (actualY / viewport.height) * PRESET_HEIGHT;
   
-  // Convert from top-left based to center-based
   return {
-    presetX: presetXTopLeft - PRESET_WIDTH / 2,
-    presetY: presetYTopLeft - PRESET_HEIGHT / 2
+    presetX: Math.max(0, Math.min(presetX, PRESET_WIDTH)),
+    presetY: Math.max(0, Math.min(presetY, PRESET_HEIGHT))
   };
 }
 
@@ -355,25 +350,20 @@ async function performClick(
 }
 
 /**
- * Perform mouse move (relative movement) with boundary checking
- * dx, dy are in preset coordinate system (center-based)
+ * Perform mouse move to absolute position with boundary checking
+ * x, y are in preset coordinate system (top-left origin, 0-1280, 0-720)
  */
 async function performMouseMove(
   tabId: number,
-  dx: number,
-  dy: number,
+  x: number,
+  y: number,
 ): Promise<any> {
   // Get actual viewport size for coordinate mapping
   const viewport = await getViewportSize(tabId);
   
-  // Update tracked mouse position in PRESET coordinate system
-  const currentPos = getOrInitializeMousePosition(tabId);
-  let newPresetX = currentPos.x + dx;
-  let newPresetY = currentPos.y + dy;
-  
   // Apply boundary checks in preset coordinate system
-  newPresetX = Math.max(PRESET_MIN_X, Math.min(newPresetX, PRESET_MAX_X));
-  newPresetY = Math.max(PRESET_MIN_Y, Math.min(newPresetY, PRESET_MAX_Y));
+  const newPresetX = Math.max(PRESET_MIN_X, Math.min(x, PRESET_MAX_X));
+  const newPresetY = Math.max(PRESET_MIN_Y, Math.min(y, PRESET_MAX_Y));
   
   // Save new position in preset coordinates
   mousePositions.set(tabId, { x: newPresetX, y: newPresetY });
@@ -396,8 +386,7 @@ async function performMouseMove(
       data: {
         trackedPosition: { x: newPresetX, y: newPresetY },
         actualPosition: { x: actualX, y: actualY },
-        moved: { dx, dy },
-        boundedInPreset: (newPresetX !== currentPos.x + dx || newPresetY !== currentPos.y + dy),
+        boundedInPreset: (newPresetX !== x || newPresetY !== y),
       },
     };
   }
@@ -405,6 +394,20 @@ async function performMouseMove(
   const cdpCommander = new CdpCommander(tabId);
 
   try {
+    // Before moving mouse, ensure page is responsive by checking if we can send a simple command
+    console.log(`🔍 [Computer] Ensuring page is responsive for tab ${tabId}...`);
+    try {
+      // Try to get page metrics to check responsiveness
+      await cdpCommander.sendCommand('Page.getLayoutMetrics', {}, 5000, 1);
+      console.log(`✅ [Computer] Page is responsive`);
+    } catch (pageCheckError) {
+      console.warn(`⚠️ [Computer] Page responsiveness check failed:`, pageCheckError);
+      console.log(`ℹ️ [Computer] This may be a background tab, continuing with mouse move anyway...`);
+    }
+    
+    // Add a small delay to ensure any pending operations are complete
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     // Move mouse to new absolute position via CDP using actual screen coordinates
     await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
@@ -414,7 +417,7 @@ async function performMouseMove(
 
     console.log(`🖱️ [Computer] Mouse moved to actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) preset(${newPresetX.toFixed(1)}, ${newPresetY.toFixed(1)})`);
     
-    const boundedInPreset = (newPresetX !== currentPos.x + dx || newPresetY !== currentPos.y + dy);
+    const boundedInPreset = (newPresetX !== x || newPresetY !== y);
     let message = `Mouse moved to preset(${newPresetX.toFixed(1)}, ${newPresetY.toFixed(1)}) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)})`;
     if (boundedInPreset) {
       message += ` (position bounded in preset coordinate system)`;
@@ -427,7 +430,6 @@ async function performMouseMove(
         presetPosition: { x: newPresetX, y: newPresetY },
         actualPosition: { x: actualX, y: actualY },
         viewport: viewport,
-        moved: { dx, dy },
         bounded: boundedInPreset,
       },
     };
@@ -759,6 +761,20 @@ async function performScroll(
   const cdpCommander = new CdpCommander(tabId);
 
   try {
+    // Before scrolling, ensure page is responsive by checking if we can send a simple command
+    console.log(`🔍 [Computer] Ensuring page is responsive for tab ${tabId}...`);
+    try {
+      // Try to get page metrics to check responsiveness
+      await cdpCommander.sendCommand('Page.getLayoutMetrics', {}, 5000, 1);
+      console.log(`✅ [Computer] Page is responsive`);
+    } catch (pageCheckError) {
+      console.warn(`⚠️ [Computer] Page responsiveness check failed:`, pageCheckError);
+      console.log(`ℹ️ [Computer] This may be a background tab, continuing with scroll anyway...`);
+    }
+    
+    // Add a small delay to ensure any pending operations are complete
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     // Move mouse to position first (optional but keeps behavior consistent)
     await cdpCommander.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseMoved',

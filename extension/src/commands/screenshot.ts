@@ -49,7 +49,7 @@ async function captureScreenshotWithCDP(
   _includeCursor: boolean = true,
   quality: number = 90,
   resizeToPreset: boolean = true,
-  waitForRender: number = 100,
+  waitForRender: number = 500,
 ): Promise<any> {
   console.log(`📸 [Screenshot] Capturing screenshot via CDP for tab ${tabId}`);
   
@@ -119,7 +119,7 @@ async function captureScreenshotWithCDP(
       viewportHeight = viewportFromContentScript.height;
       viewportX = viewportFromContentScript.x || 0;
       viewportY = viewportFromContentScript.y || 0;
-      console.log(`✅ [Screenshot] Using viewport from content script: ${viewportWidth}x${viewportHeight}`);
+      console.log(`✅ [Screenshot] Using viewport from content script: ${viewportWidth}x${viewportHeight} at (${viewportX}, ${viewportY})`);
     } else if (visualViewport && visualViewport.clientWidth > 0 && visualViewport.clientHeight > 0) {
       // Visual viewport gives the currently visible area (accounts for zoom, scroll)
       viewportWidth = Math.floor(visualViewport.clientWidth);
@@ -230,6 +230,12 @@ async function captureScreenshotWithCDP(
       cssViewportWidth,  // CSS viewport width
       cssViewportHeight, // CSS viewport height
     );
+    
+    // Check if image data is suspiciously small (likely blank)
+    if (finalImageData.length < 30000) {
+      console.warn('⚠️ [Screenshot] Image data too small, likely blank. Falling back to legacy method.');
+      throw new Error('Image data too small');
+    }
     
     const tab = await chrome.tabs.get(tabId);
     
@@ -396,7 +402,7 @@ export async function captureScreenshot(
   includeCursor: boolean = true,
   quality: number = 90,
   resizeToPreset: boolean = true,  // Whether to resize to preset coordinate system dimensions (1280x720)
-  waitForRender: number = 100,     // Wait time after tab activation to ensure rendering (in ms)
+  waitForRender: number = 500,     // Wait time after tab activation to ensure rendering (in ms)
 ): Promise<any> {
   // Resolve tab ID if not provided
   let targetTabId = tabId;

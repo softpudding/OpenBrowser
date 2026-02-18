@@ -118,15 +118,24 @@ export async function closeTab(tabId: number): Promise<any> {
 }
 
 /**
- * Switch to tab
+ * Switch to tab (internal operation only - does NOT activate the tab)
+ * Updates internal state to mark this tab as the active tab for automation
  */
 export async function switchToTab(tabId: number): Promise<any> {
-  await chrome.tabs.update(tabId, { active: true });
+  // IMPORTANT: Do NOT activate the tab - we keep it in background
+  // This ensures we don't disrupt user's browsing experience
   
-  return {
-    success: true,
-    message: `Switched to tab ${tabId}`,
-  };
+  // Just verify the tab exists and is accessible
+  try {
+    await chrome.tabs.get(tabId);
+    
+    return {
+      success: true,
+      message: `Internal state switched to tab ${tabId} (tab remains in background)`,
+    };
+  } catch (error) {
+    throw new Error(`Cannot switch to tab ${tabId}: ${error instanceof Error ? error.message : 'Tab not found'}`);
+  }
 }
 
 /**
