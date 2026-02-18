@@ -299,7 +299,7 @@ def capture(ctx, tab_id, no_cursor, quality, save, no_auto_save):
             sys.stdout.write(f"  Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}\n")
             sys.stdout.write(f"  Viewport: {metadata.get('viewportWidth', 'unknown')}x{metadata.get('viewportHeight', 'unknown')}\n")
             if metadata.get('resizedToPreset', False):
-                sys.stdout.write(f"  Resized to preset coordinate system (2560x1440)\n")
+                sys.stdout.write(f"  Resized to preset coordinate system (1280x720)\n")
     else:
         _print_result(result)
 
@@ -499,7 +499,7 @@ def interactive(ctx):
                         metadata = result['data']['metadata']
                         sys.stdout.write(f"  Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}\n")
                         if metadata.get('resizedToPreset', False):
-                            sys.stdout.write(f"  Resized to preset coordinate system (2560x1440)\n")
+                            sys.stdout.write(f"  Resized to preset coordinate system (1280x720)\n")
                 else:
                     _print_result(result)
             elif cmd.lower().startswith('tabs '):

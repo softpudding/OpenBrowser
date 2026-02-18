@@ -28,6 +28,21 @@ from openhands.sdk import (
     Tool,
     get_logger,
 )
+from openhands.sdk.event import (
+    ActionEvent,
+    ObservationEvent,
+    ObservationBaseEvent,
+    UserRejectObservation,
+    AgentErrorEvent,
+    MessageEvent,
+    SystemPromptEvent,
+    TokenEvent,
+    Condensation,
+    CondensationRequest,
+    CondensationSummaryEvent,
+    ConversationStateUpdateEvent,
+    LLMCompletionLogEvent,
+)
 from openhands.sdk.conversation.visualizer.base import ConversationVisualizerBase
 from openhands.sdk.tool import register_tool
 from openhands.tools.file_editor import FileEditorTool
@@ -80,53 +95,40 @@ class QueueVisualizer(ConversationVisualizerBase):
     
     def on_event(self, event: Event) -> None:
         """Handle conversation events and put them into the queue"""
-        logger.debug(f"DEBUG: QueueVisualizer.on_event called! Event type: {type(event).__name__}")
-        logger.debug(f"DEBUG: Event dir: {[attr for attr in dir(event) if not attr.startswith('_')]}")
+        logger.debug(f"QueueVisualizer.on_event called for event type: {type(event).__name__}")
+        
         if self.event_queue is None:
             logger.warning("QueueVisualizer.on_event called but event_queue is None")
-            logger.debug(f"DEBUG: ERROR - event_queue is None!")
             return
-            
+        
         try:
-            # Log event for debugging
+            # Get basic event information
             event_type = type(event).__name__
-            logger.debug(f"QueueVisualizer event: {event_type} - {str(event)[:100]}")
-            logger.debug(f"DEBUG: QueueVisualizer processing event: {event_type} - {str(event)[:200]}")
-            logger.debug(f"DEBUG: Event has observation attr: {hasattr(event, 'observation')}")
-            if hasattr(event, 'observation'):
-                obs = event.observation
-                logger.debug(f"DEBUG: Observation type: {type(obs)}")
-                logger.debug(f"DEBUG: Observation dir: {[attr for attr in dir(obs) if not attr.startswith('_')]}")
-                logger.debug(f"DEBUG: Observation has success: {hasattr(obs, 'success')}")
-                logger.debug(f"DEBUG: Observation has screenshot_data_url: {hasattr(obs, 'screenshot_data_url')}")
-                if hasattr(obs, 'screenshot_data_url'):
-                    logger.debug(f"DEBUG: screenshot_data_url exists: {obs.screenshot_data_url is not None}")
-                    if obs.screenshot_data_url:
-                        logger.debug(f"DEBUG: screenshot_data_url length: {len(obs.screenshot_data_url)}")
-            logger.debug(f"DEBUG: Event has action attr: {hasattr(event, 'action')}")
-            if hasattr(event, 'action'):
-                logger.debug(f"DEBUG: Action: {event.action}")
-            
-            # Use event.visualize to get the content (like DefaultConversationVisualizer)
             content = event.visualize
-            logger.debug(f"Event visualize content type: {type(content)}, has plain: {hasattr(content, 'plain')}")
-            logger.debug(f"DEBUG: Event.visualize result: type={type(content)}, content={str(content)[:200] if content else 'None'}")
             text_content = content.plain if content and hasattr(content, 'plain') else str(event)
-            logger.debug(f"DEBUG: Text content: {text_content[:200] if text_content else 'None'}")
             
-            # Create SSE event data
+            # Build SSE data with common fields
             sse_data = {
                 "type": event_type,
                 "text": text_content,
                 "timestamp": getattr(event, 'timestamp', None),
             }
             
-            # Add event-specific data
-            if hasattr(event, 'action'):
-                sse_data["action"] = str(event.action)
+            # Handle different event types using isinstance for clarity
+            # Note: ActionEvent, ObservationEvent, MessageEvent, SystemPromptEvent, etc. 
+            # all inherit from LLMConvertibleEvent
+            # We use separate checks for specific event types to add their unique fields
             
-            if hasattr(event, 'observation'):
+            # Process specific event types (mutually exclusive)
+            if isinstance(event, ActionEvent):
+                # ActionEvent has action attribute
+                if event.action:
+                    sse_data["action"] = str(event.action)
+            
+            elif isinstance(event, ObservationEvent):
+                # ObservationEvent has observation attribute with possible image content
                 obs = event.observation
+                # Extract observation properties (same as original hasattr checks)
                 if hasattr(obs, 'success'):
                     sse_data["success"] = obs.success
                 if hasattr(obs, 'message'):
@@ -142,8 +144,28 @@ class QueueVisualizer(ConversationVisualizerBase):
                 elif hasattr(obs, 'image') and obs.image:
                     sse_data["image"] = obs.image
             
-            # Also extract any ImageContent from LLMConvertibleEvent
-            if isinstance(event, LLMConvertibleEvent) and hasattr(event, 'to_llm_content'):
+            elif isinstance(event, MessageEvent):
+                # MessageEvent has llm_message with role information
+                sse_data["role"] = event.llm_message.role
+                # Also include activated_skills if present
+                if event.activated_skills:
+                    sse_data["activated_skills"] = event.activated_skills
+                if event.sender:
+                    sse_data["sender"] = event.sender
+            
+            # We could add more elif branches for other specific event types here:
+            # elif isinstance(event, SystemPromptEvent):
+            #     # Handle SystemPromptEvent specific fields
+            
+            # For any LLMConvertibleEvent, extract image content from to_llm_content
+            # This is NOT mutually exclusive with the specific type checks above because:
+            # - ActionEvent, ObservationEvent, MessageEvent, etc. are all LLMConvertibleEvent
+            # - This check runs for ALL LLMConvertibleEvent types
+            # - The 'image' not in sse_data check prevents duplicate image extraction
+            #   (e.g., if ObservationEvent already found an image in observation.screenshot_data_url)
+            # This preserves the original logic where image extraction was a separate step
+            # that could potentially find images in any LLMConvertibleEvent
+            if isinstance(event, LLMConvertibleEvent) and 'image' not in sse_data:
                 try:
                     llm_content = event.to_llm_content()
                     image_urls = []
@@ -151,7 +173,7 @@ class QueueVisualizer(ConversationVisualizerBase):
                         if isinstance(content, ImageContent):
                             image_urls.extend(content.image_urls)
                     
-                    if image_urls and 'image' not in sse_data:
+                    if image_urls:
                         sse_data["image"] = image_urls[0]  # Take first image
                 except Exception as e:
                     logger.debug(f"Error extracting image content from {event_type}: {e}")
@@ -159,7 +181,7 @@ class QueueVisualizer(ConversationVisualizerBase):
             # Put event in queue
             sse_event = SSEEvent("agent_event", sse_data)
             self.event_queue.put(sse_event)
-            logger.debug(f"Queued SSE event: {sse_event.event_type} - {json.dumps(sse_data, ensure_ascii=False)[:200]}")
+            logger.debug(f"Queued SSE event: {sse_event.event_type} - type: {event_type}")
             
         except Exception as e:
             logger.error(f"Error processing event in QueueVisualizer: {e}")
@@ -218,8 +240,13 @@ class OpenBrowserAgentManager:
             api_key=SecretStr(api_key) if api_key else None,
         )
     
-    def create_conversation(self, conversation_id: Optional[str] = None) -> str:
-        """Create a new conversation"""
+    def create_conversation(self, conversation_id: Optional[str] = None, cwd: str = ".") -> str:
+        """Create a new conversation
+        
+        Args:
+            conversation_id: Optional conversation ID (auto-generated if None)
+            cwd: Working directory for the conversation (default: current directory)
+        """
         if conversation_id is None:
             conversation_id = str(uuid.uuid4())
         
@@ -232,11 +259,11 @@ class OpenBrowserAgentManager:
         # Create visualizer (queue will be set when processing messages)
         visualizer = QueueVisualizer()
         
-        # Create conversation
+        # Create conversation with specified workspace
         conversation = Conversation(
             agent=agent,
             visualizer=visualizer,
-            workspace=".",  # Current directory
+            workspace=cwd,
         )
         
         # Store conversation state
@@ -252,8 +279,13 @@ class OpenBrowserAgentManager:
         """Get conversation by ID"""
         return self.conversations.get(conversation_id)
     
-    def get_or_create_conversation(self, conversation_id: str) -> ConversationState:
-        """Get existing conversation or create a new one with the given ID"""
+    def get_or_create_conversation(self, conversation_id: str, cwd: str = ".") -> ConversationState:
+        """Get existing conversation or create a new one with the given ID
+        
+        Args:
+            conversation_id: Conversation ID to get or create
+            cwd: Working directory for the conversation (default: current directory)
+        """
         conv_state = self.get_conversation(conversation_id)
         if conv_state:
             return conv_state
@@ -270,11 +302,11 @@ class OpenBrowserAgentManager:
         # Create visualizer (queue will be set when processing messages)
         visualizer = QueueVisualizer()
         
-        # Create conversation
+        # Create conversation with specified workspace
         conversation = Conversation(
             agent=agent,
             visualizer=visualizer,
-            workspace=".",  # Current directory
+            workspace=cwd,
         )
         
         # Store conversation state
@@ -347,21 +379,33 @@ agent_manager = OpenBrowserAgentManager()
 
 # --- Public API Functions ---
 
-async def create_agent_conversation(conversation_id: Optional[str] = None) -> str:
-    """Create a new agent conversation"""
-    return agent_manager.create_conversation(conversation_id)
+async def create_agent_conversation(conversation_id: Optional[str] = None, cwd: str = ".") -> str:
+    """Create a new agent conversation
+    
+    Args:
+        conversation_id: Optional conversation ID (auto-generated if None)
+        cwd: Working directory for the conversation (default: current directory)
+    """
+    return agent_manager.create_conversation(conversation_id, cwd)
 
 
 async def process_agent_message(
     conversation_id: str,
-    message_text: str
+    message_text: str,
+    cwd: str = "."
 ) -> AsyncGenerator[str, None]:
-    """Process a message and yield SSE events using thread-based execution"""
-    logger.debug(f"DEBUG: process_agent_message called with conversation_id={conversation_id}, message='{message_text[:50]}...'")
+    """Process a message and yield SSE events using thread-based execution
+    
+    Args:
+        conversation_id: Conversation ID to process message in
+        message_text: Message text to send to agent
+        cwd: Working directory for the conversation if creating new (default: current directory)
+    """
+    logger.debug(f"DEBUG: process_agent_message called with conversation_id={conversation_id}, message='{message_text[:50]}...', cwd={cwd}")
     logger.info(f"Processing agent message for conversation {conversation_id}: '{message_text[:50]}...'")
     logger.debug(f"Processing agent message for conversation {conversation_id}: '{message_text[:50]}...'")
     
-    conv_state = agent_manager.get_or_create_conversation(conversation_id)
+    conv_state = agent_manager.get_or_create_conversation(conversation_id, cwd)
     logger.debug(f"DEBUG: Using conversation {conversation_id} (created if new)")
     
     # Create a queue for collecting events from visualizer
@@ -392,9 +436,13 @@ async def process_agent_message(
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
             
+            # Add time hint for AI
+            world_time = time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime())
+            message_with_hint = f"{message_text}\n[HINT] current time is {world_time}"
+            
             # Send user message to conversation
-            logger.debug(f"DEBUG: Sending message to conversation")
-            conv_state.conversation.send_message(message_text)
+            logger.debug(f"DEBUG: Sending message to conversation with time hint")
+            conv_state.conversation.send_message(message_with_hint)
             
             # Run the conversation (check if it's async or sync)
             import inspect

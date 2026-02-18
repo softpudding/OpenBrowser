@@ -152,7 +152,7 @@ Commands are JSON objects with the following structure:
 ## Coordinate System
 
 The system handles resolution differences between:
-- **Preset Resolution**: Default 2560x1440 (2K) - what commands use
+- **Preset Resolution**: Default 1280x720 (720p) - what commands use
 - **Actual Resolution**: User's actual screen/window resolution
 - **Viewport Resolution**: CSS viewport dimensions
 

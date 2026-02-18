@@ -8,7 +8,7 @@ class ServerConfig(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8765
     websocket_port: int = 8766
-    preset_resolution: tuple[int, int] = (2560, 1440)  # 2K resolution as default
+    preset_resolution: tuple[int, int] = (1280, 720)  # 720p resolution as default
     max_command_queue: int = 100
     command_timeout: float = 30.0  # seconds
     screenshot_dir: str = "./screenshots"

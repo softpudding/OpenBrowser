@@ -105,7 +105,7 @@ Local Chrome Server is a distributed system for browser automation that uses vis
 - **Independent WebSocket Server**: Dedicated server for extension communication
 
 ### 3. Coordinate System
-- **Preset Resolution**: Default 2560x1440 (2K) as reference coordinate system
+- **Preset Resolution**: Default 1280x720 (720p) as reference coordinate system
 - **Actual Resolution**: User's actual screen/window dimensions
 - **Linear Mapping**: Simple proportional scaling between coordinate systems
 - **Viewport Awareness**: Accounts for CSS viewport vs window differences

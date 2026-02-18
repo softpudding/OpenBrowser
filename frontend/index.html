@@ -62,8 +62,37 @@
             color: #888888;
         }
 
+        #cwd-input {
+            background: #222222;
+            border: 1px solid #444444;
+            color: #cccccc;
+            font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 2px 5px;
+            width: 200px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        #cwd-input::placeholder {
+            color: #888888;
+            opacity: 0.8;
+        }
+
+        #cwd-input:focus {
+            border-color: #666666;
+            box-shadow: 0 0 0 1px #444444;
+        }
+
+        #cwd-input-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
         .container {
             display: flex;
+            width: 100%;
             height: calc(100vh - 60px);
         }
 
@@ -142,18 +171,75 @@
         }
 
         .event-content {
-            white-space: pre-wrap;
+            white-space: normal;
             font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
             font-size: 12px;
             color: #cccccc;
             line-height: 1.4;
+            text-align: left;
+            word-break: break-word;
+            text-indent: 0;
+            padding-left: 0;
+            margin-left: 0;
         }
 
         .event-image {
             margin-top: 10px;
-            max-width: 100%;
+            max-width: 800px;
+            max-height: 600px;
+            width: auto;
+            height: auto;
             border: 1px solid #444444;
             border-radius: 3px;
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .event-image:hover {
+            border-color: #666666;
+            transform: scale(1.01);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+        
+        .event-image.fullsize {
+            max-width: 100%;
+            max-height: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            z-index: 1000;
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.8);
+        }
+        
+        .event-image.fullsize:hover {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        .image-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 999;
+            display: none;
+        }
+
+        .event-meta {
+            color: #666666;
+            font-size: 10px;
+            margin-bottom: 5px;
+            font-family: monospace;
+        }
+        
+        .event-meta small {
+            opacity: 0.7;
         }
 
         .prompt-line {
@@ -336,6 +422,70 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        /* Responsive design for screens smaller than 1200px */
+        @media (max-width: 1200px) {
+            .event-image {
+                max-width: 600px;
+                max-height: 450px;
+            }
+        }
+        
+        /* Responsive design for screens smaller than 900px */
+        @media (max-width: 900px) {
+            .event-image {
+                max-width: 500px;
+                max-height: 375px;
+            }
+            
+            .container {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+            }
+            
+            .main-terminal {
+                border-right: none;
+                border-bottom: 1px solid #444444;
+            }
+            
+            .sidebar {
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid #444444;
+            }
+            
+            .input-area {
+                right: 0;
+            }
+        }
+        
+        /* Responsive design for screens smaller than 600px */
+        @media (max-width: 600px) {
+            .event-image {
+                max-width: 100%;
+                max-height: 300px;
+            }
+            
+            .terminal-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .ascii-title {
+                font-size: 10px;
+            }
+            
+            .status-bar {
+                width: 100%;
+                justify-content: space-between;
+            }
+            
+            #cwd-input {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -360,6 +510,10 @@
             <div class="status-item" id="server-status">SERVER: <span class="status-disconnected">DISCONNECTED</span></div>
             <div class="status-item" id="browser-status">BROWSER: <span class="status-disconnected">NOT CONNECTED</span></div>
             <div class="status-item" id="event-count">EVENTS: <span>0</span></div>
+            <div class="status-item" id="cwd-input-container">
+                <label for="cwd-input">CWD:</label>
+                <input type="text" id="cwd-input" placeholder="Enter working directory">
+            </div>
         </div>
     </div>
     
@@ -445,7 +599,7 @@
                     <div class="stat-item">
                         <span class="stat-label">Show User Messages:</span>
                         <span class="stat-value">
-                            <input type="checkbox" id="filter-user-message" checked onchange="updateEventVisibility()">
+                            <input type="checkbox" id="filter-user-message" onchange="updateEventVisibility()">
                         </span>
                     </div>
                     <div class="stat-item">
@@ -524,6 +678,27 @@
             
             // Focus on input
             document.getElementById('command-input').focus();
+            
+            // Add event listener for cwd input changes
+            document.getElementById('cwd-input').addEventListener('change', function() {
+                // When cwd changes, clear current conversation to force new creation
+                if (currentConversationId) {
+                    console.log(`[Frontend] CWD changed to "${this.value}", clearing current conversation`);
+                    currentConversationId = null;
+                    localStorage.removeItem('openbrowser_conversation_id');
+                    updateConversationIdDisplay();
+                    
+                    // Optional: Show notification
+                    addEvent({
+                        type: 'SystemEvent',
+                        text: `CWD changed to "${this.value}". New conversation will be created on next command.`,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            });
+            
+            // Initialize image click handlers
+            setupImageClickHandlers();
         });
         
         // Update current time display
@@ -576,6 +751,8 @@
             
             // Add user command to terminal (always show user message)
             console.log(`[Frontend] Sending command: "${command}"`);
+            
+            // Add user command to terminal (show only the command, time hint will be added by backend)
             addEvent({
                 type: 'MessageEvent',
                 text: `User: ${command}`,
@@ -587,19 +764,39 @@
             isProcessing = true;
             document.getElementById('send-button').disabled = true;
             
+            // Check if CWD is provided
+            const cwdInput = document.getElementById('cwd-input');
+            const cwd = cwdInput.value.trim();
+            if (!cwd) {
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: 'Please enter a working directory (CWD) before sending commands',
+                    timestamp: new Date().toISOString()
+                });
+                isProcessing = false;
+                document.getElementById('send-button').disabled = false;
+                return;
+            }
+            
             // Create or use existing conversation
             let conversationId = currentConversationId;
             if (!conversationId) {
                 try {
+                    // Get cwd from input field (already validated)
+                    
                     const response = await fetch(apiUrl('agent/conversations'), {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cwd: cwd })
                     });
                     const data = await response.json();
                     conversationId = data.conversation_id;
                     currentConversationId = conversationId;
                     localStorage.setItem('openbrowser_conversation_id', conversationId);
                     updateConversationIdDisplay();
+                    
+                    // Update cwd display
+                    document.getElementById('cwd-input').value = data.cwd || cwd;
                 } catch (error) {
                     addEvent({
                         type: 'ErrorEvent',
@@ -617,14 +814,14 @@
                 eventSource.close();
             }
             
-            // Setup SSE connection
-            setupEventSource(conversationId, command);
+            // Setup SSE connection (cwd already validated)
+            setupEventSource(conversationId, command, cwd);
         }
         
         // Setup SSE connection for receiving events
-        function setupEventSource(conversationId, command) {
+        function setupEventSource(conversationId, command, cwd) {
             const url = apiUrl(`agent/conversations/${conversationId}/messages`);
-            console.log(`[Frontend] Setting up EventSource for URL: ${url}`);
+            console.log(`[Frontend] Setting up EventSource for URL: ${url}, cwd=${cwd}`);
             
             // Using fetch API for SSE streaming (EventSource only works with GET)
             eventSource = null; // No EventSource object, using fetch instead
@@ -703,7 +900,7 @@
                 }
             }
             // Send the command and read SSE response
-            console.log(`[Frontend] Sending POST request to: ${url}`);
+            console.log(`[Frontend] Sending POST request to: ${url} with cwd=${cwd}`);
             
             // Abort controller for cleanup
             const abortController = new AbortController();
@@ -711,7 +908,7 @@
             fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: command }),
+                body: JSON.stringify({ text: command, cwd: cwd }),
                 signal: abortController.signal
             }).then(response => {
                 console.log(`[Frontend] POST response status: ${response.status}, ok: ${response.ok}, content-type: ${response.headers.get('content-type')}`);
@@ -929,9 +1126,9 @@
                 }
             });
             
-            // Set completion timeout (30 seconds)
+            // Set completion timeout (120 seconds / 2 minutes)
             completionTimeout = setTimeout(() => {
-                console.warn('[Frontend] SSE completion timeout - no complete event received after 30 seconds');
+                console.warn('[Frontend] SSE completion timeout - no complete event received after 120 seconds');
                 if (!errorHandled) {
                     errorHandled = true;
                     addEvent({
@@ -944,7 +1141,7 @@
                     // Note: Cannot abort fetch from here as abortController is in fetch scope
                     // The fetch will eventually complete or error on its own
                 }
-            }, 30000);
+            }, 120000);
             
 
             
@@ -963,10 +1160,20 @@
                 return;
             }
             
-            // Skip MessageEvent from user (we already show user input separately)
-            if (eventType === 'MessageEvent' && data.text && data.text.includes('user:')) {
+            // Skip MessageEvent with role 'user' (we already show user input separately)
+            if (eventType === 'MessageEvent' && data.role === 'user') {
                 console.log(`[Frontend] Skipping user MessageEvent from SSE (already shown)`);
                 return;
+            }
+            
+            // Determine source based on role or event type
+            let source = 'agent'; // default
+            if (eventType === 'MessageEvent') {
+                // Use role field for MessageEvent
+                source = data.role === 'user' ? 'user' : 'agent';
+            } else if (data.text && data.text.includes('user:')) {
+                // Fallback for other event types that might have user text
+                source = 'user';
             }
             
             // Create event object
@@ -979,7 +1186,10 @@
                 success: data.success,
                 message: data.message,
                 error: data.error,
-                source: data.text && data.text.includes('user:') ? 'user' : 'agent'
+                role: data.role || null, // Include role field
+                activated_skills: data.activated_skills || null,
+                sender: data.sender || null,
+                source: source
             };
             
             console.log(`[Frontend] Created event:`, event);
@@ -1057,6 +1267,20 @@
                 content = `ERROR: ${event.error}`;
             }
             
+            // Add metadata for MessageEvent
+            let metadataHtml = '';
+            if (event.type === 'MessageEvent') {
+                if (event.role) {
+                    metadataHtml += `<div class="event-meta"><small>Role: ${event.role}</small></div>`;
+                }
+                if (event.activated_skills && event.activated_skills.length > 0) {
+                    metadataHtml += `<div class="event-meta"><small>Skills: ${event.activated_skills.join(', ')}</small></div>`;
+                }
+                if (event.sender) {
+                    metadataHtml += `<div class="event-meta"><small>Sender: ${event.sender}</small></div>`;
+                }
+            }
+            
             // Create HTML
             eventLine.innerHTML = `
                 <div class="event-header">
@@ -1065,6 +1289,7 @@
                     <span class="expand-toggle" onclick="toggleEvent(this)">[expand]</span>
                 </div>
                 <div class="event-content">
+                    ${metadataHtml}
                     ${formatContent(content)}
                     ${event.image ? `<img class="event-image" src="${event.image}" alt="Screenshot" onload="this.parentElement.parentElement.classList.add('has-image')">` : ''}
                 </div>
@@ -1084,6 +1309,11 @@
             
             // Scroll to bottom
             terminalOutput.scrollTop = terminalOutput.scrollHeight;
+            
+            // Setup image click handlers if there's an image
+            if (event.image) {
+                updateImageHandlers();
+            }
             
             return eventLine;
         }
@@ -1227,6 +1457,68 @@
                 display.textContent = 'None';
                 display.title = '';
             }
+        }
+        
+        // Image handling functions
+        function setupImageClickHandlers() {
+            // Add click handlers to all event images
+            document.querySelectorAll('.event-image').forEach(img => {
+                if (!img.hasAttribute('data-click-handler')) {
+                    img.setAttribute('data-click-handler', 'true');
+                    img.addEventListener('click', toggleImageFullsize);
+                }
+            });
+        }
+        
+        function toggleImageFullsize(event) {
+            const img = event.currentTarget;
+            const overlay = document.getElementById('image-overlay') || createImageOverlay();
+            
+            if (img.classList.contains('fullsize')) {
+                // Restore to normal size
+                img.classList.remove('fullsize');
+                overlay.style.display = 'none';
+                document.removeEventListener('keydown', handleEscapeKey);
+            } else {
+                // Show fullsize
+                img.classList.add('fullsize');
+                overlay.style.display = 'block';
+                document.addEventListener('keydown', handleEscapeKey);
+                
+                // Click overlay to close
+                overlay.onclick = function(e) {
+                    if (e.target === overlay) {
+                        img.classList.remove('fullsize');
+                        overlay.style.display = 'none';
+                        document.removeEventListener('keydown', handleEscapeKey);
+                    }
+                };
+            }
+        }
+        
+        function createImageOverlay() {
+            const overlay = document.createElement('div');
+            overlay.id = 'image-overlay';
+            overlay.className = 'image-overlay';
+            document.body.appendChild(overlay);
+            return overlay;
+        }
+        
+        function handleEscapeKey(event) {
+            if (event.key === 'Escape') {
+                const fullsizeImg = document.querySelector('.event-image.fullsize');
+                if (fullsizeImg) {
+                    fullsizeImg.classList.remove('fullsize');
+                    const overlay = document.getElementById('image-overlay');
+                    if (overlay) overlay.style.display = 'none';
+                    document.removeEventListener('keydown', handleEscapeKey);
+                }
+            }
+        }
+        
+        // Update image handlers after adding new events
+        function updateImageHandlers() {
+            setTimeout(setupImageClickHandlers, 100);
         }
     </script>
 </body>

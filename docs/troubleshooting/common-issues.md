@@ -246,8 +246,8 @@ uv pip list | grep requests
 #### Test Coordinate System
 1. **Move mouse to known positions**:
    ```bash
-   # Move to center of screen (relative to preset resolution)
-   chrome-cli mouse move --dx 1280 --dy 720  # For 2560x1440 preset
+   # Move to bottom-right corner (relative to preset resolution)
+   chrome-cli mouse move --dx 640 --dy 360  # For 1280x720 preset
    ```
 
 2. **Take screenshot to verify** position

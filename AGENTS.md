@@ -488,7 +488,7 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Added same logic as `performClick`: if coordinates are (0,0), use tracked mouse position
   - Removed dependency on `screenshotCache` and `screenshotToCssPixels()` function
 - **Technical Details**:
-  - Scroll now uses preset coordinate system (center at 0,0, 2560x1440)
+  - Scroll now uses preset coordinate system (center at 0,0, 1280x720)
   - Converts preset coordinates to actual screen coordinates using viewport dimensions
   - Scrolls at current mouse position when coordinates are (0,0)
 - **Debug**:
@@ -590,10 +590,10 @@ The Local Chrome Server uses a **simulated coordinate system** (also called **pr
 
 #### Coordinate System Specifications
 
-1. **Resolution**: 2560×1440 pixels (2K resolution)
+1. **Resolution**: 1280×720 pixels (720p resolution)
 2. **Origin**: Center of the screen at (0, 0)
-3. **X-axis Range**: -1280 to 1280 (left to right)
-4. **Y-axis Range**: -720 to 720 (top to bottom)
+3. **X-axis Range**: -640 to 640 (left to right)
+4. **Y-axis Range**: -360 to 360 (top to bottom)
 5. **Positive Directions**:
    - **Right**: Positive X (+X)
    - **Down**: Positive Y (+Y)
@@ -631,7 +631,7 @@ Chrome DevTools Protocol (CDP) commands
 
 #### Screenshot Coordinate Mapping
 
-Screenshots are automatically scaled to match the simulated coordinate system (2560×1440 pixels). This ensures consistent coordinate mapping between:
+Screenshots are automatically scaled to match the simulated coordinate system (1280×720 pixels). This ensures consistent coordinate mapping between:
 - **Simulated coordinates** (user commands)
 - **Screenshot pixel coordinates** (for visual analysis/AI processing)
 - **Actual screen coordinates** (for browser automation)
@@ -640,12 +640,12 @@ Screenshots are automatically scaled to match the simulated coordinate system (2
 
 ### Screenshot Resizing Implementation
 
-To ensure consistent coordinate mapping, screenshots are automatically resized to match the simulated coordinate system dimensions (2560×1440 pixels).
+To ensure consistent coordinate mapping, screenshots are automatically resized to match the simulated coordinate system dimensions (1280×720 pixels).
 
 #### How It Works
 
 1. **Capture**: Original screenshot captured via Chrome's `captureVisibleTab` API
-2. **Resize**: Image resized to 2560×1440 using Canvas API in content script
+2. **Resize**: Image resized to 1280×720 using Canvas API in content script
 3. **Metadata**: Screenshot metadata updated with preset dimensions
 4. **Mapping**: Coordinate mapping uses preset dimensions for all calculations
 
@@ -659,8 +659,8 @@ To ensure consistent coordinate mapping, screenshots are automatically resized t
 #### Coordinate Conversion Example
 
 When a user clicks at simulated coordinate `(100, -50)`:
-1. Convert to screenshot pixel: `(100 + 1280, -50 + 720) = (1380, 670)`
-2. Since screenshot is 2560×1440, this maps directly to pixel (1380, 670)
+1. Convert to screenshot pixel: `(100 + 640, -50 + 360) = (740, 310)`
+2. Since screenshot is 1280×720, this maps directly to pixel (740, 310)
 3. Convert to actual screen coordinates based on viewport size
 
 #### API Changes
@@ -670,7 +670,7 @@ The `captureScreenshot` function now accepts a `resizeToPreset` parameter (defau
 captureScreenshot(tabId?, includeCursor?, quality?, resizeToPreset?)
 ```
 
-When `resizeToPreset` is `true`, screenshots are automatically resized to 2560×1440, ensuring 1:1 mapping between simulated coordinates and screenshot pixels.
+When `resizeToPreset` is `true`, screenshots are automatically resized to 1280×720, ensuring 1:1 mapping between simulated coordinates and screenshot pixels.
 
 ### Debug Logging
 
@@ -778,8 +778,8 @@ OpenBrowserAgent is an AI agent built on the OpenHands SDK that enables natural 
 1. **OpenBrowserTool** (`server/agent/tools/open_browser_tool.py`):
    - Custom tool definition for browser automation
    - Supports mouse movements, clicks, scrolling, keyboard input, and tab management
-   - Returns observations with screenshots (2560x1440 pixels) and tab information
-   - Uses preset coordinate system (center-based, 2560x1440 resolution)
+   - Returns observations with screenshots (1280x720 pixels) and tab information
+   - Uses preset coordinate system (center-based, 1280x720 resolution)
 
 2. **OpenBrowserAgent** (`server/agent/agent.py`):
    - Main agent class with LLM integration
@@ -827,13 +827,16 @@ OpenBrowserAgent is an AI agent built on the OpenHands SDK that enables natural 
 #### Example API Usage
 
 ```bash
-# Create conversation
-curl -X POST http://127.0.0.1:8775/agent/conversations
+# Create conversation with specific working directory
+curl -X POST http://127.0.0.1:8775/agent/conversations \
+  -H "Content-Type: application/json" \
+  -d '{"cwd": "/path/to/project"}'
 
-# Send message (SSE stream)
+# Send message (SSE stream) with optional cwd parameter
+# (cwd is used only when creating new conversation)
 curl -N -X POST http://127.0.0.1:8775/agent/conversations/{id}/messages \
   -H "Content-Type: application/json" \
-  -d '{"text": "Open google.com and search for AI news"}'
+  -d '{"text": "Open google.com and search for AI news", "cwd": "/path/to/project"}'
 ```
 
 #### Available Browser Commands
@@ -849,13 +852,13 @@ The agent understands natural language and can execute:
 ### Technical Details
 
 #### Coordinate System
-- **Resolution**: 2560×1440 pixels (preset system)
+- **Resolution**: 1280×720 pixels (preset system)
 - **Origin**: Center of screen at (0, 0)
-- **Range**: X = -1280 to 1280, Y = -720 to 720
+- **Range**: X = -640 to 640, Y = -360 to 360
 - **Positive Directions**: Right (+X), Down (+Y)
 
 #### Screenshot Handling
-- Screenshots automatically resized to 2560x1440 pixels
+- Screenshots automatically resized to 1280x720 pixels
 - Sent as base64 data URLs in observations
 - Displayed in web interface as inline images
 
@@ -863,6 +866,13 @@ The agent understands natural language and can execute:
 - OpenBrowserTool registered with OpenHands SDK
 - Uses existing command processor for browser control
 - Returns comprehensive observations with visual feedback
+
+#### Working Directory (CWD) Configuration
+- **Backend Default**: Agent uses current directory (".") as workspace when no CWD specified
+- **Frontend Validation**: CWD input field in status bar with no default value; user must provide a working directory
+- **API Parameter**: `cwd` parameter in `POST /agent/conversations` request body (defaults to "." if not provided)
+- **Conversation Management**: Changing CWD triggers new conversation creation
+- **Use Case**: Allows agent to work in specific project directories for file operations
 
 #### Current Development Status (February 2026)
 
@@ -874,7 +884,7 @@ The agent understands natural language and can execute:
    - Mouse operations (move, click, scroll)
    - Keyboard operations (type, press)
    - Tab management (init, open, close, switch, list)
-   - Screenshot capture with 2560x1440 preset coordinate system
+   - Screenshot capture with 1280x720 preset coordinate system
 5. **Agent Logic & Visualizer**: Implemented `OpenBrowserAgentManager` with `QueueVisualizer` for SSE event streaming
 6. **Agent API Endpoints**: Added RESTful endpoints for conversation management with SSE support
 7. **Web Frontend**: Created chat interface with real-time screenshot display
@@ -889,7 +899,7 @@ The agent understands natural language and can execute:
 **Key Technical Decisions:**
 - **Unified Action Format**: Single `OpenBrowserAction` with type/parameters structure
 - **Queue-Based Visualizer**: `QueueVisualizer` for thread-safe event collection in SSE streams
-- **Preset Coordinate System**: Consistent 2560x1440 coordinate mapping for screenshots and mouse positions
+- **Preset Coordinate System**: Consistent 1280x720 coordinate mapping for screenshots and mouse positions
 - **Visual Feedback**: Screenshot returns after each action for AI visual context
 
 ### Troubleshooting

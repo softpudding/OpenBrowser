@@ -219,14 +219,19 @@ async def get_tabs(managed_only: bool = True):
 # --- Agent API Endpoints ---
 
 @app.post("/agent/conversations")
-async def create_conversation():
+async def create_conversation(request: Request):
     """Create a new agent conversation"""
     try:
-        conversation_id = await create_agent_conversation()
+        # Parse request body for optional cwd parameter
+        body = await request.json() if request.body else {}
+        cwd = body.get("cwd", ".")
+        
+        conversation_id = await create_agent_conversation(cwd=cwd)
         return {
             "success": True,
             "conversation_id": conversation_id,
-            "message": f"Conversation created: {conversation_id}"
+            "message": f"Conversation created: {conversation_id}",
+            "cwd": cwd
         }
     except Exception as e:
         logger.error(f"Error creating conversation: {e}")
@@ -241,7 +246,7 @@ async def agent_messages_stream(conversation_id: str, request: Request = None):
     - POST: Send a message and get SSE stream response
     """
     
-    async def event_generator(message_text: str = None):
+    async def event_generator(message_text: str = None, cwd: str = "."):
         """Generate SSE events for the agent conversation"""
         try:
             # If no message text provided, this is a GET request - just open stream
@@ -261,10 +266,10 @@ async def agent_messages_stream(conversation_id: str, request: Request = None):
                         logger.debug(f"SSE heartbeat cancelled for conversation {conversation_id}")
                         break
             else:
-                # Process the actual message
-                logger.debug(f"API: Starting SSE event generation for conversation {conversation_id}")
+                # Process the actual message with cwd
+                logger.debug(f"API: Starting SSE event generation for conversation {conversation_id} with cwd={cwd}")
                 event_count = 0
-                async for sse_event in process_agent_message(conversation_id, message_text):
+                async for sse_event in process_agent_message(conversation_id, message_text, cwd):
                     event_count += 1
                     logger.debug(f"API: Yielding SSE event #{event_count}: {sse_event[:200] if sse_event else 'None'}")
                     yield sse_event
@@ -300,8 +305,11 @@ async def agent_messages_stream(conversation_id: str, request: Request = None):
             if "text" not in message_data:
                 raise HTTPException(status_code=400, detail="Message must contain 'text' field")
             
+            # Extract cwd parameter with default value
+            cwd = message_data.get("cwd", ".")
+            
             return StreamingResponse(
-                event_generator(message_data["text"]),
+                event_generator(message_data["text"], cwd),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",

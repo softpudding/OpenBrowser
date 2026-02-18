@@ -53,8 +53,8 @@ Supported action types and their parameters:
 
 2. mouse_move - Move mouse relative to current position
    Parameters: {
-     "dx": int,  # Horizontal movement (-1280 to 1280, positive = right)
-     "dy": int,  # Vertical movement (-720 to 720, positive = down)
+     "dx": int,  # Horizontal movement (-640 to 640, positive = right)
+     "dy": int,  # Vertical movement (-360 to 360, positive = down)
      "duration": float (optional, default 0.1)  # Movement duration in seconds
    }
 
@@ -106,7 +106,7 @@ class OpenBrowserObservation(Observation):
     )
     screenshot_data_url: Optional[str] = Field(
         default=None,
-        description="Screenshot as data URL (base64 encoded PNG, 2560x1440 pixels)"
+        description="Screenshot as data URL (base64 encoded PNG, 1280x720 pixels)"
     )
     
     @property
@@ -140,7 +140,7 @@ class OpenBrowserObservation(Observation):
             text_parts.append("   (Center is 0,0, right is +X, down is +Y)")
         
         if self.screenshot_data_url:
-            text_parts.append("🖼️  Screenshot captured (2560x1440 pixels)")
+            text_parts.append("🖼️  Screenshot captured (1280x720 pixels)")
         
         text_content = "\n".join(text_parts)
         content_items.append(TextContent(text=text_content))
@@ -168,6 +168,20 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             # Get action type and parameters
             action_type = action.type
             params = action.parameters
+            
+            # Handle nested parameters structure (common LLM error)
+            if 'parameters' in params and isinstance(params['parameters'], dict):
+                # If params contains a 'parameters' key, use that as the actual parameters
+                # This handles the case where LLM sends {'action': 'mouse_move', 'parameters': {'dx': 0, 'dy': 100}}
+                logger.warning(f"⚠️ LLM generated nested parameters structure. Action type: {action_type}, Original params: {action.parameters}")
+                params = params['parameters']
+            
+            # Also handle case where LLM puts 'action' field inside parameters (should be 'type' at top level)
+            if 'action' in params and action_type != 'tab':
+                # For non-tab actions, 'action' field inside parameters is usually a mistake
+                logger.warning(f"⚠️ LLM may have misplaced 'action' field in parameters. Action type: {action_type}, Params contains 'action': {params.get('action')}")
+                # Don't remove it here, let it fail with KeyError if it's actually needed
+                # (tab action type legitimately has 'action' parameter)
             
             # Convert to appropriate server command based on type
             result = None
@@ -315,6 +329,21 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 screenshot_data_url=screenshot_data_url
             )
             
+        except KeyError as e:
+            # Provide friendly error message for missing parameters
+            missing_key = str(e).strip("'")
+            logger.error(f"KeyError: Missing required parameter '{missing_key}' in action '{action_type}'")
+            logger.error(f"Parameters received: {action.parameters}")
+            error_msg = f"Missing required parameter '{missing_key}' for action '{action_type}'. "
+            error_msg += "Check if parameters have correct structure (should be flat, not nested). "
+            error_msg += f"Received parameters: {action.parameters}"
+            return OpenBrowserObservation(
+                success=False,
+                error=error_msg,
+                tabs=[],
+                mouse_position=None,
+                screenshot_data_url=None
+            )
         except Exception as e:
             logger.debug(f"DEBUG: _execute_action caught exception: {e}")
             import traceback
@@ -335,6 +364,20 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             # Get action type and parameters
             action_type = action.type
             params = action.parameters
+            
+            # Handle nested parameters structure (common LLM error)
+            if 'parameters' in params and isinstance(params['parameters'], dict):
+                # If params contains a 'parameters' key, use that as the actual parameters
+                # This handles the case where LLM sends {'action': 'mouse_move', 'parameters': {'dx': 0, 'dy': 100}}
+                logger.warning(f"⚠️ LLM generated nested parameters structure (sync). Action type: {action_type}, Original params: {action.parameters}")
+                params = params['parameters']
+            
+            # Also handle case where LLM puts 'action' field inside parameters (should be 'type' at top level)
+            if 'action' in params and action_type != 'tab':
+                # For non-tab actions, 'action' field inside parameters is usually a mistake
+                logger.warning(f"⚠️ LLM may have misplaced 'action' field in parameters (sync). Action type: {action_type}, Params contains 'action': {params.get('action')}")
+                # Don't remove it here, let it fail with KeyError if it's actually needed
+                # (tab action type legitimately has 'action' parameter)
             
             # Convert to appropriate server command based on type
             result_dict = None
@@ -497,6 +540,21 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 screenshot_data_url=screenshot_data_url
             )
             
+        except KeyError as e:
+            # Provide friendly error message for missing parameters
+            missing_key = str(e).strip("'")
+            logger.error(f"KeyError (sync): Missing required parameter '{missing_key}' in action '{action_type}'")
+            logger.error(f"Parameters received: {action.parameters}")
+            error_msg = f"Missing required parameter '{missing_key}' for action '{action_type}'. "
+            error_msg += "Check if parameters have correct structure (should be flat, not nested). "
+            error_msg += f"Received parameters: {action.parameters}"
+            return OpenBrowserObservation(
+                success=False,
+                error=error_msg,
+                tabs=[],
+                mouse_position=None,
+                screenshot_data_url=None
+            )
         except Exception as e:
             logger.debug(f"DEBUG: _execute_action_sync caught exception: {e}")
             import traceback
@@ -546,11 +604,12 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
         try:
             # Convert command to dict using model_dump
             cmd_dict = command.model_dump()
-            # Send HTTP POST to server
+            # Send HTTP POST to server - explicitly disable proxy for localhost
             response = requests.post(
                 "http://127.0.0.1:8765/command",
                 json=cmd_dict,
-                timeout=30
+                timeout=30,
+                proxies={'http': None, 'https': None}  # Disable proxy for local connections
             )
             response.raise_for_status()
             result = response.json()
@@ -608,14 +667,20 @@ you will receive:
 1. Textual summary of the operation result
 2. List of current browser tabs with their titles and URLs
 3. Current mouse position in the preset coordinate system
-4. A screenshot of the browser window (2560x1440 pixels)
+4. A screenshot of the browser window (1280x720 pixels)
+
+🔴 **CRITICAL FORMAT WARNING:**
+- Use `type` field at the TOP level (e.g., `"type": "mouse_move"`)
+- **NEVER** put `action` field inside the `parameters` object
+- **NEVER** nest `parameters` object inside another `parameters` object
+- Keep `parameters` object FLAT with only the required parameters for the action
 
 **Coordinate System:**
-- Screen resolution: 2560×1440 pixels
+- Screen resolution: 1280×720 pixels
 - Origin (0, 0) is at the CENTER of the screen
 - Positive X is RIGHT, negative X is LEFT
 - Positive Y is DOWN, negative Y is UP
-- Range: X = -1280 to 1280, Y = -720 to 720
+- Range: X = -640 to 640, Y = -360 to 360
 
 **Action Format:**
 All actions use a unified format with `type` and `parameters` fields:
@@ -625,6 +690,37 @@ All actions use a unified format with `type` and `parameters` fields:
   "parameters": {
     "param1": "value1",
     "param2": "value2"
+  }
+}
+```
+
+⚠️ **IMPORTANT: Format Rules**
+1. **DO NOT** include an `"action"` field inside the `parameters` object
+2. **DO NOT** nest another `"parameters"` object inside the `parameters` object
+3. **Parameters must be flat**: The `parameters` object should contain only the required parameters for the specific action type
+4. **Use `type` not `action`**: The action type is specified in the `type` field, not inside `parameters`
+
+❌ **INCORRECT Examples (DO NOT USE):**
+```json
+{
+  "type": "mouse_move",
+  "parameters": {
+    "action": "mouse_move",      // WRONG: Don't include 'action' here
+    "parameters": {              // WRONG: Don't nest 'parameters' inside 'parameters'
+      "dx": 100,
+      "dy": 50
+    }
+  }
+}
+```
+
+✅ **CORRECT Examples (USE THESE):**
+```json
+{
+  "type": "mouse_move",
+  "parameters": {
+    "dx": 100,      // Correct: Direct parameter
+    "dy": 50        // Correct: Direct parameter
   }
 }
 ```
@@ -644,8 +740,8 @@ All actions use a unified format with `type` and `parameters` fields:
    {
      "type": "mouse_move",
      "parameters": {
-       "dx": -100,      # Horizontal movement (-1280 to 1280, positive = right)
-       "dy": 50,        # Vertical movement (-720 to 720, positive = down)
+       "dx": -100,      # Horizontal movement (-640 to 640, positive = right)
+       "dy": 50,        # Vertical movement (-360 to 360, positive = down)
        "duration": 0.1  # Optional: movement duration in seconds (default 0.1)
      }
    }
@@ -708,11 +804,19 @@ All actions use a unified format with `type` and `parameters` fields:
    ```
 
 **Visual Guidance:**
-- Screenshots are 2560x1440 pixels, matching the preset coordinate system
+- Screenshots are 1280x720 pixels, matching the preset coordinate system
 - When looking at screenshots, pay attention to UI elements, text, buttons, and forms
 - Use mouse coordinates to click on specific elements
 - Read text from screenshots to understand page content
 - Navigate by clicking links, typing in search boxes, etc.
+- **Mouse Pointer Visualization**: A visual mouse pointer (blue arrow) is displayed in screenshots. The pointer changes color based on context: blue for clickable elements, green for text input fields. Use this visual feedback to verify mouse positioning before clicking.
+
+**Mouse Pointer and Clicking Guidelines:**
+1. **Mouse Position Awareness**: Always check the mouse position in screenshots. The mouse pointer is visible as a blue arrow. Ensure it's positioned correctly before performing click actions.
+2. **Pre-click Verification**: Before executing a click command, verify through the screenshot that the mouse pointer is over the intended target element (button, link, input field).
+3. **Coordinate Adjustment**: If the mouse is not correctly positioned, use `mouse_move` commands to adjust its location before clicking.
+4. **Direct Tab Navigation**: When you know the exact URL you want to navigate to, use the `tab` action with `"action": "open"` or `"action": "init"` to directly open the URL. Avoid relying on clicking navigation buttons or links when a direct URL is known.
+5. **URL over Clicking**: Prefer `tab open <url>` over clicking navigation elements whenever the target URL is known. This is more reliable and efficient.
 
 **Best Practices:**
 1. Always check the screenshot after each action to see what happened
@@ -721,25 +825,36 @@ All actions use a unified format with `type` and `parameters` fields:
 4. Click on visible buttons/links rather than guessing coordinates
 5. Type text carefully into appropriate input fields
 6. Use scrolling to view content beyond the visible area
+7. **Verify mouse position before clicking**: Ensure the visual mouse pointer is over the target element in the screenshot before issuing click commands
+8. **Prefer direct URL navigation**: When you know the target URL, use `tab open <url>` instead of clicking through navigation interfaces
+9. **Use visual mouse feedback**: The color-coded mouse pointer (blue/green) provides hints about element types
 
 **Example Workflow:**
 1. ```json
    {"type": "tab", "parameters": {"action": "init", "url": "https://www.google.com"}}
-   ``` - Start a browser session
+   ``` - Start a browser session with direct URL navigation
 2. ```json
    {"type": "mouse_move", "parameters": {"dx": 100, "dy": -50}}
    ``` - Move mouse to search box
-3. ```json
+3. Check screenshot to verify mouse pointer is positioned over the search box
+4. ```json
    {"type": "keyboard_type", "parameters": {"text": "AI assistant"}}
    ``` - Type search query
-4. ```json
-   {"type": "mouse_click", "parameters": {"button": "left"}}
-   ``` - Click search button
 5. ```json
+   {"type": "mouse_click", "parameters": {"button": "left"}}
+   ``` - Click search button (after verifying mouse position)
+6. ```json
    {"type": "mouse_scroll", "parameters": {"direction": "down", "amount": 500}}
    ``` - Scroll down to see results
 
-**Important:** This tool provides real visual feedback - you can see exactly what the browser shows!
+**Direct Navigation Example:**
+When you need to visit a specific website with a known URL:
+```json
+{"type": "tab", "parameters": {"action": "open", "url": "https://en.wikipedia.org/wiki/Artificial_intelligence"}}
+```
+This is preferred over navigating through search results or homepage links.
+
+**Important:** This tool provides real visual feedback - you can see exactly what the browser shows, including the mouse pointer position and color coding!
 """
 
 
