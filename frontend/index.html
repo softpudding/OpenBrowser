@@ -632,6 +632,8 @@
             
             // Flag to track if error has been handled
             let errorHandled = false;
+            // Timeout for SSE completion
+            let completionTimeout = null;
             
             // Log EventSource state changes
             eventSource.onopen = function() {
@@ -650,6 +652,12 @@
                 // Mark error as handled
                 errorHandled = true;
                 console.log('[Frontend] Marking error as handled');
+                
+                // Clear completion timeout
+                if (completionTimeout) {
+                    clearTimeout(completionTimeout);
+                    completionTimeout = null;
+                }
                 
                 // Re-enable send button
                 isProcessing = false;
@@ -685,6 +693,11 @@
                 });
                 isProcessing = false;
                 document.getElementById('send-button').disabled = false;
+                // Clear completion timeout
+                if (completionTimeout) {
+                    clearTimeout(completionTimeout);
+                    completionTimeout = null;
+                }
                 if (eventSource) {
                     eventSource.close();
                 }
@@ -723,6 +736,12 @@
                         });
                     }
                     
+                    // Clear completion timeout
+                    if (completionTimeout) {
+                        clearTimeout(completionTimeout);
+                        completionTimeout = null;
+                    }
+                    
                     // Re-enable send button
                     isProcessing = false;
                     document.getElementById('send-button').disabled = false;
@@ -749,6 +768,12 @@
                     // Mark error as handled
                     errorHandled = true;
                     
+                    
+                    // Clear completion timeout
+                    if (completionTimeout) {
+                        clearTimeout(completionTimeout);
+                        completionTimeout = null;
+                    }
                     // Check if event.data exists and is a non-empty string (not undefined/null)
                     if (event.data && typeof event.data === 'string' && event.data.trim() !== '') {
                         // Try to parse as JSON if it doesn't look like a simple string
@@ -794,6 +819,27 @@
                     });
                 }
             });
+            
+            // Set completion timeout (30 seconds)
+            completionTimeout = setTimeout(() => {
+                console.warn('[Frontend] SSE completion timeout - no complete event received after 30 seconds');
+                if (!errorHandled) {
+                    errorHandled = true;
+                    addEvent({
+                        type: 'SystemEvent',
+                        text: 'SSE timeout - connection may have hung',
+                        timestamp: new Date().toISOString()
+                    });
+                    isProcessing = false;
+                    document.getElementById('send-button').disabled = false;
+                    if (eventSource) {
+                        eventSource.close();
+                        eventSource = null;
+                    }
+                }
+            }, 30000);
+            
+
             
 
         }
