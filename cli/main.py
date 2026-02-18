@@ -173,11 +173,12 @@ def cli(ctx, server):
 @cli.command()
 def status():
     """Check server status"""
+    import sys
     client = ChromeCLIClient()
     if client.health_check():
-        click.echo("✅ Server is healthy")
+        sys.stdout.write("Server is healthy\n")
     else:
-        click.echo("❌ Server is not responding")
+        sys.stderr.write("Server is not responding\n")
         sys.exit(1)
 
 
@@ -275,16 +276,13 @@ def capture(ctx, tab_id, no_cursor, quality, save, no_auto_save):
         
         if saved_path:
             if save:
-                sys.stdout.write(f"Screenshot saved\n")
-                # 保存到自定义路径时输出到stderr
-                sys.stderr.write(f"File saved to: {saved_path}\n")
+                # 对于自定义保存路径，只显示成功消息，不显示路径
+                sys.stdout.write("Screenshot saved to specified location\n")
             else:
-                # 使用简单的输出，避免可能的问题
-                sys.stdout.write(f"Screenshot automatically saved\n")
-                # 将路径输出到stderr，避免被当作命令执行
-                sys.stderr.write(f"Path: {saved_path}\n")
-                sys.stdout.write(f"  Use --save <path> to specify custom location\n")
-                sys.stdout.write(f"  Use --no-auto-save to disable auto-saving\n")
+                # 自动保存时，只显示保存在screenshots目录，不显示完整路径
+                sys.stdout.write("Screenshot automatically saved to screenshots/ directory\n")
+                sys.stdout.write("  Use --save <path> to specify custom location\n")
+                sys.stdout.write("  Use --no-auto-save to disable auto-saving\n")
         
         # Print metadata if available
         if 'data' in result and 'metadata' in result['data']:
@@ -474,9 +472,8 @@ def interactive(ctx):
                     saved_path = _save_screenshot_result(result, None, True)
                     
                     if saved_path:
-                        sys.stdout.write(f"Screenshot automatically saved\n")
-                        # 将路径输出到stderr，避免被当作命令执行
-                        sys.stderr.write(f"Path: {saved_path}\n")
+                        # 只显示保存在screenshots目录，不显示完整路径
+                        sys.stdout.write("Screenshot automatically saved to screenshots/ directory\n")
                     
                     # Print metadata if available
                     if 'data' in result and 'metadata' in result['data']:
