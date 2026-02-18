@@ -512,7 +512,9 @@ async def process_agent_message(
                     # Yield regular event
                     logger.debug(f"Yielding SSE event for conversation {conversation_id}: {sse_event.event_type}")
                     logger.debug(f"DEBUG: Yielding regular SSE event: {sse_event.event_type}")
-                    yield sse_event.to_sse_format()
+                    sse_format = sse_event.to_sse_format()
+                    logger.debug(f"DEBUG: SSE format string (first 500 chars): {sse_format[:500]}")
+                    yield sse_format
                     
             except Exception as e:
                 logger.error(f"Error processing events from queue: {e}")

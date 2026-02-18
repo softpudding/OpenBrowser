@@ -262,8 +262,13 @@ async def agent_messages_stream(conversation_id: str, request: Request = None):
                         break
             else:
                 # Process the actual message
+                logger.debug(f"API: Starting SSE event generation for conversation {conversation_id}")
+                event_count = 0
                 async for sse_event in process_agent_message(conversation_id, message_text):
+                    event_count += 1
+                    logger.debug(f"API: Yielding SSE event #{event_count}: {sse_event[:200] if sse_event else 'None'}")
                     yield sse_event
+                logger.debug(f"API: Finished SSE event generation, yielded {event_count} events")
                     
         except ValueError as e:
             logger.error(f"Error processing agent message: {e}")
