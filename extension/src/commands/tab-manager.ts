@@ -118,7 +118,7 @@ export class TabManager {
       // Group the tab
       const groupId = await chrome.tabs.group({
         createProperties: { windowId: targetWindowId },
-        tabIds: [dummyTab.id]
+        tabIds: [dummyTab.id!]
       });
       
       // Update group properties
@@ -130,11 +130,11 @@ export class TabManager {
       
       // Remove the dummy tab if it's still about:blank
       if (dummyTab.url === 'about:blank' || dummyTab.url === 'chrome://newtab/') {
-        await chrome.tabs.remove(dummyTab.id);
+        await chrome.tabs.remove(dummyTab.id!);
       } else {
         // Keep the tab and add to managed tabs
-        this.managedTabs.set(dummyTab.id, {
-          tabId: dummyTab.id,
+        this.managedTabs.set(dummyTab.id!, {
+          tabId: dummyTab.id!,
           groupId,
           windowId: targetWindowId,
           url: dummyTab.url || '',
@@ -175,7 +175,7 @@ export class TabManager {
     }
     
     // Create the first tab
-    const tab = await chrome.tabs.create({ url: targetUrl, active: true });
+    const tab = await chrome.tabs.create({ url: targetUrl, active: false });
     
     if (!tab.id) {
       throw new Error('Failed to create tab for session initialization');
@@ -214,7 +214,7 @@ export class TabManager {
   /**
    * Open a new tab and add it to the managed tab group
    */
-  async openManagedTab(url: string, active: boolean = true): Promise<ManagedTab> {
+  async openManagedTab(url: string, active: boolean = false): Promise<ManagedTab> {
     console.log(`📁 [TabManager] Opening managed tab: ${url}`);
     
     // Ensure URL has protocol
@@ -488,7 +488,7 @@ export class TabManager {
     });
     
     // Listen for tab updates (title changes, URL changes)
-    chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo, _tab) => {
       if (this.managedTabs.has(tabId)) {
         const managedTab = this.managedTabs.get(tabId)!;
         

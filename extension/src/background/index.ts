@@ -114,48 +114,34 @@ wsClient.onMessage(async (data) => {
 });
 
 /**
- * Activate a tab to ensure it's visible and responsive for automation
+ * Ensure a tab is responsive for automation without activating it
  * Chrome may throttle or pause background tabs, so we need to ensure
- * the tab is fully activated and ready for automation
+ * the tab is responsive for CDP commands without stealing focus from user
  */
 async function activateTabForAutomation(tabId: number): Promise<void> {
-  console.log(`🔧 Activating tab ${tabId} for automation...`);
+  console.log(`🔧 Ensuring tab ${tabId} is responsive for automation (background mode)...`);
   
   try {
-    // Get tab info to get window ID
+    // Get tab info to check if it's accessible
     const tab = await chrome.tabs.get(tabId);
     
-    // Check if tab is already active and window is focused
-    if (tab.active) {
-      // Tab is already active, check if window is focused
-      const window = await chrome.windows.get(tab.windowId);
-      if (window.focused) {
-        console.log(`✅ Tab ${tabId} is already active and window is focused`);
-        return; // Already fully active
-      }
+    // Check if tab is a normal webpage (not chrome:// etc.)
+    const url = tab.url || '';
+    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
+      console.log(`⚠️ Tab ${tabId} is a restricted URL, skipping responsiveness check`);
+      return;
     }
     
-    // First, activate the window (bring to front)
-    if (tab.windowId) {
-      await chrome.windows.update(tab.windowId, { focused: true });
-      console.log(`✅ Window ${tab.windowId} focused`);
-    }
+    // Check if debugger is already attached
+    // We'll let the individual command functions handle debugger attachment
+    // This function just logs and optionally wakes up the page
     
-    // Then, activate the tab within the window
-    await chrome.tabs.update(tabId, { active: true });
-    console.log(`✅ Tab ${tabId} activated`);
+    // Note: We intentionally do NOT activate the tab or window
+    // to avoid stealing focus from the user's current active tab
     
-    // Wait for tab to fully activate and render
-    // Chrome needs time to resume rendering and JavaScript execution
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // Additional check: ensure tab is now active
-    const updatedTab = await chrome.tabs.get(tabId);
-    if (!updatedTab.active) {
-      console.warn(`⚠️ Tab ${tabId} may not be fully activated after update`);
-    }
+    console.log(`✅ Tab ${tabId} prepared for background automation (no activation)`);
   } catch (error) {
-    console.error(`⚠️ Failed to fully activate tab ${tabId}:`, error);
+    console.error(`⚠️ Failed to prepare tab ${tabId} for automation:`, error);
     // Continue anyway - the command might still work
   }
 }
@@ -539,10 +525,21 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
  * Get current active tab ID
  */
 async function getCurrentTabId(): Promise<number> {
+  // First, try to get a managed tab if session is initialized
+  const managedTabs = tabManager.getManagedTabs();
+  if (managedTabs.length > 0) {
+    // Use the first managed tab as default
+    const defaultTabId = managedTabs[0].tabId;
+    console.log(`📌 Using default managed tab ID: ${defaultTabId} (${managedTabs.length} managed tabs available)`);
+    return defaultTabId;
+  }
+  
+  // Fall back to currently active tab
   const tab = await tabs.getCurrentTab();
   if (!tab?.id) {
     throw new Error('No active tab found');
   }
+  console.log(`📌 No managed tabs, using current active tab ID: ${tab.id}`);
   return tab.id;
 }
 

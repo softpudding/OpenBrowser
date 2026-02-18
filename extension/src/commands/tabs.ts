@@ -79,7 +79,7 @@ export async function openTab(url: string): Promise<any> {
   
   // Use tab manager to open managed tab
   try {
-    const managedTab = await tabManager.openManagedTab(targetUrl, true);
+    const managedTab = await tabManager.openManagedTab(targetUrl, false);
     
     return {
       success: true,
@@ -93,7 +93,7 @@ export async function openTab(url: string): Promise<any> {
     console.error('Failed to open managed tab, falling back to regular tab:', error);
     
     // Fallback to regular tab creation
-    const tab = await chrome.tabs.create({ url: targetUrl, active: true });
+    const tab = await chrome.tabs.create({ url: targetUrl, active: false });
     
     return {
       success: true,
