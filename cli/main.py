@@ -267,25 +267,25 @@ def capture(ctx, tab_id, no_cursor, quality, save, no_auto_save):
     result = ctx.obj['client'].screenshot(tab_id, not no_cursor, quality)
     
     if result.get('success'):
-        click.echo("✅ Screenshot captured successfully")
+        print("✅ Screenshot captured successfully")
         
         # Save screenshot using helper function
         saved_path = _save_screenshot_result(result, save, not no_auto_save)
         
         if saved_path:
             if save:
-                click.echo(f"📸 Screenshot saved to {saved_path}")
+                print(f"📸 Screenshot saved to {saved_path}")
             else:
-                click.echo(f"📸 Screenshot automatically saved to {saved_path}")
-                click.echo(f"   Use --save <path> to specify custom location, or --no-auto-save to disable auto-saving")
+                print(f"📸 Screenshot automatically saved to {saved_path}")
+                print(f"   Use --save <path> to specify custom location, or --no-auto-save to disable auto-saving")
         
         # Print metadata if available
         if 'data' in result and 'metadata' in result['data']:
             metadata = result['data']['metadata']
-            click.echo(f"   Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}")
-            click.echo(f"   Viewport: {metadata.get('viewportWidth', 'unknown')}x{metadata.get('viewportHeight', 'unknown')}")
+            print(f"   Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}")
+            print(f"   Viewport: {metadata.get('viewportWidth', 'unknown')}x{metadata.get('viewportHeight', 'unknown')}")
             if metadata.get('resizedToPreset', False):
-                click.echo(f"   Resized to preset coordinate system (2560×1440)")
+                print(f"   Resized to preset coordinate system (2560×1440)")
     else:
         _print_result(result)
 
@@ -460,20 +460,20 @@ def interactive(ctx):
                 result = ctx.obj['client'].screenshot()
                 
                 if result.get('success'):
-                    click.echo("✅ Screenshot captured successfully")
+                    print("✅ Screenshot captured successfully")
                     
                     # Save screenshot automatically in interactive mode
                     saved_path = _save_screenshot_result(result, None, True)
                     
                     if saved_path:
-                        click.echo(f"📸 Screenshot automatically saved to {saved_path}")
+                        print(f"📸 Screenshot automatically saved to {saved_path}")
                     
                     # Print metadata if available
                     if 'data' in result and 'metadata' in result['data']:
                         metadata = result['data']['metadata']
-                        click.echo(f"   Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}")
+                        print(f"   Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}")
                         if metadata.get('resizedToPreset', False):
-                            click.echo(f"   Resized to preset coordinate system (2560×1440)")
+                            print(f"   Resized to preset coordinate system (2560×1440)")
                 else:
                     _print_result(result)
             elif cmd.lower().startswith('tabs '):
