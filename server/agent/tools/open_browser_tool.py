@@ -144,8 +144,8 @@ class OpenBrowserObservation(Observation):
         
         if self.javascript_result is not None:
             result_str = str(self.javascript_result)
-            if len(result_str) > 500:
-                result_str = result_str[:500] + "... (truncated)"
+            if len(result_str) > 50000:
+                result_str = result_str[:50000] + "... (truncated)"
             text_parts.append(f"📜 JavaScript execution result: {result_str}")
         
         if self.screenshot_data_url:
@@ -282,13 +282,6 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 command = JavascriptExecuteCommand(script=action.script)
                 result = await self._execute_command(command)
                 
-                # Truncate long scripts for message
-                script = action.script
-                if len(script) > 50:
-                    message = f"Executed JavaScript: '{script[:50]}...'"
-                else:
-                    message = f"Executed JavaScript: '{script}'"
-                
                 # Extract JavaScript execution result for observation
                 javascript_result = None
                 if result and result.success and result.data:
@@ -308,9 +301,9 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                     # If we have a result, update message to include it
                     if javascript_result is not None:
                         result_str = str(javascript_result)
-                        if len(result_str) > 100:
-                            result_str = result_str[:100] + '...'
-                        message = f"{message} - Result: {result_str}"
+                        if len(result_str) > 50000:
+                            result_str = result_str[:50000] + '... (Truncated because too long)'
+                        message = "Javascript Execution Result:\n" + result_str
                     
             else:
                 raise ValueError(f"Unknown action type: {action_type}")
@@ -896,6 +889,7 @@ All actions use a unified format with `type` field and parameter fields directly
 **TIER 1: ALWAYS USE JAVASCRIPT (95% of cases)**
 1. **JavaScript First Principle**: For ANY browser interaction, FIRST try `javascript_execute`
 2. **Element Interaction**: Use JavaScript to click, focus, fill forms, select options
+   - **Before operating on elements, highlight them for confirmation**: `document.querySelector('your-selector').style.border = '3px solid red';` (adds red border to verify correct element selection)
    - `document.querySelector('button.submit').click()`
    - `document.querySelector('input[name="email"]').value = "user@example.com"`
    - `document.querySelector('select').selectedIndex = 1`
@@ -968,17 +962,18 @@ All actions use a unified format with `type` field and parameter fields directly
 
 **COMMON JAVASCRIPT PATTERNS FOR EVERYDAY USE:**
 
-1. **Click any element**: `document.querySelector('button.primary').click()`
-2. **Fill any form**: 
+1. **Highlight element for verification**: `document.querySelector('your-selector').style.border = '3px solid red';` (adds red border to confirm you've selected the right element before operating on it)
+2. **Click any element**: `document.querySelector('button.primary').click()`
+3. **Fill any form**: 
    ```javascript
    document.querySelector('input[name="email"]').value = "user@example.com";
    document.querySelector('textarea[name="message"]').value = "Hello world";
    ```
-3. **Select dropdown**: `document.querySelector('select[name="country"]').selectedIndex = 2`
-4. **Check checkbox**: `document.querySelector('input[type="checkbox"]').checked = true`
-5. **Get all links**: `Array.from(document.links).slice(0, 10).map(l => ({text: l.textContent, href: l.href}))`
-6. **Scroll page**: `window.scrollBy(0, 500)` or `document.querySelector('#section').scrollIntoView()`
-7. **Wait for element**: 
+4. **Select dropdown**: `document.querySelector('select[name="country"]').selectedIndex = 2`
+5. **Check checkbox**: `document.querySelector('input[type="checkbox"]').checked = true`
+6. **Get all links**: `Array.from(document.links).slice(0, 10).map(l => ({text: l.textContent, href: l.href}))`
+7. **Scroll page**: `window.scrollBy(0, 500)` or `document.querySelector('#section').scrollIntoView()`
+8. **Wait for element**: 
    ```javascript
    new Promise(resolve => {
      const check = () => {

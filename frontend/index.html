@@ -131,6 +131,21 @@
             max-height: 24px;
             overflow: hidden;
         }
+        
+        .event-line.collapsed .event-full-content {
+            display: none;
+        }
+        
+        .event-header-summary {
+            color: #888888;
+            font-style: italic;
+            margin-left: 0;
+            margin-right: 10px;
+        }
+        
+        .event-line.expanded .event-header-summary {
+            display: none;
+        }
 
         .event-line.expanded {
             background: #222222;
@@ -512,7 +527,7 @@
             <div class="status-item" id="event-count">EVENTS: <span>0</span></div>
             <div class="status-item" id="cwd-input-container">
                 <label for="cwd-input">CWD:</label>
-                <input type="text" id="cwd-input" placeholder="Enter working directory">
+                <input type="text" id="cwd-input" placeholder="Enter working directory" value="/tmp">
             </div>
         </div>
     </div>
@@ -599,7 +614,7 @@
                     <div class="stat-item">
                         <span class="stat-label">Show User Messages:</span>
                         <span class="stat-value">
-                            <input type="checkbox" id="filter-user-message" onchange="updateEventVisibility()">
+                            <input type="checkbox" id="filter-user-message" onchange="updateEventVisibility()" checked>
                         </span>
                     </div>
                     <div class="stat-item">
@@ -783,6 +798,16 @@
             if (!conversationId) {
                 try {
                     // Get cwd from input field (already validated)
+                    
+                    // Check if CWD starts with /tmp and show warning
+                    const normalizedCwd = cwd.trim();
+                    if (/^\/tmp(\/|$)/.test(normalizedCwd)) {
+                        addEvent({
+                            type: 'SystemEvent',
+                            text: 'SYSTEM WARNING: Current working directory is under /tmp. File operations will be limited to temporary storage.',
+                            timestamp: new Date().toISOString()
+                        });
+                    }
                     
                     const response = await fetch(apiUrl('agent/conversations'), {
                         method: 'POST',
@@ -1189,7 +1214,8 @@
                 role: data.role || null, // Include role field
                 activated_skills: data.activated_skills || null,
                 sender: data.sender || null,
-                source: source
+                source: source,
+                summary: data.summary || null // Include summary field for collapsed display
             };
             
             console.log(`[Frontend] Created event:`, event);
@@ -1285,13 +1311,16 @@
             eventLine.innerHTML = `
                 <div class="event-header">
                     <span class="event-type" style="color: ${typeColor}">${event.type.replace('Event', '').toUpperCase()}</span>
+                    ${event.summary ? `<span class="event-header-summary">: ${escapeHtml(event.summary)}</span>` : ''}
                     <span class="event-timestamp">${timeStr}</span>
                     <span class="expand-toggle" onclick="toggleEvent(this)">[expand]</span>
                 </div>
                 <div class="event-content">
                     ${metadataHtml}
-                    ${formatContent(content)}
-                    ${event.image ? `<img class="event-image" src="${event.image}" alt="Screenshot" onload="this.parentElement.parentElement.classList.add('has-image')">` : ''}
+                    <div class="event-full-content">
+                        ${formatContent(content)}
+                        ${event.image ? `<img class="event-image" src="${event.image}" alt="Screenshot" onload="this.parentElement.parentElement.classList.add('has-image')">` : ''}
+                    </div>
                 </div>
             `;
             
@@ -1316,6 +1345,14 @@
             }
             
             return eventLine;
+        }
+        
+        // Escape HTML special characters
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
         
         // Format content for display

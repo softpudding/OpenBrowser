@@ -124,6 +124,8 @@ class QueueVisualizer(ConversationVisualizerBase):
                 # ActionEvent has action attribute
                 if event.action:
                     sse_data["action"] = str(event.action)
+                if event.summary:
+                    sse_data["summary"] = str(event.summary)
             
             elif isinstance(event, ObservationEvent):
                 # ObservationEvent has observation attribute with possible image content
