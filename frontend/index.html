@@ -640,6 +640,13 @@
                 console.log(`[Frontend] EventSource connection opened, readyState: ${eventSource.readyState}`);
             };
             
+            // Add onmessage handler for any untyped events
+            eventSource.onmessage = function(event) {
+                console.log(`[Frontend] EventSource generic onmessage called:`, event);
+                console.log(`[Frontend] onmessage data: "${event.data ? event.data.substring(0, 200) : 'No data'}"`);
+                console.log(`[Frontend] onmessage lastEventId: ${event.lastEventId}`);
+            };
+            
             eventSource.onerror = function(error) {
                 console.error('[Frontend] EventSource onerror called:', error, 'readyState:', eventSource.readyState);
                 
