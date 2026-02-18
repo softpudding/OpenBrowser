@@ -24,6 +24,30 @@ class CommandProcessor:
     
     def __init__(self):
         self._current_tab_id: Optional[int] = None
+    
+    def _prepare_command_dict(self, command: Command) -> dict:
+        """
+        Prepare command dictionary for sending to extension.
+        Adds tab_id if not specified and current tab is set.
+        """
+        command_dict = command.dict()
+        
+        # Add tab_id if command has tab_id field and it's not set
+        # and we have a current tab
+        if hasattr(command, 'tab_id') and command.tab_id is None and self._current_tab_id is not None:
+            command_dict['tab_id'] = self._current_tab_id
+            
+        return command_dict
+    
+    async def _send_prepared_command(self, command: Command) -> CommandResponse:
+        """
+        Send a command to extension after preparing it with current tab ID.
+        """
+        prepared_dict = self._prepare_command_dict(command)
+        # Parse back to Command to ensure validation
+        from server.models.commands import parse_command
+        prepared_command = parse_command(prepared_dict)
+        return await ws_manager.send_command(prepared_command)
         
     async def execute(self, command: Command) -> CommandResponse:
         """
@@ -70,54 +94,65 @@ class CommandProcessor:
             
     async def _execute_mouse_move(self, command: MouseMoveCommand) -> CommandResponse:
         """Execute mouse move command"""
-        # For relative movement, we need to handle coordinate mapping
-        # The extension will handle the actual movement based on relative coordinates
-        response = await ws_manager.send_command(command)
+        response = await self._send_prepared_command(command)
         return response
         
     async def _execute_mouse_click(self, command: MouseClickCommand) -> CommandResponse:
         """Execute mouse click command"""
-        response = await ws_manager.send_command(command)
+        response = await self._send_prepared_command(command)
         return response
         
     async def _execute_mouse_scroll(self, command: MouseScrollCommand) -> CommandResponse:
         """Execute mouse scroll command"""
-        response = await ws_manager.send_command(command)
+        response = await self._send_prepared_command(command)
         return response
         
     async def _execute_keyboard_type(self, command: KeyboardTypeCommand) -> CommandResponse:
         """Execute keyboard type command"""
-        response = await ws_manager.send_command(command)
+        response = await self._send_prepared_command(command)
         return response
         
     async def _execute_keyboard_press(self, command: KeyboardPressCommand) -> CommandResponse:
         """Execute keyboard press command"""
-        response = await ws_manager.send_command(command)
+        response = await self._send_prepared_command(command)
         return response
         
     async def _execute_screenshot(self, command: ScreenshotCommand) -> CommandResponse:
         """Execute screenshot command"""
-        response = await ws_manager.send_command(command)
+        response = await self._send_prepared_command(command)
         return response
         
     async def _execute_tab_command(self, command: TabCommand) -> CommandResponse:
         """Execute tab management command"""
-        response = await ws_manager.send_command(command)
+        response = await self._send_prepared_command(command)
         
-        # Update current tab if we switched to a new one
-        if command.action == "switch" and command.tab_id and response.success:
-            self._current_tab_id = command.tab_id
+        # Update current tab based on action
+        if response.success:
+            if command.action == "switch" and command.tab_id:
+                self._current_tab_id = command.tab_id
+            elif command.action == "init":
+                # For init action, update current tab to the newly created tab
+                if response.data and 'tabId' in response.data:
+                    self._current_tab_id = response.data['tabId']
+                elif response.data and 'tab_id' in response.data:
+                    self._current_tab_id = response.data['tab_id']
+            elif command.action == "open":
+                # For open action, update current tab to the newly opened tab
+                if response.data and 'tabId' in response.data:
+                    self._current_tab_id = response.data['tabId']
+                elif response.data and 'tab_id' in response.data:
+                    self._current_tab_id = response.data['tab_id']
             
         return response
         
     async def _execute_get_tabs(self, command: GetTabsCommand) -> CommandResponse:
         """Execute get tabs command"""
-        response = await ws_manager.send_command(command)
+        response = await self._send_prepared_command(command)
         return response
         
     async def _execute_reset_mouse(self, command: ResetMouseCommand) -> CommandResponse:
         """Execute reset mouse command"""
-        response = await ws_manager.send_command(command)
+        response = await self._send_prepared_command(command)
         return response
         
     def set_current_tab(self, tab_id: int):

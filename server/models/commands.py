@@ -35,6 +35,10 @@ class BaseCommand(BaseModel):
         default=None,
         description="Timestamp when command was created (epoch seconds)"
     )
+    tab_id: Optional[int] = Field(
+        default=None,
+        description="Tab ID to target (None = current managed tab)"
+    )
 
 
 class MouseMoveCommand(BaseCommand):
@@ -106,13 +110,13 @@ class KeyboardPressCommand(BaseCommand):
 class ScreenshotCommand(BaseCommand):
     """Capture screenshot"""
     type: Literal["screenshot"] = "screenshot"
-    tab_id: Optional[int] = Field(
-        default=None,
-        description="Specific tab ID to capture (None = current tab)"
-    )
     include_cursor: bool = Field(
         default=True,
         description="Whether to include mouse cursor in screenshot"
+    )
+    include_visual_mouse: bool = Field(
+        default=True,
+        description="Whether to include visual mouse pointer in screenshot"
     )
     quality: int = Field(
         default=90,
@@ -130,10 +134,6 @@ class TabCommand(BaseCommand):
         default=None,
         description="URL for open action, tab ID for close/switch"
     )
-    tab_id: Optional[int] = Field(
-        default=None,
-        description="Tab ID for close/switch actions"
-    )
     
     @validator('url')
     def validate_url(cls, v, values):
@@ -150,6 +150,10 @@ class TabCommand(BaseCommand):
 class GetTabsCommand(BaseCommand):
     """Get list of all tabs"""
     type: Literal["get_tabs"] = "get_tabs"
+    managed_only: bool = Field(
+        default=True,
+        description="If true, only return managed tabs (in OpenBrowser tab group)"
+    )
 
 
 class CommandResponse(BaseModel):
