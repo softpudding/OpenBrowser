@@ -752,7 +752,155 @@ local-chrome-server serve --log-level DEBUG
 - **Selenium**: Web browser automation framework
 - **Playwright**: Cross-browser automation
 
-## Future Enhancements
+## OpenBrowserAgent - AI-Powered Browser Automation
+
+### Overview
+
+OpenBrowserAgent is an AI agent built on the OpenHands SDK that enables natural language control of Chrome browser with real-time visual feedback. The agent can understand user requests, execute browser operations, and provide screenshots after each action.
+
+### Architecture
+
+```
+┌─────────────────┐    SSE Stream     ┌─────────────────────┐
+│   Web Frontend  │◄──────────────────┤  OpenBrowserAgent   │
+│   (HTML/JS)     │                   │  (OpenHands SDK)    │
+└─────────────────┘                   └─────────────────────┘
+         │                                      │
+         ▼                                      ▼
+┌─────────────────┐                   ┌─────────────────────┐
+│  FastAPI Server │◄──────────────────┤  Local Chrome Server │
+│  (Agent API)    │   HTTP/WebSocket  │  (Browser Control)  │
+└─────────────────┘                   └─────────────────────┘
+```
+
+### Key Components
+
+1. **OpenBrowserTool** (`server/agent/tools/open_browser_tool.py`):
+   - Custom tool definition for browser automation
+   - Supports mouse movements, clicks, scrolling, keyboard input, and tab management
+   - Returns observations with screenshots (2560x1440 pixels) and tab information
+   - Uses preset coordinate system (center-based, 2560x1440 resolution)
+
+2. **OpenBrowserAgent** (`server/agent/agent.py`):
+   - Main agent class with LLM integration
+   - Manages conversations and visualizer for SSE streaming
+   - Integrates with browser command processor
+
+3. **Agent API Endpoints** (`server/api/main.py`):
+   - `POST /agent/conversations` - Create new conversation
+   - `POST /agent/conversations/{id}/messages` - Send message (SSE stream)
+   - `GET /agent/conversations/{id}` - Get conversation info
+   - `DELETE /agent/conversations/{id}` - Delete conversation
+   - `GET /agent/conversations` - List all conversations
+
+4. **Web Frontend** (`templates/index.html`):
+   - Chat interface with real-time message display
+   - SSE event handling for agent responses
+   - Screenshot display for visual feedback
+
+### Setup and Usage
+
+#### Prerequisites
+- LLM API key (e.g., DashScope, OpenAI, Anthropic)
+- Local Chrome Server running with extension loaded
+
+#### Starting the Agent
+
+1. Set LLM environment variables:
+   ```bash
+   export LLM_API_KEY=your_api_key
+   export LLM_MODEL=dashscope/qwen3.5-plus
+   export LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+   ```
+
+2. Start the server with agent support:
+   ```bash
+   uv run local-chrome-server serve --port 8775 --websocket-port 8776
+   ```
+
+3. Load Chrome extension (connect to WebSocket port 8776)
+
+4. Access the web interface:
+   - Open `http://127.0.0.1:8775` in browser
+   - Or use API endpoints directly
+
+#### Example API Usage
+
+```bash
+# Create conversation
+curl -X POST http://127.0.0.1:8775/agent/conversations
+
+# Send message (SSE stream)
+curl -N -X POST http://127.0.0.1:8775/agent/conversations/{id}/messages \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Open google.com and search for AI news"}'
+```
+
+#### Available Browser Commands
+
+The agent understands natural language and can execute:
+
+- **Navigation**: "Open google.com", "Go to Wikipedia"
+- **Search**: "Search for Python tutorials", "Type 'hello world' in the search box"
+- **Interaction**: "Click the login button", "Scroll down the page"
+- **Tab Management**: "Open a new tab", "Switch to the second tab"
+- **Form Filling**: "Enter username and password", "Submit the form"
+
+### Technical Details
+
+#### Coordinate System
+- **Resolution**: 2560×1440 pixels (preset system)
+- **Origin**: Center of screen at (0, 0)
+- **Range**: X = -1280 to 1280, Y = -720 to 720
+- **Positive Directions**: Right (+X), Down (+Y)
+
+#### Screenshot Handling
+- Screenshots automatically resized to 2560x1440 pixels
+- Sent as base64 data URLs in observations
+- Displayed in web interface as inline images
+
+#### Tool Integration
+- OpenBrowserTool registered with OpenHands SDK
+- Uses existing command processor for browser control
+- Returns comprehensive observations with visual feedback
+
+### Troubleshooting
+
+#### Common Issues
+
+1. **"ToolDefinition 'open_browser' is not registered"**
+   - Ensure OpenBrowserTool is properly registered with `register_tool()`
+   - Check tool name matches in agent configuration
+
+2. **No screenshots in responses**
+   - Verify Chrome extension is connected to WebSocket server
+   - Check browser server is running and extension is loaded
+
+3. **Agent doesn't execute browser commands**
+   - Confirm LLM API key is set correctly
+   - Check tool description includes clear instructions
+
+4. **SSE stream disconnects**
+   - Increase timeout in agent configuration
+   - Check for errors in server logs
+
+### Future Enhancements
+
+1. **Improved Visual Recognition**:
+   - OCR integration for better text understanding
+   - Element detection for more precise clicking
+
+2. **Advanced Agent Capabilities**:
+   - Multi-step task planning
+   - Error recovery and retry logic
+   - Context-aware navigation
+
+3. **Enhanced User Experience**:
+   - Voice input support
+   - Customizable agent personalities
+   - Collaborative multi-agent workflows
+
+## Future Enhancements (Original)
 
 ### Planned Features
 

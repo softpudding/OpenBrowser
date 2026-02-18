@@ -5,7 +5,7 @@ description = "Local Chrome Server for browser automation via Chrome extension"
 authors = [
     {name = "OpenHands", email = "openhands@all-hands.dev"},
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
@@ -17,6 +17,8 @@ dependencies = [
     "pillow>=10.0.0",
     "numpy>=1.24.0",
     "requests>=2.31.0",
+    "openhands-sdk @ git+https://github.com/softpudding/agent-sdk.git@switch-litellm-fork#subdirectory=openhands-sdk",
+    "openhands-tools @ git+https://github.com/softpudding/agent-sdk.git@switch-litellm-fork#subdirectory=openhands-tools",
 ]
 
 [project.optional-dependencies]
