@@ -46,6 +46,7 @@ export async function captureScreenshot(
   includeCursor: boolean = true,
   quality: number = 90,
   resizeToPreset: boolean = true,  // Whether to resize to preset coordinate system dimensions (2560×1440)
+  waitForRender: number = 100,     // Wait time after tab activation to ensure rendering (in ms)
 ): Promise<any> {
   // Resolve tab ID if not provided
   let targetTabId = tabId;
@@ -62,9 +63,12 @@ export async function captureScreenshot(
     throw new Error('Tab not found');
   }
 
-  // Activate tab for screenshot
-  await chrome.tabs.update(targetTabId, { active: true });
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  // Note: Tab activation should be handled by the caller (activateTabForAutomation)
+  // We only wait for rendering if requested
+  if (waitForRender > 0) {
+    console.log(`⏳ Waiting ${waitForRender}ms for page rendering before screenshot...`);
+    await new Promise((resolve) => setTimeout(resolve, waitForRender));
+  }
 
   // Capture screenshot
   const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {

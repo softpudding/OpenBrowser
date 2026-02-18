@@ -49,6 +49,7 @@ export interface ScreenshotCommand extends BaseCommand {
   tab_id?: number;
   include_cursor?: boolean;
   quality?: number;
+  include_visual_mouse?: boolean;
 }
 
 export interface TabCommand extends BaseCommand {

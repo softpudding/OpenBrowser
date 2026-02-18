@@ -327,10 +327,55 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         tabManager.updateTabActivity(tabIdForScreenshot);
         // Activate tab to ensure it's responsive for automation
         await activateTabForAutomation(tabIdForScreenshot);
+        
+        // Update visual mouse pointer to ensure it's visible in screenshot
+        // Only update if visual mouse is not explicitly disabled
+        if (command.include_visual_mouse !== false) {
+          try {
+            // Get current mouse position in preset coordinate system
+            const mousePosition = computer.getMousePosition(tabIdForScreenshot);
+            console.log(`🎯 Current mouse position (preset): (${mousePosition.x}, ${mousePosition.y})`);
+            
+            // Get viewport size for coordinate conversion
+            const viewport = await computer.getViewportSize(tabIdForScreenshot);
+            console.log(`🖥️ Viewport size: ${viewport.width}x${viewport.height}`);
+            
+            // Convert preset coordinates to actual screen coordinates
+            const { actualX, actualY } = computer.presetToActualCoords(
+              mousePosition.x,
+              mousePosition.y,
+              viewport
+            );
+            
+            // Round to integers for display
+            const roundedX = Math.round(actualX);
+            const roundedY = Math.round(actualY);
+            console.log(`🎯 Converted to actual coordinates: (${roundedX}, ${roundedY})`);
+            
+            // Update visual mouse with actual coordinates
+            await updateVisualMouse(tabIdForScreenshot, {
+              x: roundedX,
+              y: roundedY,
+              action: 'move',
+              relative: false,
+            });
+            console.log(`✅ Visual mouse updated for screenshot at position (${roundedX}, ${roundedY})`);
+            
+            // Wait for visual mouse DOM updates to render before taking screenshot
+            // This ensures the visual mouse is fully visible in the screenshot
+            console.log(`⏳ Waiting 150ms for visual mouse rendering...`);
+            await new Promise(resolve => setTimeout(resolve, 150));
+          } catch (visualMouseError) {
+            console.warn('⚠️ Failed to update visual mouse for screenshot, continuing anyway:', visualMouseError);
+          }
+        }
+        
         const screenshotResult = await captureScreenshot(
           tabIdForScreenshot,
           command.include_cursor !== false,
-          command.quality || 90
+          command.quality || 90,
+          true, // resizeToPreset
+          200   // waitForRender: additional wait time after visual mouse update (ms)
         );
         return {
           success: true,

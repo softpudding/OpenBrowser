@@ -56,7 +56,7 @@ const viewportCacheTimestamps = new Map<number, number>();
 /**
  * Get viewport size from content script
  */
-async function getViewportSize(tabId: number): Promise<{width: number, height: number}> {
+export async function getViewportSize(tabId: number): Promise<{width: number, height: number}> {
   console.log(`🖥️ [Computer] Getting viewport size for tab ${tabId}`);
   
   try {
@@ -142,7 +142,7 @@ async function getViewportSize(tabId: number): Promise<{width: number, height: n
  * @param viewport Actual viewport size
  * @returns Actual screen coordinates (top-left based)
  */
-function presetToActualCoords(
+export function presetToActualCoords(
   presetX: number,
   presetY: number,
   viewport: {width: number, height: number}
@@ -832,6 +832,14 @@ export function getScreenshotMetadata(
   return screenshotCache.get(tabId);
 }
 
+/**
+ * Get current mouse position in preset coordinate system
+ * Returns center position (0,0) if mouse hasn't been moved yet
+ */
+export function getMousePosition(tabId: number): {x: number, y: number} {
+  return getOrInitializeMousePosition(tabId);
+}
+
 export const computer = {
   performClick,
   performMouseMove,
@@ -842,4 +850,7 @@ export const computer = {
   cacheScreenshotMetadata,
   clearScreenshotCache,
   getScreenshotMetadata,
+  getMousePosition,
+  getViewportSize,
+  presetToActualCoords,
 };
