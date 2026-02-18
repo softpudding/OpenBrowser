@@ -524,17 +524,28 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
                            auto_save: bool = True) -> Optional[str]:
     """Save screenshot from result and return saved file path"""
     try:
-        if not result.get('success') or 'data' not in result or 'image_data' not in result['data']:
+        # Check both 'imageData' (camelCase from TypeScript) and 'image_data' (snake_case fallback)
+        has_image_data = False
+        image_data_key = None
+        
+        if 'data' in result:
+            if 'imageData' in result['data']:
+                image_data_key = 'imageData'
+                has_image_data = True
+            elif 'image_data' in result['data']:
+                image_data_key = 'image_data'
+                has_image_data = True
+        
+        if not result.get('success') or 'data' not in result or not has_image_data:
             click.echo("⚠️  Cannot save screenshot: missing success flag or image data")
-            if 'data' in result and 'metadata' in result['data']:
-                click.echo(f"   Metadata exists but no image_data?")
+            click.echo(f"   Available keys in data: {list(result.get('data', {}).keys())}")
             return None
         
         import base64
         import os
         from datetime import datetime
         
-        image_data = result['data']['image_data']
+        image_data = result['data'][image_data_key]
         
         if not image_data or len(image_data) < 100:
             click.echo(f"⚠️  Image data seems too small or empty: {len(image_data) if image_data else 0} bytes")
