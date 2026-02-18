@@ -375,9 +375,10 @@ def switch(ctx, tab_id):
 @click.pass_context
 def interactive(ctx):
     """Interactive REPL for browser control"""
-    click.echo("🔧 Local Chrome Server Interactive Mode")
-    click.echo("Type 'help' for commands, 'exit' to quit")
-    click.echo("")
+    import sys
+    sys.stdout.write("Local Chrome Server Interactive Mode\n")
+    sys.stdout.write("Type 'help' for commands, 'exit' to quit\n")
+    sys.stdout.write("\n")
     
     # Try to enable readline for better input editing
     try:
@@ -386,7 +387,7 @@ def interactive(ctx):
         readline.parse_and_bind("tab: complete")
         readline.parse_and_bind("set editing-mode emacs")
     except ImportError:
-        click.echo("⚠️  Readline not available, using basic input (arrow keys may not work)")
+        sys.stderr.write("Readline not available, using basic input (arrow keys may not work)\n")
     
     while True:
         try:
@@ -394,10 +395,10 @@ def interactive(ctx):
             try:
                 cmd = input("chrome> ").strip()
             except EOFError:
-                click.echo("\n👋 Goodbye!")
+                sys.stdout.write("\nGoodbye!\n")
                 break
             except KeyboardInterrupt:
-                click.echo("\n👋 Goodbye!")
+                sys.stdout.write("\nGoodbye!\n")
                 break
             
             if not cmd:
@@ -415,7 +416,7 @@ def interactive(ctx):
                 parts = cmd.lower().split()
                 button = parts[1] if len(parts) > 1 else 'left'
                 if button not in ['left', 'right', 'middle']:
-                    click.echo("❌ Invalid button. Use: click [left|right|middle]")
+                    sys.stderr.write("Invalid button. Use: click [left|right|middle]\n")
                     continue
                 result = ctx.obj['client'].mouse_click(button)
                 _print_result(result)
