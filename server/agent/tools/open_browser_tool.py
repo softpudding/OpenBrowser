@@ -107,6 +107,10 @@ class OpenBrowserObservation(Observation):
         default=None,
         description="Screenshot as data URL (base64 encoded PNG, 1280x720 pixels)"
     )
+    javascript_result: Optional[Any] = Field(
+        default=None,
+        description="Result of JavaScript execution (if action was javascript_execute)"
+    )
     
     @property
     def to_llm_content(self) -> Sequence[TextContent | ImageContent]:
@@ -137,6 +141,12 @@ class OpenBrowserObservation(Observation):
             y = self.mouse_position['y']
             text_parts.append(f"📍 Mouse position: ({x}, {y}) in preset coordinate system")
             text_parts.append("   (Center is 0,0, right is +X, down is +Y)")
+        
+        if self.javascript_result is not None:
+            result_str = str(self.javascript_result)
+            if len(result_str) > 500:
+                result_str = result_str[:500] + "... (truncated)"
+            text_parts.append(f"📜 JavaScript execution result: {result_str}")
         
         if self.screenshot_data_url:
             text_parts.append("🖼️  Screenshot captured (1280x720 pixels)")
@@ -331,7 +341,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 error=error_msg,
                 tabs=[],
                 mouse_position=None,
-                screenshot_data_url=None
+                screenshot_data_url=None,
+                javascript_result=None
             )
         except Exception as e:
             logger.debug(f"DEBUG: _execute_action caught exception: {e}")
@@ -343,7 +354,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 error=str(e),
                 tabs=[],
                 mouse_position=None,
-                screenshot_data_url=None
+                screenshot_data_url=None,
+                javascript_result=None
             )
     
     def _execute_action_sync(self, action: OpenBrowserAction) -> OpenBrowserObservation:
@@ -356,6 +368,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             # Convert to appropriate server command based on type
             result_dict = None
             message = ""
+            javascript_result = None  # Store JavaScript execution result
             
             if action_type == "mouse_move":
                 # Validate required parameters
@@ -461,6 +474,28 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                     message = f"Executed JavaScript: '{script[:50]}...'"
                 else:
                     message = f"Executed JavaScript: '{script}'"
+                
+                # Extract JavaScript execution result for observation
+                if result_dict and result_dict.get('success') and result_dict.get('data'):
+                    js_data = result_dict['data']
+                    # JavaScript module returns result in 'result' field
+                    if 'result' in js_data:
+                        js_result = js_data['result']
+                        # CDP result object has 'value' field when returnByValue is true
+                        if isinstance(js_result, dict) and 'value' in js_result:
+                            javascript_result = js_result['value']
+                        else:
+                            javascript_result = js_result
+                    # Also check for direct 'value' in data
+                    elif 'value' in js_data:
+                        javascript_result = js_data['value']
+                    
+                    # If we have a result, update message to include it
+                    if javascript_result is not None:
+                        result_str = str(javascript_result)
+                        if len(result_str) > 100:
+                            result_str = result_str[:100] + '...'
+                        message = f"{message} - Result: {result_str}"
                     
             else:
                 raise ValueError(f"Unknown action type: {action_type}")
@@ -518,7 +553,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 error=error,
                 tabs=tabs_data,
                 mouse_position=mouse_position,
-                screenshot_data_url=screenshot_data_url
+                screenshot_data_url=screenshot_data_url,
+                javascript_result=javascript_result
             )
             
         except ValueError as e:
@@ -530,7 +566,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 error=error_msg,
                 tabs=[],
                 mouse_position=None,
-                screenshot_data_url=None
+                screenshot_data_url=None,
+                javascript_result=None
             )
         except Exception as e:
             logger.debug(f"DEBUG: _execute_action_sync caught exception: {e}")
@@ -542,7 +579,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 error=str(e),
                 tabs=[],
                 mouse_position=None,
-                screenshot_data_url=None
+                screenshot_data_url=None,
+                javascript_result=None
             )
     
     def __call__(self, action: OpenBrowserAction, conversation=None) -> OpenBrowserObservation:
