@@ -1,0 +1,9 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100    40    0     0  100    40      0     39  0:00:01  0:00:01 --:--:--    39event: agent_event
+data: {"type": "MessageEvent", "text": "tabs init https://google.com", "timestamp": "2026-02-18T14:35:01.352341"}
+
+100   174    0   134  100    40     65     19  0:00:02  0:00:02 --:--:--    85100   174    0   134  100    40     44     13  0:00:03  0:00:03 --:--:--    57event: error
+data: {"conversation_id": "018a9c98-ac82-4e88-ac9f-2c066ea492a6", "error": "Conversation run failed for id=f7159df3-d699-49de-8130-cbb846085072: There is no current event loop in thread 'Thread-1 (run_conversation)'."}
+
+100   407    0   367  100    40    101     11  0:00:03  0:00:03 --:--:--   112

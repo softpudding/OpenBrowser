@@ -80,39 +80,39 @@ class QueueVisualizer(ConversationVisualizerBase):
     
     def on_event(self, event: Event) -> None:
         """Handle conversation events and put them into the queue"""
-        logger.debug(f"DEBUG: QueueVisualizer.on_event called! Event type: {type(event).__name__}")
-        logger.debug(f"DEBUG: Event dir: {[attr for attr in dir(event) if not attr.startswith('_')]}")
+        print(f"DEBUG: QueueVisualizer.on_event called! Event type: {type(event).__name__}")
+        print(f"DEBUG: Event dir: {[attr for attr in dir(event) if not attr.startswith('_')]}")
         if self.event_queue is None:
             logger.warning("QueueVisualizer.on_event called but event_queue is None")
-            logger.debug(f"DEBUG: ERROR - event_queue is None!")
+            print(f"DEBUG: ERROR - event_queue is None!")
             return
             
         try:
             # Log event for debugging
             event_type = type(event).__name__
             logger.debug(f"QueueVisualizer event: {event_type} - {str(event)[:100]}")
-            logger.debug(f"DEBUG: QueueVisualizer processing event: {event_type} - {str(event)[:200]}")
-            logger.debug(f"DEBUG: Event has observation attr: {hasattr(event, 'observation')}")
+            print(f"DEBUG: QueueVisualizer processing event: {event_type} - {str(event)[:200]}")
+            print(f"DEBUG: Event has observation attr: {hasattr(event, 'observation')}")
             if hasattr(event, 'observation'):
                 obs = event.observation
-                logger.debug(f"DEBUG: Observation type: {type(obs)}")
-                logger.debug(f"DEBUG: Observation dir: {[attr for attr in dir(obs) if not attr.startswith('_')]}")
-                logger.debug(f"DEBUG: Observation has success: {hasattr(obs, 'success')}")
-                logger.debug(f"DEBUG: Observation has screenshot_data_url: {hasattr(obs, 'screenshot_data_url')}")
+                print(f"DEBUG: Observation type: {type(obs)}")
+                print(f"DEBUG: Observation dir: {[attr for attr in dir(obs) if not attr.startswith('_')]}")
+                print(f"DEBUG: Observation has success: {hasattr(obs, 'success')}")
+                print(f"DEBUG: Observation has screenshot_data_url: {hasattr(obs, 'screenshot_data_url')}")
                 if hasattr(obs, 'screenshot_data_url'):
-                    logger.debug(f"DEBUG: screenshot_data_url exists: {obs.screenshot_data_url is not None}")
+                    print(f"DEBUG: screenshot_data_url exists: {obs.screenshot_data_url is not None}")
                     if obs.screenshot_data_url:
-                        logger.debug(f"DEBUG: screenshot_data_url length: {len(obs.screenshot_data_url)}")
-            logger.debug(f"DEBUG: Event has action attr: {hasattr(event, 'action')}")
+                        print(f"DEBUG: screenshot_data_url length: {len(obs.screenshot_data_url)}")
+            print(f"DEBUG: Event has action attr: {hasattr(event, 'action')}")
             if hasattr(event, 'action'):
-                logger.debug(f"DEBUG: Action: {event.action}")
+                print(f"DEBUG: Action: {event.action}")
             
             # Use event.visualize to get the content (like DefaultConversationVisualizer)
             content = event.visualize
             logger.debug(f"Event visualize content type: {type(content)}, has plain: {hasattr(content, 'plain')}")
-            logger.debug(f"DEBUG: Event.visualize result: type={type(content)}, content={str(content)[:200] if content else 'None'}")
+            print(f"DEBUG: Event.visualize result: type={type(content)}, content={str(content)[:200] if content else 'None'}")
             text_content = content.plain if content and hasattr(content, 'plain') else str(event)
-            logger.debug(f"DEBUG: Text content: {text_content[:200] if text_content else 'None'}")
+            print(f"DEBUG: Text content: {text_content[:200] if text_content else 'None'}")
             
             # Create SSE event data
             sse_data = {
@@ -152,7 +152,7 @@ class QueueVisualizer(ConversationVisualizerBase):
                             image_urls.extend(content.image_urls)
                     
                     if image_urls and 'image' not in sse_data:
-                        sse_data["image"] = image_urls[0]  # Take first image
+                        sse_data["images"] = image_urls
                 except Exception as e:
                     logger.debug(f"Error extracting image content from {event_type}: {e}")
             
@@ -322,13 +322,13 @@ async def process_agent_message(
     message_text: str
 ) -> AsyncGenerator[str, None]:
     """Process a message and yield SSE events using thread-based execution"""
-    logger.debug(f"DEBUG: process_agent_message called with conversation_id={conversation_id}, message='{message_text[:50]}...'")
+    print(f"DEBUG: process_agent_message called with conversation_id={conversation_id}, message='{message_text[:50]}...'")
     logger.info(f"Processing agent message for conversation {conversation_id}: '{message_text[:50]}...'")
     logger.debug(f"Processing agent message for conversation {conversation_id}: '{message_text[:50]}...'")
     
     conv_state = agent_manager.get_conversation(conversation_id)
     if not conv_state:
-        logger.debug(f"DEBUG: Conversation {conversation_id} not found")
+        print(f"DEBUG: Conversation {conversation_id} not found")
         raise ValueError(f"Conversation {conversation_id} not found")
     
     # Create a queue for collecting events from visualizer
@@ -400,9 +400,9 @@ async def process_agent_message(
                 "error": str(e)
             }))
         finally:
-            logger.debug(f"DEBUG: run_conversation finally block, setting conversation_finished=True")
+            print(f"DEBUG: run_conversation finally block, setting conversation_finished=True")
             conversation_finished = True
-            logger.debug(f"DEBUG: conversation_finished set to True in thread")
+            print(f"DEBUG: conversation_finished set to True in thread")
     
     # Start conversation thread
     conversation_thread = threading.Thread(target=run_conversation, daemon=True)
@@ -411,17 +411,17 @@ async def process_agent_message(
     
     try:
         # Yield events as they arrive from the queue
-        timeout_seconds = 600.0  # Overall timeout for conversation (10 minutes)
+        timeout_seconds = 30.0  # Overall timeout for conversation
         start_time = time.time()
         
         while True:
             # Debug: print queue size
-            logger.debug(f"DEBUG: Queue size: {event_queue.qsize()}, conversation_finished: {conversation_finished}")
+            print(f"DEBUG: Queue size: {event_queue.qsize()}, conversation_finished: {conversation_finished}")
             
             # Check if conversation thread has finished
             if conversation_finished and event_queue.empty():
                 logger.debug(f"Conversation thread finished and queue empty for {conversation_id}")
-                logger.debug(f"DEBUG: Conversation finished and queue empty, breaking loop")
+                print(f"DEBUG: Conversation finished and queue empty, breaking loop")
                 break
             
             # Check for overall timeout
@@ -438,23 +438,23 @@ async def process_agent_message(
                 # Use asyncio to wait for queue item without blocking event loop
                 loop = asyncio.get_event_loop()
                 try:
-                    # Wait for event with longer timeout (600 seconds total)
+                    # Wait for event with longer timeout (30 seconds total)
                     # Calculate remaining time before overall timeout
-                    remaining_time = max(10.0, timeout_seconds - elapsed)  # Minimum 10 seconds to reduce log noise
-                    logger.debug(f"DEBUG: Waiting for event from queue (timeout: {remaining_time:.1f}s, elapsed: {elapsed:.1f}s)...")
+                    remaining_time = max(1.0, timeout_seconds - elapsed)
+                    print(f"DEBUG: Waiting for event from queue (timeout: {remaining_time:.1f}s, elapsed: {elapsed:.1f}s)...")
                     sse_event = await loop.run_in_executor(
                         None, event_queue.get, remaining_time
                     )
-                    logger.debug(f"DEBUG: Got SSE event from queue: {sse_event.event_type}")
+                    print(f"DEBUG: Got SSE event from queue: {sse_event.event_type}")
                 except queue.Empty:
                     # Continue loop to check other conditions
-                    logger.debug(f"DEBUG: Queue empty after waiting, checking conversation_finished: {conversation_finished}")
+                    print(f"DEBUG: Queue empty after waiting, checking conversation_finished: {conversation_finished}")
                     continue
                 
                 # Check if this is a completion or error event
                 if sse_event.event_type in ["complete", "error"]:
                     logger.debug(f"Yielding {sse_event.event_type} event for conversation {conversation_id}")
-                    logger.debug(f"DEBUG: Yielding {sse_event.event_type} event")
+                    print(f"DEBUG: Yielding {sse_event.event_type} event")
                     yield sse_event.to_sse_format()
                     
                     # If it's an error from the conversation thread, we should break
@@ -462,23 +462,23 @@ async def process_agent_message(
                         break
                     
                     # For completion events, drain remaining events from queue
-                    logger.debug(f"DEBUG: Draining remaining events from queue...")
+                    print(f"DEBUG: Draining remaining events from queue...")
                     drained_count = 0
                     while True:
                         try:
                             next_event = event_queue.get_nowait()
-                            logger.debug(f"DEBUG: Draining event #{drained_count + 1}: {next_event.event_type}")
+                            print(f"DEBUG: Draining event #{drained_count + 1}: {next_event.event_type}")
                             yield next_event.to_sse_format()
                             drained_count += 1
                         except queue.Empty:
-                            logger.debug(f"DEBUG: Queue empty after draining {drained_count} events")
+                            print(f"DEBUG: Queue empty after draining {drained_count} events")
                             break
                     
                     break
                 else:
                     # Yield regular event
                     logger.debug(f"Yielding SSE event for conversation {conversation_id}: {sse_event.event_type}")
-                    logger.debug(f"DEBUG: Yielding regular SSE event: {sse_event.event_type}")
+                    print(f"DEBUG: Yielding regular SSE event: {sse_event.event_type}")
                     yield sse_event.to_sse_format()
                     
             except Exception as e:

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "OpenBrowser",
   "version": "0.1.0",
-  "description": "Browser automation and control extension for robot-driven browsing freedom",
+  "description": "Browser automation and control extension for multimodal-model driven browsing freedom",
   "author": "OpenBrowser Team",
   "icons": {
     "16": "assets/icon16.png",

@@ -1,7 +1,7 @@
 {
   "name": "openbrowser",
   "version": "0.1.0",
-  "description": "Browser automation and control extension for robot-driven browsing freedom",
+  "description": "Browser automation and control extension for multimodal-model driven browsing freedom",
   "author": "OpenBrowser Team",
   "private": true,
   "scripts": {
