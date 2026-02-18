@@ -6,6 +6,7 @@
 
 export class VisualMousePointer {
   private pointerElement: HTMLElement | null = null;
+  private coordElement: HTMLElement | null = null; // Element to display coordinates
   private currentX: number = 0;
   private currentY: number = 0;
   private isVisible: boolean = true;
@@ -31,6 +32,11 @@ export class VisualMousePointer {
     const existing = document.getElementById('chrome-control-visual-mouse');
     if (existing) {
       existing.remove();
+    }
+    // Remove existing coordinate element if any
+    const existingCoord = document.getElementById('chrome-control-coordinate-display');
+    if (existingCoord) {
+      existingCoord.remove();
     }
 
     // Create new pointer element
@@ -109,9 +115,30 @@ export class VisualMousePointer {
     
     this.pointerElement.innerHTML = pointerSvg;
 
+    // Create coordinate display element
+    this.coordElement = document.createElement('div');
+    this.coordElement.id = 'chrome-control-coordinate-display';
+    Object.assign(this.coordElement.style, {
+      position: 'fixed',
+      pointerEvents: 'none',
+      zIndex: '2147483646', // Just below the pointer
+      opacity: '0', // Start hidden
+      fontFamily: 'monospace',
+      fontSize: '12px',
+      fontWeight: 'bold',
+      color: '#ffffff',
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      padding: '2px 6px',
+      borderRadius: '4px',
+      whiteSpace: 'nowrap',
+      textShadow: '0 1px 2px rgba(0, 0, 0, 0.8)',
+      transform: 'translateY(24px)', // Position below the pointer
+    } as CSSStyleDeclaration);
+
     // Add to document
-    console.log('🖱️ [VisualMouse] Adding pointer element to document...');
+    console.log('🖱️ [VisualMouse] Adding pointer and coordinate elements to document...');
     document.documentElement.appendChild(this.pointerElement);
+    document.documentElement.appendChild(this.coordElement);
     console.log('🖱️ [VisualMouse] Pointer element added to document, checking parent:', this.pointerElement.parentElement?.tagName);
     
     // Initial position - use safe dimensions to avoid division by zero
@@ -260,6 +287,29 @@ export class VisualMousePointer {
       console.error('🖱️ [VisualMouse] Attempting to recreate pointer...');
       this.createPointer();
     }
+
+    // Update coordinate display
+    this.updateCoordinateDisplay();
+  }
+
+  /**
+   * Update coordinate display text
+   */
+  private updateCoordinateDisplay(): void {
+    if (!this.coordElement) {
+      return;
+    }
+    
+    // Format coordinates as integers (screen pixels)
+    const formattedX = Math.round(this.currentX);
+    const formattedY = Math.round(this.currentY);
+    
+    // Update coordinate display text
+    this.coordElement.textContent = `(${formattedX}, ${formattedY})`;
+    
+    // Position coordinate display near the pointer
+    this.coordElement.style.left = `${this.currentX}px`;
+    this.coordElement.style.top = `${this.currentY}px`;
   }
 
   /**
@@ -397,6 +447,10 @@ export class VisualMousePointer {
       this.pointerElement.style.opacity = '0.8';
       console.log('🖱️ [VisualMouse] Pointer shown');
     }
+    // Also show coordinate display
+    if (this.coordElement) {
+      this.coordElement.style.opacity = '0.8';
+    }
   }
 
   /**
@@ -407,6 +461,10 @@ export class VisualMousePointer {
     if (this.pointerElement) {
       this.pointerElement.style.opacity = '0';
       console.log('🖱️ [VisualMouse] Pointer hidden');
+    }
+    // Also hide coordinate display
+    if (this.coordElement) {
+      this.coordElement.style.opacity = '0';
     }
   }
 
@@ -527,6 +585,10 @@ export class VisualMousePointer {
     if (this.pointerElement) {
       this.pointerElement.remove();
       this.pointerElement = null;
+    }
+    if (this.coordElement) {
+      this.coordElement.remove();
+      this.coordElement = null;
     }
   }
 
