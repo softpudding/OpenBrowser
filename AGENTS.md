@@ -978,6 +978,33 @@ screenshot                      # Now captures from new current tab
 - When no managed tabs exist, extension falls back to active tab
 - `tab_id` field is optional in API calls
 
+### Refresh Tab Functionality (February 2026)
+
+**New Feature**: Added `refresh` action to tab management commands.
+
+**Implementation**:
+- **Server**: Added `REFRESH` to `TabAction` enum
+- **Extension**: Added `refreshTab` function using Chrome's `tabs.reload()` API
+- **AI Tool**: Updated `open_browser_tool.py` to support `refresh` action
+- **CLI**: Added `tabs refresh <tab_id>` command
+
+**Usage**:
+```bash
+# Refresh a specific managed tab (background, no user disruption)
+local-chrome-server execute tab refresh --tab_id 123
+# Or via CLI
+local-chrome-server tabs refresh 123
+
+# AI Agent usage
+{"type": "tab", "parameters": {"action": "refresh", "tab_id": 123}}
+```
+
+**Behavior**:
+- Refreshes tab without activating it (maintains user browsing isolation)
+- Requires `tab_id` parameter to specify which tab to refresh
+- Works with managed tabs only (ensures tab is in OpenBrowser tab group)
+- Updates tab activity status for tracking purposes
+
 ### Future Enhancements
 
 1. **Improved Visual Recognition**:
