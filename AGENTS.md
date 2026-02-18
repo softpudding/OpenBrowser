@@ -940,6 +940,44 @@ The agent understands natural language and can execute:
 
 **Testing**: Verify that `tabs init <url>` creates a tab in the background, and subsequent `reset_mouse` or `mouse_move` commands do not switch tabs.
 
+### Tab Management and Screenshot Fixes (February 2026)
+
+**Problem 1**: Screenshots captured user's active tab instead of managed AI tab
+**Problem 2**: Visual mouse pointer missing from screenshots
+
+**Root Causes**:
+1. Server-side lacked current tab tracking - commands didn't specify which tab to target
+2. TypeScript and Python command schemas were misaligned (missing fields)
+3. Screenshot command missing `include_visual_mouse` field
+
+**Solution**: Unified tab management system
+
+1. **BaseCommand with tab_id**: Added `tab_id` field to all commands in Python schema
+2. **CommandProcessor tab tracking**: 
+   - Maintains `_current_tab_id` state
+   - Auto-fills `tab_id` when not specified
+   - Updates current tab on `init`, `open`, `switch` actions
+3. **Schema alignment**:
+   - Added `include_visual_mouse` to `ScreenshotCommand` (default: true)
+   - Added `managed_only` to `GetTabsCommand` (default: true)
+4. **Prepared command flow**: All commands go through `_send_prepared_command()` which ensures proper `tab_id`
+
+**Workflow**:
+```
+tabs init https://example.com  # Creates managed tab, sets as current
+screenshot                      # Captures from current managed tab
+mouse_move 100 0               # Moves in current managed tab  
+tabs switch <tab_id>           # Changes current tab
+screenshot                      # Now captures from new current tab
+```
+
+**Visual Mouse Fix**: Screenshots now include visual mouse pointer by default (configurable via `include_visual_mouse` parameter).
+
+**Backward Compatibility**: 
+- Existing commands work without changes
+- When no managed tabs exist, extension falls back to active tab
+- `tab_id` field is optional in API calls
+
 ### Future Enhancements
 
 1. **Improved Visual Recognition**:
