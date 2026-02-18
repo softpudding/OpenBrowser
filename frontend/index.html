@@ -445,7 +445,7 @@
                     <div class="stat-item">
                         <span class="stat-label">Show User Messages:</span>
                         <span class="stat-value">
-                            <input type="checkbox" id="filter-user-message" onchange="updateEventVisibility()">
+                            <input type="checkbox" id="filter-user-message" checked onchange="updateEventVisibility()">
                         </span>
                     </div>
                     <div class="stat-item">
@@ -624,6 +624,7 @@
         // Setup SSE connection for receiving events
         function setupEventSource(conversationId, command) {
             const url = apiUrl(`agent/conversations/${conversationId}/messages`);
+            console.log(`[Frontend] Setting up EventSource for URL: ${url}`);
             
             eventSource = new EventSource(url, {
                 withCredentials: false
@@ -632,12 +633,51 @@
             // Flag to track if error has been handled
             let errorHandled = false;
             
+            // Log EventSource state changes
+            eventSource.onopen = function() {
+                console.log(`[Frontend] EventSource connection opened, readyState: ${eventSource.readyState}`);
+            };
+            
+            eventSource.onerror = function(error) {
+                console.error('[Frontend] EventSource onerror called:', error, 'readyState:', eventSource.readyState);
+                
+                // Skip if error already handled by error event listener
+                if (errorHandled) {
+                    console.log('[Frontend] Error already handled, skipping');
+                    return;
+                }
+                
+                // Mark error as handled
+                errorHandled = true;
+                console.log('[Frontend] Marking error as handled');
+                
+                // Re-enable send button
+                isProcessing = false;
+                document.getElementById('send-button').disabled = false;
+                console.log('[Frontend] Re-enabled send button');
+                
+                // Close EventSource
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                    console.log('[Frontend] Closed EventSource');
+                }
+            };
+            
             // Send the command
+            console.log(`[Frontend] Sending POST request to: ${url}`);
             fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: command })
+            }).then(response => {
+                console.log(`[Frontend] POST response status: ${response.status}, ok: ${response.ok}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response;
             }).catch(error => {
+                console.error('[Frontend] Fetch error:', error);
                 addEvent({
                     type: 'ErrorEvent',
                     text: `Failed to send command: ${error.message}`,
@@ -645,7 +685,9 @@
                 });
                 isProcessing = false;
                 document.getElementById('send-button').disabled = false;
-                eventSource.close();
+                if (eventSource) {
+                    eventSource.close();
+                }
             });
             
             // Handle incoming events
