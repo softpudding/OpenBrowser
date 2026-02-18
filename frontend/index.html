@@ -626,105 +626,207 @@
             const url = apiUrl(`agent/conversations/${conversationId}/messages`);
             console.log(`[Frontend] Setting up EventSource for URL: ${url}`);
             
-            eventSource = new EventSource(url, {
-                withCredentials: false
-            });
+            // Using fetch API for SSE streaming (EventSource only works with GET)
+            eventSource = null; // No EventSource object, using fetch instead
             
             // Flag to track if error has been handled
             let errorHandled = false;
             // Timeout for SSE completion
             let completionTimeout = null;
             
-            // Log EventSource state changes
-            eventSource.onopen = function() {
-                console.log(`[Frontend] EventSource connection opened, readyState: ${eventSource.readyState}`);
-            };
+            // Log SSE connection attempt
+            console.log(`[Frontend] Setting up SSE via POST request to: ${url}`);
             
-            // Add onmessage handler for any untyped events
-            eventSource.onmessage = function(event) {
-                console.log(`[Frontend] EventSource generic onmessage called:`, event);
-                console.log(`[Frontend] onmessage data: "${event.data ? event.data.substring(0, 200) : 'No data'}"`);
-                console.log(`[Frontend] onmessage lastEventId: ${event.lastEventId}`);
-            };
-            
-            eventSource.onerror = function(error) {
-                console.error('[Frontend] EventSource onerror called:', error, 'readyState:', eventSource.readyState);
+            // Process parsed SSE events
+            function processSSEEvent(eventType, eventData) {
+                console.log(`[Frontend] Processing SSE event: ${eventType}, data: "${eventData.substring(0, 200)}..."`);
                 
-                // Skip if error already handled by error event listener
-                if (errorHandled) {
-                    console.log('[Frontend] Error already handled, skipping');
-                    return;
+                try {
+                    if (eventType === 'agent_event') {
+                        const data = JSON.parse(eventData);
+                        processEvent(data);
+                    } else if (eventType === 'complete') {
+                        let message = 'Conversation completed';
+                        try {
+                            const data = JSON.parse(eventData);
+                            message = data.message || message;
+                        } catch (e) {
+                            // Use default message
+                        }
+                        
+                        addEvent({
+                            type: 'SystemEvent',
+                            text: message,
+                            timestamp: new Date().toISOString()
+                        });
+                        
+                        // Clear timeout on completion
+                        if (completionTimeout) {
+                            clearTimeout(completionTimeout);
+                            completionTimeout = null;
+                        }
+                    } else if (eventType === 'error') {
+                        let errorMessage = 'SSE connection error';
+                        try {
+                            const data = JSON.parse(eventData);
+                            errorMessage = data.error || data.message || errorMessage;
+                        } catch (e) {
+                            // If not JSON, use raw data
+                            if (eventData && eventData.trim()) {
+                                errorMessage = eventData;
+                            }
+                        }
+                        
+                        addEvent({
+                            type: 'ErrorEvent',
+                            text: `Error: ${errorMessage}`,
+                            timestamp: new Date().toISOString()
+                        });
+                        
+                        // Clear timeout on error
+                        if (completionTimeout) {
+                            clearTimeout(completionTimeout);
+                            completionTimeout = null;
+                        }
+                    } else if (eventType === 'connected') {
+                        console.log(`[Frontend] SSE connected: ${eventData}`);
+                    } else {
+                        console.warn(`[Frontend] Unknown SSE event type: ${eventType}`);
+                    }
+                } catch (error) {
+                    console.error(`[Frontend] Error processing SSE event ${eventType}:`, error, 'data:', eventData);
+                    addEvent({
+                        type: 'ErrorEvent',
+                        text: `Error processing ${eventType} event: ${error.message}`,
+                        timestamp: new Date().toISOString()
+                    });
                 }
-                
-                // Mark error as handled
-                errorHandled = true;
-                console.log('[Frontend] Marking error as handled');
-                
-                // Clear completion timeout
-                if (completionTimeout) {
-                    clearTimeout(completionTimeout);
-                    completionTimeout = null;
-                }
-                
-                // Re-enable send button
-                isProcessing = false;
-                document.getElementById('send-button').disabled = false;
-                console.log('[Frontend] Re-enabled send button');
-                
-                // Close EventSource
-                if (eventSource) {
-                    eventSource.close();
-                    eventSource = null;
-                    console.log('[Frontend] Closed EventSource');
-                }
-            };
-            
-            // Send the command
+            }
+            // Send the command and read SSE response
             console.log(`[Frontend] Sending POST request to: ${url}`);
+            
+            // Abort controller for cleanup
+            const abortController = new AbortController();
+            
             fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: command })
+                body: JSON.stringify({ text: command }),
+                signal: abortController.signal
             }).then(response => {
-                console.log(`[Frontend] POST response status: ${response.status}, ok: ${response.ok}`);
+                console.log(`[Frontend] POST response status: ${response.status}, ok: ${response.ok}, content-type: ${response.headers.get('content-type')}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
-                return response;
+                
+                // Check if response is SSE
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('text/event-stream')) {
+                    console.warn(`[Frontend] Response is not SSE (content-type: ${contentType})`);
+                    // Try to read as text for debugging
+                    return response.text().then(text => {
+                        console.log(`[Frontend] Non-SSE response: ${text.substring(0, 200)}...`);
+                        throw new Error(`Expected SSE stream but got: ${contentType}`);
+                    });
+                }
+                
+                // Setup SSE stream reader
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let currentEvent = { type: 'message', data: '' };
+                
+                function readStream() {
+                    return reader.read().then(({ done, value }) => {
+                        if (done) {
+                            console.log(`[Frontend] SSE stream completed`);
+                            // Process any remaining data in buffer
+                            if (buffer.trim()) {
+                                console.warn(`[Frontend] Unprocessed buffer at stream end: "${buffer}"`);
+                            }
+                            return;
+                        }
+                        
+                        // Decode and process chunk
+                        const chunk = decoder.decode(value, { stream: true });
+                        buffer += chunk;
+                        
+                        // Split into lines and process
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || ''; // Keep incomplete line
+                        
+                        for (let line of lines) {
+                            line = line.trim();
+                            
+                            // Skip empty lines and comments
+                            if (line === '' || line.startsWith(':')) {
+                                // Empty line indicates end of event
+                                if (line === '' && currentEvent.data) {
+                                    processSSEEvent(currentEvent.type, currentEvent.data);
+                                    currentEvent = { type: 'message', data: '' };
+                                }
+                                continue;
+                            }
+                            
+                            // Parse SSE field
+                            const colonIndex = line.indexOf(':');
+                            if (colonIndex === -1) {
+                                console.warn(`[Frontend] Invalid SSE line (no colon): "${line}"`);
+                                continue;
+                            }
+                            
+                            const field = line.substring(0, colonIndex).trim();
+                            let value = line.substring(colonIndex + 1).trim();
+                            
+                            // Handle leading space (SSE spec)
+                            if (value.startsWith(' ')) {
+                                value = value.substring(1);
+                            }
+                            
+                            // Process field
+                            if (field === 'event') {
+                                currentEvent.type = value;
+                            } else if (field === 'data') {
+                                currentEvent.data = currentEvent.data ? currentEvent.data + '\n' + value : value;
+                            } else if (field === 'id' || field === 'retry') {
+                                // Ignore for now
+                            } else {
+                                console.warn(`[Frontend] Unknown SSE field: ${field}`);
+                            }
+                        }
+                        
+                        // Continue reading
+                        return readStream();
+                    });
+                }
+                
+                // Start reading the stream
+                return readStream();
             }).catch(error => {
-                console.error('[Frontend] Fetch error:', error);
+                // Skip abort errors (expected during cleanup)
+                if (error.name === 'AbortError') {
+                    console.log('[Frontend] Request aborted (expected during cleanup)');
+                    return;
+                }
+                
+                console.error('[Frontend] Fetch/SSE error:', error);
                 addEvent({
                     type: 'ErrorEvent',
-                    text: `Failed to send command: ${error.message}`,
+                    text: `Failed to process command: ${error.message}`,
                     timestamp: new Date().toISOString()
                 });
+            }).finally(() => {
+                // Cleanup
                 isProcessing = false;
                 document.getElementById('send-button').disabled = false;
-                // Clear completion timeout
                 if (completionTimeout) {
                     clearTimeout(completionTimeout);
                     completionTimeout = null;
                 }
-                if (eventSource) {
-                    eventSource.close();
-                }
+                abortController.abort();
             });
             
-            // Handle incoming events
-            eventSource.addEventListener('agent_event', function(event) {
-                console.log(`[Frontend] Received agent_event:`, event);
-                try {
-                    if (event.data && typeof event.data === 'string' && event.data.trim() !== '') {
-                        console.log(`[Frontend] agent_event data: "${event.data.substring(0, 200)}..."`);
-                        const data = JSON.parse(event.data);
-                        processEvent(data);
-                    } else {
-                        console.error('agent_event received empty or invalid data:', event.data);
-                    }
-                } catch (error) {
-                    console.error('Error parsing agent_event:', error, 'data:', event.data);
-                }
-            });
+
             
             eventSource.addEventListener('complete', function(event) {
                 try {
@@ -839,10 +941,8 @@
                     });
                     isProcessing = false;
                     document.getElementById('send-button').disabled = false;
-                    if (eventSource) {
-                        eventSource.close();
-                        eventSource = null;
-                    }
+                    // Note: Cannot abort fetch from here as abortController is in fetch scope
+                    // The fetch will eventually complete or error on its own
                 }
             }, 30000);
             
