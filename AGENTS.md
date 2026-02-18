@@ -582,6 +582,48 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Content script retry logic handles race conditions between page load and extension activation
   - The combination of alarms + heartbeat + exponential backoff provides defense-in-depth
 
+#### 18. Screenshot Causes Tab Switching and Visual Mouse Flickering
+- **Cause**: Multiple factors causing visible disruption during screenshot capture:
+  1. Screenshot command was temporarily activating the managed tab via `activateTabForAutomation()`
+  2. `updateVisualMouse()` function was updating `currentActiveTabId` and cleaning up previous tab's visual mouse
+  3. `chrome.tabs.onActivated` listener was cleaning up visual mouse in previous tab when tab switching occurred
+  4. `getViewportSize()` and visual mouse update operations were sending messages to content script, potentially causing tab activation
+- **Symptoms**:
+  - When using frontend interface with OpenBrowser, screenshot commands cause the page to suddenly jump to the managed tab
+  - Visual mouse pointer flickers or disappears from frontend interface
+  - Tab quickly switches back to the original frontend page after screenshot completes
+  - Disrupts user browsing experience during automation sessions
+- **Comprehensive Fix** (Implemented March 2025):
+  1. **Screenshot Command Modification**:
+     - Removed `activateTabForAutomation()` call from screenshot command handler
+     - Screenshots captured in background using Chrome DevTools Protocol (CDP) without tab switching
+     - **CRITICAL FIX**: Completely removed visual mouse updates and viewport size queries before screenshot
+     - Set `waitForRender` parameter to 0 for background screenshots
+  2. **Visual Mouse Update Enhancement**:
+     - Added `skipActiveTabUpdate` parameter to `updateVisualMouse()` function
+     - Screenshot commands use `skipActiveTabUpdate: true` to avoid disrupting active tab state
+     - Visual mouse updates work in background tabs without activating them
+  3. **Tab Activation Listener Optimization**:
+     - Removed visual mouse cleanup from `chrome.tabs.onActivated` listener
+     - Visual mouse pointers remain in DOM but hidden (`opacity: 0`) when tab is inactive
+     - Content scripts handle visibility based on tab activation and `visual_mouse_update` messages
+  4. **Message Passing Reduction**:
+     - Screenshot commands no longer call `getViewportSize()` or `updateVisualMouse()` before capture
+     - Eliminates all `chrome.tabs.sendMessage` calls during screenshot operations
+     - Visual mouse captured in its current state without updates
+- **Technical Details**:
+  - CDP `Page.captureScreenshot` can capture tab content even when tab is in background
+  - Debugger attachment works without tab activation via `debuggerManager.safeAttachDebugger()`
+  - **Key Insight**: Any `chrome.tabs.sendMessage` call may cause Chrome to briefly activate the target tab
+  - Content script visual mouse starts hidden (`opacity: 0`) and shows only when receiving `visual_mouse_update`
+  - If CDP capture fails, legacy `captureVisibleTab` method may still cause tab switching (requires visible tab)
+- **Debug**:
+  - Check extension logs for "Capturing screenshot via CDP for tab X"
+  - Look for "Taking screenshot without updating visual mouse to avoid tab disruption" message
+  - **Should NOT see**: "Getting viewport size for tab" or "Updating visual mouse" logs during screenshot
+  - Verify screenshot metadata includes `captureMethod: 'cdp'`
+  - Monitor `chrome.tabs.onActivated` logs: should show "Tab activated" but no cleanup messages
+
 ## Coordinate System Documentation
 
 ### Simulated Coordinate System (User Perspective)
@@ -591,27 +633,25 @@ The Local Chrome Server uses a **simulated coordinate system** (also called **pr
 #### Coordinate System Specifications
 
 1. **Resolution**: 1280×720 pixels (720p resolution)
-2. **Origin**: Center of the screen at (0, 0)
-3. **X-axis Range**: -640 to 640 (left to right)
-4. **Y-axis Range**: -360 to 360 (top to bottom)
+2. **Origin**: Top-left corner of the screen at (0, 0)
+3. **X-axis Range**: 0 to 1280 (left to right)
+4. **Y-axis Range**: 0 to 720 (top to bottom)
 5. **Positive Directions**:
    - **Right**: Positive X (+X)
    - **Down**: Positive Y (+Y)
-   - **Left**: Negative X (-X)
-   - **Up**: Negative Y (-Y)
 
 #### Key Points
 
-- **Center-based system**: Unlike traditional screen coordinates (top-left origin), this system uses the center of the screen as (0, 0)
-- **Consistent scaling**: Commands like `mouse move 100 0` move 100 pixels to the right in the simulated coordinate system, which is automatically scaled to the actual screen resolution
+- **Top-left origin system**: Uses traditional screen coordinates with top-left corner as (0, 0)
+- **Absolute positioning**: Commands like `mouse move 640 360` move mouse to absolute position (screen center)
 - **Boundary clamping**: Coordinates are automatically clamped to stay within the viewport bounds
 
 #### Coordinate Conversion Flow
 
 ```
-User Command (simulated coordinates)
+User Command (preset coordinates)
     ↓
-Preset Coordinate System (-1280 to 1280, -720 to 720)
+Preset Coordinate System (0 to 1280, 0 to 720)
     ↓
 Scale based on actual viewport size
     ↓  
@@ -622,12 +662,12 @@ Chrome DevTools Protocol (CDP) commands
 
 #### Examples
 
-| Simulated Coordinate | Screen Position |
-|---------------------|-----------------|
-| (0, 0)              | Screen center   |
-| (-1280, -720)       | Top-left corner |
-| (1280, 720)         | Bottom-right corner |
-| (-640, 360)         | Left-center, upper half |
+| Preset Coordinate | Screen Position |
+|-------------------|-----------------|
+| (0, 0)            | Top-left corner |
+| (1280, 720)       | Bottom-right corner |
+| (640, 360)        | Screen center   |
+| (0, 360)          | Left-center     |
 
 #### Screenshot Coordinate Mapping
 
@@ -779,7 +819,7 @@ OpenBrowserAgent is an AI agent built on the OpenHands SDK that enables natural 
    - Custom tool definition for browser automation
    - Supports mouse movements, clicks, scrolling, keyboard input, and tab management
    - Returns observations with screenshots (1280x720 pixels) and tab information
-   - Uses preset coordinate system (center-based, 1280x720 resolution)
+   - Uses preset coordinate system (top-left origin, 1280x720 resolution)
 
 2. **OpenBrowserAgent** (`server/agent/agent.py`):
    - Main agent class with LLM integration
@@ -853,8 +893,8 @@ The agent understands natural language and can execute:
 
 #### Coordinate System
 - **Resolution**: 1280×720 pixels (preset system)
-- **Origin**: Center of screen at (0, 0)
-- **Range**: X = -640 to 640, Y = -360 to 360
+- **Origin**: Top-left corner at (0, 0)
+- **Range**: X = 0 to 1280, Y = 0 to 720
 - **Positive Directions**: Right (+X), Down (+Y)
 
 #### Screenshot Handling

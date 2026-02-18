@@ -126,12 +126,12 @@ async def execute_command(command_data: dict):
 
 
 @app.post("/mouse/move")
-async def mouse_move(dx: int, dy: int, duration: float = 0.1):
-    """Move mouse relative to current position"""
+async def mouse_move(x: int, y: int, duration: float = 0.1):
+    """Move mouse to absolute position in preset coordinate system (0-1280, 0-720)"""
     command = {
         "type": "mouse_move",
-        "dx": dx,
-        "dy": dy,
+        "x": x,
+        "y": y,
         "duration": duration
     }
     return await execute_command(command)

@@ -43,12 +43,12 @@ class ChromeCLIClient:
         except requests.RequestException as e:
             raise click.ClickException(f"API request failed: {e}")
             
-    def mouse_move(self, dx: int, dy: int, duration: float = 0.1) -> Dict[str, Any]:
-        """Move mouse relative to current position"""
+    def mouse_move(self, x: int, y: int, duration: float = 0.1) -> Dict[str, Any]:
+        """Move mouse to absolute position in preset coordinate system (0-1280, 0-720)"""
         command = {
             "type": "mouse_move",
-            "dx": dx,
-            "dy": dy,
+            "x": x,
+            "y": y,
             "duration": duration
         }
         return self.execute_command(command)
@@ -197,13 +197,13 @@ def mouse():
 
 
 @mouse.command()
-@click.argument('dx', type=int)
-@click.argument('dy', type=int)
+@click.argument('x', type=int)
+@click.argument('y', type=int)
 @click.option('--duration', default=0.1, help='Movement duration in seconds')
 @click.pass_context
-def move(ctx, dx, dy, duration):
-    """Move mouse relative to current position"""
-    result = ctx.obj['client'].mouse_move(dx, dy, duration)
+def move(ctx, x, y, duration):
+    """Move mouse to absolute position in preset coordinate system (0-1280, 0-720)"""
+    result = ctx.obj['client'].mouse_move(x, y, duration)
     _print_result(result)
 
 
@@ -439,15 +439,15 @@ def interactive(ctx):
                 result = ctx.obj['client'].mouse_click(button)
                 _print_result(result)
             elif cmd.lower().startswith('move'):
-                # Move shortcut: move <dx> <dy>
+                # Move shortcut: move <x> <y>
                 parts = cmd.split()
                 if len(parts) != 3:
-                    click.echo("❌ Invalid move command. Use: move <dx> <dy>")
+                    click.echo("❌ Invalid move command. Use: move <x> <y>")
                     continue
                 try:
-                    dx = int(parts[1])
-                    dy = int(parts[2])
-                    result = ctx.obj['client'].mouse_move(dx, dy)
+                    x = int(parts[1])
+                    y = int(parts[2])
+                    result = ctx.obj['client'].mouse_move(x, y)
                     _print_result(result)
                 except ValueError:
                     click.echo("❌ Invalid coordinates. Use integers.")
@@ -679,7 +679,7 @@ def _print_interactive_help():
     click.echo("  Shortcut Commands:")
     click.echo("    reset                    - Reset mouse to center")
     click.echo("    click [left|right|middle] - Click mouse button (default: left)")
-    click.echo("    move <dx> <dy>          - Move mouse relative")
+    click.echo("    move <x> <y>          - Move mouse to absolute position (0-1280, 0-720)")
     click.echo("    scroll <up|down|left|right> [amount] - Scroll (default: down, 100)")
     click.echo("    type <text>             - Type text")
     click.echo("    press <key> [modifiers] - Press special key")
@@ -691,7 +691,7 @@ def _print_interactive_help():
     click.echo("    tabs switch <tab_id>    - Switch to tab")
     click.echo("")
     click.echo("  JSON Commands (send directly to API):")
-    click.echo("    {\"type\": \"mouse_move\", \"dx\": 100, \"dy\": 50}")
+    click.echo("    {\"type\": \"mouse_move\", \"x\": 640, \"y\": 360}")
     click.echo("    {\"type\": \"mouse_click\", \"button\": \"left\"}")
     click.echo("    {\"type\": \"reset_mouse\"}")
     click.echo("    {\"type\": \"keyboard_type\", \"text\": \"Hello World\"}")
