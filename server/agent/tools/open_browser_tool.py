@@ -84,9 +84,9 @@ Supported action types and their parameters:
 
 7. tab - Tab management operations
    Parameters: {
-     "action": str,  # "init", "open", "close", "switch", "list"
+     "action": str,  # "init", "open", "close", "switch", "list", "refresh"
      "url": str (optional),  # URL for open/init actions
-     "tab_id": int (optional)  # Tab ID for close/switch actions
+     "tab_id": int (optional)  # Tab ID for close/switch/refresh actions
    }
 """
 
@@ -242,7 +242,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                         'open': TabAction.OPEN,
                         'close': TabAction.CLOSE,
                         'switch': TabAction.SWITCH,
-                        'list': TabAction.LIST
+                        'list': TabAction.LIST,
+                        'refresh': TabAction.REFRESH
                     }
                     if action_str in action_map:
                         action_enum = action_map[action_str]
@@ -264,6 +265,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                     message = f"Closed tab ID: {params.get('tab_id')}"
                 elif action_str == "switch":
                     message = f"Switched to tab ID: {params.get('tab_id')}"
+                elif action_str == "refresh":
+                    message = f"Refreshed tab ID: {params.get('tab_id')}"
                 elif action_str == "list":
                     message = "Listed tabs"
                 else:
@@ -406,7 +409,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                         'open': TabAction.OPEN,
                         'close': TabAction.CLOSE,
                         'switch': TabAction.SWITCH,
-                        'list': TabAction.LIST
+                        'list': TabAction.LIST,
+                        'refresh': TabAction.REFRESH
                     }
                     if action_str in action_map:
                         action_enum = action_map[action_str]
@@ -428,6 +432,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                     message = f"Closed tab ID: {params.get('tab_id')}"
                 elif action_str == "switch":
                     message = f"Switched to tab ID: {params.get('tab_id')}"
+                elif action_str == "refresh":
+                    message = f"Refreshed tab ID: {params.get('tab_id')}"
                 elif action_str == "list":
                     message = "Listed tabs"
                 else:
@@ -694,9 +700,9 @@ All actions use a unified format with `type` and `parameters` fields:
    {
      "type": "tab",
      "parameters": {
-       "action": "open",    # "init", "open", "close", "switch", "list"
+       "action": "open",    # "init", "open", "close", "switch", "list", "refresh"
        "url": "https://example.com",  # Required for "init" and "open"
-       "tab_id": 123        # Required for "close" and "switch"
+       "tab_id": 123        # Required for "close", "switch", and "refresh"
      }
    }
    ```

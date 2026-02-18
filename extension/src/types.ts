@@ -1,6 +1,6 @@
 export type MouseButton = 'left' | 'right' | 'middle';
 export type ScrollDirection = 'up' | 'down' | 'left' | 'right';
-export type TabAction = 'open' | 'close' | 'switch' | 'list' | 'init';
+export type TabAction = 'open' | 'close' | 'switch' | 'list' | 'init' | 'refresh';
 
 export interface BaseCommand {
   type: string;

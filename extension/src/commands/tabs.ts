@@ -130,6 +130,18 @@ export async function switchToTab(tabId: number): Promise<any> {
 }
 
 /**
+ * Refresh tab
+ */
+export async function refreshTab(tabId: number): Promise<any> {
+  await chrome.tabs.reload(tabId);
+  
+  return {
+    success: true,
+    message: `Refreshed tab ${tabId}`,
+  };
+}
+
+/**
  * Get current active tab
  */
 export async function getCurrentTab(): Promise<chrome.tabs.Tab | null> {
@@ -142,5 +154,6 @@ export const tabs = {
   openTab,
   closeTab,
   switchToTab,
+  refreshTab,
   getCurrentTab,
 };

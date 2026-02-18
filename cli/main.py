@@ -142,6 +142,15 @@ class ChromeCLIClient:
         }
         return self.execute_command(command)
         
+    def tab_refresh(self, tab_id: int) -> Dict[str, Any]:
+        """Refresh tab"""
+        command = {
+            "type": "tab",
+            "action": "refresh",
+            "tab_id": tab_id
+        }
+        return self.execute_command(command)
+        
     def get_tabs(self, managed_only: bool = True) -> Dict[str, Any]:
         """Get list of tabs
         Args:
@@ -368,6 +377,15 @@ def close(ctx, tab_id):
 def switch(ctx, tab_id):
     """Switch to tab"""
     result = ctx.obj['client'].tab_switch(tab_id)
+    _print_result(result)
+
+
+@tabs.command()
+@click.argument('tab_id', type=int)
+@click.pass_context
+def refresh(ctx, tab_id):
+    """Refresh tab"""
+    result = ctx.obj['client'].tab_refresh(tab_id)
     _print_result(result)
 
 

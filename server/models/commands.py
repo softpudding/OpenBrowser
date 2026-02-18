@@ -23,6 +23,7 @@ class TabAction(str, Enum):
     LIST = "list"
     SWITCH = "switch"
     INIT = "init"
+    REFRESH = "refresh"
 
 
 class BaseCommand(BaseModel):

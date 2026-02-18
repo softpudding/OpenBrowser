@@ -492,6 +492,24 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               timestamp: Date.now(),
             };
 
+          case 'refresh':
+            if (!command.tab_id) {
+              throw new Error('tab_id is required for refresh action');
+            }
+            // Ensure tab is managed by tab manager
+            await tabManager.ensureTabManaged(command.tab_id);
+            // Update tab activity for status tracking
+            tabManager.updateTabActivity(command.tab_id);
+            // Prepare tab for automation (no activation for refresh)
+            await activateTabForAutomation(command.tab_id);
+            const refreshResult = await tabs.refreshTab(command.tab_id);
+            return {
+              success: true,
+              message: refreshResult.message,
+              data: refreshResult,
+              timestamp: Date.now(),
+            };
+
           default:
             throw new Error(`Unknown tab action: ${command.action}`);
         }
