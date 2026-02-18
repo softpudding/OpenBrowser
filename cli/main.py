@@ -276,10 +276,13 @@ def capture(ctx, tab_id, no_cursor, quality, save, no_auto_save):
         if saved_path:
             if save:
                 sys.stdout.write(f"Screenshot saved\n")
+                # 保存到自定义路径时输出到stderr
+                sys.stderr.write(f"File saved to: {saved_path}\n")
             else:
                 # 使用简单的输出，避免可能的问题
                 sys.stdout.write(f"Screenshot automatically saved\n")
-                sys.stdout.write(f"  Path: {saved_path}\n")
+                # 将路径输出到stderr，避免被当作命令执行
+                sys.stderr.write(f"Path: {saved_path}\n")
                 sys.stdout.write(f"  Use --save <path> to specify custom location\n")
                 sys.stdout.write(f"  Use --no-auto-save to disable auto-saving\n")
         
@@ -472,7 +475,8 @@ def interactive(ctx):
                     
                     if saved_path:
                         sys.stdout.write(f"Screenshot automatically saved\n")
-                        sys.stdout.write(f"  Path: {saved_path}\n")
+                        # 将路径输出到stderr，避免被当作命令执行
+                        sys.stderr.write(f"Path: {saved_path}\n")
                     
                     # Print metadata if available
                     if 'data' in result and 'metadata' in result['data']:
