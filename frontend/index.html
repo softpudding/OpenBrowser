@@ -630,6 +630,9 @@
                 withCredentials: false
             });
             
+            // Flag to track if error has been handled
+            let errorHandled = false;
+            
             // Send the command
             fetch(url, {
                 method: 'POST',
@@ -700,6 +703,9 @@
             
             eventSource.addEventListener('error', function(event) {
                 try {
+                    // Mark error as handled
+                    errorHandled = true;
+                    
                     // Check if event.data exists and is a non-empty string (not undefined/null)
                     if (event.data && typeof event.data === 'string' && event.data.trim() !== '') {
                         // Try to parse as JSON if it doesn't look like a simple string
@@ -749,6 +755,14 @@
             // Handle connection errors
             eventSource.onerror = function(error) {
                 console.error('EventSource error:', error);
+                
+                // Skip if error already handled by error event listener
+                if (errorHandled) {
+                    return;
+                }
+                
+                // Mark error as handled
+                errorHandled = true;
                 
                 // Re-enable send button
                 isProcessing = false;
