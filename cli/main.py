@@ -255,29 +255,32 @@ def screenshot():
 @click.option('--no-cursor', is_flag=True, help='Exclude mouse cursor from screenshot')
 @click.option('--quality', default=90, type=click.IntRange(1, 100), help='JPEG quality')
 @click.option('--save', type=click.Path(), help='Save screenshot to file')
+@click.option('--no-auto-save', is_flag=True, help='Disable automatic saving to screenshots directory')
 @click.pass_context
-def capture(ctx, tab_id, no_cursor, quality, save):
+def capture(ctx, tab_id, no_cursor, quality, save, no_auto_save):
     """Capture screenshot"""
     result = ctx.obj['client'].screenshot(tab_id, not no_cursor, quality)
     
     if result.get('success'):
         click.echo("✅ Screenshot captured successfully")
         
-        # Save to file if requested
-        if save and 'data' in result and 'image_data' in result['data']:
-            import base64
-            image_data = result['data']['image_data']
-            
-            # Remove data URL prefix if present
-            if image_data.startswith('data:image/'):
-                # Extract base64 data
-                header, data = image_data.split(',', 1)
-                image_data = data
-                
-            # Decode and save
-            with open(save, 'wb') as f:
-                f.write(base64.b64decode(image_data))
-            click.echo(f"📸 Screenshot saved to {save}")
+        # Save screenshot using helper function
+        saved_path = _save_screenshot_result(result, save, not no_auto_save)
+        
+        if saved_path:
+            if save:
+                click.echo(f"📸 Screenshot saved to {saved_path}")
+            else:
+                click.echo(f"📸 Screenshot automatically saved to {saved_path}")
+                click.echo(f"   Use --save <path> to specify custom location, or --no-auto-save to disable auto-saving")
+        
+        # Print metadata if available
+        if 'data' in result and 'metadata' in result['data']:
+            metadata = result['data']['metadata']
+            click.echo(f"   Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}")
+            click.echo(f"   Viewport: {metadata.get('viewportWidth', 'unknown')}x{metadata.get('viewportHeight', 'unknown')}")
+            if metadata.get('resizedToPreset', False):
+                click.echo(f"   Resized to preset coordinate system (2560×1440)")
     else:
         _print_result(result)
 
@@ -436,7 +439,24 @@ def interactive(ctx):
             elif cmd.lower() == 'screenshot':
                 # Screenshot shortcut
                 result = ctx.obj['client'].screenshot()
-                _print_result(result)
+                
+                if result.get('success'):
+                    click.echo("✅ Screenshot captured successfully")
+                    
+                    # Save screenshot automatically in interactive mode
+                    saved_path = _save_screenshot_result(result, None, True)
+                    
+                    if saved_path:
+                        click.echo(f"📸 Screenshot automatically saved to {saved_path}")
+                    
+                    # Print metadata if available
+                    if 'data' in result and 'metadata' in result['data']:
+                        metadata = result['data']['metadata']
+                        click.echo(f"   Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}")
+                        if metadata.get('resizedToPreset', False):
+                            click.echo(f"   Resized to preset coordinate system (2560×1440)")
+                else:
+                    _print_result(result)
             elif cmd.lower().startswith('tabs '):
                 # Tabs shortcuts: tabs list, tabs init <url>, tabs open <url>, tabs close <id>, tabs switch <id>
                 parts = cmd.split()
@@ -498,6 +518,50 @@ def interactive(ctx):
             break
         except Exception as e:
             click.echo(f"❌ Error: {e}")
+
+
+def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = None, 
+                           auto_save: bool = True) -> Optional[str]:
+    """Save screenshot from result and return saved file path"""
+    if not result.get('success') or 'data' not in result or 'image_data' not in result['data']:
+        return None
+    
+    import base64
+    import os
+    from datetime import datetime
+    
+    image_data = result['data']['image_data']
+    
+    # Remove data URL prefix if present
+    if image_data.startswith('data:image/'):
+        header, data = image_data.split(',', 1)
+        image_data = data
+    
+    saved_path = None
+    
+    # Save to file if requested via save_path
+    if save_path:
+        with open(save_path, 'wb') as f:
+            f.write(base64.b64decode(image_data))
+        saved_path = save_path
+    
+    # Auto-save to screenshots directory if not disabled and no custom save path
+    elif auto_save:
+        # Create screenshots directory if it doesn't exist
+        screenshot_dir = "./screenshots"
+        os.makedirs(screenshot_dir, exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join(screenshot_dir, f"screenshot_{timestamp}.png")
+        
+        # Save the file
+        with open(filename, 'wb') as f:
+            f.write(base64.b64decode(image_data))
+        
+        saved_path = filename
+    
+    return saved_path
 
 
 def _print_result(result: Dict[str, Any]):
