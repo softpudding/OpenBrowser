@@ -267,25 +267,29 @@ def capture(ctx, tab_id, no_cursor, quality, save, no_auto_save):
     result = ctx.obj['client'].screenshot(tab_id, not no_cursor, quality)
     
     if result.get('success'):
-        print("✅ Screenshot captured successfully")
+        import sys
+        sys.stdout.write("Screenshot captured successfully\n")
         
         # Save screenshot using helper function
         saved_path = _save_screenshot_result(result, save, not no_auto_save)
         
         if saved_path:
             if save:
-                print(f"📸 Screenshot saved to {saved_path}")
+                sys.stdout.write(f"Screenshot saved\n")
             else:
-                print(f"📸 Screenshot automatically saved to {saved_path}")
-                print(f"   Use --save <path> to specify custom location, or --no-auto-save to disable auto-saving")
+                # 使用简单的输出，避免可能的问题
+                sys.stdout.write(f"Screenshot automatically saved\n")
+                sys.stdout.write(f"  Path: {saved_path}\n")
+                sys.stdout.write(f"  Use --save <path> to specify custom location\n")
+                sys.stdout.write(f"  Use --no-auto-save to disable auto-saving\n")
         
         # Print metadata if available
         if 'data' in result and 'metadata' in result['data']:
             metadata = result['data']['metadata']
-            print(f"   Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}")
-            print(f"   Viewport: {metadata.get('viewportWidth', 'unknown')}x{metadata.get('viewportHeight', 'unknown')}")
+            sys.stdout.write(f"  Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}\n")
+            sys.stdout.write(f"  Viewport: {metadata.get('viewportWidth', 'unknown')}x{metadata.get('viewportHeight', 'unknown')}\n")
             if metadata.get('resizedToPreset', False):
-                print(f"   Resized to preset coordinate system (2560×1440)")
+                sys.stdout.write(f"  Resized to preset coordinate system (2560x1440)\n")
     else:
         _print_result(result)
 
@@ -460,20 +464,22 @@ def interactive(ctx):
                 result = ctx.obj['client'].screenshot()
                 
                 if result.get('success'):
-                    print("✅ Screenshot captured successfully")
+                    import sys
+                    sys.stdout.write("Screenshot captured successfully\n")
                     
                     # Save screenshot automatically in interactive mode
                     saved_path = _save_screenshot_result(result, None, True)
                     
                     if saved_path:
-                        print(f"📸 Screenshot automatically saved to {saved_path}")
+                        sys.stdout.write(f"Screenshot automatically saved\n")
+                        sys.stdout.write(f"  Path: {saved_path}\n")
                     
                     # Print metadata if available
                     if 'data' in result and 'metadata' in result['data']:
                         metadata = result['data']['metadata']
-                        print(f"   Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}")
+                        sys.stdout.write(f"  Size: {metadata.get('width', 'unknown')}x{metadata.get('height', 'unknown')}\n")
                         if metadata.get('resizedToPreset', False):
-                            print(f"   Resized to preset coordinate system (2560×1440)")
+                            sys.stdout.write(f"  Resized to preset coordinate system (2560x1440)\n")
                 else:
                     _print_result(result)
             elif cmd.lower().startswith('tabs '):
@@ -611,14 +617,15 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
 
 def _print_result(result: Dict[str, Any]):
     """Print command result"""
+    import sys
     if result.get('success'):
-        click.echo("✅ Command executed successfully")
+        sys.stdout.write("Command executed successfully\n")
         if result.get('message'):
-            click.echo(f"   {result['message']}")
+            sys.stdout.write(f"   {result['message']}\n")
     else:
-        click.echo("❌ Command failed")
+        sys.stdout.write("Command failed\n")
         if result.get('error'):
-            click.echo(f"   Error: {result['error']}")
+            sys.stdout.write(f"   Error: {result['error']}\n")
 
 
 def _print_tabs_result(result: Dict[str, Any]):
