@@ -346,21 +346,21 @@ async def process_agent_message(
         """Run the conversation in a separate thread (synchronous)"""
         nonlocal conversation_finished, conversation_error
         try:
-            print(f"DEBUG: run_conversation starting for {conversation_id}")
+            logger.debug(f"DEBUG: run_conversation starting for {conversation_id}")
             logger.debug(f"Starting conversation execution in thread for {conversation_id}")
             
             # Set up event loop for this thread
             import asyncio
             try:
                 loop = asyncio.get_event_loop()
-                print(f"DEBUG: Using existing event loop in thread")
+                logger.debug(f"DEBUG: Using existing event loop in thread")
             except RuntimeError:
-                print(f"DEBUG: Creating new event loop for thread")
+                logger.debug(f"DEBUG: Creating new event loop for thread")
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
             
             # Send user message to conversation
-            print(f"DEBUG: Sending message to conversation")
+            logger.debug(f"DEBUG: Sending message to conversation")
             conv_state.conversation.send_message(message_text)
             
             # Run the conversation (check if it's async or sync)
@@ -368,30 +368,30 @@ async def process_agent_message(
             run_method = conv_state.conversation.run
             
             if inspect.iscoroutinefunction(run_method):
-                print(f"DEBUG: conversation.run() is async, running in thread event loop")
+                logger.debug(f"DEBUG: conversation.run() is async, running in thread event loop")
                 try:
-                    print(f"DEBUG: Running async conversation.run()")
+                    logger.debug(f"DEBUG: Running async conversation.run()")
                     loop.run_until_complete(run_method())
-                    print(f"DEBUG: Async conversation.run() completed successfully")
+                    logger.debug(f"DEBUG: Async conversation.run() completed successfully")
                 finally:
                     pass  # Don't close the loop - tools might still need it
             else:
-                print(f"DEBUG: conversation.run() is sync, calling directly")
+                logger.debug(f"DEBUG: conversation.run() is sync, calling directly")
                 run_method()
-                print(f"DEBUG: Sync conversation.run() completed successfully")
+                logger.debug(f"DEBUG: Sync conversation.run() completed successfully")
             logger.debug(f"Conversation {conversation_id} execution completed")
-            print(f"DEBUG: Putting complete event into queue")
+            logger.debug(f"DEBUG: Putting complete event into queue")
             # Put completion event in queue
             event_queue.put(SSEEvent("complete", {
                 "conversation_id": conversation_id,
                 "message": "Conversation completed"
             }))
-            print(f"DEBUG: Complete event put into queue")
+            logger.debug(f"DEBUG: Complete event put into queue")
             
         except Exception as e:
-            print(f"DEBUG: Exception in run_conversation: {e}")
+            logger.debug(f"DEBUG: Exception in run_conversation: {e}")
             import traceback
-            traceback.print_exc()
+            logger.error(traceback.format_exc())
             logger.error(f"Error running conversation in thread: {e}")
             conversation_error = e
             # Put error event in queue
