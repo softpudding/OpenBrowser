@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 from server.core.processor import command_processor
 from server.models.commands import (
     MouseMoveCommand, MouseClickCommand, MouseScrollCommand,
-    KeyboardTypeCommand, KeyboardPressCommand, ScreenshotCommand,
-    TabCommand, GetTabsCommand, ResetMouseCommand,
+    KeyboardTypeCommand, ScreenshotCommand,
+    TabCommand, GetTabsCommand,
     MouseButton, ScrollDirection, TabAction
 )
 
@@ -38,55 +38,47 @@ logger = logging.getLogger(__name__)
 class OpenBrowserAction(Action):
     """Browser automation action with unified parameter system"""
     type: str = Field(description="Type of browser operation")
-    parameters: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Parameters for the operation. Structure depends on 'type' field."
-    )
+    # Mouse move parameters
+    x: Optional[int] = Field(default=None, description="X coordinate for mouse_move (0-1280)")
+    y: Optional[int] = Field(default=None, description="Y coordinate for mouse_move (0-720)")
+    # Mouse scroll parameters
+    direction: Optional[str] = Field(default=None, description="Direction for mouse_scroll: 'up', 'down', 'left', 'right'")
+    # Keyboard type parameters
+    text: Optional[str] = Field(default=None, description="Text for keyboard_type")
+    # Tab operation parameters
+    action: Optional[str] = Field(default=None, description="Action for tab operations: 'init', 'open', 'close', 'switch', 'list', 'refresh'")
+    url: Optional[str] = Field(default=None, description="URL for tab operations (required for init and open)")
+    tab_id: Optional[int] = Field(default=None, description="Tab ID for tab operations (required for close, switch, refresh)")
 
 
 # --- Supported Action Types and Their Parameters ---
 """
 Supported action types and their parameters:
 
-1. reset_mouse - Reset mouse to screen center
-   Parameters: {}
-
-2. mouse_move - Move mouse relative to current position
+1. mouse_move - Move mouse to absolute position
    Parameters: {
-     "dx": int,  # Horizontal movement (-640 to 640, positive = right)
-     "dy": int,  # Vertical movement (-360 to 360, positive = down)
-     "duration": float (optional, default 0.1)  # Movement duration in seconds
+     "x": int,  # X coordinate (0 to 1280, left to right)
+     "y": int,  # Y coordinate (0 to 720, top to bottom)
    }
 
-3. mouse_click - Click at current mouse position
-   Parameters: {
-     "button": str (optional, default "left"),  # "left", "right", "middle"
-     "double": bool (optional, default False),  # Double click if True
-     "count": int (optional, default 1)  # Number of clicks (1-3)
-   }
+2. mouse_click - Click at current mouse position
+   Parameters: {}  # Only left button, single click
 
-4. mouse_scroll - Scroll at current mouse position
+3. mouse_scroll - Scroll at current mouse position
    Parameters: {
      "direction": str (optional, default "down"),  # "up", "down", "left", "right"
-     "amount": int (optional, default 100)  # Scroll amount in pixels (1-1000)
    }
 
-5. keyboard_type - Type text at current focus
+4. keyboard_type - Type text at current focus
    Parameters: {
      "text": str  # Text to type (max 1000 characters)
    }
 
-6. keyboard_press - Press special key
-   Parameters: {
-     "key": str,  # Key to press (e.g., "Enter", "Escape", "Tab", "Backspace")
-     "modifiers": List[str] (optional)  # Modifier keys (e.g., ["Control", "Shift"])
-   }
-
-7. tab - Tab management operations
+5. tab - Tab management operations
    Parameters: {
      "action": str,  # "init", "open", "close", "switch", "list", "refresh"
      "url": str (optional),  # URL for open/init actions
-     "tab_id": int (optional)  # Tab ID for close/switch/refresh actions
+     "tab_id": int (optional)  # Tab ID for close, switch, and refresh actions
    }
 """
 
@@ -163,88 +155,67 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
     
     async def _execute_action(self, action: OpenBrowserAction) -> OpenBrowserObservation:
         """Execute a browser action asynchronously"""
-        logger.debug(f"DEBUG: _execute_action called with action_type={action.type}, params={action.parameters}")
+        logger.debug(f"DEBUG: _execute_action called with action_type={action.type}")
         try:
-            # Get action type and parameters
+            # Get action type
             action_type = action.type
-            params = action.parameters
-            
-            # Handle nested parameters structure (common LLM error)
-            if 'parameters' in params and isinstance(params['parameters'], dict):
-                # If params contains a 'parameters' key, use that as the actual parameters
-                # This handles the case where LLM sends {'action': 'mouse_move', 'parameters': {'dx': 0, 'dy': 100}}
-                logger.warning(f"⚠️ LLM generated nested parameters structure. Action type: {action_type}, Original params: {action.parameters}")
-                params = params['parameters']
-            
-            # Also handle case where LLM puts 'action' field inside parameters (should be 'type' at top level)
-            if 'action' in params and action_type != 'tab':
-                # For non-tab actions, 'action' field inside parameters is usually a mistake
-                logger.warning(f"⚠️ LLM may have misplaced 'action' field in parameters. Action type: {action_type}, Params contains 'action': {params.get('action')}")
-                # Don't remove it here, let it fail with KeyError if it's actually needed
-                # (tab action type legitimately has 'action' parameter)
             
             # Convert to appropriate server command based on type
             result = None
             message = ""
             
             if action_type == "mouse_move":
+                # Validate required parameters
+                if action.x is None or action.y is None:
+                    raise ValueError("mouse_move requires x and y parameters")
                 command = MouseMoveCommand(
-                    dx=params['dx'],
-                    dy=params['dy'],
-                    duration=params.get('duration', 0.1)
+                    x=action.x,
+                    y=action.y,
+                    duration=0.1  # Default duration
                 )
                 result = await self._execute_command(command)
-                message = f"Moved mouse by ({params['dx']}, {params['dy']})"
+                message = f"Moved mouse to ({action.x}, {action.y})"
                 
             elif action_type == "mouse_click":
                 # Convert button string to MouseButton enum
-                button_str = params.get('button', 'left')
+                button_str = action.button if action.button is not None else 'left'
                 button_enum = MouseButton(button_str)
                 command = MouseClickCommand(
                     button=button_enum,
-                    double=params.get('double', False),
-                    count=params.get('count', 1)
+                    double=action.double if action.double is not None else False,
+                    count=action.count if action.count is not None else 1
                 )
                 result = await self._execute_command(command)
                 message = f"Clicked mouse button: {button_str}"
                 
             elif action_type == "mouse_scroll":
                 # Convert direction string to ScrollDirection enum
-                direction_str = params.get('direction', 'down')
+                direction_str = action.direction if action.direction is not None else 'down'
                 direction_enum = ScrollDirection(direction_str)
                 command = MouseScrollCommand(
                     direction=direction_enum,
-                    amount=params.get('amount', 100)
+                    amount=720  # Default scroll amount
                 )
                 result = await self._execute_command(command)
-                message = f"Scrolled {direction_str} by {params.get('amount', 100)} pixels"
-                
-            elif action_type == "reset_mouse":
-                command = ResetMouseCommand()
-                result = await self._execute_command(command)
-                message = "Reset mouse to screen center"
+                message = f"Scrolled {direction_str} by 720 pixels"
                 
             elif action_type == "keyboard_type":
-                command = KeyboardTypeCommand(text=params['text'])
+                # Validate required parameters
+                if action.text is None:
+                    raise ValueError("keyboard_type requires text parameter")
+                command = KeyboardTypeCommand(text=action.text)
                 result = await self._execute_command(command)
-                text = params['text']
+                text = action.text
                 if len(text) > 50:
                     message = f"Typed: '{text[:50]}...'"
                 else:
                     message = f"Typed: '{text}'"
                 
-            elif action_type == "keyboard_press":
-                command = KeyboardPressCommand(
-                    key=params['key'],
-                    modifiers=params.get('modifiers', [])
-                )
-                result = await self._execute_command(command)
-                modifiers = params.get('modifiers', [])
-                modifier_str = f" with modifiers {modifiers}" if modifiers else ""
-                message = f"Pressed key: {params['key']}{modifier_str}"
-                
             elif action_type == "tab":
-                action_str = params['action']
+                # Validate required parameters
+                if action.action is None:
+                    raise ValueError("tab requires action parameter")
+                action_str = action.action
                 # Convert action string to TabAction enum
                 # TabAction enum values are uppercase, so convert 'open' -> 'OPEN'
                 try:
@@ -266,21 +237,21 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 
                 command = TabCommand(
                     action=action_enum,
-                    url=params.get('url'),
-                    tab_id=params.get('tab_id')
+                    url=action.url,
+                    tab_id=action.tab_id
                 )
                 result = await self._execute_command(command)
                 
                 if action_str == "open":
-                    message = f"Opened tab with URL: {params.get('url')}"
+                    message = f"Opened tab with URL: {action.url}"
                 elif action_str == "init":
-                    message = f"Initialized session with URL: {params.get('url')}"
+                    message = f"Initialized session with URL: {action.url}"
                 elif action_str == "close":
-                    message = f"Closed tab ID: {params.get('tab_id')}"
+                    message = f"Closed tab ID: {action.tab_id}"
                 elif action_str == "switch":
-                    message = f"Switched to tab ID: {params.get('tab_id')}"
+                    message = f"Switched to tab ID: {action.tab_id}"
                 elif action_str == "refresh":
-                    message = f"Refreshed tab ID: {params.get('tab_id')}"
+                    message = f"Refreshed tab ID: {action.tab_id}"
                 elif action_str == "list":
                     message = "Listed tabs"
                 else:
@@ -329,14 +300,10 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 screenshot_data_url=screenshot_data_url
             )
             
-        except KeyError as e:
+        except ValueError as e:
             # Provide friendly error message for missing parameters
-            missing_key = str(e).strip("'")
-            logger.error(f"KeyError: Missing required parameter '{missing_key}' in action '{action_type}'")
-            logger.error(f"Parameters received: {action.parameters}")
-            error_msg = f"Missing required parameter '{missing_key}' for action '{action_type}'. "
-            error_msg += "Check if parameters have correct structure (should be flat, not nested). "
-            error_msg += f"Received parameters: {action.parameters}"
+            logger.error(f"ValueError: {e} in action '{action.type}'")
+            error_msg = f"Missing or invalid parameters for action '{action.type}': {e}"
             return OpenBrowserObservation(
                 success=False,
                 error=error_msg,
@@ -359,88 +326,65 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
     
     def _execute_action_sync(self, action: OpenBrowserAction) -> OpenBrowserObservation:
         """Execute a browser action synchronously via HTTP"""
-        logger.debug(f"DEBUG: _execute_action_sync called with action_type={action.type}, params={action.parameters}")
+        logger.debug(f"DEBUG: _execute_action_sync called with action_type={action.type}")
         try:
-            # Get action type and parameters
+            # Get action type
             action_type = action.type
-            params = action.parameters
-            
-            # Handle nested parameters structure (common LLM error)
-            if 'parameters' in params and isinstance(params['parameters'], dict):
-                # If params contains a 'parameters' key, use that as the actual parameters
-                # This handles the case where LLM sends {'action': 'mouse_move', 'parameters': {'dx': 0, 'dy': 100}}
-                logger.warning(f"⚠️ LLM generated nested parameters structure (sync). Action type: {action_type}, Original params: {action.parameters}")
-                params = params['parameters']
-            
-            # Also handle case where LLM puts 'action' field inside parameters (should be 'type' at top level)
-            if 'action' in params and action_type != 'tab':
-                # For non-tab actions, 'action' field inside parameters is usually a mistake
-                logger.warning(f"⚠️ LLM may have misplaced 'action' field in parameters (sync). Action type: {action_type}, Params contains 'action': {params.get('action')}")
-                # Don't remove it here, let it fail with KeyError if it's actually needed
-                # (tab action type legitimately has 'action' parameter)
             
             # Convert to appropriate server command based on type
             result_dict = None
             message = ""
             
             if action_type == "mouse_move":
+                # Validate required parameters
+                if action.x is None or action.y is None:
+                    raise ValueError("mouse_move requires x and y parameters")
                 command = MouseMoveCommand(
-                    dx=params['dx'],
-                    dy=params['dy'],
-                    duration=params.get('duration', 0.1)
+                    x=action.x,
+                    y=action.y,
+                    duration=0.1  # Default duration
                 )
                 result_dict = self._execute_command_sync(command)
-                message = f"Moved mouse by ({params['dx']}, {params['dy']})"
+                message = f"Moved mouse to ({action.x}, {action.y})"
                 
             elif action_type == "mouse_click":
-                # Convert button string to MouseButton enum
-                button_str = params.get('button', 'left')
-                button_enum = MouseButton(button_str)
+                # Use default left click, single click
                 command = MouseClickCommand(
-                    button=button_enum,
-                    double=params.get('double', False),
-                    count=params.get('count', 1)
+                    button=MouseButton.LEFT,
+                    double=False,
+                    count=1
                 )
                 result_dict = self._execute_command_sync(command)
-                message = f"Clicked mouse button: {button_str}"
+                message = "Clicked mouse (left button)"
                 
             elif action_type == "mouse_scroll":
                 # Convert direction string to ScrollDirection enum
-                direction_str = params.get('direction', 'down')
+                direction_str = action.direction if action.direction is not None else 'down'
                 direction_enum = ScrollDirection(direction_str)
                 command = MouseScrollCommand(
                     direction=direction_enum,
-                    amount=params.get('amount', 100)
+                    amount=720  # Default scroll amount
                 )
                 result_dict = self._execute_command_sync(command)
-                message = f"Scrolled {direction_str} by {params.get('amount', 100)} pixels"
-                
-            elif action_type == "reset_mouse":
-                command = ResetMouseCommand()
-                result_dict = self._execute_command_sync(command)
-                message = "Reset mouse to screen center"
+                message = f"Scrolled {direction_str} by 720 pixels"
                 
             elif action_type == "keyboard_type":
-                command = KeyboardTypeCommand(text=params['text'])
+                # Validate required parameters
+                if action.text is None:
+                    raise ValueError("keyboard_type requires text parameter")
+                command = KeyboardTypeCommand(text=action.text)
                 result_dict = self._execute_command_sync(command)
-                text = params['text']
+                text = action.text
                 if len(text) > 50:
                     message = f"Typed: '{text[:50]}...'"
                 else:
                     message = f"Typed: '{text}'"
                 
-            elif action_type == "keyboard_press":
-                command = KeyboardPressCommand(
-                    key=params['key'],
-                    modifiers=params.get('modifiers', [])
-                )
-                result_dict = self._execute_command_sync(command)
-                modifiers = params.get('modifiers', [])
-                modifier_str = f" with modifiers {modifiers}" if modifiers else ""
-                message = f"Pressed key: {params['key']}{modifier_str}"
-                
             elif action_type == "tab":
-                action_str = params['action']
+                # Validate required parameters
+                if action.action is None:
+                    raise ValueError("tab requires action parameter")
+                action_str = action.action
                 # Convert action string to TabAction enum
                 # TabAction enum values are uppercase, so convert 'open' -> 'OPEN'
                 try:
@@ -462,21 +406,21 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 
                 command = TabCommand(
                     action=action_enum,
-                    url=params.get('url'),
-                    tab_id=params.get('tab_id')
+                    url=action.url,
+                    tab_id=action.tab_id
                 )
                 result_dict = self._execute_command_sync(command)
                 
                 if action_str == "open":
-                    message = f"Opened tab with URL: {params.get('url')}"
+                    message = f"Opened tab with URL: {action.url}"
                 elif action_str == "init":
-                    message = f"Initialized session with URL: {params.get('url')}"
+                    message = f"Initialized session with URL: {action.url}"
                 elif action_str == "close":
-                    message = f"Closed tab ID: {params.get('tab_id')}"
+                    message = f"Closed tab ID: {action.tab_id}"
                 elif action_str == "switch":
-                    message = f"Switched to tab ID: {params.get('tab_id')}"
+                    message = f"Switched to tab ID: {action.tab_id}"
                 elif action_str == "refresh":
-                    message = f"Refreshed tab ID: {params.get('tab_id')}"
+                    message = f"Refreshed tab ID: {action.tab_id}"
                 elif action_str == "list":
                     message = "Listed tabs"
                 else:
@@ -540,14 +484,10 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 screenshot_data_url=screenshot_data_url
             )
             
-        except KeyError as e:
+        except ValueError as e:
             # Provide friendly error message for missing parameters
-            missing_key = str(e).strip("'")
-            logger.error(f"KeyError (sync): Missing required parameter '{missing_key}' in action '{action_type}'")
-            logger.error(f"Parameters received: {action.parameters}")
-            error_msg = f"Missing required parameter '{missing_key}' for action '{action_type}'. "
-            error_msg += "Check if parameters have correct structure (should be flat, not nested). "
-            error_msg += f"Received parameters: {action.parameters}"
+            logger.error(f"ValueError (sync): {e} in action '{action.type}'")
+            error_msg = f"Missing or invalid parameters for action '{action.type}': {e}"
             return OpenBrowserObservation(
                 success=False,
                 error=error_msg,
@@ -571,7 +511,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
     def __call__(self, action: OpenBrowserAction, conversation=None) -> OpenBrowserObservation:
         """Execute a browser action and return observation"""
         # Use synchronous HTTP API to avoid event loop competition with WebSocket
-        logger.debug(f"DEBUG: OpenBrowserTool.__call__ called with action: {action.type}, params: {action.parameters}")
+        logger.debug(f"DEBUG: OpenBrowserTool.__call__ called with action: {action.type}")
         logger.debug(f"DEBUG: Current thread: {threading.current_thread().name}")
         
         try:
@@ -669,137 +609,64 @@ you will receive:
 3. Current mouse position in the preset coordinate system
 4. A screenshot of the browser window (1280x720 pixels)
 
-🔴 **CRITICAL FORMAT WARNING:**
-- Use `type` field at the TOP level (e.g., `"type": "mouse_move"`)
-- **NEVER** put `action` field inside the `parameters` object
-- **NEVER** nest `parameters` object inside another `parameters` object
-- Keep `parameters` object FLAT with only the required parameters for the action
-
 **Coordinate System:**
 - Screen resolution: 1280×720 pixels
-- Origin (0, 0) is at the CENTER of the screen
-- Positive X is RIGHT, negative X is LEFT
-- Positive Y is DOWN, negative Y is UP
-- Range: X = -640 to 640, Y = -360 to 360
+- Origin (0, 0) is at the TOP-LEFT corner of the screen
+- Positive X is RIGHT (0 to 1280)
+- Positive Y is DOWN (0 to 720)
+- Range: X = 0 to 1280, Y = 0 to 720
 
 **Action Format:**
-All actions use a unified format with `type` and `parameters` fields:
+All actions use a unified format with `type` field and parameter fields directly at the top level:
 ```json
 {
   "type": "action_type",
-  "parameters": {
-    "param1": "value1",
-    "param2": "value2"
-  }
-}
-```
-
-⚠️ **IMPORTANT: Format Rules**
-1. **DO NOT** include an `"action"` field inside the `parameters` object
-2. **DO NOT** nest another `"parameters"` object inside the `parameters` object
-3. **Parameters must be flat**: The `parameters` object should contain only the required parameters for the specific action type
-4. **Use `type` not `action`**: The action type is specified in the `type` field, not inside `parameters`
-
-❌ **INCORRECT Examples (DO NOT USE):**
-```json
-{
-  "type": "mouse_move",
-  "parameters": {
-    "action": "mouse_move",      // WRONG: Don't include 'action' here
-    "parameters": {              // WRONG: Don't nest 'parameters' inside 'parameters'
-      "dx": 100,
-      "dy": 50
-    }
-  }
-}
-```
-
-✅ **CORRECT Examples (USE THESE):**
-```json
-{
-  "type": "mouse_move",
-  "parameters": {
-    "dx": 100,      // Correct: Direct parameter
-    "dy": 50        // Correct: Direct parameter
-  }
+  "param1": "value1",
+  "param2": "value2"
 }
 ```
 
 **Supported Action Types and Parameters:**
 
-1. **reset_mouse** - Reset mouse to screen center
-   ```json
-   {
-     "type": "reset_mouse",
-     "parameters": {}
-   }
-   ```
-
-2. **mouse_move** - Move mouse relative to current position
+1. **mouse_move** - Move mouse to absolute position
    ```json
    {
      "type": "mouse_move",
-     "parameters": {
-       "dx": -100,      # Horizontal movement (-640 to 640, positive = right)
-       "dy": 50,        # Vertical movement (-360 to 360, positive = down)
-       "duration": 0.1  # Optional: movement duration in seconds (default 0.1)
-     }
+     "x": 640,        # X coordinate (0 to 1280, left to right)
+     "y": 360         # Y coordinate (0 to 720, top to bottom)
    }
    ```
 
-3. **mouse_click** - Click at current mouse position
+2. **mouse_click** - Click at current mouse position (left button, single click)
    ```json
    {
-     "type": "mouse_click",
-     "parameters": {
-       "button": "left",  # Optional: "left", "right", "middle" (default "left")
-       "double": false,   # Optional: double click if true (default false)
-       "count": 1         # Optional: number of clicks 1-3 (default 1)
-     }
+     "type": "mouse_click"
    }
    ```
 
-4. **mouse_scroll** - Scroll at current mouse position
+3. **mouse_scroll** - Scroll at current mouse position
    ```json
    {
      "type": "mouse_scroll",
-     "parameters": {
-       "direction": "down",  # Optional: "up", "down", "left", "right" (default "down")
-       "amount": 100         # Optional: scroll amount in pixels 1-1000 (default 100)
-     }
+     "direction": "down"  # Optional: "up", "down", "left", "right" (default "down")
    }
    ```
 
-5. **keyboard_type** - Type text at current focus
+4. **keyboard_type** - Type text at current focus
    ```json
    {
      "type": "keyboard_type",
-     "parameters": {
-       "text": "Hello World"  # Text to type (max 1000 characters)
-     }
+     "text": "Hello World"  # Text to type (max 1000 characters)
    }
    ```
 
-6. **keyboard_press** - Press special key
-   ```json
-   {
-     "type": "keyboard_press",
-     "parameters": {
-       "key": "Enter",               # Key to press: "Enter", "Escape", "Tab", "Backspace", etc.
-       "modifiers": ["Control", "S"] # Optional: modifier keys like ["Control"], ["Shift"]
-     }
-   }
-   ```
-
-7. **tab** - Tab management operations
+5. **tab** - Tab management operations
    ```json
    {
      "type": "tab",
-     "parameters": {
-       "action": "open",    # "init", "open", "close", "switch", "list", "refresh"
-       "url": "https://example.com",  # Required for "init" and "open"
-       "tab_id": 123        # Required for "close", "switch", and "refresh"
-     }
+     "action": "open",    # "init", "open", "close", "switch", "list", "refresh"
+     "url": "https://example.com",  # Required for "init" and "open"
+     "tab_id": 123        # Required for "close", "switch", and "refresh"
    }
    ```
 
@@ -831,26 +698,26 @@ All actions use a unified format with `type` and `parameters` fields:
 
 **Example Workflow:**
 1. ```json
-   {"type": "tab", "parameters": {"action": "init", "url": "https://www.google.com"}}
+   {"type": "tab", "action": "init", "url": "https://www.google.com"}
    ``` - Start a browser session with direct URL navigation
 2. ```json
-   {"type": "mouse_move", "parameters": {"dx": 100, "dy": -50}}
+   {"type": "mouse_move", "x": 640, "y": 360}
    ``` - Move mouse to search box
 3. Check screenshot to verify mouse pointer is positioned over the search box
 4. ```json
-   {"type": "keyboard_type", "parameters": {"text": "AI assistant"}}
+   {"type": "keyboard_type", "text": "AI assistant"}
    ``` - Type search query
 5. ```json
-   {"type": "mouse_click", "parameters": {"button": "left"}}
+   {"type": "mouse_click"}
    ``` - Click search button (after verifying mouse position)
 6. ```json
-   {"type": "mouse_scroll", "parameters": {"direction": "down", "amount": 500}}
+   {"type": "mouse_scroll", "direction": "down"}
    ``` - Scroll down to see results
 
 **Direct Navigation Example:**
 When you need to visit a specific website with a known URL:
 ```json
-{"type": "tab", "parameters": {"action": "open", "url": "https://en.wikipedia.org/wiki/Artificial_intelligence"}}
+{"type": "tab", "action": "open", "url": "https://en.wikipedia.org/wiki/Artificial_intelligence"}
 ```
 This is preferred over navigating through search results or homepage links.
 
