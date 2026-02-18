@@ -477,10 +477,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         };
 
       default:
-        throw new Error(`Unknown command type: ${command.type}`);
+        throw new Error(`Unknown command type: ${(command as any).type}`);
     }
   } catch (error) {
-    console.error(`Command ${command.type} failed:`, error);
+    console.error(`Command ${(command as any).type} failed:`, error);
     return {
       success: false,
       command_id: command.command_id,
@@ -532,29 +532,69 @@ async function updateVisualMouse(tabId: number, data: any): Promise<boolean> {
       return false;
     }
     
-    // Check if content script is loaded by trying to ping it
+    // Enhanced content script detection with retries
     let contentScriptLoaded = false;
-    try {
-      const pingResponse = await chrome.tabs.sendMessage(tabId, {
-        type: 'ping',
-      });
-      console.log(`✅ Content script is responsive in tab ${tabId}`);
-      contentScriptLoaded = true;
-    } catch (pingError) {
-      console.error(`❌ Content script NOT loaded in tab ${tabId}. Error:`, pingError);
-      console.log('📝 This could mean:');
-      console.log('  1. Page was loaded before extension');
-      console.log('  2. Content script failed to inject');
-      console.log('  3. Page has CSP restrictions');
+    let lastError: any = null;
+    
+    // Try up to 3 times with exponential backoff
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`🔍 Checking content script in tab ${tabId} (attempt ${attempt}/3)...`);
+        const pingResponse = await chrome.tabs.sendMessage(tabId, {
+          type: 'ping',
+        });
+        
+        if (pingResponse?.pong === true) {
+          console.log(`✅ Content script is responsive in tab ${tabId}`);
+          contentScriptLoaded = true;
+          break;
+        } else {
+          console.warn(`⚠️ Content script responded but without pong:`, pingResponse);
+          lastError = new Error('Invalid ping response');
+        }
+      } catch (pingError) {
+        lastError = pingError;
+        const errorMessage = pingError instanceof Error ? pingError.message : String(pingError);
+        console.log(`❌ Content script check failed (attempt ${attempt}/3):`, errorMessage);
+        
+        if (attempt < 3) {
+          // Exponential backoff: 1s, 2s, 4s
+          const delay = Math.pow(2, attempt - 1) * 1000;
+          console.log(`⏳ Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    // If content script not loaded, try to inject it
+    if (!contentScriptLoaded) {
+      console.log('🔄 Content script not detected, attempting to auto-inject...');
       
-      // Try to inject content script automatically
-      console.log('🔄 Attempting to auto-inject content script...');
+      // First check if injection is even possible (not a chrome:// page)
+      if (url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
+        console.log('⚠️ Cannot inject content script into restricted URL:', url);
+        console.log('💡 This tab cannot be controlled. Try a normal webpage (http/https).');
+        return false;
+      }
+      
+      // Try to inject
       contentScriptLoaded = await injectContentScript(tabId);
       
       if (!contentScriptLoaded) {
-        console.log('💡 Suggestion: Reload the page to load content script');
+        console.error(`❌ Failed to inject content script into tab ${tabId} after all attempts`);
+        console.log('📝 Possible solutions:');
+        console.log('  1. Reload the page to trigger content script injection');
+        console.log('  2. Check if the page has restrictive Content Security Policy (CSP)');
+        console.log('  3. Ensure extension is enabled and has required permissions');
+        console.log('  4. Try a different webpage (some sites block extensions)');
+        console.log(`💡 Last error: ${lastError?.message || lastError}`);
         return false;
       }
+      
+      console.log(`✅ Successfully injected content script into tab ${tabId}`);
+      
+      // Wait a bit for content script to initialize
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
     
     console.log(`📤 Sending visual_mouse_update to tab ${tabId}`);
@@ -775,6 +815,34 @@ chrome.runtime.onStartup.addListener(() => {
   // Reconnect WebSocket
   wsClient.connect().catch(console.error);
 });
+
+/**
+ * Keep Service Worker alive with alarms
+ */
+chrome.alarms.create('keepAlive', { periodInMinutes: 0.1 }); // Every 6 seconds
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'keepAlive') {
+    // Just logging to keep service worker alive
+    console.log('⏰ Keep-alive alarm triggered');
+    
+    // Also check WebSocket connection
+    if (!wsClient.isConnected()) {
+      console.log('🌐 WebSocket disconnected in alarm, reconnecting...');
+      wsClient.connect().catch(console.error);
+    }
+  }
+});
+
+/**
+ * Additional keep-alive: send periodic messages to keep service worker active
+ */
+setInterval(() => {
+  // Send a message to ourselves to keep service worker alive
+  chrome.runtime.sendMessage({ type: 'keepalive' }).catch(() => {
+    // This is expected to fail when no listeners, but it keeps service worker alive
+  });
+}, 20000); // Every 20 seconds, less than Chrome's 30 second termination threshold
 
 /**
  * Keep WebSocket connection alive

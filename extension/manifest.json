@@ -30,7 +30,8 @@
     "activeTab",
     "scripting",
     "debugger",
-    "storage"
+    "storage",
+    "alarms"
   ],
   "externally_connectable": {
     "matches": [

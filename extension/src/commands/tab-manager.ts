@@ -5,7 +5,7 @@
 
 // Tab group constants
 const TAB_GROUP_NAME = 'OpenBrowser';
-const TAB_GROUP_COLOR = 'grey' as chrome.tabGroups.ColorEnum;
+const TAB_GROUP_COLOR = 'grey' as chrome.tabGroups.Color;
 const TAB_GROUP_COLLAPSED = false;
 
 export interface ManagedTab {
