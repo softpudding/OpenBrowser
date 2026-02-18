@@ -9,7 +9,7 @@ import { tabs } from '../commands/tabs';
 import { tabManager } from '../commands/tab-manager';
 import type { Command, CommandResponse } from '../types';
 
-console.log('🚀 Local Chrome Control extension starting...');
+console.log('🚀 OpenBrowser extension starting...');
 
 // Initialize tab manager
 tabManager.initialize().then(() => {
@@ -750,4 +750,4 @@ wsClient.onDisconnect(() => {
   cleanupVisualMouseInAllTabs().catch(console.error);
 });
 
-console.log('✅ Local Chrome Control extension ready');
+console.log('✅ OpenBrowser extension ready');

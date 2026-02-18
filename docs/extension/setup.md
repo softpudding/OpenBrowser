@@ -67,7 +67,7 @@ npm run typecheck  # TypeScript compilation check
 2. Enable "Developer mode" (toggle in top-right)
 3. Click "Load unpacked"
 4. Select the `extension/dist` directory
-5. Extension should appear in list as "Local Chrome Control"
+5. Extension should appear in list as "OpenBrowser"
 
 ### Verifying Installation
 - Check extension icon appears in Chrome toolbar
@@ -77,7 +77,7 @@ npm run typecheck  # TypeScript compilation check
 ### Debugging
 1. **Background script**:
    - Go to `chrome://extensions/`
-   - Find "Local Chrome Control"
+   - Find "OpenBrowser"
    - Click "Details" → "Inspect views: background page"
 
 2. **Content script**:
@@ -179,7 +179,7 @@ npm run dev
 ### 3. Reload Extension
 After building:
 1. Go to `chrome://extensions/`
-2. Find "Local Chrome Control"
+2. Find "OpenBrowser"
 3. Click the refresh icon
 4. Check background page console for errors
 

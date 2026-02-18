@@ -4,7 +4,7 @@
  */
 
 // Tab group constants
-const TAB_GROUP_NAME = 'Local Chrome Control';
+const TAB_GROUP_NAME = 'OpenBrowser';
 const TAB_GROUP_COLOR = 'grey' as chrome.tabGroups.ColorEnum;
 const TAB_GROUP_COLLAPSED = false;
 

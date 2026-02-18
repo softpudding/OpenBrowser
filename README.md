@@ -9,7 +9,7 @@ A local server for controlling Chrome browser via Chrome extension with visual-b
 - **Keyboard Input**: Type text, press special keys with visual feedback
 - **Screenshot Capture**: Real-time screenshots with mouse cursor
 - **Advanced Tab Management**: 
-  - **Tab Group Isolation**: Managed tabs organized in "Local Chrome Control" tab group for visual separation
+  - **Tab Group Isolation**: Managed tabs organized in "OpenBrowser" tab group for visual separation
   - **Explicit Session Initialization**: `tabs init <url>` command for explicit control session start
   - **Filtered Tab Listing**: `tabs list` shows only managed tabs when session is initialized
   - **Backward Compatibility**: Shows all tabs with managed status when no active session

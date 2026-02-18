@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Local Chrome Control",
+  "name": "OpenBrowser",
   "version": "0.1.0",
-  "description": "Chrome extension for Local Chrome Server browser automation",
-  "author": "OpenHands",
+  "description": "Browser automation and control extension for robot-driven browsing freedom",
+  "author": "OpenBrowser Team",
   "icons": {
     "16": "assets/icon16.png",
     "48": "assets/icon48.png",

@@ -173,7 +173,7 @@ npm run typecheck            # TypeScript type checking
 - **Design Inspiration**: Based on MANUS Chrome Plugin's tab group isolation concept
 - **Key Features**:
   - **Explicit Session Initialization**: `initializeSession(url)` method for explicit control session start
-  - **Tab Group Creation/Management**: Creates "Local Chrome Control" tab group for visual separation
+  - **Tab Group Creation/Management**: Creates "OpenBrowser" tab group for visual separation
   - **Automatic Tab Management**: Automatically adds controlled tabs to the managed group
   - **Filtered Tab Listing**: `getAllTabs(managedOnly=true)` shows only managed tabs when session initialized
   - **Session State Tracking**: `isSessionInitialized()` checks if tab group exists and has managed tabs
@@ -373,7 +373,7 @@ uv run pytest tests/ --cov=server --cov-report=html
   - Check extension background logs for viewport size reported by content script
   - Verify actual viewport dimensions match reported values
   - Open webpage console (F12) to check content script logs for `getViewportInfo` calls
-  - Check if content script is injected: Look for "Local Chrome Control content script loaded" in webpage console
+  - Check if content script is injected: Look for "OpenBrowser content script loaded" in webpage console
   - Reload page to ensure content script is injected and responding
 - **Technical Details**:
   - Content script uses `window.innerWidth/Height` first, falls back to `document.documentElement.clientWidth/Height`
@@ -486,7 +486,7 @@ local-chrome-server serve --log-level DEBUG
 
 # Check extension logs
 # 1. Open chrome://extensions/
-# 2. Find "Local Chrome Control" extension
+# 2. Find "OpenBrowser" extension
 # 3. Click "Details" → "Inspect views: background page"
 ```
 

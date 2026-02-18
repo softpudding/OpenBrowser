@@ -5,7 +5,7 @@
 
 import { VisualMousePointer } from './visual-mouse';
 
-console.log('🖥️ Local Chrome Control content script loaded', {
+console.log('🖥️ OpenBrowser content script loaded', {
   location: window.location.href,
   readyState: document.readyState,
   timestamp: Date.now()

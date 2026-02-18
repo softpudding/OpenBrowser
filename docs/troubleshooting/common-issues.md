@@ -53,11 +53,11 @@ The server already has permissive CORS settings for development. If issues persi
 #### Extension-Specific Checks
 1. **Verify extension is loaded**: 
    - Open `chrome://extensions/`
-   - Ensure "Local Chrome Control" is enabled
+   - Ensure "OpenBrowser" is enabled
    - Check for errors in extension details
 
 2. **Check extension background page**:
-   - In `chrome://extensions/`, find "Local Chrome Control"
+   - In `chrome://extensions/`, find "OpenBrowser"
    - Click "Details" → "Inspect views: background page"
    - Check console for WebSocket connection errors
 
@@ -268,7 +268,7 @@ local-chrome-server serve --log-level DEBUG
 
 # Extension logs (background page)
 # 1. chrome://extensions/
-# 2. Find "Local Chrome Control"
+# 2. Find "OpenBrowser"
 # 3. Click "Details" → "Inspect views: background page"
 
 # Browser console for welcome page

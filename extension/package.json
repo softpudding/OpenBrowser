@@ -1,8 +1,8 @@
 {
-  "name": "local-chrome-control",
+  "name": "openbrowser",
   "version": "0.1.0",
-  "description": "Chrome extension for Local Chrome Server browser automation",
-  "author": "OpenHands",
+  "description": "Browser automation and control extension for robot-driven browsing freedom",
+  "author": "OpenBrowser Team",
   "private": true,
   "scripts": {
     "dev": "vite build --watch --mode development",

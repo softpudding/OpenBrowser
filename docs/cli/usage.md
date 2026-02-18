@@ -293,7 +293,7 @@ chrome-cli screenshot capture --include-metadata
 ### Tab Commands
 
 #### `init` - Initialize managed session
-Initialize a new managed session with starting URL. Creates "Local Chrome Control" tab group.
+Initialize a new managed session with starting URL. Creates "OpenBrowser" tab group.
 
 ```bash
 chrome-cli tabs init [OPTIONS] URL
@@ -533,7 +533,7 @@ chrome-cli tabs list
 chrome-cli screenshot capture
 
 # If commands fail, check extension background page
-# chrome://extensions/ → Local Chrome Control → Inspect views: background page
+# chrome://extensions/ → OpenBrowser → Inspect views: background page
 ```
 
 ## Environment Variables
