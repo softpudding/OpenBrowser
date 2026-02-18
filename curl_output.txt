@@ -1,7 +1,0 @@
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100    40    0     0  100    40      0     38  0:00:01  0:00:01 --:--:--    38event: agent_event
-data: {"type": "MessageEvent", "text": "tabs init https://google.com", "timestamp": "2026-02-18T14:32:57.437039"}
-
-100   174    0   134  100    40     64     19  0:00:02  0:00:02 --:--:--    83100   174    0   134  100    40     43     12  0:00:03  0:00:03 --:--:--    56100   174    0   134  100    40     32      9  0:00:04  0:00:04 --:--:--    42100   174    0   134  100    40     26      7  0:00:05  0:00:05 --:--:--    34100   174    0   134  100    40     21      6  0:00:06  0:00:06 --:--:--    26100   174    0   134  100    40     18      5  0:00:08  0:00:07  0:00:01     0100   174    0   134  100    40     16      4  0:00:10  0:00:08  0:00:02     0
-curl: (28) Operation timed out after 8006 milliseconds with 134 bytes received
