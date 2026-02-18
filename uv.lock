@@ -1631,8 +1631,8 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.104.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "numpy", specifier = ">=1.24.0" },
-    { name = "openhands-sdk", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=switch-litellm-fork" },
-    { name = "openhands-tools", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=switch-litellm-fork" },
+    { name = "openhands-sdk", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=4e85c37d20359da7e01529bd40fe3dfd75370f18" },
+    { name = "openhands-tools", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=4e85c37d20359da7e01529bd40fe3dfd75370f18" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pydantic", specifier = ">=2.5.0" },
     { name = "pydantic-settings", specifier = ">=2.1.0" },
@@ -2167,7 +2167,7 @@ wheels = [
 [[package]]
 name = "openhands-sdk"
 version = "1.11.4"
-source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=switch-litellm-fork#aa04e3a537d4dd6c5ef7505239dbfaa7cb70348c" }
+source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=4e85c37d20359da7e01529bd40fe3dfd75370f18#4e85c37d20359da7e01529bd40fe3dfd75370f18" }
 dependencies = [
     { name = "deprecation" },
     { name = "fastmcp" },
@@ -2185,7 +2185,7 @@ dependencies = [
 [[package]]
 name = "openhands-tools"
 version = "1.11.4"
-source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=switch-litellm-fork#aa04e3a537d4dd6c5ef7505239dbfaa7cb70348c" }
+source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=4e85c37d20359da7e01529bd40fe3dfd75370f18#4e85c37d20359da7e01529bd40fe3dfd75370f18" }
 dependencies = [
     { name = "bashlex" },
     { name = "binaryornot" },
