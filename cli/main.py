@@ -344,10 +344,10 @@ def init(ctx, url):
     _print_result(result)
 
 
-@tabs.command()
+@tabs.command(name='open')
 @click.argument('url')
 @click.pass_context
-def open(ctx, url):
+def open_tab(ctx, url):
     """Open new tab"""
     result = ctx.obj['client'].tab_open(url)
     _print_result(result)
@@ -567,6 +567,7 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
             return None
         
         import base64
+        import builtins
         import os
         from datetime import datetime
         
@@ -585,7 +586,7 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
         # Save to file if requested via save_path
         if save_path:
             try:
-                with open(save_path, 'wb') as f:
+                with builtins.open(save_path, 'wb') as f:
                     f.write(base64.b64decode(image_data))
                 saved_path = save_path
             except Exception as e:
@@ -604,7 +605,7 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
             
             try:
                 # Save the file
-                with open(filename, 'wb') as f:
+                with builtins.open(filename, 'wb') as f:
                     f.write(base64.b64decode(image_data))
                 saved_path = filename
             except Exception as e:
