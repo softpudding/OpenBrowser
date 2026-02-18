@@ -269,7 +269,7 @@ def capture(ctx, tab_id, no_cursor, quality, save, no_auto_save):
     
     if result.get('success'):
         import sys
-        sys.stdout.write("Screenshot captured successfully\n")
+        sys.stdout.write("Screen capture completed\n")
         
         # Save screenshot using helper function
         saved_path = _save_screenshot_result(result, save, not no_auto_save)
@@ -277,10 +277,10 @@ def capture(ctx, tab_id, no_cursor, quality, save, no_auto_save):
         if saved_path:
             if save:
                 # 对于自定义保存路径，只显示成功消息，不显示路径
-                sys.stdout.write("Screenshot saved to specified location\n")
+                sys.stdout.write("Image saved to specified location\n")
             else:
                 # 自动保存时，只显示保存在screenshots目录，不显示完整路径
-                sys.stdout.write("Screenshot automatically saved to screenshots/ directory\n")
+                sys.stdout.write("Image automatically saved to screenshots/ directory\n")
                 sys.stdout.write("  Use --save <path> to specify custom location\n")
                 sys.stdout.write("  Use --no-auto-save to disable auto-saving\n")
         
@@ -466,14 +466,14 @@ def interactive(ctx):
                 
                 if result.get('success'):
                     import sys
-                    sys.stdout.write("Screenshot captured successfully\n")
+                    sys.stdout.write("Screen capture completed\n")
                     
                     # Save screenshot automatically in interactive mode
                     saved_path = _save_screenshot_result(result, None, True)
                     
                     if saved_path:
                         # 只显示保存在screenshots目录，不显示完整路径
-                        sys.stdout.write("Screenshot automatically saved to screenshots/ directory\n")
+                        sys.stdout.write("Image saved to screenshots/ directory\n")
                     
                     # Print metadata if available
                     if 'data' in result and 'metadata' in result['data']:
@@ -620,9 +620,15 @@ def _print_result(result: Dict[str, Any]):
     """Print command result"""
     import sys
     if result.get('success'):
-        sys.stdout.write("Command executed successfully\n")
+        # 使用更简单的消息，避免可能触发命令
+        sys.stdout.write("Command executed\n")
         if result.get('message'):
-            sys.stdout.write(f"   {result['message']}\n")
+            # 移除可能的问题词汇
+            msg = result['message']
+            # 替换"screenshot"为更安全的词汇
+            msg = msg.replace("Screenshot", "Screen capture")
+            msg = msg.replace("screenshot", "screen capture")
+            sys.stdout.write(f"   {msg}\n")
     else:
         sys.stdout.write("Command failed\n")
         if result.get('error'):
