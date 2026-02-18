@@ -48,7 +48,7 @@ from openhands.sdk.tool import register_tool
 from openhands.tools.file_editor import FileEditorTool
 from openhands.tools.terminal import TerminalTool
 from openhands.tools.task_tracker import TaskTrackerTool
-
+from openhands.tools.preset.default import get_default_condenser
 from .tools.open_browser_tool import OpenBrowserTool
 
 logger = get_logger(__name__)
@@ -229,17 +229,23 @@ class OpenBrowserAgentManager:
     def _create_default_llm(self) -> LLM:
         """Create default LLM configuration"""
         import os
+        import sys
         from pydantic import SecretStr
         
         api_key = os.getenv("LLM_API_KEY")
-        model = os.getenv("LLM_MODEL", "anthropic/claude-sonnet-4-5-20250929")
-        base_url = os.getenv("LLM_BASE_URL")
+        if not api_key:
+            print("❌ Error: LLM_API_KEY environment variable is not set")
+            print("   Please set it with: export LLM_API_KEY='your-api-key'")
+            sys.exit(1)
+        
+        model = os.getenv("LLM_MODEL", "dashscope/qwen3.5-plus")
+        base_url = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
         
         return LLM(
             usage_id="openbrowser-agent",
             model=model,
             base_url=base_url,
-            api_key=SecretStr(api_key) if api_key else None,
+            api_key=SecretStr(api_key),
         )
     
     def create_conversation(self, conversation_id: Optional[str] = None, cwd: str = ".") -> str:
@@ -256,8 +262,8 @@ class OpenBrowserAgentManager:
             raise ValueError(f"Conversation {conversation_id} already exists")
         
         # Create agent with tools
-        agent = Agent(llm=self.llm, tools=self.default_tools)
-        
+        agent = Agent(llm=self.llm, tools=self.default_tools, condenser=get_default_condenser(llm=self.llm.model_copy(update={"usage_id": "condenser"})))
+
         # Create visualizer (queue will be set when processing messages)
         visualizer = QueueVisualizer()
         

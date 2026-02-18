@@ -6,12 +6,15 @@ Welcome to the Local Chrome Server documentation. This comprehensive guide cover
 
 - **[Getting Started](#getting-started)** - First-time setup and basic usage
 - **[Architecture](architecture/overview.md)** - System design and components
+- **[Python Server Modules](architecture/python-modules.md)** - Detailed server module documentation
+- **[Chrome Extension Modules](extension/modules.md)** - Detailed extension module documentation
 - **[API Reference](api/rest.md)** - REST and WebSocket APIs
 - **[Extension Guide](extension/setup.md)** - Chrome extension setup and development
 - **[CLI Usage](cli/usage.md)** - Command-line interface reference
 - **[Testing](testing/regression.md)** - Testing and regression strategies
 - **[Troubleshooting](troubleshooting/common-issues.md)** - Common issues and solutions
-- **[Development](AGENTS.md)** - Development guide and project knowledge
+- **[Implementation Notes](development/implementation-notes.md)** - Technical details and design decisions
+- **[Development Guide](../AGENTS.md)** - Development setup and project overview
 
 ## Getting Started
 
@@ -65,20 +68,21 @@ chrome-cli mouse move --dx 100 --dy 50
 
 ### Architecture
 - [Overview](architecture/overview.md) - System design and component architecture
+- [Python Server Modules](architecture/python-modules.md) - Detailed server module documentation
 - Component responsibilities and data flow
 - Design decisions and trade-offs
+
+### Extension Development
+- [Setup Guide](extension/setup.md) - Building and loading the extension
+- [Module Documentation](extension/modules.md) - Detailed extension module descriptions
+- Development workflow and debugging
+- Configuration and customization
 
 ### API Documentation
 - [REST API](api/rest.md) - HTTP endpoints and command reference
 - [WebSocket API](api/websocket.md) - Real-time communication protocol
 - Command schemas and response formats
 - Examples and usage patterns
-
-### Extension Development
-- [Setup Guide](extension/setup.md) - Building and loading the extension
-- Module descriptions and responsibilities
-- Development workflow and debugging
-- Configuration and customization
 
 ### CLI Reference
 - [Usage Guide](cli/usage.md) - Complete command reference
@@ -99,10 +103,8 @@ chrome-cli mouse move --dx 100 --dy 50
 - Performance and reliability problems
 
 ### Development
-- [AGENTS.md](../AGENTS.md) - Development guide and project knowledge
-- Module documentation and interfaces
-- Development setup and workflow
-- Contributing guidelines
+- [Implementation Notes](development/implementation-notes.md) - Technical details and design decisions
+- [Development Guide](../AGENTS.md) - Development setup and project overview
 
 ## Key Features
 

@@ -1,43 +1,54 @@
-# Local Chrome Server
+# OpenBrowser
 
-A local server for controlling Chrome browser via Chrome extension with visual-based automation.
+**OpenBrowser** is a visual AI assistant powered by **Qwen3.5-Plus** that bridges the gap between frontend and backend development. By combining coding capabilities with visual browser perception, OpenBrowser enables seamless full-stack debugging and automation.
 
-## Features
+> **Note**: OpenBrowser currently supports **Chrome only** (via Chrome extension) and has been tested exclusively with **Qwen3.5-Plus**. Other models are not officially supported.
+>
+> **Limitation**: OpenBrowser currently supports **single-session only**. All operations share a global conversation context; multi-session management is not yet implemented.
 
-- **Visual Mouse Pointer**: Real-time mouse cursor overlay with intelligent color coding (clickable elements turn blue, text inputs turn green)
-- **Mouse Control**: Move, click, scroll with relative coordinates and boundary checking
-- **Keyboard Input**: Type text, press special keys with visual feedback
-- **Screenshot Capture**: Real-time screenshots with mouse cursor
-- **Advanced Tab Management**: 
-  - **Tab Group Isolation**: Managed tabs organized in "OpenBrowser" tab group for visual separation
-  - **Explicit Session Initialization**: `tabs init <url>` command for explicit control session start
-  - **Filtered Tab Listing**: `tabs list` shows only managed tabs when session is initialized
-  - **Backward Compatibility**: Shows all tabs with managed status when no active session
-  - **Status Visualization**: Tab group title shows real-time status (🔵 active, ⚪ idle, 🔴 disconnected)
-- **Multiple Interfaces**: REST API, WebSocket, CLI with readline support for arrow key editing
-- **Coordinate Mapping**: Handles resolution differences between preset and actual screens
-- **Visual-Only Operations**: No HTML selector dependencies, purely pixel-based
-- **Interactive Debugging**: `chrome-cli interactive` mode with command history and editing
+## Why Qwen3.5-Plus?
 
-## Architecture
+We chose Qwen3.5-Plus as our foundation model because it offers exceptional multimodal capabilities at a fraction of the cost of competitors. Its native agentic design makes it ideal for tasks that require both visual understanding and code execution.
 
-```
-Local Chrome Server (Python)
-├── FastAPI REST server
-├── WebSocket server for real-time communication
-├── Command processor with coordinate mapping
-└── CLI interface
+Learn more about Qwen3.5:
 
-Chrome Extension (TypeScript)
-├── CDP (Chrome DevTools Protocol) integration
-├── Mouse/keyboard automation
-├── Screenshot capture with metadata
-└── WebSocket client for server communication
-```
+- [Qwen3.5: Towards Native Multimodal Agents (Official Blog)](https://qwen.ai/blog/qwen3.5)
+- [Qwen3.5: Towards Native Multimodal Agents (Alibaba Cloud)](https://www.alibabacloud.com/blog/qwen3.5-towards-native-multimodal-agents)
+- [Alibaba unveils Qwen3.5 as China's chatbot race shifts to AI agents (CNBC)](https://www.cnbc.com/2026/02/17/china-alibaba-qwen3.5-ai-agent.html)
+- [Alibaba unveils new Qwen3.5 model for 'agentic AI era' (Reuters)](https://www.reuters.com/technology/alibaba-unveils-qwen3.5-agentic-ai)
+- [QwenLM/Qwen3.5 (GitHub)](https://github.com/QwenLM/Qwen3.5)
+
+## The Vision
+
+Modern development workflows often require switching between:
+- Writing code
+- Inspecting browser state visually
+- Interacting with web UIs
+- Running terminal commands
+
+OpenBrowser unifies these tasks into a **single-model closed loop**. Qwen3.5-Plus handles everything—code generation, visual perception, browser control, and bash execution—enabling the AI assistant to truly understand and debug full-stack applications end-to-end.
+
+## Key Features
+
+- **Single-Model Automation**: One model for coding, visual observation, browser interaction, and terminal commands
+- **Visual Browser Control**: Real-time screenshots with intelligent element detection (clickable elements in blue, text inputs in green)
+- **Full Browser API**: Mouse, keyboard, scrolling, and tab management with session isolation
+- **Terminal Integration**: Execute bash commands for backend operations
+- **Multiple Interfaces**: REST API and WebSocket
 
 ## Quick Start
 
-### 1. Install Python Dependencies
+### 1. Set Environment Variables
+
+Configure the LLM connection. Note that `LLM_BASE_URL` must be an **OpenAI-compatible API endpoint**:
+
+```bash
+export LLM_API_KEY="your-api-key"
+export LLM_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"  # OpenAI-compatible URL
+export LLM_MODEL="qwen3.5-plus"
+```
+
+### 2. Install Python Dependencies
 
 ```bash
 # Using uv (recommended)
@@ -47,7 +58,15 @@ uv sync
 pip install -e .
 ```
 
-### 2. Build Chrome Extension
+### 3. Start the Server
+
+```bash
+local-chrome-server serve
+```
+
+The server will start at `http://127.0.0.1:8765` (HTTP) and `ws://127.0.0.1:8766` (WebSocket).
+
+### 4. Build the Chrome Extension
 
 ```bash
 cd extension
@@ -55,242 +74,77 @@ npm install
 npm run build
 ```
 
-### 3. Load Extension in Chrome
+### 5. Install the Extension in Chrome
 
-1. Open Chrome and go to `chrome://extensions/`
-2. Enable "Developer mode"
-3. Click "Load unpacked"
+1. Open Chrome and navigate to `chrome://extensions/`
+2. Enable **Developer mode** (toggle in top-right)
+3. Click **Load unpacked**
 4. Select the `extension/dist` directory
 
-### 4. Start the Server
+### 6. Access the Web Frontend
 
-```bash
-# Start server (default: http://127.0.0.1:8765)
-local-chrome-server serve
+Open your browser and visit:
 
-# Or with custom options
-local-chrome-server serve --host 0.0.0.0 --port 8888
+```
+http://localhost:8765
 ```
 
-### 5. Use the CLI
+You can now interact with the AI Agent through the web interface.
 
-```bash
-# Check server status
-chrome-cli status
+## Architecture
 
-# Open a new tab
-chrome-cli tabs open https://google.com
-
-# Take a screenshot
-chrome-cli screenshot capture --save screenshot.png
-
-# Interactive mode
-chrome-cli interactive
 ```
-
-## API Reference
-
-### REST API (HTTP)
-
-**Base URL**: `http://127.0.0.1:8765`
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Server info |
-| `/health` | GET | Health check |
-| `/command` | POST | Execute any command (JSON) |
-| `/mouse/move` | POST | Move mouse (dx, dy) |
-| `/mouse/click` | POST | Click mouse (button, double) |
-| `/mouse/scroll` | POST | Scroll (direction, amount) |
-| `/keyboard/type` | POST | Type text |
-| `/keyboard/press` | POST | Press special key |
-| `/screenshot` | POST | Capture screenshot |
-| `/tabs` | POST | Tab management (init, open, close, switch) |
-| `/tabs` | GET | List all tabs |
-| `/ws` | WS | WebSocket for real-time commands |
-
-### WebSocket
-
-Connect to `ws://127.0.0.1:8766` for real-time command execution.
-
-### Command Format
-
-Commands are JSON objects with the following structure:
-
-```json
-{
-  "type": "mouse_move",
-  "dx": 100,
-  "dy": 50,
-  "duration": 0.1,
-  "command_id": "optional-uuid"
-}
+┌─────────────────────────────────────────────────────────────┐
+│                    Qwen3.5-Plus (Multimodal LLM)            │
+│         Code │ Visual │ Tool Orchestration │ Bash          │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              OpenBrowser Agent Server (FastAPI)             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Chrome Extension (Chrome DevTools)             │
+│         Screenshots │ Mouse/Keyboard │ Tab Management       │
+└─────────────────────────────────────────────────────────────┘
 ```
-
-**Available Command Types:**
-
-1. **Mouse Commands**
-   - `mouse_move`: Move mouse relative to current position
-   - `mouse_click`: Click at current mouse position
-   - `mouse_scroll`: Scroll at current mouse position
-
-2. **Keyboard Commands**
-   - `keyboard_type`: Type text at current focus
-   - `keyboard_press`: Press special key with modifiers
-
-3. **Screenshot Command**
-   - `screenshot`: Capture screenshot with optional cursor
-
-4. **Tab Commands**
-   - `tab`: Init, open, close, switch tabs
-     - `init`: Initialize new managed session with starting URL (creates tab group)
-     - `open`: Open new tab (automatically added to managed tab group)
-     - `close`: Close specific tab
-     - `switch`: Switch to specific tab
-   - `get_tabs`: Get list of all tabs (shows only managed tabs when session initialized)
-
-## Coordinate System
-
-The system handles resolution differences between:
-- **Preset Resolution**: Default 1280x720 (720p) - what commands use
-- **Actual Resolution**: User's actual screen/window resolution
-- **Viewport Resolution**: CSS viewport dimensions
-
-Coordinates are automatically mapped using linear scaling:
-```
-actual_x = (preset_x / preset_width) * actual_width
-actual_y = (preset_y / preset_height) * actual_height
-```
-
-## Example Usage
-
-### Python API Client
-
-```python
-import requests
-
-server_url = "http://127.0.0.1:8765"
-
-# Open Google
-response = requests.post(f"{server_url}/tabs", json={
-    "type": "tab",
-    "action": "open",
-    "url": "https://google.com"
-})
-
-# Type search query
-requests.post(f"{server_url}/keyboard/type", json={
-    "type": "keyboard_type",
-    "text": "Hello World"
-})
-
-# Take screenshot
-response = requests.post(f"{server_url}/screenshot", json={
-    "type": "screenshot",
-    "include_cursor": True
-})
-```
-
-### CLI Examples
-
-```bash
-# Initialize a new managed session (creates tab group)
-chrome-cli tabs init https://example.com
-
-# List tabs (shows only managed tabs when session initialized)
-chrome-cli tabs list
-
-# Click at position (relative to preset resolution)
-chrome-cli mouse click --button left --double
-
-# Type text into focused element
-chrome-cli keyboard type "Hello, World!"
-
-# Capture and save screenshot
-chrome-cli screenshot capture --save page.png --quality 90
-
-# Run a script of commands
-chrome-cli script commands.json
-```
-
-## Regression Tests
-
-The project includes a regression test suite with HTML tasks:
-
-```bash
-# Run tests (to be implemented)
-python -m pytest tests/
-```
-
-Test HTML pages are in `html_test_pages/` directory.
 
 ## Development
+
+### Build Commands
+
+```bash
+# Extension development build with watch
+cd extension
+npm run dev
+
+# TypeScript type checking
+npm run typecheck
+
+# Run tests
+pytest
+```
 
 ### Project Structure
 
 ```
 .
-├── server/              # Python server
-│   ├── api/            # FastAPI endpoints
-│   ├── core/           # Core logic (processor, coordinates)
-│   ├── models/         # Pydantic models
-│   ├── websocket/      # WebSocket server
-│   └── main.py         # CLI entry point
-├── extension/          # Chrome extension
+├── server/              # FastAPI server and agent logic
+│   ├── agent/          # Agent orchestration
+│   ├── api/            # REST endpoints
+│   ├── core/           # Core processing logic
+│   └── websocket/      # WebSocket server
+├── extension/          # Chrome extension (TypeScript)
 │   ├── src/
-│   │   ├── background/ # Background script
-│   │   ├── commands/   # CDP commands
-│   │   ├── content/    # Content script
-│   │   ├── websocket/  # WebSocket client
-│   │   └── types.ts    # TypeScript types
-│   ├── assets/         # Extension icons
-│   ├── public/         # Static assets
-│   ├── manifest.json   # Extension manifest
-│   └── package.json    # Extension dependencies
-├── cli/                # Command-line interface
-├── tests/              # Test suite
-├── html_test_pages/    # Test HTML pages
-└── pyproject.toml      # Python dependencies
+│   │   ├── background/ # Background script with CDP
+│   │   ├── commands/   # Browser automation commands
+│   │   └── content/    # Content script for visual feedback
+│   └── dist/           # Built extension
+└── frontend/           # Web UI
 ```
-
-### Building the Extension
-
-```bash
-cd extension
-npm run build          # Production build
-npm run dev            # Development build with watch
-npm run typecheck      # TypeScript type checking
-```
-
-### Testing
-
-```bash
-# Install dev dependencies
-uv sync --group dev
-
-# Run tests
-pytest
-
-# Run with coverage
-pytest --cov=server --cov-report=html
-```
-
-## Based on AIPex
-
-This project references and adapts code from the [AIPex](https://github.com/AIPexStudio/AIPex) project, specifically:
-- CDP (Chrome DevTools Protocol) integration
-- Screenshot capture with metadata caching
-- Coordinate mapping system
-- Debugger management
 
 ## License
 
 MIT
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
