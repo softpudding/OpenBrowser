@@ -367,7 +367,7 @@
         <div class="main-terminal">
             <div class="terminal-output scrollbar" id="terminal-output">
                 <!-- Event lines will be dynamically added here -->
-                <div class="event-line expanded">
+                <div class="event-line expanded" data-type="SystemEvent" data-source="system">
                     <div class="event-header">
                         <span class="event-type" style="color: #666666;">SYSTEM</span>
                         <span class="event-timestamp" id="current-time"></span>
@@ -574,15 +574,14 @@
             // Clear input
             input.value = '';
             
-            // Add user command to terminal (if filter allows)
-            if (document.getElementById('filter-user-message').checked) {
-                addEvent({
-                    type: 'MessageEvent',
-                    text: `User: ${command}`,
-                    timestamp: new Date().toISOString(),
-                    source: 'user'
-                });
-            }
+            // Add user command to terminal (always show user message)
+            console.log(`[Frontend] Sending command: "${command}"`);
+            addEvent({
+                type: 'MessageEvent',
+                text: `User: ${command}`,
+                timestamp: new Date().toISOString(),
+                source: 'user'
+            });
             
             // Disable send button
             isProcessing = true;
@@ -651,8 +650,10 @@
             
             // Handle incoming events
             eventSource.addEventListener('agent_event', function(event) {
+                console.log(`[Frontend] Received agent_event:`, event);
                 try {
                     if (event.data && typeof event.data === 'string' && event.data.trim() !== '') {
+                        console.log(`[Frontend] agent_event data: "${event.data.substring(0, 200)}..."`);
                         const data = JSON.parse(event.data);
                         processEvent(data);
                     } else {
@@ -780,14 +781,17 @@
         function processEvent(data) {
             // Apply filtering rules
             const eventType = data.type;
+            console.log(`[Frontend] Processing event type: "${eventType}", data:`, data);
             
             // Skip SystemPromptEvent entirely (not shown at all)
             if (eventType === 'SystemPromptEvent') {
+                console.log(`[Frontend] Skipping SystemPromptEvent`);
                 return;
             }
             
             // Skip MessageEvent from user (we already show user input separately)
             if (eventType === 'MessageEvent' && data.text && data.text.includes('user:')) {
+                console.log(`[Frontend] Skipping user MessageEvent from SSE (already shown)`);
                 return;
             }
             
@@ -803,6 +807,8 @@
                 error: data.error,
                 source: data.text && data.text.includes('user:') ? 'user' : 'agent'
             };
+            
+            console.log(`[Frontend] Created event:`, event);
             
             // Add to events array
             events.push(event);
@@ -844,6 +850,7 @@
         
         // Add event to terminal display
         function addEvent(event) {
+            console.log(`[Frontend] addEvent called with:`, event);
             const terminalOutput = document.getElementById('terminal-output');
             
             // Create event line
@@ -852,6 +859,7 @@
             eventLine.id = event.id;
             eventLine.dataset.type = event.type;
             eventLine.dataset.source = event.source || 'system';
+            console.log(`[Frontend] Created eventLine with dataset.type: "${eventLine.dataset.type}", dataset.source: "${eventLine.dataset.source}"`);
             
             // Determine event type color
             let typeColor = '#666666'; // Default system color
@@ -961,7 +969,7 @@
                 
                 let shouldShow = true;
                 
-                if (eventType.includes('System')) {
+                if (eventType && eventType.includes('System')) {
                     shouldShow = showSystem;
                 } else if (eventType === 'MessageEvent' && eventSource === 'user') {
                     shouldShow = showUserMessages;
@@ -976,7 +984,7 @@
                     
                     let shouldShow = true;
                     
-                    if (eventType.includes('System')) {
+                    if (eventType && eventType.includes('System')) {
                         shouldShow = showSystem;
                     } else if (eventType === 'MessageEvent' && eventSource === 'user') {
                         shouldShow = showUserMessages;
