@@ -11,17 +11,17 @@ import { tabManager } from './tab-manager';
 export async function getAllTabs(managedOnly: boolean = true): Promise<any> {
   let tabs;
   
-  if (managedOnly && tabManager.isSessionInitialized()) {
+  if (managedOnly) {
     // Only get managed tabs
     const managedTabs = tabManager.getManagedTabs();
     const managedTabIds = managedTabs.map(t => t.tabId);
     
-    // Query only the managed tabs
     if (managedTabIds.length > 0) {
+      // Query all tabs and filter to only managed tabs
       tabs = await chrome.tabs.query({});
-      // Filter to only managed tabs
       tabs = tabs.filter(tab => tab.id && managedTabIds.includes(tab.id));
     } else {
+      // No managed tabs, return empty list
       tabs = [];
     }
     

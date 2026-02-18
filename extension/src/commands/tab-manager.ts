@@ -53,7 +53,22 @@ export class TabManager {
    */
   private async findOrCreateTabGroup(): Promise<void> {
     try {
-      // Query existing tab groups
+      // If we already have a mainGroupId, verify it still exists
+      if (this.mainGroupId !== null) {
+        try {
+          const existingGroup = await chrome.tabGroups.get(this.mainGroupId);
+          if (existingGroup) {
+            console.log(`✅ [TabManager] Using existing tab group: ${TAB_GROUP_NAME} (ID: ${this.mainGroupId})`);
+            return;
+          }
+        } catch (error) {
+          // Group might have been deleted, continue to find or create
+          console.log(`⚠️ [TabManager] Previous group ${this.mainGroupId} not found, will find or create new one`);
+          this.mainGroupId = null;
+        }
+      }
+      
+      // Query existing tab groups by name
       const groups = await chrome.tabGroups.query({ title: TAB_GROUP_NAME });
       
       if (groups.length > 0) {
@@ -152,13 +167,11 @@ export class TabManager {
       targetUrl = `https://${startUrl}`;
     }
     
-    // First, ensure we have a tab group
+    // First, ensure we have a tab group (find existing or create new)
     if (!this.mainGroupId && chrome.tabGroups) {
-      console.log('📁 [TabManager] Creating new tab group for session initialization');
-      // Get current window
-      const currentWindow = await chrome.windows.getCurrent();
-      this.mainGroupId = await this.createTabGroup(currentWindow.id);
-      console.log(`✅ [TabManager] Created new tab group with ID: ${this.mainGroupId}`);
+      console.log('📁 [TabManager] Finding or creating tab group for session initialization');
+      await this.findOrCreateTabGroup();
+      console.log(`✅ [TabManager] Tab group ready with ID: ${this.mainGroupId}`);
     }
     
     // Create the first tab
