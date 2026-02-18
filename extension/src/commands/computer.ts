@@ -457,7 +457,7 @@ async function performMouseMove(
 async function resetMousePosition(
   tabId: number,
 ): Promise<any> {
-  // Reset to center of preset coordinate system (0,0)
+  // Reset to center of preset coordinate system (640, 360)
   mousePositions.set(tabId, { x: PRESET_CENTER_X, y: PRESET_CENTER_Y });
   
   // Clear cached viewport size to force fresh retrieval from content script
@@ -474,7 +474,7 @@ async function resetMousePosition(
   const roundedX = Math.round(actualX);
   const roundedY = Math.round(actualY);
   
-  console.log(`Mouse reset: preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) rounded(${roundedX}, ${roundedY}) viewport(${viewport.width}x${viewport.height})`);
+  console.log(`Mouse reset: preset(${PRESET_CENTER_X}, ${PRESET_CENTER_Y}) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) rounded(${roundedX}, ${roundedY}) viewport(${viewport.width}x${viewport.height})`);
   
   const attached = await debuggerManager.safeAttachDebugger(tabId);
   if (!attached) {
@@ -482,7 +482,7 @@ async function resetMousePosition(
     
     return {
       success: true,
-      message: `Mouse position reset tracked to preset(0, 0) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) [viewport: ${viewport.width}x${viewport.height}]. Actual movement may be limited.`,
+      message: `Mouse position reset tracked to preset(${PRESET_CENTER_X}, ${PRESET_CENTER_Y}) -> actual(${actualX.toFixed(0)}, ${actualY.toFixed(0)}) [viewport: ${viewport.width}x${viewport.height}]. Actual movement may be limited.`,
       data: {
         presetPosition: { x: PRESET_CENTER_X, y: PRESET_CENTER_Y },
         actualPosition: { x: actualX, y: actualY },
@@ -516,11 +516,11 @@ async function resetMousePosition(
       y: roundedY,
     });
 
-    console.log(`🖱️ [Computer] Mouse reset to actual(${roundedX}, ${roundedY}) preset(0, 0)`);
+    console.log(`🖱️ [Computer] Mouse reset to actual(${roundedX}, ${roundedY}) preset(${PRESET_CENTER_X}, ${PRESET_CENTER_Y})`);
     
     return {
       success: true,
-      message: `Mouse reset to preset(0, 0) -> actual(${roundedX}, ${roundedY}) [viewport: ${viewport.width}x${viewport.height}]`,
+      message: `Mouse reset to preset(${PRESET_CENTER_X}, ${PRESET_CENTER_Y}) -> actual(${roundedX}, ${roundedY}) [viewport: ${viewport.width}x${viewport.height}]`,
       data: {
         presetPosition: { x: PRESET_CENTER_X, y: PRESET_CENTER_Y },
         actualPosition: { x: actualX, y: actualY },

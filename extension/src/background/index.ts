@@ -53,17 +53,11 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const newTabId = activeInfo.tabId;
   console.log(`🔍 Tab activated: ${newTabId}, previous active tab: ${currentActiveTabId}`);
   
-  // Clean up visual mouse in previous tab if it was managed
-  if (currentActiveTabId !== null && currentActiveTabId !== newTabId) {
-    try {
-      console.log(`🔄 Cleaning up visual mouse in previous tab ${currentActiveTabId}`);
-      await cleanupVisualMouseInTab(currentActiveTabId);
-    } catch (error) {
-      console.error(`⚠️ Failed to cleanup visual mouse in tab ${currentActiveTabId}:`, error);
-    }
-  }
+  // DO NOT clean up visual mouse in previous tab - let content scripts handle visibility
+  // Visual mouse pointers start hidden (opacity: 0) and only show when receiving visual_mouse_update
+  // This prevents flickering when switching between tabs during automation
   
-  // Update current active tab
+  // Update current active tab (for tracking purposes)
   currentActiveTabId = newTabId;
   
   // If this tab is managed, update visual mouse position (optional)
@@ -254,8 +248,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         try {
           const moveResult = await computer.performMouseMove(
             tabIdForMove,
-            command.dx,
-            command.dy
+            command.x,
+            command.y
           );
         
         // Update visual mouse position using actual screen coordinates
@@ -425,68 +419,29 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(tabIdForScreenshot);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForScreenshot);
-        // Temporarily activate tab for automation and get restore function
-        const restoreScreenshot = await activateTabForAutomation(tabIdForScreenshot);
-        try {
-          // Update visual mouse pointer to ensure it's visible in screenshot
-          // Only update if visual mouse is not explicitly disabled
-          if (command.include_visual_mouse !== false) {
-            try {
-              // Get current mouse position in preset coordinate system
-              const mousePosition = computer.getMousePosition(tabIdForScreenshot);
-              console.log(`🎯 Current mouse position (preset): (${mousePosition.x}, ${mousePosition.y})`);
-              
-              // Get viewport size for coordinate conversion
-              const viewport = await computer.getViewportSize(tabIdForScreenshot);
-              console.log(`🖥️ Viewport size: ${viewport.width}x${viewport.height}`);
-              
-              // Convert preset coordinates to actual screen coordinates
-              const { actualX, actualY } = computer.presetToActualCoords(
-                mousePosition.x,
-                mousePosition.y,
-                viewport
-              );
-              
-              // Round to integers for display
-              const roundedX = Math.round(actualX);
-              const roundedY = Math.round(actualY);
-              console.log(`🎯 Converted to actual coordinates: (${roundedX}, ${roundedY})`);
-              
-              // Update visual mouse with actual coordinates
-              await updateVisualMouse(tabIdForScreenshot, {
-                x: roundedX,
-                y: roundedY,
-                action: 'move',
-                relative: false,
-              });
-              console.log(`✅ Visual mouse updated for screenshot at position (${roundedX}, ${roundedY})`);
-              
-              // Wait for visual mouse DOM updates to render before taking screenshot
-              // This ensures the visual mouse is fully visible in the screenshot
-              console.log(`⏳ Waiting 150ms for visual mouse rendering...`);
-              await new Promise(resolve => setTimeout(resolve, 150));
-            } catch (visualMouseError) {
-              console.warn('⚠️ Failed to update visual mouse for screenshot, continuing anyway:', visualMouseError);
-            }
-          }
-          
-          const screenshotResult = await captureScreenshot(
-            tabIdForScreenshot,
-            command.include_cursor !== false,
-            command.quality || 90,
-            true, // resizeToPreset
-            200   // waitForRender: additional wait time after visual mouse update (ms)
-          );
-          return {
-            success: true,
-            message: 'Screenshot captured',
-            data: screenshotResult,
-            timestamp: Date.now(),
-          };
-        } finally {
-          // Restore user's original tab after command execution
-          await restoreScreenshot();
-        }
+        // DO NOT activate tab for screenshot to avoid disrupting user browsing
+        // Instead, capture screenshot in background using CDP
+        
+        // IMPORTANT: Do NOT update visual mouse or get viewport size before screenshot
+        // These operations send messages to content script which may cause tab activation
+        // or other side effects. Visual mouse will be captured in its current state.
+        // If include_visual_mouse is explicitly true, we'll still skip to avoid disruption.
+        
+        console.log(`📸 Taking screenshot without updating visual mouse to avoid tab disruption`);
+        
+        const screenshotResult = await captureScreenshot(
+          tabIdForScreenshot,
+          command.include_cursor !== false,
+          command.quality || 90,
+          true, // resizeToPreset
+          0    // waitForRender: no need to wait for render since tab is not activated
+        );
+        return {
+          success: true,
+          message: 'Screenshot captured (background, no visual mouse update)',
+          data: screenshotResult,
+          timestamp: Date.now(),
+        };
 
       case 'reset_mouse':
         const tabIdForReset = command.tab_id || await getCurrentTabId();
@@ -696,22 +651,27 @@ async function getCurrentTabId(): Promise<number> {
 /**
  * Send visual mouse update to content script
  */
-async function updateVisualMouse(tabId: number, data: any): Promise<boolean> {
+async function updateVisualMouse(tabId: number, data: any, skipActiveTabUpdate: boolean = false): Promise<boolean> {
   try {
-    console.log(`🎯 Attempting to update visual mouse for tab ${tabId}:`, data);
+    console.log(`🎯 Attempting to update visual mouse for tab ${tabId}:`, data, `skipActiveTabUpdate=${skipActiveTabUpdate}`);
     
-    // Check if we're switching to a new tab
-    if (currentActiveTabId !== null && currentActiveTabId !== tabId) {
-      console.log(`🔄 Switching from tab ${currentActiveTabId} to tab ${tabId}, cleaning up old visual mouse`);
-      // Clean up visual mouse in the previously active tab
-      await cleanupVisualMouseInTab(currentActiveTabId).catch(err => {
-        console.log(`Non-critical error cleaning up old tab ${currentActiveTabId}:`, err);
-      });
+    // For background operations (like screenshot), don't switch active tab state
+    if (!skipActiveTabUpdate) {
+      // Check if we're switching to a new tab
+      if (currentActiveTabId !== null && currentActiveTabId !== tabId) {
+        console.log(`🔄 Switching from tab ${currentActiveTabId} to tab ${tabId}, cleaning up old visual mouse`);
+        // Clean up visual mouse in the previously active tab
+        await cleanupVisualMouseInTab(currentActiveTabId).catch(err => {
+          console.log(`Non-critical error cleaning up old tab ${currentActiveTabId}:`, err);
+        });
+      }
+      
+      // Update current active tab
+      currentActiveTabId = tabId;
+      console.log(`📌 Current active tab set to: ${currentActiveTabId}`);
+    } else {
+      console.log(`⏩ Skipping active tab update for background operation, currentActiveTabId remains: ${currentActiveTabId}`);
     }
-    
-    // Update current active tab
-    currentActiveTabId = tabId;
-    console.log(`📌 Current active tab set to: ${currentActiveTabId}`);
     
     // Check if tab is accessible (not chrome:// page)
     const tab = await chrome.tabs.get(tabId);
