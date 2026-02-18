@@ -132,7 +132,7 @@ export class VisualMousePointer {
       borderRadius: '4px',
       whiteSpace: 'nowrap',
       textShadow: '0 1px 2px rgba(0, 0, 0, 0.8)',
-      transform: 'translateY(24px)', // Position below the pointer
+      // No transform - we'll calculate position directly in updateCoordinateDisplay
     } as CSSStyleDeclaration);
 
     // Add to document
@@ -307,9 +307,47 @@ export class VisualMousePointer {
     // Update coordinate display text
     this.coordElement.textContent = `(${formattedX}, ${formattedY})`;
     
-    // Position coordinate display near the pointer
-    this.coordElement.style.left = `${this.currentX}px`;
-    this.coordElement.style.top = `${this.currentY}px`;
+    // Position coordinate display to the right of the pointer
+    // Add offset to avoid overlapping with the mouse pointer
+    const offsetX = 24; // pixels to the right of the pointer
+    const offsetY = 0;  // Align vertically with pointer
+    
+    // Calculate position with offset
+    let coordX = this.currentX + offsetX;
+    let coordY = this.currentY + offsetY;
+    
+    // Get viewport dimensions for boundary checking
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 800;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 600;
+    
+    // Estimate coordinate element width (text width + padding)
+    // Approximate based on typical text length: "(xxxx, yyyy)" ~ 12 characters * 8px = 96px
+    const estimatedCoordWidth = 96; // pixels
+    const estimatedCoordHeight = 20; // pixels
+    
+    // Ensure coordinate display stays within viewport bounds
+    // If too close to right edge, show on left side instead
+    if (coordX + estimatedCoordWidth > viewportWidth) {
+      // Move to left side of pointer with some spacing
+      const leftOffset = 10; // pixels spacing on left side
+      coordX = this.currentX - estimatedCoordWidth - leftOffset;
+    }
+    
+    // Ensure coordinate display doesn't go off left edge
+    if (coordX < 0) {
+      coordX = 0;
+    }
+    
+    // Check vertical bounds
+    if (coordY + estimatedCoordHeight > viewportHeight) {
+      coordY = this.currentY - estimatedCoordHeight; // Move above pointer
+    } else if (coordY < 0) {
+      coordY = 0; // Ensure not above viewport
+    }
+    
+    // Apply position
+    this.coordElement.style.left = `${coordX}px`;
+    this.coordElement.style.top = `${coordY}px`;
   }
 
   /**
