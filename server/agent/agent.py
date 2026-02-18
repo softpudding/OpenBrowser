@@ -252,6 +252,41 @@ class OpenBrowserAgentManager:
         """Get conversation by ID"""
         return self.conversations.get(conversation_id)
     
+    def get_or_create_conversation(self, conversation_id: str) -> ConversationState:
+        """Get existing conversation or create a new one with the given ID"""
+        conv_state = self.get_conversation(conversation_id)
+        if conv_state:
+            return conv_state
+        
+        # Conversation doesn't exist, create it
+        if conversation_id in self.conversations:
+            # Race condition: conversation was just created by another thread
+            return self.conversations[conversation_id]
+        
+        # Create new conversation with the given ID
+        # Create agent with tools
+        agent = Agent(llm=self.llm, tools=self.default_tools)
+        
+        # Create visualizer (queue will be set when processing messages)
+        visualizer = QueueVisualizer()
+        
+        # Create conversation
+        conversation = Conversation(
+            agent=agent,
+            visualizer=visualizer,
+            workspace=".",  # Current directory
+        )
+        
+        # Store conversation state
+        self.conversations[conversation_id] = ConversationState(
+            conversation_id=conversation_id,
+            conversation=conversation,
+            visualizer=visualizer,
+        )
+        
+        logger.debug(f"Created new conversation with ID: {conversation_id}")
+        return self.conversations[conversation_id]
+    
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete a conversation"""
         if conversation_id in self.conversations:
@@ -326,10 +361,8 @@ async def process_agent_message(
     logger.info(f"Processing agent message for conversation {conversation_id}: '{message_text[:50]}...'")
     logger.debug(f"Processing agent message for conversation {conversation_id}: '{message_text[:50]}...'")
     
-    conv_state = agent_manager.get_conversation(conversation_id)
-    if not conv_state:
-        logger.debug(f"DEBUG: Conversation {conversation_id} not found")
-        raise ValueError(f"Conversation {conversation_id} not found")
+    conv_state = agent_manager.get_or_create_conversation(conversation_id)
+    logger.debug(f"DEBUG: Using conversation {conversation_id} (created if new)")
     
     # Create a queue for collecting events from visualizer
     event_queue = queue.Queue()
