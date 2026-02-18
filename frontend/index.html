@@ -795,28 +795,7 @@
                 }
             });
             
-            // Handle connection errors
-            eventSource.onerror = function(error) {
-                console.error('EventSource error:', error);
-                
-                // Skip if error already handled by error event listener
-                if (errorHandled) {
-                    return;
-                }
-                
-                // Mark error as handled
-                errorHandled = true;
-                
-                // Re-enable send button
-                isProcessing = false;
-                document.getElementById('send-button').disabled = false;
-                
-                // Close EventSource
-                if (eventSource) {
-                    eventSource.close();
-                    eventSource = null;
-                }
-            };
+
         }
         
         // Process incoming event
