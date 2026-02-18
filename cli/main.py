@@ -523,45 +523,76 @@ def interactive(ctx):
 def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = None, 
                            auto_save: bool = True) -> Optional[str]:
     """Save screenshot from result and return saved file path"""
-    if not result.get('success') or 'data' not in result or 'image_data' not in result['data']:
+    try:
+        if not result.get('success') or 'data' not in result or 'image_data' not in result['data']:
+            click.echo("⚠️  Cannot save screenshot: missing success flag or image data")
+            if 'data' in result and 'metadata' in result['data']:
+                click.echo(f"   Metadata exists but no image_data?")
+            return None
+        
+        import base64
+        import os
+        from datetime import datetime
+        
+        image_data = result['data']['image_data']
+        
+        if not image_data or len(image_data) < 100:
+            click.echo(f"⚠️  Image data seems too small or empty: {len(image_data) if image_data else 0} bytes")
+            return None
+        
+        # Remove data URL prefix if present
+        if image_data.startswith('data:image/'):
+            # Extract base64 data
+            header, data = image_data.split(',', 1)
+            image_data = data
+            click.echo(f"   Detected data URL, extracted {len(image_data)} bytes of base64 data")
+        else:
+            click.echo(f"   Using raw data (not data URL): {len(image_data)} bytes")
+        
+        saved_path = None
+        
+        # Save to file if requested via save_path
+        if save_path:
+            try:
+                with open(save_path, 'wb') as f:
+                    f.write(base64.b64decode(image_data))
+                saved_path = save_path
+                click.echo(f"   Saved {len(image_data)} bytes to {save_path}")
+            except Exception as e:
+                click.echo(f"❌ Failed to save to {save_path}: {e}")
+                return None
+        
+        # Auto-save to screenshots directory if not disabled and no custom save path
+        elif auto_save:
+            # Create screenshots directory if it doesn't exist
+            screenshot_dir = "./screenshots"
+            screenshot_dir_abs = os.path.abspath(screenshot_dir)
+            os.makedirs(screenshot_dir_abs, exist_ok=True)
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = os.path.join(screenshot_dir_abs, f"screenshot_{timestamp}.png")
+            
+            try:
+                # Save the file
+                with open(filename, 'wb') as f:
+                    f.write(base64.b64decode(image_data))
+                
+                saved_path = filename
+                click.echo(f"   Saved {len(image_data)} bytes to {filename}")
+            except Exception as e:
+                click.echo(f"❌ Failed to auto-save screenshot: {e}")
+                click.echo(f"   Directory: {screenshot_dir_abs}")
+                click.echo(f"   Filename: {filename}")
+                return None
+        
+        return saved_path
+    
+    except Exception as e:
+        click.echo(f"❌ Unexpected error saving screenshot: {e}")
+        import traceback
+        click.echo(f"   Traceback: {traceback.format_exc()[:200]}...")
         return None
-    
-    import base64
-    import os
-    from datetime import datetime
-    
-    image_data = result['data']['image_data']
-    
-    # Remove data URL prefix if present
-    if image_data.startswith('data:image/'):
-        header, data = image_data.split(',', 1)
-        image_data = data
-    
-    saved_path = None
-    
-    # Save to file if requested via save_path
-    if save_path:
-        with open(save_path, 'wb') as f:
-            f.write(base64.b64decode(image_data))
-        saved_path = save_path
-    
-    # Auto-save to screenshots directory if not disabled and no custom save path
-    elif auto_save:
-        # Create screenshots directory if it doesn't exist
-        screenshot_dir = "./screenshots"
-        os.makedirs(screenshot_dir, exist_ok=True)
-        
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = os.path.join(screenshot_dir, f"screenshot_{timestamp}.png")
-        
-        # Save the file
-        with open(filename, 'wb') as f:
-            f.write(base64.b64decode(image_data))
-        
-        saved_path = filename
-    
-    return saved_path
 
 
 def _print_result(result: Dict[str, Any]):
