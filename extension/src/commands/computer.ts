@@ -36,15 +36,15 @@ export function cacheScreenshotMetadata(
 }
 
 // Preset coordinate system configuration
-// Center at (0,0), 2K resolution (2560x1440) - standard coordinate system
-const PRESET_WIDTH = 2560;
-const PRESET_HEIGHT = 1440;
+// Center at (0,0), 720P resolution (1280x720) - standard coordinate system
+const PRESET_WIDTH = 1280;
+const PRESET_HEIGHT = 720;
 const PRESET_CENTER_X = 0;
 const PRESET_CENTER_Y = 0;
-const PRESET_MIN_X = -PRESET_WIDTH / 2;  // -1280
-const PRESET_MAX_X = PRESET_WIDTH / 2;   // 1280
-const PRESET_MIN_Y = -PRESET_HEIGHT / 2; // -720
-const PRESET_MAX_Y = PRESET_HEIGHT / 2;  // 720
+const PRESET_MIN_X = -PRESET_WIDTH / 2;  // -640
+const PRESET_MAX_X = PRESET_WIDTH / 2;   // 640
+const PRESET_MIN_Y = -PRESET_HEIGHT / 2; // -360
+const PRESET_MAX_Y = PRESET_HEIGHT / 2;  // 360
 
 // Track mouse positions in PRESET coordinate system (center-based)
 const mousePositions = new Map<number, {x: number, y: number}>();
@@ -198,7 +198,7 @@ function getOrInitializeMousePosition(tabId: number): {x: number, y: number} {
 
 /**
  * Convert screenshot pixel coordinates to viewport CSS pixels
- * Handles both resized screenshots (2560×1440) and original screenshots
+ * Handles both resized screenshots (1280x720) and original screenshots
  */
 function screenshotToCssPixels(
   x: number,
@@ -214,7 +214,7 @@ function screenshotToCssPixels(
   let screenshotY: number;
   
   if (isResizedToPreset) {
-    // Screenshot is already 2560×1440 - use direct mapping from simulated coordinates
+    // Screenshot is already 1280x720 - use direct mapping from simulated coordinates
     // Convert from simulated coordinates (center-based) to screenshot pixel coordinates (top-left based)
     // Simulated: (-1280, -720) to (1280, 720), center at (0, 0)
     // Screenshot pixels: (0, 0) to (2559, 1439), top-left at (0, 0)

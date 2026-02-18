@@ -552,13 +552,8 @@ async function getCurrentTabId(): Promise<number> {
     return defaultTabId;
   }
   
-  // Fall back to currently active tab
-  const tab = await tabs.getCurrentTab();
-  if (!tab?.id) {
-    throw new Error('No active tab found');
-  }
-  console.log(`📌 No managed tabs, using current active tab ID: ${tab.id}`);
-  return tab.id;
+  // No managed tabs - require explicit session initialization
+  throw new Error('No managed tabs available. Please initialize a session with "tabs init <url>" command first.');
 }
 
 /**

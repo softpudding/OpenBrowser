@@ -988,6 +988,35 @@ screenshot                      # Now captures from new current tab
 - When no managed tabs exist, extension falls back to active tab
 - `tab_id` field is optional in API calls
 
+
+### Screenshot Isolation using CDP (March 2025)
+
+**Problem**: Screenshots captured user's visible tab instead of managed tab due to `chrome.tabs.captureVisibleTab` API limitation.
+
+**Root Cause**: The `captureVisibleTab` API captures the currently visible tab in the window, not the specified tab. This caused screenshots to show user's active tab instead of the managed AI tab.
+
+**Solution**: Implemented CDP-based screenshot capture with background tab support:
+
+1. **CDP Screenshot Function**: Created `captureScreenshotWithCDP` function using Chrome DevTools Protocol (`Page.captureScreenshot`)
+2. **Background Tab Support**: CDP can capture screenshots of tabs even when they're in the background (not visible)
+3. **Viewport Accuracy**: Uses `Page.getLayoutMetrics` to get precise viewport dimensions
+4. **Fallback Mechanism**: Falls back to legacy `captureVisibleTab` if CDP fails, with clear warning about potential tab mismatch
+5. **Session Isolation**: Modified `getCurrentTabId()` to require managed tabs, preventing accidental control of user's active tab
+
+**Technical Implementation**:
+- Added imports for `CdpCommander` and `debuggerManager` in `screenshot.ts`
+- CDP screenshot flow: attach debugger → enable Page domain → get layout metrics → capture screenshot → resize to preset coordinate system (1280×720)
+- Preset coordinate system maintained for consistent mapping between screenshots and mouse positions
+- Added metadata field `captureMethod` to distinguish between CDP and legacy captures
+
+**Isolation Benefits**:
+- Screenshots now reliably capture managed tabs even when user is browsing other tabs
+- No visual disruption or tab switching during screenshot capture
+- Managed tabs remain in background, preserving user browsing experience
+- Clear error messages guide users to initialize sessions with `tabs init` when no managed tabs exist
+
+**Testing**: Verify that `tabs init <url>` followed by `screenshot` captures the managed tab even when user switches to another tab.
+
 ### Refresh Tab Functionality (February 2026)
 
 **New Feature**: Added `refresh` action to tab management commands.

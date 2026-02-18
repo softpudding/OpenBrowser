@@ -56,10 +56,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
       
+    case 'get_device_pixel_ratio':
+      sendResponse({
+        success: true,
+        devicePixelRatio: window.devicePixelRatio || 1,
+      });
+      break;
+      
     case 'resize_image':
-      // Resize image to simulated coordinate system dimensions (2560×1440)
+      // Resize image to simulated coordinate system dimensions (1280x720)
       try {
-        const { dataUrl, targetWidth = 2560, targetHeight = 1440 } = message.data;
+        const { dataUrl, targetWidth = 1280, targetHeight = 720 } = message.data;
         console.log(`🖼️ Resizing image to ${targetWidth}×${targetHeight}...`);
         
         resizeImage(dataUrl, targetWidth, targetHeight)
@@ -122,6 +129,25 @@ async function resizeImage(
     const img = new Image();
     img.onload = () => {
       try {
+        console.log(`🖼️ Original image dimensions: ${img.width}x${img.height}`);
+        console.log(`🖼️ Target dimensions: ${targetWidth}x${targetHeight}`);
+        
+        // Calculate scaling ratio to fit within target dimensions while maintaining aspect ratio
+        const scale = Math.min(
+          targetWidth / img.width,
+          targetHeight / img.height
+        );
+        
+        // Calculate new dimensions
+        const newWidth = Math.floor(img.width * scale);
+        const newHeight = Math.floor(img.height * scale);
+        
+        // Calculate centering offset
+        const offsetX = Math.floor((targetWidth - newWidth) / 2);
+        const offsetY = Math.floor((targetHeight - newHeight) / 2);
+        
+        console.log(`🖼️ Scaling factor: ${scale}, new dimensions: ${newWidth}x${newHeight}, offset: (${offsetX}, ${offsetY})`);
+        
         const canvas = document.createElement('canvas');
         canvas.width = targetWidth;
         canvas.height = targetHeight;
@@ -131,17 +157,26 @@ async function resizeImage(
           return;
         }
         
-        // Draw image to canvas with scaling
-        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+        // Fill background with white (optional, for debugging)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+        
+        // Draw image to canvas with scaling and centering
+        ctx.drawImage(img, 0, 0, img.width, img.height, offsetX, offsetY, newWidth, newHeight);
         
         // Convert to data URL (PNG format for lossless quality)
         const resizedDataUrl = canvas.toDataURL('image/png');
+        console.log(`🖼️ Image resized successfully, data URL length: ${resizedDataUrl.length}`);
         resolve(resizedDataUrl);
       } catch (error) {
+        console.error('❌ Error in resizeImage:', error);
         reject(error);
       }
     };
-    img.onerror = () => reject(new Error('Failed to load image'));
+    img.onerror = () => {
+      console.error('❌ Failed to load image for resizing');
+      reject(new Error('Failed to load image'));
+    };
     img.src = dataUrl;
   });
 }
