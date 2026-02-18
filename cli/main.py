@@ -556,8 +556,6 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
                 has_image_data = True
         
         if not result.get('success') or 'data' not in result or not has_image_data:
-            click.echo("⚠️  Cannot save screenshot: missing success flag or image data")
-            click.echo(f"   Available keys in data: {list(result.get('data', {}).keys())}")
             return None
         
         import base64
@@ -567,17 +565,12 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
         image_data = result['data'][image_data_key]
         
         if not image_data or len(image_data) < 100:
-            click.echo(f"⚠️  Image data seems too small or empty: {len(image_data) if image_data else 0} bytes")
             return None
         
         # Remove data URL prefix if present
         if image_data.startswith('data:image/'):
-            # Extract base64 data
             header, data = image_data.split(',', 1)
             image_data = data
-            click.echo(f"   Detected data URL, extracted {len(image_data)} bytes of base64 data")
-        else:
-            click.echo(f"   Using raw data (not data URL): {len(image_data)} bytes")
         
         saved_path = None
         
@@ -587,9 +580,7 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
                 with open(save_path, 'wb') as f:
                     f.write(base64.b64decode(image_data))
                 saved_path = save_path
-                click.echo(f"   Saved {len(image_data)} bytes to {save_path}")
             except Exception as e:
-                click.echo(f"❌ Failed to save to {save_path}: {e}")
                 return None
         
         # Auto-save to screenshots directory if not disabled and no custom save path
@@ -609,19 +600,12 @@ def _save_screenshot_result(result: Dict[str, Any], save_path: Optional[str] = N
                     f.write(base64.b64decode(image_data))
                 
                 saved_path = filename
-                click.echo(f"   Saved {len(image_data)} bytes to {filename}")
             except Exception as e:
-                click.echo(f"❌ Failed to auto-save screenshot: {e}")
-                click.echo(f"   Directory: {screenshot_dir_abs}")
-                click.echo(f"   Filename: {filename}")
                 return None
         
         return saved_path
     
     except Exception as e:
-        click.echo(f"❌ Unexpected error saving screenshot: {e}")
-        import traceback
-        click.echo(f"   Traceback: {traceback.format_exc()[:200]}...")
         return None
 
 
