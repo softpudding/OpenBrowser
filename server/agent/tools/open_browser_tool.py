@@ -323,26 +323,195 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 screenshot_data_url=None
             )
     
+    def _execute_action_sync(self, action: OpenBrowserAction) -> OpenBrowserObservation:
+        """Execute a browser action synchronously via HTTP"""
+        print(f"DEBUG: _execute_action_sync called with action_type={action.type}, params={action.parameters}")
+        try:
+            # Get action type and parameters
+            action_type = action.type
+            params = action.parameters
+            
+            # Convert to appropriate server command based on type
+            result_dict = None
+            message = ""
+            
+            if action_type == "mouse_move":
+                command = MouseMoveCommand(
+                    dx=params['dx'],
+                    dy=params['dy'],
+                    duration=params.get('duration', 0.1)
+                )
+                result_dict = self._execute_command_sync(command)
+                message = f"Moved mouse by ({params['dx']}, {params['dy']})"
+                
+            elif action_type == "mouse_click":
+                # Convert button string to MouseButton enum
+                button_str = params.get('button', 'left')
+                button_enum = MouseButton(button_str)
+                command = MouseClickCommand(
+                    button=button_enum,
+                    double=params.get('double', False),
+                    count=params.get('count', 1)
+                )
+                result_dict = self._execute_command_sync(command)
+                message = f"Clicked mouse button: {button_str}"
+                
+            elif action_type == "mouse_scroll":
+                # Convert direction string to ScrollDirection enum
+                direction_str = params.get('direction', 'down')
+                direction_enum = ScrollDirection(direction_str)
+                command = MouseScrollCommand(
+                    direction=direction_enum,
+                    amount=params.get('amount', 100)
+                )
+                result_dict = self._execute_command_sync(command)
+                message = f"Scrolled {direction_str} by {params.get('amount', 100)} pixels"
+                
+            elif action_type == "reset_mouse":
+                command = ResetMouseCommand()
+                result_dict = self._execute_command_sync(command)
+                message = "Reset mouse to screen center"
+                
+            elif action_type == "keyboard_type":
+                command = KeyboardTypeCommand(text=params['text'])
+                result_dict = self._execute_command_sync(command)
+                text = params['text']
+                if len(text) > 50:
+                    message = f"Typed: '{text[:50]}...'"
+                else:
+                    message = f"Typed: '{text}'"
+                
+            elif action_type == "keyboard_press":
+                command = KeyboardPressCommand(
+                    key=params['key'],
+                    modifiers=params.get('modifiers', [])
+                )
+                result_dict = self._execute_command_sync(command)
+                modifiers = params.get('modifiers', [])
+                modifier_str = f" with modifiers {modifiers}" if modifiers else ""
+                message = f"Pressed key: {params['key']}{modifier_str}"
+                
+            elif action_type == "tab":
+                action_str = params['action']
+                # Convert action string to TabAction enum
+                # TabAction enum values are uppercase, so convert 'open' -> 'OPEN'
+                try:
+                    action_enum = TabAction(action_str.upper())
+                except ValueError:
+                    # If direct conversion fails, try to map common values
+                    action_map = {
+                        'init': TabAction.INIT,
+                        'open': TabAction.OPEN,
+                        'close': TabAction.CLOSE,
+                        'switch': TabAction.SWITCH,
+                        'list': TabAction.LIST
+                    }
+                    if action_str in action_map:
+                        action_enum = action_map[action_str]
+                    else:
+                        raise ValueError(f"Invalid tab action: {action_str}")
+                
+                command = TabCommand(
+                    action=action_enum,
+                    url=params.get('url'),
+                    tab_id=params.get('tab_id')
+                )
+                result_dict = self._execute_command_sync(command)
+                
+                if action_str == "open":
+                    message = f"Opened tab with URL: {params.get('url')}"
+                elif action_str == "init":
+                    message = f"Initialized session with URL: {params.get('url')}"
+                elif action_str == "close":
+                    message = f"Closed tab ID: {params.get('tab_id')}"
+                elif action_str == "switch":
+                    message = f"Switched to tab ID: {params.get('tab_id')}"
+                elif action_str == "list":
+                    message = "Listed tabs"
+                else:
+                    message = f"Tab action: {action_str}"
+            else:
+                raise ValueError(f"Unknown action type: {action_type}")
+            
+            # Get current state after operation
+            print(f"DEBUG: Getting tabs after action (sync)...")
+            tabs_result = self._get_tabs_sync()
+            print(f"DEBUG: tabs_result: success={tabs_result.get('success')}, data keys={list(tabs_result.get('data', {}).keys()) if tabs_result.get('data') else 'None'}")
+            
+            print(f"DEBUG: Getting screenshot after action (sync)...")
+            screenshot_result = self._get_screenshot_sync()
+            print(f"DEBUG: screenshot_result: success={screenshot_result.get('success')}, data keys={list(screenshot_result.get('data', {}).keys()) if screenshot_result.get('data') else 'None'}")
+            
+            mouse_position = self._get_mouse_position()  # TODO: Track mouse position
+            
+            # Get tab data from tabs result
+            tabs_data = []
+            if tabs_result.get('success') and tabs_result.get('data') and 'tabs' in tabs_result['data']:
+                tabs_data = tabs_result['data']['tabs']
+            
+            # Get screenshot data URL
+            screenshot_data_url = None
+            if screenshot_result.get('success') and screenshot_result.get('data'):
+                # Try to extract image data
+                image_data = None
+                data = screenshot_result['data']
+                if 'imageData' in data:
+                    image_data = data['imageData']
+                elif 'image_data' in data:
+                    image_data = data['image_data']
+                
+                if image_data:
+                    # Ensure it's a data URL
+                    if isinstance(image_data, str) and image_data.startswith('data:image/'):
+                        screenshot_data_url = image_data
+                    elif isinstance(image_data, str):
+                        # Convert base64 to data URL
+                        screenshot_data_url = f"data:image/png;base64,{image_data}"
+                    else:
+                        print(f"DEBUG: Unexpected image_data type: {type(image_data)}")
+            
+            # Extract success from result_dict
+            success = False
+            error = None
+            if result_dict:
+                success = result_dict.get('success', False)
+                if 'error' in result_dict:
+                    error = result_dict['error']
+                elif 'message' in result_dict and 'error' in result_dict.get('data', {}):
+                    error = result_dict['data']['error']
+            
+            return OpenBrowserObservation(
+                success=success,
+                message=message,
+                error=error,
+                tabs=tabs_data,
+                mouse_position=mouse_position,
+                screenshot_data_url=screenshot_data_url
+            )
+            
+        except Exception as e:
+            print(f"DEBUG: _execute_action_sync caught exception: {e}")
+            import traceback
+            traceback.print_exc()
+            logger.error(f"Error executing browser action (sync): {e}")
+            return OpenBrowserObservation(
+                success=False,
+                error=str(e),
+                tabs=[],
+                mouse_position=None,
+                screenshot_data_url=None
+            )
+    
     def __call__(self, action: OpenBrowserAction, conversation=None) -> OpenBrowserObservation:
         """Execute a browser action and return observation"""
-        # conversation.run() runs in a thread with its own event loop
+        # Use synchronous HTTP API to avoid event loop competition with WebSocket
         print(f"DEBUG: OpenBrowserTool.__call__ called with action: {action.type}, params: {action.parameters}")
         print(f"DEBUG: Current thread: {threading.current_thread().name}")
         
         try:
-            # Get the event loop for this thread (should be set by conversation thread)
-            try:
-                loop = asyncio.get_event_loop()
-                print(f"DEBUG: Using thread event loop: {loop}, running: {loop.is_running()}")
-            except RuntimeError as e:
-                print(f"DEBUG: ERROR: No event loop in thread: {e}")
-                # Fall back: create temporary event loop
-                print(f"DEBUG: Creating temporary event loop")
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            # Run async function in the event loop
-            obs = loop.run_until_complete(self._execute_action(action))
+            # Use synchronous execution (avoids event loop issues)
+            print(f"DEBUG: Using synchronous HTTP API for tool execution")
+            obs = self._execute_action_sync(action)
             print(f"DEBUG: OpenBrowserTool.__call__ returning observation: success={obs.success}, message={obs.message}, tabs_count={len(obs.tabs)}, has_screenshot={obs.screenshot_data_url is not None}")
             return obs
                 
