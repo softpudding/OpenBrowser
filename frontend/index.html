@@ -1399,9 +1399,9 @@
                 }
             });
             
-            // Set completion timeout (120 seconds / 2 minutes)
+            // Set completion timeout (300 seconds / 5 minutes)
             completionTimeout = setTimeout(() => {
-                console.warn('[Frontend] SSE completion timeout - no complete event received after 120 seconds');
+                console.warn('[Frontend] SSE completion timeout - no complete event received after 300 seconds');
                 if (!errorHandled) {
                     errorHandled = true;
                     addEvent({
@@ -1414,7 +1414,7 @@
                     // Note: Cannot abort fetch from here as abortController is in fetch scope
                     // The fetch will eventually complete or error on its own
                 }
-            }, 120000);
+            }, 300000);
             
 
             
