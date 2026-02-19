@@ -71,13 +71,17 @@ OpenBrowser is specifically designed for **Qwen3.5-Plus**, leveraging its unique
 
 A typical use case showing OpenBrowser developing an HTML calculator and visually verifying it in the browser.
 
-[📺 Watch: calculator-demo-2x.mp4](demo/calculator-demo-2x.mp4)
+![Calculator Demo](demo/calculator-preview.gif)
+
+[📺 Watch full video: calculator-demo-2x.mp4](demo/calculator-demo-2x.mp4)
 
 ### Demo 2: OpenBrowser Debugging Itself
 
 Real-world use case: OpenBrowser debugging its own frontend issues.
 
-[📺 Watch: openbrowser-debug-openbrowser-1.5x.mp4](demo/openbrowser-debug-openbrowser-1.5x.mp4)
+![OpenBrowser Debugging](demo/openbrowser-preview.gif)
+
+[📺 Watch full video: openbrowser-debug-openbrowser-1.5x.mp4](demo/openbrowser-debug-openbrowser-1.5x.mp4)
 
 ## Quick Start
 
