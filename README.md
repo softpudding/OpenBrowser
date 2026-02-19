@@ -65,6 +65,20 @@ OpenBrowser is specifically designed for **Qwen3.5-Plus**, leveraging its unique
 - **Terminal Integration**: Execute bash commands for backend operations
 - **Multiple Interfaces**: REST API and WebSocket
 
+## Demos
+
+### Demo 1: Building and Testing an HTML Calculator
+
+A typical use case showing OpenBrowser developing an HTML calculator and visually verifying it in the browser.
+
+<video src="demo/calculator-demo-2x.mp4" controls width="640"></video>
+
+### Demo 2: OpenBrowser Debugging Itself
+
+Real-world use case: OpenBrowser debugging its own frontend issues.
+
+<video src="demo/openbrowser-debug-openbrowser-1.5x.mp4" controls width="640"></video>
+
 ## Quick Start
 
 ### 1. Set Environment Variables
