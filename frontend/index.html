@@ -157,12 +157,36 @@
             border: 2px solid #444444;
             border-radius: 5px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-            transition: all 0.3s ease;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, opacity 0.3s ease;
+            opacity: 1;
+        }
+        
+        .live-image.fade-out {
+            opacity: 0.3;
         }
         
         .live-image:hover {
             border-color: #666666;
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+        }
+        
+        .live-image.fullsize {
+            max-width: 90vw;
+            max-height: 90vh;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            z-index: 1000;
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.9);
+            cursor: pointer;
+        }
+        
+        .live-image.fullsize:hover {
+            transform: translate(-50%, -50%) scale(1);
         }
         
         .no-image-placeholder {
@@ -712,6 +736,18 @@
                 </div>
                 
                 <div class="sidebar-section">
+                    <div class="sidebar-title">QUICK COMMANDS</div>
+                    <div class="event-stats">
+                        <div class="stat-item">
+                            <button class="send-button" style="width: 100%; margin: 5px 0; font-size: 11px;" onclick="setCommand('star https://github.com/softpudding/OpenBrowser'); document.getElementById('command-input').focus();">star https://github.com/softpudding/OpenBrowser</button>
+                        </div>
+                        <div class="stat-item">
+                            <button class="send-button" style="width: 100%; margin: 5px 0; font-size: 11px;" onclick="clearTerminal()">CLEAR TERMINAL</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="sidebar-section">
                     <div class="sidebar-title">EVENT STATISTICS</div>
                     <div class="event-stats">
                         <div class="stat-item">
@@ -760,24 +796,6 @@
                         </div>
                     </div>
                 </div>
-                
-                <div class="sidebar-section">
-                    <div class="sidebar-title">QUICK COMMANDS</div>
-                    <div class="event-stats">
-                        <div class="stat-item">
-                            <button class="send-button" style="width: 100%; margin: 5px 0; font-size: 11px;" onclick="setCommand('open google.com')">open google.com</button>
-                        </div>
-                        <div class="stat-item">
-                            <button class="send-button" style="width: 100%; margin: 5px 0; font-size: 11px;" onclick="setCommand('tabs list')">tabs list</button>
-                        </div>
-                        <div class="stat-item">
-                            <button class="send-button" style="width: 100%; margin: 5px 0; font-size: 11px;" onclick="setCommand('mouse reset')">mouse reset</button>
-                        </div>
-                        <div class="stat-item">
-                            <button class="send-button" style="width: 100%; margin: 5px 0; font-size: 11px;" onclick="clearTerminal()">CLEAR TERMINAL</button>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -809,7 +827,7 @@
             return serverBaseUrl ? `${serverBaseUrl}/${cleanPath}` : `/${cleanPath}`;
         }
         
-        // Update live image viewer
+        // Update live image viewer - reuses existing image element for smooth transitions
         function updateLiveImage(imageUrl) {
             const imageViewerContent = document.getElementById('image-viewer-content');
             const noImagePlaceholder = document.getElementById('no-image-placeholder');
@@ -841,28 +859,56 @@
                 noImagePlaceholder.style.display = 'none';
             }
             
-            // Remove any existing image
-            const existingImage = imageViewerContent.querySelector('.live-image');
-            if (existingImage) {
-                existingImage.remove();
+            // Get existing image or create new one
+            let img = imageViewerContent.querySelector('.live-image');
+            
+            if (!img) {
+                // Create new image element
+                img = document.createElement('img');
+                img.className = 'live-image';
+                img.alt = 'Live browser screenshot';
+                
+                // Add click handler for full-size view
+                img.addEventListener('click', function() {
+                    toggleImageFullsize({ currentTarget: img });
+                });
+                
+                // Add to viewer
+                imageViewerContent.appendChild(img);
             }
             
-            // Create new image element
-            const img = document.createElement('img');
-            img.className = 'live-image';
-            img.src = imageUrl;
-            img.alt = 'Live browser screenshot';
-            img.title = 'Click to view full size | ' + new Date().toLocaleTimeString();
+            // Preserve the fullsize state before updating
+            const wasFullsize = img.classList.contains('fullsize');
             
-            // Add click handler for full-size view
-            img.addEventListener('click', function() {
-                toggleImageFullsize({ currentTarget: img });
-            });
+            // Add fade-out effect for smooth transition
+            img.classList.add('fade-out');
             
-            // Add to viewer
-            imageViewerContent.appendChild(img);
+            // Preload the new image before displaying
+            const tempImg = new Image();
+            tempImg.onload = function() {
+                // Update image source
+                img.src = imageUrl;
+                img.title = 'Click to view full size | ' + new Date().toLocaleTimeString();
+                
+                // Restore fullsize state if it was zoomed in
+                if (wasFullsize) {
+                    img.classList.add('fullsize');
+                }
+                
+                // Remove fade effect after a short delay to allow image to render
+                setTimeout(function() {
+                    img.classList.remove('fade-out');
+                }, 50);
+                
+                console.log(`[Frontend] Updated live image viewer with new screenshot`);
+            };
             
-            console.log(`[Frontend] Updated live image viewer with new screenshot`);
+            tempImg.onerror = function() {
+                img.classList.remove('fade-out');
+                console.error(`[Frontend] Failed to load image: ${imageUrl}`);
+            };
+            
+            tempImg.src = imageUrl;
         }
         
         // Initialize on page load
