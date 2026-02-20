@@ -130,29 +130,30 @@ Tabs: 3 tabs available
 ### Mouse Commands
 
 #### `move` - Move mouse
-Move mouse relative to current position.
+Move mouse to absolute position in preset coordinate system (0-1280, 0-720).
 
 ```bash
-chrome-cli mouse move [OPTIONS] --dx INTEGER --dy INTEGER
+chrome-cli mouse move [OPTIONS] X Y
 ```
 
+**Arguments**:
+- `X`: Target X coordinate (0-1280) (required)
+- `Y`: Target Y coordinate (0-720) (required)
+
 **Options**:
-- `--dx INTEGER`: Horizontal movement (required)
-- `--dy INTEGER`: Vertical movement (required)
 - `--duration FLOAT`: Movement duration in seconds (default: 0.1)
-- `--tab-id INTEGER`: Target tab ID (default: current tab)
 - `--help`: Show help
 
 **Examples**:
 ```bash
-# Move right 100px, down 50px
-chrome-cli mouse move --dx 100 --dy 50
+# Move to center of screen (640, 360)
+chrome-cli mouse move 640 360
 
-# Move slowly
-chrome-cli mouse move --dx 200 --dy 0 --duration 1.0
+# Move slowly to position
+chrome-cli mouse move 100 200 --duration 1.0
 
-# Move in specific tab
-chrome-cli mouse move --dx 50 --dy 50 --tab-id 123
+# Move to top-left corner
+chrome-cli mouse move 0 0
 ```
 
 #### `click` - Click mouse
@@ -166,7 +167,6 @@ chrome-cli mouse click [OPTIONS]
 - `--button TEXT`: Mouse button (left, right, middle) (default: left)
 - `--double`: Double click (default: false)
 - `--count INTEGER`: Number of clicks (default: 1)
-- `--tab-id INTEGER`: Target tab ID
 - `--help`: Show help
 
 **Examples**:
@@ -188,22 +188,27 @@ chrome-cli mouse click --count 3
 Scroll at current mouse position.
 
 ```bash
-chrome-cli mouse scroll [OPTIONS] --direction TEXT --amount INTEGER
+chrome-cli mouse scroll [OPTIONS]
 ```
 
 **Options**:
-- `--direction TEXT`: Scroll direction (up, down) (required)
-- `--amount INTEGER`: Scroll amount in pixels (required)
-- `--tab-id INTEGER`: Target tab ID
+- `--direction TEXT`: Scroll direction (up, down, left, right) (default: down)
+- `--amount INTEGER`: Scroll amount in pixels (default: 100)
 - `--help`: Show help
 
 **Examples**:
 ```bash
-# Scroll down 100px
-chrome-cli mouse scroll --direction down --amount 100
+# Scroll down 100px (default)
+chrome-cli mouse scroll
 
 # Scroll up 50px
 chrome-cli mouse scroll --direction up --amount 50
+
+# Scroll left 200px
+chrome-cli mouse scroll --direction left --amount 200
+
+# Scroll right 150px
+chrome-cli mouse scroll --direction right --amount 150
 ```
 
 ### Keyboard Commands
@@ -215,8 +220,10 @@ Type text at current focus.
 chrome-cli keyboard type [OPTIONS] TEXT
 ```
 
+**Arguments**:
+- `TEXT`: Text to type (required)
+
 **Options**:
-- `--tab-id INTEGER`: Target tab ID
 - `--help`: Show help
 
 **Examples**:
@@ -224,8 +231,8 @@ chrome-cli keyboard type [OPTIONS] TEXT
 # Type simple text
 chrome-cli keyboard type "Hello, World!"
 
-# Type with tab targeting
-chrome-cli keyboard type "Search query" --tab-id 123
+# Type URL
+chrome-cli keyboard type "https://example.com"
 ```
 
 #### `press` - Press key
@@ -238,7 +245,6 @@ chrome-cli keyboard press [OPTIONS] --key TEXT
 **Options**:
 - `--key TEXT`: Key name (required)
 - `--modifiers TEXT`: Modifiers (comma-separated: Control,Shift,Alt,Meta)
-- `--tab-id INTEGER`: Target tab ID
 - `--help`: Show help
 
 **Key examples**: Enter, Tab, Escape, ArrowUp, ArrowDown, A, B, C, 1, 2, F1, F12
@@ -271,8 +277,6 @@ chrome-cli screenshot capture [OPTIONS]
 - `--include-cursor`: Include mouse cursor (default: true)
 - `--no-cursor`: Exclude mouse cursor
 - `--quality INTEGER`: JPEG quality 1-100 (default: 85)
-- `--tab-id INTEGER`: Target tab ID
-- `--include-metadata`: Include screenshot metadata in output
 - `--help`: Show help
 
 **Examples**:
@@ -285,9 +289,6 @@ chrome-cli screenshot capture --save screenshot.jpg
 
 # High quality without cursor
 chrome-cli screenshot capture --save hi-res.png --quality 95 --no-cursor
-
-# With metadata
-chrome-cli screenshot capture --include-metadata
 ```
 
 ### Tab Commands
@@ -356,34 +357,57 @@ chrome-cli tabs open file:///path/to/file.html
 Close specified tab.
 
 ```bash
-chrome-cli tabs close [OPTIONS] --tab-id INTEGER
+chrome-cli tabs close [OPTIONS] TAB_ID
 ```
 
+**Arguments**:
+- `TAB_ID`: Tab ID to close (required)
+
 **Options**:
-- `--tab-id INTEGER`: Tab ID to close (required)
 - `--help`: Show help
 
 **Examples**:
 ```bash
 # Close tab 123
-chrome-cli tabs close --tab-id 123
+chrome-cli tabs close 123
 ```
 
 #### `switch` - Switch to tab
 Switch to specified tab.
 
 ```bash
-chrome-cli tabs switch [OPTIONS] --tab-id INTEGER
+chrome-cli tabs switch [OPTIONS] TAB_ID
 ```
 
+**Arguments**:
+- `TAB_ID`: Tab ID to switch to (required)
+
 **Options**:
-- `--tab-id INTEGER`: Tab ID to switch to (required)
 - `--help`: Show help
 
 **Examples**:
 ```bash
 # Switch to tab 123
-chrome-cli tabs switch --tab-id 123
+chrome-cli tabs switch 123
+```
+
+#### `refresh` - Refresh tab
+Refresh specified tab.
+
+```bash
+chrome-cli tabs refresh [OPTIONS] TAB_ID
+```
+
+**Arguments**:
+- `TAB_ID`: Tab ID to refresh (required)
+
+**Options**:
+- `--help`: Show help
+
+**Examples**:
+```bash
+# Refresh tab 123
+chrome-cli tabs refresh 123
 ```
 
 ### Interactive Mode
@@ -396,22 +420,26 @@ chrome-cli interactive [OPTIONS]
 ```
 
 **Features**:
-- Tab-completion for commands
-- Command history (up/down arrows)
 - Real-time execution feedback
+- JSON command input
 - Multi-line command input
 
 **Interactive commands**:
-- `mouse move <dx> <dy>`: Move mouse
-- `mouse click [button]`: Click mouse
-- `keyboard type <text>`: Type text
-- `screenshot [filename]`: Capture screenshot
+- `move <x> <y>`: Move mouse to absolute position (0-1280, 0-720)
+- `click [left|right|middle]`: Click mouse button
+- `scroll <up|down|left|right> [amount]`: Scroll (default: down, 100)
+- `reset`: Reset mouse position to screen center
+- `type <text>`: Type text
+- `press <key> [modifiers]`: Press special key
+- `screenshot`: Capture screenshot
+- `javascript <script>`: Execute JavaScript
+- `tabs list`: List tabs (managed by default)
 - `tabs init <url>`: Initialize managed session
-- `tabs list`: List tabs (filtered when session initialized)
-- `tabs open <url>`: Open tab (added to managed group)
-- `tabs switch <id>`: Switch tab
+- `tabs open <url>`: Open new tab
+- `tabs close <tab_id>`: Close tab
+- `tabs switch <tab_id>`: Switch tab
 - `help`: Show help
-- `exit`: Exit interactive mode
+- `exit/quit`: Exit interactive mode
 
 **Example session**:
 ```
@@ -424,8 +452,8 @@ $ chrome-cli interactive
   1. [123] about:blank
   2. [456] Example Domain - https://example.com/ (active)
 
-> mouse move 100 50
-✅ Mouse moved by (100, 50) pixels
+> move 640 360
+✅ Mouse moved to (640, 360)
 
 > screenshot --save test.jpg
 ✅ Screenshot saved to test.jpg
@@ -448,7 +476,7 @@ chrome-cli script [OPTIONS] FILE
 ```json
 [
   {
-    "type": "tabs",
+    "type": "tab",
     "action": "open",
     "url": "https://google.com"
   },
@@ -457,12 +485,16 @@ chrome-cli script [OPTIONS] FILE
     "text": "Local Chrome Server"
   },
   {
+    "type": "mouse_move",
+    "x": 640,
+    "y": 400
+  },
+  {
     "type": "mouse_click",
     "button": "left"
   },
   {
-    "type": "screenshot",
-    "save": "google-search.png"
+    "type": "screenshot"
   }
 ]
 ```
@@ -492,7 +524,7 @@ chrome-cli tabs open file:///path/to/test.html
 sleep 1
 
 # Perform actions
-chrome-cli mouse move --dx 100 --dy 100
+chrome-cli mouse move 100 100
 chrome-cli mouse click --button left
 chrome-cli keyboard type "Test input"
 chrome-cli screenshot capture --save result.jpg
@@ -510,7 +542,7 @@ local-chrome-server serve --log-level debug > server.log 2>&1 &
 
 # 2. Run test commands
 chrome-cli tabs list
-chrome-cli mouse move --dx 50 --dy 50
+chrome-cli mouse move 50 50
 chrome-cli screenshot capture --save before.jpg
 
 # 3. Check logs for issues

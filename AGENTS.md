@@ -33,7 +33,7 @@ OpenBrowser (Local Chrome Server) is a system for programmatically controlling C
 
 ### Prerequisites
 
-- Python 3.9+ with `uv` package manager
+- Python 3.12+ with `uv` package manager
 - Node.js 16+ with `npm`
 - Chrome browser for extension testing
 
@@ -105,7 +105,7 @@ Key modules in `extension/src/`:
   - `tab-manager.ts`: Advanced tab group management
   - `javascript.ts`: JavaScript execution in browser tabs
 - **`background/index.ts`**: Background script - main extension logic
-- **`content/`: Content script for web page interaction
+- **`content/`**: Content script for web page interaction
 
 📖 **Detailed documentation**: [Chrome Extension Modules](docs/extension/modules.md)
 
@@ -118,7 +118,7 @@ Commands:
 - `mouse move/click/scroll/reset`: Mouse operations
 - `keyboard type/press`: Keyboard operations
 - `screenshot capture`: Screenshot capture
-- `tabs list/open/close/switch/init`: Tab management
+- `tabs list/open/close/switch/refresh/init`: Tab management
 - `interactive`: Interactive REPL mode
 - `script`: Execute commands from JSON file
 
@@ -128,30 +128,29 @@ Commands:
 
 ### Test Structure
 
+The project includes test infrastructure for validating browser automation functionality. Tests are planned to be organized as follows:
+
 ```
 tests/
-├── unit/              # Unit tests
-├── integration/       # Integration tests  
-├── e2e/              # End-to-end tests
-└── fixtures/         # Test fixtures
+├── unit/              # Unit tests (planned)
+├── integration/       # Integration tests (planned)
+├── e2e/              # End-to-end tests (planned)
+└── fixtures/         # Test fixtures (planned)
 ```
 
 ### Running Tests
 
 ```bash
-# Unit tests
-uv run pytest tests/unit -v
+# Run tests (when implemented)
+uv run pytest tests/ -v
 
-# Integration tests  
-uv run pytest tests/integration -v
-
-# All tests with coverage
+# Run with coverage
 uv run pytest tests/ --cov=server --cov-report=html
 ```
 
 ### Test HTML Pages
 
-`html_test_pages/` contains HTML pages for regression testing browser automation:
+`html_test_pages/` is planned to contain HTML pages for regression testing browser automation:
 
 - `basic_test.html`: Basic interactions (buttons, inputs, scroll, links, checkboxes)
 

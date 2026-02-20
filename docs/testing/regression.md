@@ -6,24 +6,28 @@ Local Chrome Server includes a comprehensive testing strategy to ensure reliabil
 
 ## Test Structure
 
+The project has planned test organization for validating browser automation functionality. The following structure is planned:
+
 ```
 tests/
-├── unit/                    # Unit tests
+├── unit/                    # Unit tests (planned)
 │   ├── test_commands.py    # Command model tests
 │   ├── test_coordinates.py # Coordinate mapping tests
 │   ├── test_processor.py   # Command processor tests
 │   └── test_websocket.py   # WebSocket manager tests
-├── integration/            # Integration tests
+├── integration/            # Integration tests (planned)
 │   ├── test_api.py        # REST API tests
 │   ├── test_cli.py        # CLI command tests
 │   └── test_extension.py  # Extension integration tests
-├── e2e/                    # End-to-end tests
+├── e2e/                    # End-to-end tests (planned)
 │   └── test_basic_flow.py # Full system tests
-├── fixtures/               # Test fixtures
+├── fixtures/               # Test fixtures (planned)
 │   ├── commands.json      # Test commands
 │   └── screenshots/       # Expected screenshots
 └── conftest.py            # Test configuration
 ```
+
+**Note**: The test infrastructure is currently under development. The above structure represents the planned organization.
 
 ## Running Tests
 
@@ -38,27 +42,29 @@ npm run build
 cd ..
 ```
 
-### Running All Tests
+### Running Tests (Planned)
+When tests are implemented, they can be run with:
+
 ```bash
 pytest tests/ -v
 ```
 
-### Running Specific Test Categories
+### Future Test Categories
 ```bash
-# Unit tests only
+# Unit tests only (planned)
 pytest tests/unit -v
 
-# Integration tests only
+# Integration tests only (planned)
 pytest tests/integration -v
 
-# End-to-end tests only
+# End-to-end tests only (planned)
 pytest tests/e2e -v
 
-# Tests matching pattern
+# Tests matching pattern (planned)
 pytest tests/ -k "mouse" -v
 ```
 
-### Running with Coverage
+### Running with Coverage (Planned)
 ```bash
 pytest tests/ --cov=server --cov-report=html
 # Open htmlcov/index.html in browser
@@ -66,11 +72,11 @@ pytest tests/ --cov=server --cov-report=html
 
 ## HTML Test Pages
 
-The `html_test_pages/` directory contains HTML pages for manual and automated testing of browser automation capabilities.
+The `html_test_pages/` directory is planned to contain HTML pages for manual and automated testing of browser automation capabilities.
 
-### Available Test Pages
+### Planned Test Pages
 
-#### `basic_test.html`
+#### `basic_test.html` (Planned)
 Basic interactive elements for testing core functionality:
 - Buttons with click counters
 - Text input fields
