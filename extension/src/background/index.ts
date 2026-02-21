@@ -49,10 +49,69 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 });
 
+// Global flag to track screenshot operations
+let isScreenshotInProgress = false;
+let screenshotStartTime = 0;
+let lastScreenshotTabId: number | null = null;
+
+// Track all tab activations with call stack
+let lastActivationTime = 0;
+let activationCount = 0;
+
+// Track window focus changes
+let lastWindowFocusTime = 0;
+let windowFocusCount = 0;
+
+// Monitor window focus changes
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  const now = Date.now();
+  windowFocusCount++;
+  
+  console.log(`🪟 [WINDOW FOCUS #${windowFocusCount}] Window ${windowId} focused`);
+  console.log(`   ⏰ Time: ${new Date().toISOString()}`);
+  console.log(`   ⏱️ Since last: ${now - lastWindowFocusTime}ms`);
+  console.log(`   📸 Screenshot in progress: ${isScreenshotInProgress}`);
+  
+  if (isScreenshotInProgress) {
+    console.log(`   📸 Screenshot tab: ${lastScreenshotTabId}`);
+    console.log(`   📸 Screenshot duration: ${now - screenshotStartTime}ms`);
+    console.warn(`⚠️ Window focus changed during screenshot! This may cause flashing.`);
+  }
+  
+  lastWindowFocusTime = now;
+});
+
 // Listen for tab activation to manage visual mouse visibility
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const newTabId = activeInfo.tabId;
-  console.log(`🔍 Tab activated: ${newTabId}, previous active tab: ${currentActiveTabId}`);
+  const now = Date.now();
+  activationCount++;
+  
+  // Get call stack to identify what triggered the activation
+  const stack = new Error().stack || '';
+  const stackLines = stack.split('\n').slice(1, 5); // Get first 4 lines of stack
+  
+  console.log(`🔍 [TAB ACTIVATION #${activationCount}] Tab ${newTabId} activated`);
+  console.log(`   ⏰ Time: ${new Date().toISOString()}`);
+  console.log(`   ⏱️ Since last: ${now - lastActivationTime}ms`);
+  console.log(`   📍 Previous: ${currentActiveTabId}`);
+  console.log(`   📸 Screenshot in progress: ${isScreenshotInProgress}`);
+  if (isScreenshotInProgress) {
+    console.log(`   📸 Screenshot tab: ${lastScreenshotTabId}`);
+    console.log(`   📸 Screenshot duration: ${now - screenshotStartTime}ms`);
+  }
+  console.log(`   📚 Call stack (first 4 lines):`);
+  stackLines.forEach((line, i) => {
+    console.log(`      ${i + 1}. ${line.trim()}`);
+  });
+  
+  // Warn if tab activation during screenshot
+  if (isScreenshotInProgress && newTabId !== lastScreenshotTabId) {
+    console.error(`⚠️ UNEXPECTED: Tab ${newTabId} activated during screenshot of tab ${lastScreenshotTabId}!`);
+    console.error(`⚠️ This indicates the screenshot is not truly in background!`);
+  }
+  
+  lastActivationTime = now;
   
   // DO NOT clean up visual mouse in previous tab - let content scripts handle visibility
   // Visual mouse pointers start hidden (opacity: 0) and only show when receiving visual_mouse_update
@@ -434,33 +493,100 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'screenshot':
         const tabIdForScreenshot = command.tab_id || await getCurrentTabId();
+        
+        console.log(`📸 [Screenshot Command] Starting for tab ${tabIdForScreenshot}`);
+        console.log(`📸 [Screenshot Command] Current time: ${new Date().toISOString()}`);
+        
+        // ========================================
+        // CRITICAL FIX: Save and restore window focus to prevent DevTools flashing
+        // ========================================
+        let originalFocusedWindow: chrome.windows.Window | null = null;
+        
+        try {
+          // Get currently focused window
+          const focusedWindow = await chrome.windows.getLastFocused({ populate: false });
+          if (focusedWindow && focusedWindow.focused) {
+            originalFocusedWindow = focusedWindow;
+            console.log(`📸 [Screenshot Command] Saved focused window: ${focusedWindow.id}`);
+          }
+        } catch (error) {
+          console.warn('📸 [Screenshot Command] Could not get focused window:', error);
+        }
+        
+        // Set global screenshot tracking flag
+        isScreenshotInProgress = true;
+        screenshotStartTime = Date.now();
+        lastScreenshotTabId = tabIdForScreenshot;
+        
         // Ensure tab is managed by tab manager
         await tabManager.ensureTabManaged(tabIdForScreenshot);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForScreenshot);
-        // DO NOT activate tab for screenshot to avoid disrupting user browsing
-        // Instead, capture screenshot in background using CDP
         
-        // IMPORTANT: Do NOT update visual mouse or get viewport size before screenshot
-        // These operations send messages to content script which may cause tab activation
-        // or other side effects. Visual mouse will be captured in its current state.
-        // If include_visual_mouse is explicitly true, we'll still skip to avoid disruption.
+        // CRITICAL: Do NOT activate tab for screenshot
+        // This is the key to avoid flashing - we capture in background using CDP
         
-        console.log(`📸 Taking screenshot without updating visual mouse to avoid tab disruption`);
+        console.log(`📸 [Screenshot Command] Taking screenshot WITHOUT activating tab`);
+        console.log(`📸 [Screenshot Command] Method: CDP (background capture)`);
+        console.log(`📸 [Screenshot Command] Global flag set: isScreenshotInProgress=${isScreenshotInProgress}`);
         
-        const screenshotResult = await captureScreenshot(
-          tabIdForScreenshot,
-          command.include_cursor !== false,
-          command.quality || 90,
-          true, // resizeToPreset
-          0    // waitForRender: no need to wait for render since tab is not activated
-        );
-        return {
-          success: true,
-          message: 'Screenshot captured (background, no visual mouse update)',
-          data: screenshotResult,
-          timestamp: Date.now(),
-        };
+        try {
+          const screenshotResult = await captureScreenshot(
+            tabIdForScreenshot,
+            command.include_cursor !== false,
+            command.quality || 90,
+            true, // resizeToPreset
+            0    // waitForRender: no need to wait since tab is not activated
+          );
+          
+          const screenshotDuration = Date.now() - screenshotStartTime;
+          console.log(`✅ [Screenshot Command] Screenshot completed in ${screenshotDuration}ms WITHOUT tab activation`);
+          
+          // Clear global flag
+          isScreenshotInProgress = false;
+          lastScreenshotTabId = null;
+          console.log(`📸 [Screenshot Command] Global flag cleared: isScreenshotInProgress=${isScreenshotInProgress}`);
+          
+          // ========================================
+          // CRITICAL FIX: Restore window focus after screenshot
+          // ========================================
+          if (originalFocusedWindow) {
+            // Small delay to let Chrome settle
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            try {
+              // Check if window still exists and needs refocusing
+              const currentFocused = await chrome.windows.getLastFocused({ populate: false });
+              if (currentFocused && currentFocused.id !== originalFocusedWindow.id) {
+                console.log(`📸 [Screenshot Command] Restoring focus to window ${originalFocusedWindow.id} (current: ${currentFocused.id})`);
+                await chrome.windows.update(originalFocusedWindow.id, { focused: true });
+                console.log(`✅ [Screenshot Command] Focus restored`);
+              } else {
+                console.log(`📸 [Screenshot Command] Focus already correct, no need to restore`);
+              }
+            } catch (restoreError) {
+              console.warn('📸 [Screenshot Command] Could not restore window focus:', restoreError);
+            }
+          }
+          
+          return {
+            success: true,
+            message: 'Screenshot captured (background, no tab activation, focus preserved)',
+            data: screenshotResult,
+            timestamp: Date.now(),
+            duration: screenshotDuration,
+          };
+        } catch (screenshotError) {
+          const screenshotDuration = Date.now() - screenshotStartTime;
+          console.error(`❌ [Screenshot Command] Screenshot failed after ${screenshotDuration}ms:`, screenshotError);
+          
+          // Clear global flag even on error
+          isScreenshotInProgress = false;
+          lastScreenshotTabId = null;
+          console.log(`📸 [Screenshot Command] Global flag cleared (error): isScreenshotInProgress=${isScreenshotInProgress}`);
+          
+          throw screenshotError;
+        }
 
       case 'reset_mouse':
         const tabIdForReset = command.tab_id || await getCurrentTabId();
@@ -506,41 +632,43 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             // Initialize a new managed session with the given URL
             const initResult = await tabManager.initializeSession(command.url);
             
-            // Temporarily activate tab for initialization and get restore function
-            const restoreInit = await activateTabForAutomation(initResult.tabId);
-            try {
-              // Initialize mouse position to screen center (like reset command)
-              const resetResult = await computer.resetMousePosition(initResult.tabId);
-              
-              // Update visual mouse to actual screen center
-              let visualUpdateSuccess = false;
-              if (resetResult.success && resetResult.data?.actualPosition) {
-                const { actualPosition } = resetResult.data;
-                visualUpdateSuccess = await updateVisualMouse(initResult.tabId, {
-                  x: actualPosition.x,
-                  y: actualPosition.y,
-                  action: 'move',
-                  relative: false,
-                });
-              }
-              
-              return {
-                success: true,
-                message: `Session initialized with ${command.url}`,
-                data: {
-                  tabId: initResult.tabId,
-                  groupId: initResult.groupId,
-                  url: initResult.url,
-                  isManaged: true,
-                  mouseReset: resetResult.success,
-                  visualUpdateSuccess,
-                },
-                timestamp: Date.now(),
-              };
-            } finally {
-              // Restore user's original tab after initialization
-              await restoreInit();
+            console.log(`🚀 [Tab Init] Initializing session with tab ${initResult.tabId}`);
+            
+            // CRITICAL: Do NOT activate tab for initialization
+            // resetMousePosition uses CDP which works in background
+            // This prevents flashing during session initialization
+            console.log(`🖱️ [Tab Init] Resetting mouse position (background)`);
+            
+            // Initialize mouse position to screen center (like reset command)
+            const resetResult = await computer.resetMousePosition(initResult.tabId);
+            
+            // Update visual mouse to actual screen center
+            let visualUpdateSuccess = false;
+            if (resetResult.success && resetResult.data?.actualPosition) {
+              const { actualPosition } = resetResult.data;
+              visualUpdateSuccess = await updateVisualMouse(initResult.tabId, {
+                x: actualPosition.x,
+                y: actualPosition.y,
+                action: 'move',
+                relative: false,
+              });
             }
+            
+            console.log(`✅ [Tab Init] Session initialized successfully (background)`);
+            
+            return {
+              success: true,
+              message: `Session initialized with ${command.url} (background, no tab activation)`,
+              data: {
+                tabId: initResult.tabId,
+                groupId: initResult.groupId,
+                url: initResult.url,
+                isManaged: true,
+                mouseReset: resetResult.success,
+                visualUpdateSuccess,
+              },
+              timestamp: Date.now(),
+            };
 
           case 'open':
             if (!command.url) {
@@ -574,20 +702,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             await tabManager.ensureTabManaged(command.tab_id);
             // Update tab activity for status tracking
             tabManager.updateTabActivity(command.tab_id);
-            // Temporarily activate tab for automation and get restore function
-            const restoreSwitch = await activateTabForAutomation(command.tab_id);
-            try {
-              const switchResult = await tabs.switchToTab(command.tab_id);
-              return {
-                success: true,
-                message: switchResult.message,
-                data: switchResult,
-                timestamp: Date.now(),
-              };
-            } finally {
-              // Restore user's original tab after command execution
-              await restoreSwitch();
-            }
+            
+            // CRITICAL: Do NOT activate tab for switch operation
+            // switchToTab only updates internal state, does not need tab activation
+            console.log(`🔄 [Tab Switch] Switching internal state to tab ${command.tab_id} (background)`);
+            
+            const switchResult = await tabs.switchToTab(command.tab_id);
+            return {
+              success: true,
+              message: switchResult.message,
+              data: switchResult,
+              timestamp: Date.now(),
+            };
 
           case 'list':
             const listResult = await tabs.getAllTabs();
@@ -606,20 +732,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             await tabManager.ensureTabManaged(command.tab_id);
             // Update tab activity for status tracking
             tabManager.updateTabActivity(command.tab_id);
-            // Temporarily activate tab for automation and get restore function
-            const restoreRefresh = await activateTabForAutomation(command.tab_id);
-            try {
-              const refreshResult = await tabs.refreshTab(command.tab_id);
-              return {
-                success: true,
-                message: refreshResult.message,
-                data: refreshResult,
-                timestamp: Date.now(),
-              };
-            } finally {
-              // Restore user's original tab after command execution
-              await restoreRefresh();
-            }
+            
+            // CRITICAL: Do NOT activate tab for refresh operation
+            // chrome.tabs.reload() works in background, no need to activate tab
+            console.log(`🔄 [Tab Refresh] Refreshing tab ${command.tab_id} (background)`);
+            
+            const refreshResult = await tabs.refreshTab(command.tab_id);
+            return {
+              success: true,
+              message: refreshResult.message,
+              data: refreshResult,
+              timestamp: Date.now(),
+            };
 
           default:
             throw new Error(`Unknown tab action: ${command.action}`);
@@ -638,12 +762,24 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'javascript_execute':
         const tabIdForJS = command.tab_id || await getCurrentTabId();
+        
+        console.log(`📜 [JavaScript Command] Starting for tab ${tabIdForJS}`);
+        console.log(`📜 [JavaScript Command] Script: ${command.script?.substring(0, 100)}...`);
+        
         // Ensure tab is managed by tab manager
         await tabManager.ensureTabManaged(tabIdForJS);
         // Update tab activity for status tracking
         tabManager.updateTabActivity(tabIdForJS);
-        // Temporarily activate tab for automation and get restore function
-        const restoreJS = await activateTabForAutomation(tabIdForJS);
+        
+        // CRITICAL: Do NOT activate tab for JavaScript execution
+        // Runtime.evaluate works in background, no need to activate tab
+        // This prevents flashing during JavaScript execution
+        
+        console.log(`📜 [JavaScript Command] Executing WITHOUT activating tab`);
+        console.log(`📜 [JavaScript Command] Method: CDP Runtime.evaluate (background)`);
+        
+        const jsStartTime = Date.now();
+        
         try {
           const jsResult = await javascript.executeJavaScript(
             tabIdForJS,
@@ -652,15 +788,21 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             command.await_promise === true,    // default: false
             command.timeout || 30000           // default: 30000ms
           );
+          
+          const jsDuration = Date.now() - jsStartTime;
+          console.log(`✅ [JavaScript Command] Execution completed in ${jsDuration}ms WITHOUT tab activation`);
+          
           return {
             success: true,
-            message: 'JavaScript executed successfully',
+            message: 'JavaScript executed successfully (background, no tab activation)',
             data: jsResult,
             timestamp: Date.now(),
+            duration: jsDuration,
           };
-        } finally {
-          // Restore user's original tab after command execution
-          await restoreJS();
+        } catch (jsError) {
+          const jsDuration = Date.now() - jsStartTime;
+          console.error(`❌ [JavaScript Command] Execution failed after ${jsDuration}ms:`, jsError);
+          throw jsError;
         }
 
       default:
