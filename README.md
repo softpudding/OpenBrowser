@@ -39,7 +39,7 @@ OpenBrowser unifies these tasks into a **single-model closed loop**. Qwen3.5-Plu
 Unlike other AI coding assistants that separate code generation from execution verification, OpenBrowser uses **one model (Qwen3.5-Plus) for the entire development cycle**:
 - **Code Generation**: Write and modify code
 - **Visual Verification**: Observe browser state through screenshots
-- **Browser Control**: Interact with web UIs using mouse, keyboard, and tab operations
+- **Browser Control**: Interact with web UIs using JavaScript execution and tab operations
 - **Terminal Execution**: Run bash commands for backend operations
 
 This closed-loop approach enables true end-to-end debugging and automation without context switching between different tools or models.
@@ -60,8 +60,9 @@ OpenBrowser is specifically designed for **Qwen3.5-Plus**, leveraging its unique
 ## Key Features
 
 - **Single-Model Automation**: One model for coding, visual observation, browser interaction, and terminal commands
-- **Visual Browser Control**: Real-time screenshots with intelligent element detection (clickable elements in blue, text inputs in green)
-- **Full Browser API**: Mouse, keyboard, scrolling, and tab management with session isolation
+- **Visual Browser Control**: Real-time screenshots for verification and understanding page structure
+- **JavaScript-Based Automation**: Execute JavaScript for all page interactions (clicking, typing, scrolling, data extraction)
+- **Tab Management**: Open, close, switch, and manage browser tabs with session isolation
 - **Terminal Integration**: Execute bash commands for backend operations
 - **Multiple Interfaces**: REST API and WebSocket
 
@@ -162,7 +163,7 @@ You can now interact with the AI Agent through the web interface.
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              Chrome Extension (Chrome DevTools)             │
-│         Screenshots │ Mouse/Keyboard │ Tab Management       │
+│         Screenshots │ JavaScript Execution │ Tab Management │
 └─────────────────────────────────────────────────────────────┘
 ```
 

@@ -24,10 +24,9 @@ logger = logging.getLogger(__name__)
 
 from server.core.processor import command_processor
 from server.models.commands import (
-    MouseMoveCommand, MouseClickCommand, MouseScrollCommand,
-    KeyboardTypeCommand, ScreenshotCommand,
+    ScreenshotCommand,
     TabCommand, GetTabsCommand, JavascriptExecuteCommand,
-    MouseButton, ScrollDirection, TabAction
+    TabAction
 )
 
 logger = logging.getLogger(__name__)
@@ -38,13 +37,6 @@ logger = logging.getLogger(__name__)
 class OpenBrowserAction(Action):
     """Browser automation action with unified parameter system"""
     type: str = Field(description="Type of browser operation")
-    # Mouse move parameters
-    x: Optional[int] = Field(default=None, description="X coordinate for mouse_move (0-1280)")
-    y: Optional[int] = Field(default=None, description="Y coordinate for mouse_move (0-720)")
-    # Mouse scroll parameters
-    direction: Optional[str] = Field(default=None, description="Direction for mouse_scroll: 'up', 'down', 'left', 'right'")
-    # Keyboard type parameters
-    text: Optional[str] = Field(default=None, description="Text for keyboard_type")
     # JavaScript execution parameters
     script: Optional[str] = Field(default=None, description="JavaScript code to execute for javascript_execute")
     # Tab operation parameters
@@ -57,31 +49,12 @@ class OpenBrowserAction(Action):
 """
 Supported action types and their parameters:
 
-1. mouse_move - Move mouse to absolute position
-   Parameters: {
-     "x": int,  # X coordinate (0 to 1280, left to right)
-     "y": int,  # Y coordinate (0 to 720, top to bottom)
-   }
-
-2. mouse_click - Click at current mouse position
-   Parameters: {}  # Only left button, single click
-
-3. mouse_scroll - Scroll at current mouse position
-   Parameters: {
-     "direction": str (optional, default "down"),  # "up", "down", "left", "right"
-   }
-
-4. keyboard_type - Type text at current focus
-   Parameters: {
-     "text": str  # Text to type (max 1000 characters)
-   }
-
-5. javascript_execute - Execute JavaScript code in current tab
+1. javascript_execute - Execute JavaScript code in current tab
    Parameters: {
      "script": str  # JavaScript code to execute
    }
 
-6. tab - Tab management operations
+2. tab - Tab management operations
    Parameters: {
      "action": str,  # "init", "open", "close", "switch", "list", "refresh"
      "url": str (optional),  # URL for open/init actions
@@ -179,54 +152,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             message = ""
             javascript_result = None  # Store JavaScript execution result
             
-            if action_type == "mouse_move":
-                # Validate required parameters
-                if action.x is None or action.y is None:
-                    raise ValueError("mouse_move requires x and y parameters")
-                command = MouseMoveCommand(
-                    x=action.x,
-                    y=action.y,
-                    duration=0.1  # Default duration
-                )
-                result = await self._execute_command(command)
-                message = f"Moved mouse to ({action.x}, {action.y})"
-                
-            elif action_type == "mouse_click":
-                # Convert button string to MouseButton enum
-                button_str = action.button if action.button is not None else 'left'
-                button_enum = MouseButton(button_str)
-                command = MouseClickCommand(
-                    button=button_enum,
-                    double=action.double if action.double is not None else False,
-                    count=action.count if action.count is not None else 1
-                )
-                result = await self._execute_command(command)
-                message = f"Clicked mouse button: {button_str}"
-                
-            elif action_type == "mouse_scroll":
-                # Convert direction string to ScrollDirection enum
-                direction_str = action.direction if action.direction is not None else 'down'
-                direction_enum = ScrollDirection(direction_str)
-                command = MouseScrollCommand(
-                    direction=direction_enum,
-                    amount=720  # Default scroll amount
-                )
-                result = await self._execute_command(command)
-                message = f"Scrolled {direction_str} by 720 pixels"
-                
-            elif action_type == "keyboard_type":
-                # Validate required parameters
-                if action.text is None:
-                    raise ValueError("keyboard_type requires text parameter")
-                command = KeyboardTypeCommand(text=action.text)
-                result = await self._execute_command(command)
-                text = action.text
-                if len(text) > 50:
-                    message = f"Typed: '{text[:50]}...'"
-                else:
-                    message = f"Typed: '{text}'"
-                
-            elif action_type == "tab":
+            if action_type == "tab":
                 # Validate required parameters
                 if action.action is None:
                     raise ValueError("tab requires action parameter")
@@ -366,12 +292,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                 if tabs_obs.success and tabs_obs.data and 'tabs' in tabs_obs.data:
                     tabs_data = tabs_obs.data['tabs']
             
-            # 3. Collect mouse position only for mouse operations
-            if action_type in ["mouse_move", "mouse_click", "mouse_scroll"]:
-                mouse_position = self._get_mouse_position()  # TODO: Track mouse position
-                logger.debug(f"DEBUG: Got mouse position for {action_type}: {mouse_position}")
-            
-            # 4. javascript_result is already set in javascript_execute branch
+            # 3. javascript_result is already set in javascript_execute branch
             
             return OpenBrowserObservation(
                 success=result.success if result else False,
@@ -421,52 +342,7 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             message = ""
             javascript_result = None  # Store JavaScript execution result
             
-            if action_type == "mouse_move":
-                # Validate required parameters
-                if action.x is None or action.y is None:
-                    raise ValueError("mouse_move requires x and y parameters")
-                command = MouseMoveCommand(
-                    x=action.x,
-                    y=action.y,
-                    duration=0.1  # Default duration
-                )
-                result_dict = self._execute_command_sync(command)
-                message = f"Moved mouse to ({action.x}, {action.y})"
-                
-            elif action_type == "mouse_click":
-                # Use default left click, single click
-                command = MouseClickCommand(
-                    button=MouseButton.LEFT,
-                    double=False,
-                    count=1
-                )
-                result_dict = self._execute_command_sync(command)
-                message = "Clicked mouse (left button)"
-                
-            elif action_type == "mouse_scroll":
-                # Convert direction string to ScrollDirection enum
-                direction_str = action.direction if action.direction is not None else 'down'
-                direction_enum = ScrollDirection(direction_str)
-                command = MouseScrollCommand(
-                    direction=direction_enum,
-                    amount=720  # Default scroll amount
-                )
-                result_dict = self._execute_command_sync(command)
-                message = f"Scrolled {direction_str} by 720 pixels"
-                
-            elif action_type == "keyboard_type":
-                # Validate required parameters
-                if action.text is None:
-                    raise ValueError("keyboard_type requires text parameter")
-                command = KeyboardTypeCommand(text=action.text)
-                result_dict = self._execute_command_sync(command)
-                text = action.text
-                if len(text) > 50:
-                    message = f"Typed: '{text[:50]}...'"
-                else:
-                    message = f"Typed: '{text}'"
-                
-            elif action_type == "tab":
+            if action_type == "tab":
                 # Validate required parameters
                 if action.action is None:
                     raise ValueError("tab requires action parameter")
@@ -600,12 +476,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
                     tabs_data = tabs_result['data']['tabs']
             elif action_type == "javascript_execute":
                 pass
-            # 3. Collect mouse position only for mouse operations
-            if action_type in ["mouse_move", "mouse_click", "mouse_scroll"]:
-                mouse_position = self._get_mouse_position()  # TODO: Track mouse position
-                logger.debug(f"DEBUG: Got mouse position for {action_type}: {mouse_position}")
             
-            # 4. javascript_result is already set in javascript_execute branch
+            # 3. javascript_result is already set in javascript_execute branch
             
             # Extract success from result_dict
             success = False
@@ -745,281 +617,163 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
 
 # --- Tool Definition ---
 
-_OPEN_BROWSER_DESCRIPTION = """Browser automation tool for controlling Chrome with visual feedback.
+_OPEN_BROWSER_DESCRIPTION = """Browser automation tool for controlling Chrome via JavaScript execution.
 
-This tool allows you to control a Chrome browser programmatically. After each operation,
-you will receive:
-1. Textual summary of the operation result
-2. List of current browser tabs with their titles and URLs
-3. Current mouse position in the preset coordinate system
-4. A screenshot of the browser window (1280x720 pixels)
+This tool provides two core capabilities:
+1. **Execute JavaScript** - Interact with web pages, extract data, manipulate DOM
+2. **Manage Tabs** - Open, close, switch, and list browser tabs
 
-**IMPORTANT PRIORITY RULES - READ FIRST:**
+After each operation, you will receive:
+- Textual summary of the operation result
+- List of current browser tabs with their titles and URLs
+- A screenshot of the browser window (1280x720 pixels) for verification
 
-1. **ALWAYS PREFER JAVASCRIPT EXECUTION OVER MOUSE/KEYBOARD OPERATIONS**
-   - Use `javascript_execute` for ANY browser interaction when possible
-   - Only use mouse clicks, moves, or keyboard typing as LAST RESORT when JavaScript cannot achieve the goal
-   - JavaScript is more reliable, precise, and faster than visual-based interactions
+**Supported Operations:**
 
-2. **JAVASCRIPT FOR ALL PAGE INTERACTIONS**
-   - Use JavaScript to: find links, click elements, fill forms, extract text, navigate pages
-   - Examples:
-     - Click element: `document.querySelector('button.submit').click()`
-     - Fill form: `document.querySelector('input[name="username"]').value = "test"`
-     - Get links: `Array.from(document.links).map(link => link.href)`
-     - Navigate: `window.location.href = "https://example.com"`
+## 1. javascript_execute
 
-3. **VISUAL OPERATIONS AS FALLBACK ONLY**
-   - Mouse clicks and moves are error-prone (coordinates may be wrong)
-   - Keyboard typing requires correct focus and may be intercepted
-   - Use visual methods only when JavaScript cannot access the element (rare)
+Execute JavaScript code in the current tab. This is your primary method for all browser interactions.
 
-**Coordinate System:**
-- Screen resolution: 1280×720 pixels
-- Origin (0, 0) is at the TOP-LEFT corner of the screen
-- Positive X is RIGHT (0 to 1280)
-- Positive Y is DOWN (0 to 720)
-- Range: X = 0 to 1280, Y = 0 to 720
-
-**Action Format:**
-All actions use a unified format with `type` field and parameter fields directly at the top level:
 ```json
 {
-  "type": "action_type",
-  "param1": "value1",
-  "param2": "value2"
+  "type": "javascript_execute",
+  "script": "document.querySelector('button').click()"
 }
 ```
 
-**Supported Action Types and Parameters:**
+**Capabilities:**
+- DOM Manipulation: Click elements, fill forms, modify content
+- Data Extraction: Get text, attributes, page content
+- Navigation: Change URLs, interact with links
+- Scrolling: Control page scroll position
+- API Access: Call page functions, fetch data
 
-1. **javascript_execute** - **[PREFERRED METHOD]** Execute JavaScript code in current tab
-   ```json
-   {
-     "type": "javascript_execute",
-     "script": "document.title"  # JavaScript code to execute
-   }
-   ```
-   **CRITICAL: This should be your FIRST choice for ANY browser interaction.**
-   - **Why JavaScript is better:** Direct DOM access, no coordinate guessing, more reliable
-   - **Use for:** Clicking elements, form filling, text extraction, navigation, data scraping
-   - **Examples:**
-     ```javascript
-     // Click a button
-     document.querySelector('button.submit').click();
-     
-     // Fill a form
-     document.querySelector('input[name="email"]').value = "user@example.com";
-     document.querySelector('input[name="password"]').value = "password123";
-     
-     // Extract all links
-     Array.from(document.links).map(link => ({text: link.textContent, href: link.href}));
-     
-     // Navigate to a new page
-     window.location.href = "https://example.com";
-     
-     // Get page content
-     document.body.innerText;
-     ```
-   - Returns the result of JavaScript evaluation as serializable value
-   - Can extract data from page: titles, URLs, text content, form values
-   - Can interact with page APIs: call functions, fetch data, manipulate DOM
-   - Returns `undefined` for operations without explicit return value
-   - Use `return` statement to get specific values from scripts
-   - Throws exceptions for invalid JavaScript (error details in response)
+**Common Patterns:**
 
-2. **tab** - Tab management operations
-   ```json
-   {
-     "type": "tab",
-     "action": "open",    # "init", "open", "close", "switch", "list", "refresh"
-     "url": "https://example.com",  # Required for "init" and "open"
-     "tab_id": 123        # Required for "close", "switch", and "refresh"
-   }
-   ```
-
-3. **keyboard_type** - **[FALLBACK ONLY]** Type text at current focus (use JavaScript form filling instead)
-   ```json
-   {
-     "type": "keyboard_type",
-     "text": "Hello World"  # Text to type (max 1000 characters)
-   }
-   ```
-   **Note:** Prefer JavaScript form filling: `document.querySelector('input').value = "text"`
-
-4. **mouse_move** - **[FALLBACK ONLY]** Move mouse to absolute position
-   ```json
-   {
-     "type": "mouse_move",
-     "x": 640,        # X coordinate (0 to 1280, left to right)
-     "y": 360         # Y coordinate (0 to 720, top to bottom)
-   }
-   ```
-   **Note:** Prefer JavaScript element interaction: `element.click()` or `element.focus()`
-
-5. **mouse_click** - **[FALLBACK ONLY]** Click at current mouse position (left button, single click)
-   ```json
-   {
-     "type": "mouse_click"
-   }
-   ```
-   **Note:** Prefer JavaScript clicking: `document.querySelector('button').click()`
-
-6. **mouse_scroll** - **[FALLBACK ONLY]** Scroll at current mouse position
-   ```json
-   {
-     "type": "mouse_scroll",
-     "direction": "down"  # Optional: "up", "down", "left", "right" (default "down")
-   }
-   ```
-   **Note:** Prefer JavaScript scrolling: `window.scrollBy(0, 100)` or `element.scrollIntoView()`
-
-**Visual Guidance (FOR FALLBACK USE ONLY):**
-- **PRIMARY METHOD: Use JavaScript for all interactions.** Screenshots are mainly for verification.
-- Screenshots are 1280x720 pixels, matching the preset coordinate system
-- When looking at screenshots, pay attention to UI elements, text, buttons, and forms **to understand page structure for JavaScript targeting**
-- **DO NOT use mouse coordinates for clicking** - Use JavaScript: `document.querySelector('button').click()`
-- Read text from screenshots to understand context **for writing appropriate JavaScript selectors**
-- **DO NOT navigate by clicking links** - Use JavaScript: `window.location.href = "url"` or `tab` action with direct URL
-- **Mouse Pointer Visualization**: A visual mouse pointer (blue arrow) is displayed in screenshots. The pointer changes color based on context: blue for clickable elements, green for text input fields. **This is only for debugging when JavaScript fails - prefer JavaScript interactions.**
-
-**Mouse Pointer and Clicking Guidelines (FALLBACK ONLY - USE JAVASCRIPT INSTEAD):**
-**WARNING: These are LAST RESORT methods. Always try JavaScript first.**
-
-1. **JavaScript First**: Before considering mouse operations, ask: "Can I do this with JavaScript?"
-   - Clicking: `document.querySelector('button').click()`
-   - Form filling: `document.querySelector('input').value = "text"`
-   - Navigation: `window.location.href = "url"`
-   - Scrolling: `window.scrollBy(0, 100)`
-
-2. **Mouse as Last Resort**: Only use mouse if JavaScript cannot access element (rare):
-   - **Mouse Position Awareness**: Check mouse position in screenshots. Mouse pointer is blue arrow.
-   - **Pre-click Verification**: Verify mouse pointer is over target element before clicking.
-   - **Coordinate Adjustment**: Use `mouse_move` to adjust position if needed.
-
-3. **Direct Tab Navigation**: When URL is known, use `tab` action: `{"type": "tab", "action": "open", "url": "..."}`
-   - This is reliable and doesn't require JavaScript or mouse clicks.
-
-4. **URL over Clicking**: Always prefer direct URL navigation over clicking navigation elements.
-
-**Best Practices (ORDERED BY PRIORITY):**
-
-**TIER 1: ALWAYS USE JAVASCRIPT (95% of cases)**
-1. **JavaScript First Principle**: For ANY browser interaction, FIRST try `javascript_execute`
-2. **Element Interaction**: Use JavaScript to click, focus, fill forms, select options
-   - **Before operating on elements, highlight them for confirmation**: `document.querySelector('your-selector').style.border = '3px solid red';` (adds red border to verify correct element selection)
-   - `document.querySelector('button.submit').click()`
-   - `document.querySelector('input[name="email"]').value = "user@example.com"`
-   - `document.querySelector('select').selectedIndex = 1`
-3. **Data Extraction**: Extract page data with JavaScript, NOT visual analysis
-   - Titles, URLs, text: `document.title`, `window.location.href`, `document.body.innerText`
-   - Links: `Array.from(document.links).map(link => ({text: link.textContent, href: link.href}))`
-   - Forms: `Array.from(document.forms).map(form => ({id: form.id, elements: form.elements.length}))`
-4. **Navigation**: Navigate with JavaScript or direct URLs
-   - `window.location.href = "https://example.com"`
-   - Or use `tab` action with direct URL
-5. **Page Manipulation**: Modify pages directly with JavaScript
-   - Scroll: `window.scrollBy(0, 500)` or `element.scrollIntoView()`
-   - Visibility: `element.style.display = 'none'`
-   - Content: `element.innerHTML = '<p>New content</p>'`
-
-**TIER 2: Use Only When JavaScript Fails (4% of cases)**
-6. **Direct URL Navigation**: When URL is known, use `tab` action
-   - `{"type": "tab", "action": "open", "url": "https://example.com"}`
-   - More reliable than clicking navigation elements
-
-**TIER 3: LAST RESORT - Visual/Mouse Operations (1% of cases)**
-7. **Visual Verification**: Check screenshots to understand page structure for JavaScript targeting
-8. **Mouse as Absolute Last Resort**: Only use mouse if:
-   - JavaScript cannot access element (security restrictions)
-   - Element is in canvas/WebGL (no DOM access)
-   - Complex drag-and-drop needed
-9. **If Using Mouse**: Verify position carefully, move, then click
-10. **If Using Keyboard**: Ensure element has focus first
-
-**COMPLETE JAVASCRIPT-FIRST WORKFLOW EXAMPLE:**
-
-**Scenario: Login to a website and extract user dashboard data**
-
-1. **Initialize session with target URL** (direct navigation - most reliable)
-   ```json
-   {"type": "tab", "action": "init", "url": "https://example.com/login"}
-   ```
-
-2. **Extract page information to understand structure**
-   ```json
-   {"type": "javascript_execute", "script": "({title: document.title, url: window.location.href, forms: Array.from(document.forms).map(f => f.id || 'anonymous')})"}
-   ```
-   Returns: `{"title": "Login Page", "url": "https://example.com/login", "forms": ["loginForm"]}`
-
-3. **Fill login form using JavaScript** (NOT keyboard typing)
-   ```json
-   {"type": "javascript_execute", "script": "document.querySelector('#username').value = 'testuser'; document.querySelector('#password').value = 'password123'; 'Form filled'"}
-   ```
-
-4. **Submit form using JavaScript** (NOT mouse click)
-   ```json
-   {"type": "javascript_execute", "script": "document.querySelector('#loginForm').submit(); 'Form submitted'"}
-   ```
-
-5. **Wait for navigation and verify success**
-   ```json
-   {"type": "javascript_execute", "script": "setTimeout(() => ({title: document.title, url: window.location.href}), 2000)"}
-   ```
-   Returns: `{"title": "User Dashboard", "url": "https://example.com/dashboard"}`
-
-6. **Extract dashboard data**
-   ```json
-   {"type": "javascript_execute", "script": "({welcomeText: document.querySelector('.welcome-message')?.textContent, menuItems: Array.from(document.querySelectorAll('.nav-item')).map(item => item.textContent.trim()), userInfo: document.querySelector('.user-info')?.innerText})"}
-   ```
-
-7. **Navigate to another page using JavaScript**
-   ```json
-   {"type": "javascript_execute", "script": "document.querySelector('a[href=\"/profile\"]').click(); 'Navigating to profile page'"}
-   ```
-
-**COMMON JAVASCRIPT PATTERNS FOR EVERYDAY USE:**
-
-1. **Highlight element for verification**: `document.querySelector('your-selector').style.border = '3px solid red';` (adds red border to confirm you've selected the right element before operating on it)
-2. **Click any element**: `document.querySelector('button.primary').click()`
-3. **Fill any form**: 
-   ```javascript
-   document.querySelector('input[name="email"]').value = "user@example.com";
-   document.querySelector('textarea[name="message"]').value = "Hello world";
-   ```
-4. **Select dropdown**: `document.querySelector('select[name="country"]').selectedIndex = 2`
-5. **Check checkbox**: `document.querySelector('input[type="checkbox"]').checked = true`
-6. **Get all links**: `Array.from(document.links).slice(0, 10).map(l => ({text: l.textContent, href: l.href}))`
-7. **Scroll page**: `window.scrollBy(0, 500)` or `document.querySelector('#section').scrollIntoView()`
-8. **Wait for element**: 
-   ```javascript
-   new Promise(resolve => {
-     const check = () => {
-       const el = document.querySelector('.loaded-content');
-       if (el) resolve(el.textContent);
-       else setTimeout(check, 100);
-     };
-     check();
-   })
-   ```
-
-**LEGACY WORKFLOW (AVOID - USE JAVASCRIPT INSTEAD):**
-❌ **Don't do this** - This is the old, error-prone method:
-1. Move mouse to guess coordinates
-2. Type with keyboard (might lose focus)
-3. Click with mouse (might miss)
-   
-**Instead use JavaScript:**
-1. `document.querySelector('input').value = "text"`
-2. `document.querySelector('button').click()`
-
-**Direct Navigation Example:**
-When URL is known, always use direct navigation:
-```json
-{"type": "tab", "action": "open", "url": "https://en.wikipedia.org/wiki/Artificial_intelligence"}
+**Click elements:**
+```javascript
+document.querySelector('button.submit').click();
+document.querySelector('a[href="/about"]').click();
 ```
 
-**Important:** JavaScript execution is 10x more reliable than visual/mouse operations. Use it for 95% of tasks!
+**Fill forms:**
+```javascript
+document.querySelector('#username').value = 'testuser';
+document.querySelector('#password').value = 'password123';
+document.querySelector('input[name="email"]').value = 'user@example.com';
+```
+
+**Extract data:**
+```javascript
+// Page info
+document.title
+window.location.href
+document.body.innerText
+
+// Links
+Array.from(document.links).map(link => ({text: link.textContent, href: link.href}))
+
+// Form data
+Array.from(document.forms).map(form => ({id: form.id, elements: form.elements.length}))
+```
+
+**Navigate:**
+```javascript
+window.location.href = "https://example.com";
+```
+
+**Scroll:**
+```javascript
+// Scroll down one page
+window.scrollBy({
+  top: window.innerHeight,
+  left: 0
+});
+
+// Scroll by pixels
+window.scrollBy(0, 500);
+
+// Scroll element into view
+document.querySelector('#section').scrollIntoView();
+```
+
+**Wait for elements:**
+```javascript
+new Promise(resolve => {
+  const check = () => {
+    const el = document.querySelector('.loaded-content');
+    if (el) resolve(el.textContent);
+    else setTimeout(check, 100);
+  };
+  check();
+})
+```
+
+**Returns:**
+- Result of JavaScript evaluation (if serializable)
+- `undefined` for operations without explicit return value
+- Error details for invalid JavaScript
+
+**Tips:**
+- Highlight elements before operating: `element.style.border = '3px solid red'`
+- Use `return` to get specific values
+- Chain operations: `document.querySelector('#input').value = 'text'; document.querySelector('#submit').click();`
+
+## 2. tab
+
+Manage browser tabs.
+
+```json
+{
+  "type": "tab",
+  "action": "open",    // "init", "open", "close", "switch", "list", "refresh"
+  "url": "https://example.com",  // Required for "init" and "open"
+  "tab_id": 123        // Required for "close", "switch", and "refresh"
+}
+```
+
+**Actions:**
+- `init` - Initialize session with URL
+- `open` - Open new tab with URL
+- `close` - Close tab by ID
+- `switch` - Switch to tab by ID
+- `list` - List all tabs
+- `refresh` - Refresh tab by ID
+
+**Example Workflow:**
+
+**Scenario: Login and extract dashboard data**
+
+1. Initialize session:
+```json
+{"type": "tab", "action": "init", "url": "https://example.com/login"}
+```
+
+2. Understand page structure:
+```json
+{"type": "javascript_execute", "script": "({title: document.title, url: window.location.href, forms: Array.from(document.forms).map(f => f.id)})"}
+```
+
+3. Fill and submit form:
+```json
+{"type": "javascript_execute", "script": "document.querySelector('#username').value = 'testuser'; document.querySelector('#password').value = 'password123'; document.querySelector('#loginForm').submit(); 'Form submitted'"}
+```
+
+4. Extract data after navigation:
+```json
+{"type": "javascript_execute", "script": "({title: document.title, url: window.location.href, userInfo: document.querySelector('.user-info')?.innerText})"}
+```
+
+5. Open new page:
+```json
+{"type": "tab", "action": "open", "url": "https://example.com/profile"}
+```
+
+**Key Points:**
+- Use JavaScript for all page interactions (clicking, typing, scrolling, data extraction)
+- Use tab action for URL navigation when you know the URL
+- Screenshots help verify results and understand page structure
+- JavaScript execution is fast and reliable - use it for virtually everything!
 """
 
 

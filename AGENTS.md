@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-OpenBrowser (Local Chrome Server) is a system for programmatically controlling Chrome browser via a Chrome extension using visual-based automation (pixel coordinates rather than HTML selectors).
+OpenBrowser (Local Chrome Server) is a system for programmatically controlling Chrome browser via a Chrome extension using JavaScript-based automation.
 
 ### 🎉 Key Feature: Zero-Disruption Background Automation
 
@@ -105,13 +105,13 @@ npm run typecheck            # TypeScript type checking
 
 ### Background Operations (Zero-Disruption) ✅
 
-These operations run completely in background tabs without switching user's view:
+All operations run completely in background tabs without switching user's view:
 
 | Operation | Implementation | Flash-Free | Notes |
 |-----------|---------------|------------|-------|
 | **Screenshot** | CDP `Page.captureScreenshot` | ✅ | Captures background tabs |
 | **JavaScript Execute** | CDP `Runtime.evaluate` | ✅ | Runs in background context |
-| **Tab Init** | CDP + Tab Management | ✅ | Initializes with mouse reset |
+| **Tab Init** | CDP + Tab Management | ✅ | Initializes managed session |
 | **Tab Switch** | Internal state only | ✅ | No visible tab change |
 | **Tab Refresh** | `chrome.tabs.reload` | ✅ | Reloads in background |
 | **Tab List** | `chrome.tabs.query` | ✅ | Metadata only, no activation |
@@ -119,25 +119,10 @@ These operations run completely in background tabs without switching user's view
 **User Experience**:
 ```
 User browsing: Tab A
-→ Execute screenshot of Tab B
+→ Execute JavaScript/screenshot on Tab B
 → Zero visual disruption
 → User continues on Tab A
 ```
-
-### Operations Requiring Activation ⚠️
-
-These operations temporarily activate tabs (may cause brief flashing):
-
-| Operation | Implementation | Why Activation? | Status |
-|-----------|---------------|-----------------|--------|
-| **Mouse Move** | CDP `Input.dispatchMouseEvent` | Being tested for background support | Pending |
-| **Mouse Click** | CDP `Input.dispatchMouseEvent` | Being tested for background support | Pending |
-| **Mouse Scroll** | CDP `Input.dispatchMouseEvent` | Being tested for background support | Pending |
-| **Keyboard Type** | CDP `Input.dispatchKeyEvent` | Being tested for background support | Pending |
-| **Keyboard Press** | CDP `Input.dispatchKeyEvent` | Being tested for background support | Pending |
-| **Mouse Reset** | CDP `Input.dispatchMouseEvent` | Being tested for background support | Pending |
-
-**Future Plan**: Test whether CDP input events work correctly in background tabs. If successful, these will also become zero-disruption.
 
 ### Python Server Modules
 
@@ -182,8 +167,6 @@ Key modules in `extension/src/`:
 
 Commands:
 - `status`: Check server health
-- `mouse move/click/scroll/reset`: Mouse operations
-- `keyboard type/press`: Keyboard operations
 - `screenshot capture`: Screenshot capture
 - `tabs list/open/close/switch/refresh/init`: Tab management
 - `interactive`: Interactive REPL mode
@@ -247,22 +230,17 @@ uv run pytest tests/ --cov=server --cov-report=html
 
 ## Key Design Decisions
 
-### 1. Visual-Only Automation
-- **No HTML Selectors**: Operations use pixel coordinates only
-- **Resolution Independence**: Coordinate mapping handles different screen sizes
-- **Browser Agnostic**: In principle, works with any browser supporting CDP
+### 1. JavaScript-First Automation
+- **Primary Method**: JavaScript execution for all page interactions
+- **No Visual Operations**: No mouse coordinates or keyboard simulation needed
+- **Reliable & Fast**: Direct DOM access is more reliable than visual-based methods
 
 ### 2. Dual Communication Channels
 - **REST API**: For simple, synchronous command execution
 - **WebSocket**: For real-time, bidirectional communication
 - **Independent WebSocket Server**: Dedicated server for extension communication
 
-### 3. Coordinate System
-- **Preset Resolution**: Default 1280x720 (720p) as reference coordinate system
-- **Actual Resolution**: User's actual screen/window dimensions
-- **Linear Mapping**: Simple proportional scaling between coordinate systems
-
-### 4. Tab Group Isolation
+### 3. Tab Group Isolation
 - **Visual Separation**: Controlled tabs grouped separately from user's regular tabs
 - **Explicit Control**: User decides when to start a managed session with `tabs init`
 - **Background Automation**: AI operations run without disrupting user browsing
