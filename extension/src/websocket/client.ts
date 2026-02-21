@@ -208,7 +208,8 @@ export class WebSocketClient {
     
     console.log('❤️ Starting WebSocket heartbeat');
     
-    this.heartbeatTimer = window.setInterval(() => {
+    // Use global setInterval (works in both window context and Service Worker)
+    this.heartbeatTimer = setInterval(() => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         console.log('❤️ Heartbeat skipped: WebSocket not open');
         return;

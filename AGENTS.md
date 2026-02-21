@@ -4,6 +4,10 @@
 
 OpenBrowser (Local Chrome Server) is a system for programmatically controlling Chrome browser via a Chrome extension using visual-based automation (pixel coordinates rather than HTML selectors).
 
+### 🎉 Key Feature: Zero-Disruption Background Automation
+
+**Users can continue browsing while automation runs without any visual interruption.** All major operations (screenshot, JavaScript execution, tab management) run in background tabs without switching the user's view.
+
 ## Architecture
 
 ### System Components
@@ -28,6 +32,27 @@ OpenBrowser (Local Chrome Server) is a system for programmatically controlling C
 3. **Browser Execution**: Extension executes command using Chrome DevTools Protocol (CDP)
 4. **Response Return**: Extension sends response back through WebSocket to Python server
 5. **Result Delivery**: Python server returns result to CLI/REST API client
+
+### Background Automation Design
+
+**Problem**: Traditional browser automation switches user's active tab, causing disruption.
+
+**Solution**: Use CDP to execute operations in background tabs:
+
+```typescript
+// ❌ Traditional approach (disruptive)
+1. User viewing Tab A
+2. Automation needs Tab B
+3. Switch to Tab B (flash!)
+4. Execute operation
+5. Switch back to Tab A (flash!)
+
+// ✅ OpenBrowser approach (non-disruptive)
+1. User viewing Tab A
+2. Automation needs Tab B
+3. Execute CDP operation on Tab B (no switch)
+4. User continues browsing Tab A
+```
 
 ## Development Setup
 
@@ -76,6 +101,44 @@ npm run typecheck            # TypeScript type checking
 
 ## Module Documentation
 
+## Supported Operations
+
+### Background Operations (Zero-Disruption) ✅
+
+These operations run completely in background tabs without switching user's view:
+
+| Operation | Implementation | Flash-Free | Notes |
+|-----------|---------------|------------|-------|
+| **Screenshot** | CDP `Page.captureScreenshot` | ✅ | Captures background tabs |
+| **JavaScript Execute** | CDP `Runtime.evaluate` | ✅ | Runs in background context |
+| **Tab Init** | CDP + Tab Management | ✅ | Initializes with mouse reset |
+| **Tab Switch** | Internal state only | ✅ | No visible tab change |
+| **Tab Refresh** | `chrome.tabs.reload` | ✅ | Reloads in background |
+| **Tab List** | `chrome.tabs.query` | ✅ | Metadata only, no activation |
+
+**User Experience**:
+```
+User browsing: Tab A
+→ Execute screenshot of Tab B
+→ Zero visual disruption
+→ User continues on Tab A
+```
+
+### Operations Requiring Activation ⚠️
+
+These operations temporarily activate tabs (may cause brief flashing):
+
+| Operation | Implementation | Why Activation? | Status |
+|-----------|---------------|-----------------|--------|
+| **Mouse Move** | CDP `Input.dispatchMouseEvent` | Being tested for background support | Pending |
+| **Mouse Click** | CDP `Input.dispatchMouseEvent` | Being tested for background support | Pending |
+| **Mouse Scroll** | CDP `Input.dispatchMouseEvent` | Being tested for background support | Pending |
+| **Keyboard Type** | CDP `Input.dispatchKeyEvent` | Being tested for background support | Pending |
+| **Keyboard Press** | CDP `Input.dispatchKeyEvent` | Being tested for background support | Pending |
+| **Mouse Reset** | CDP `Input.dispatchMouseEvent` | Being tested for background support | Pending |
+
+**Future Plan**: Test whether CDP input events work correctly in background tabs. If successful, these will also become zero-disruption.
+
 ### Python Server Modules
 
 Key modules in `server/`:
@@ -98,13 +161,17 @@ Key modules in `extension/src/`:
 - **`websocket/client.ts`**: WebSocket client with automatic reconnection
 - **`commands/`**: CDP command implementations
   - `cdp-commander.ts`: Chrome DevTools Protocol wrapper
-  - `debugger-manager.ts`: Debugger attachment management
-  - `computer.ts`: Mouse, keyboard, scroll operations
-  - `screenshot.ts`: Screenshot capture with CDP support
+  - `debugger-manager.ts`: Debugger attachment management with auto-detach
+  - `computer.ts`: Mouse, keyboard, scroll operations using CDP
+  - `screenshot.ts`: Background screenshot capture with CDP
   - `tabs.ts`: Tab management operations
-  - `tab-manager.ts`: Advanced tab group management
+  - `tab-manager.ts`: Advanced tab group management for sessions
   - `javascript.ts`: JavaScript execution in browser tabs
 - **`background/index.ts`**: Background script - main extension logic
+  - Command routing and execution
+  - Tab activation management (now minimized)
+  - Global state tracking
+  - Debug logging for troubleshooting
 - **`content/`**: Content script for web page interaction
 
 📖 **Detailed documentation**: [Chrome Extension Modules](docs/extension/modules.md)

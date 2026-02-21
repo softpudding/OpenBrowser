@@ -8,99 +8,111 @@ import { CdpCommander } from './cdp-commander';
 import { debuggerManager } from './debugger-manager';
 
 /**
- * Resize image using OffscreenCanvas (preferred, avoids tab activation)
+ * Resize image using OffscreenCanvas and createImageBitmap
+ * 
+ * This is the only resize method we use because it works in Service Worker context
+ * (Manifest V3 background script) and doesn't require tab activation or content script messaging.
+ * 
+ * IMPORTANT: If OffscreenCanvas or createImageBitmap is not available, the function will 
+ * throw an error instead of falling back to content script (which could cause tab activation).
  */
-async function resizeImageWithOffscreenCanvas(
+async function resizeImage(
   dataUrl: string,
   targetWidth: number = 1280,
   targetHeight: number = 720,
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    // Check if OffscreenCanvas is available
-    if (typeof OffscreenCanvas === 'undefined') {
-      reject(new Error('OffscreenCanvas not available'));
-      return;
-    }
-    
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const canvas = new OffscreenCanvas(targetWidth, targetHeight);
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Failed to get 2d context'));
-          return;
-        }
-        
-        // Draw image resized to target dimensions
-        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-        
-        // Convert to data URL (PNG format)
-        canvas.convertToBlob({ type: 'image/png' }).then(blob => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const resizedDataUrl = reader.result as string;
-            console.log(`✅ [Screenshot] Image resized with OffscreenCanvas: ${img.width}x${img.height} → ${targetWidth}x${targetHeight}`);
-            resolve(resizedDataUrl);
-          };
-          reader.onerror = () => reject(new Error('Failed to read blob'));
-          reader.readAsDataURL(blob);
-        }).catch(reject);
-      } catch (error) {
-        reject(error);
-      }
-    };
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = dataUrl;
-  });
-}
-
-/**
- * Resize image using content script (Canvas API) as fallback
- */
-async function resizeImageInContentScript(
-  tabId: number,
-  dataUrl: string,
-  targetWidth: number = 1280,
-  targetHeight: number = 720,
-): Promise<string> {
-  console.log(`🖼️ [Screenshot] Attempting to resize image for tab ${tabId} to ${targetWidth}×${targetHeight}`);
+  console.log(`🖼️ [Screenshot] Resizing image to ${targetWidth}x${targetHeight}...`);
   
-  // First try OffscreenCanvas (avoids tab activation)
+  // Check if OffscreenCanvas is available
+  if (typeof OffscreenCanvas === 'undefined') {
+    throw new Error(
+      '[Screenshot] OffscreenCanvas is not available in this environment. ' +
+      'Image resizing requires OffscreenCanvas support. ' +
+      'Browser may be outdated or running in an unsupported context.'
+    );
+  }
+  
+  // Check if createImageBitmap is available (alternative to Image in Service Worker)
+  if (typeof createImageBitmap === 'undefined') {
+    throw new Error(
+      '[Screenshot] createImageBitmap is not available in this environment. ' +
+      'Image resizing requires createImageBitmap support in Service Worker context.'
+    );
+  }
+  
   try {
-    const result = await resizeImageWithOffscreenCanvas(dataUrl, targetWidth, targetHeight);
-    console.log(`✅ [Screenshot] Image resized successfully using OffscreenCanvas`);
-    return result;
-  } catch (offscreenError) {
-    console.warn('⚠️ [Screenshot] OffscreenCanvas resize failed, falling back to content script:', offscreenError);
+    // Convert data URL to Blob
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
     
-    // Fallback to content script (may cause tab activation)
-    try {
-      const response = await chrome.tabs.sendMessage(tabId, {
-        type: 'resize_image',
-        data: {
-          dataUrl,
-          targetWidth,
-          targetHeight,
-        },
-      });
-      
-      if (response?.success && response.resizedDataUrl) {
-        console.log(`✅ [Screenshot] Image resized via content script: ${response.originalSize} → ${response.resizedSize} bytes`);
-        return response.resizedDataUrl;
-      } else {
-        throw new Error(response?.error || 'Failed to resize image');
-      }
-    } catch (error) {
-      console.error('❌ [Screenshot] Failed to resize image in content script:', error);
-      throw error;
+    // Create ImageBitmap from Blob (works in Service Worker)
+    const imageBitmap = await createImageBitmap(blob);
+    
+    console.log(`🖼️ [Screenshot] Original image dimensions: ${imageBitmap.width}x${imageBitmap.height}`);
+    
+    if (imageBitmap.width <= 0 || imageBitmap.height <= 0) {
+      throw new Error(`[Screenshot] Invalid original image dimensions: ${imageBitmap.width}x${imageBitmap.height}`);
     }
+    
+    const canvas = new OffscreenCanvas(targetWidth, targetHeight);
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+      throw new Error('[Screenshot] Failed to get 2d context from OffscreenCanvas');
+    }
+    
+    // Fill background with white (to avoid transparency issues)
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+    
+    // Calculate scaling to fit image in target dimensions while maintaining aspect ratio
+    const scaleX = targetWidth / imageBitmap.width;
+    const scaleY = targetHeight / imageBitmap.height;
+    const scale = Math.min(scaleX, scaleY);
+    
+    const newWidth = Math.floor(imageBitmap.width * scale);
+    const newHeight = Math.floor(imageBitmap.height * scale);
+    
+    if (newWidth <= 0 || newHeight <= 0) {
+      throw new Error(`[Screenshot] Invalid scaled dimensions: ${newWidth}x${newHeight}`);
+    }
+    
+    // Center the image in the canvas
+    const offsetX = Math.floor((targetWidth - newWidth) / 2);
+    const offsetY = Math.floor((targetHeight - newHeight) / 2);
+    
+    console.log(`🖼️ [Screenshot] Scaling: scale=${scale.toFixed(3)}, new dimensions: ${newWidth}x${newHeight}, offset: (${offsetX}, ${offsetY})`);
+    
+    // Draw ImageBitmap to canvas with scaling and centering
+    ctx.drawImage(imageBitmap, offsetX, offsetY, newWidth, newHeight);
+    
+    // Convert to data URL (PNG format for lossless quality)
+    const resizedBlob = await canvas.convertToBlob({ type: 'image/png' });
+    
+    // Convert Blob to data URL using FileReader
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const resizedDataUrl = reader.result as string;
+        console.log(`✅ [Screenshot] Image resized successfully: ${imageBitmap.width}x${imageBitmap.height} → ${targetWidth}x${targetHeight}`);
+        resolve(resizedDataUrl);
+      };
+      reader.onerror = () => reject(new Error('[Screenshot] Failed to read resized blob'));
+      reader.readAsDataURL(resizedBlob);
+    });
+  } catch (error) {
+    const errorMsg = `[Screenshot] Error during image resize: ${error instanceof Error ? error.message : error}`;
+    console.error(`❌ ${errorMsg}`);
+    throw new Error(errorMsg);
   }
 }
 
 /**
  * Capture screenshot using CDP (Chrome DevTools Protocol)
  * This captures the specified tab even if it's in the background
+ * 
+ * IMPORTANT: This function follows "fail fast" principle - any error will be thrown
+ * instead of silently falling back to potentially incorrect values.
  */
 async function captureScreenshotWithCDP(
   tabId: number,
@@ -114,7 +126,7 @@ async function captureScreenshotWithCDP(
   // Ensure debugger is attached
   const attached = await debuggerManager.safeAttachDebugger(tabId);
   if (!attached) {
-    throw new Error('Failed to attach debugger for screenshot');
+    throw new Error('[Screenshot] Failed to attach debugger for screenshot - cannot proceed');
   }
   
   const cdpCommander = new CdpCommander(tabId);
@@ -124,244 +136,227 @@ async function captureScreenshotWithCDP(
     try {
       await cdpCommander.sendCommand('Page.enable', {});
     } catch (e) {
-      console.warn('Page.enable may already be enabled:', e);
+      // Page.enable may already be enabled, which is fine
+      console.warn('[Screenshot] Page.enable may already be enabled:', e);
     }
     
-    // Get layout metrics to determine viewport size (avoid content script messages)
-    const layoutMetrics = await cdpCommander.sendCommand<any>('Page.getLayoutMetrics', {});
+    // ========================================
+    // STEP 1: Get device pixel ratio (CRITICAL - must be accurate)
+    // ========================================
+    let devicePixelRatio: number;
     
-    console.log(`📐 [Screenshot] Layout metrics:`, JSON.stringify(layoutMetrics, null, 2));
-    
-    // Calculate viewport dimensions
-    const visualViewport = layoutMetrics.visualViewport;
-    const layoutViewport = layoutMetrics.layoutViewport;
-    const contentSize = layoutMetrics.contentSize;
-    const cssVisualViewport = layoutMetrics.cssVisualViewport;
-    const cssLayoutViewport = layoutMetrics.cssLayoutViewport;
-    const cssContentSize = layoutMetrics.cssContentSize;
-    
-    console.log(`📊 [Screenshot] CDP Metrics - CSS Visual: ${JSON.stringify(cssVisualViewport)}, CSS Layout: ${JSON.stringify(cssLayoutViewport)}, Visual: ${JSON.stringify(visualViewport)}, Layout: ${JSON.stringify(layoutViewport)}, Content: ${JSON.stringify(contentSize)}`);
-    
-    // Device pixel ratio estimation - we need a better approach
-    // visualViewport.scale might give us the zoom level, not device pixel ratio
-    // For now, use default of 1 and rely on CDP's scaling
-    let devicePixelRatio = 1;
-    
-    // Try to get device pixel ratio from visualViewport.scale if available
-    if (visualViewport && typeof visualViewport.scale === 'number' && visualViewport.scale > 0) {
-      // visualViewport.scale is zoom level (e.g., 1.0 = 100%, 2.0 = 200%)
-      // This is NOT device pixel ratio, but might help with scaling
-      console.log(`📱 [Screenshot] Visual viewport scale: ${visualViewport.scale}`);
-    }
-    
-    // Calculate device pixel ratio from CSS vs device viewport dimensions if available
-    if (cssVisualViewport && cssVisualViewport.clientWidth > 0 && visualViewport && visualViewport.clientWidth > 0) {
-      const calculatedRatio = visualViewport.clientWidth / cssVisualViewport.clientWidth;
-      if (calculatedRatio > 0 && Math.abs(calculatedRatio - Math.round(calculatedRatio)) < 0.1) {
-        devicePixelRatio = Math.round(calculatedRatio);
-        console.log(`✅ [Screenshot] Calculated device pixel ratio from CSS vs device viewport: ${devicePixelRatio}`);
-      }
-    }
-    
-    // If not calculated, try alternative: use window.devicePixelRatio from CDP Runtime.evaluate
-    if (devicePixelRatio === 1) {
-      try {
-        const devicePixelRatioResult = await cdpCommander.sendCommand<any>('Runtime.evaluate', {
-          expression: 'window.devicePixelRatio',
-          returnByValue: true,
-        });
-        if (devicePixelRatioResult && devicePixelRatioResult.result && devicePixelRatioResult.result.value) {
-          devicePixelRatio = devicePixelRatioResult.result.value;
-          console.log(`✅ [Screenshot] Got device pixel ratio from CDP Runtime.evaluate: ${devicePixelRatio}`);
-        }
-      } catch (e) {
-        console.warn('⚠️ [Screenshot] Failed to get device pixel ratio from Runtime.evaluate:', e);
-      }
-    }
-    
-    console.log(`📱 [Screenshot] Using device pixel ratio: ${devicePixelRatio}`);
-    
-    // Determine viewport dimensions from CDP metrics (avoid content script messages)
-    // Prefer CSS viewport dimensions for clip parameters (CDP expects CSS pixels)
-    let viewportWidth, viewportHeight, viewportX, viewportY;
-    
-    // For screenshot, we want the currently visible area (visual viewport)
-    // But we need to capture from the top-left of the visible area, not current scroll position
-    if (cssVisualViewport && cssVisualViewport.clientWidth > 0 && cssVisualViewport.clientHeight > 0) {
-      // Use CSS visual viewport (CSS pixels)
-      viewportWidth = Math.floor(cssVisualViewport.clientWidth);
-      viewportHeight = Math.floor(cssVisualViewport.clientHeight);
-      // Always capture from top-left of visible area, not from scroll position
-      viewportX = 0;
-      viewportY = 0;
-      console.log(`👁️ [Screenshot] Using CSS visual viewport: ${viewportWidth}x${viewportHeight} (scroll was at ${cssVisualViewport.pageX}, ${cssVisualViewport.pageY})`);
+    try {
+      const dprResult = await cdpCommander.sendCommand<any>('Runtime.evaluate', {
+        expression: 'window.devicePixelRatio',
+        returnByValue: true,
+      });
       
-      // Compare with layout viewport for debugging
-      if (cssLayoutViewport) {
-        console.log(`📊 [Screenshot] CSS Layout viewport: ${cssLayoutViewport.clientWidth}x${cssLayoutViewport.clientHeight}, ratio: ${cssVisualViewport.clientWidth / cssLayoutViewport.clientWidth}`);
+      if (!dprResult?.result?.value || typeof dprResult.result.value !== 'number') {
+        throw new Error('[Screenshot] Runtime.evaluate returned invalid devicePixelRatio');
       }
-    } else if (cssLayoutViewport && cssLayoutViewport.clientWidth > 0 && cssLayoutViewport.clientHeight > 0) {
-      // Fallback to CSS layout viewport if CSS visual viewport not available
-      viewportWidth = Math.floor(cssLayoutViewport.clientWidth);
-      viewportHeight = Math.floor(cssLayoutViewport.clientHeight);
-      viewportX = 0;
-      viewportY = 0;
-      console.log(`📐 [Screenshot] Using CSS layout viewport: ${viewportWidth}x${viewportHeight}`);
-    } else if (visualViewport && visualViewport.clientWidth > 0 && visualViewport.clientHeight > 0) {
-      // Fallback to device pixel visual viewport (convert to CSS pixels using devicePixelRatio)
-      viewportWidth = Math.floor(visualViewport.clientWidth / devicePixelRatio);
-      viewportHeight = Math.floor(visualViewport.clientHeight / devicePixelRatio);
-      viewportX = 0;
-      viewportY = 0;
-      console.log(`👁️ [Screenshot] Using device visual viewport (converted to CSS): ${viewportWidth}x${viewportHeight} (device: ${visualViewport.clientWidth}x${visualViewport.clientHeight}, scroll was at ${visualViewport.pageX}, ${visualViewport.pageY})`);
-    } else if (layoutViewport && layoutViewport.clientWidth > 0 && layoutViewport.clientHeight > 0) {
-      // Fallback to device pixel layout viewport (convert to CSS pixels)
-      viewportWidth = Math.floor(layoutViewport.clientWidth / devicePixelRatio);
-      viewportHeight = Math.floor(layoutViewport.clientHeight / devicePixelRatio);
-      viewportX = 0;
-      viewportY = 0;
-      console.log(`📐 [Screenshot] Using device layout viewport (converted to CSS): ${viewportWidth}x${viewportHeight}`);
-    } else {
-      // Fall back to content size (entire page) - LAST RESORT
-      // Use CSS content size if available, otherwise device content size
-      if (cssContentSize && cssContentSize.width > 0 && cssContentSize.height > 0) {
-        viewportWidth = Math.floor(cssContentSize.width);
-        viewportHeight = Math.floor(cssContentSize.height);
-      } else {
-        viewportWidth = Math.floor(contentSize.width / devicePixelRatio);
-        viewportHeight = Math.floor(contentSize.height / devicePixelRatio);
+      
+      devicePixelRatio = dprResult.result.value;
+      
+      // Validate DPR is reasonable (typically 1, 2, or 3 for standard and Retina displays)
+      if (devicePixelRatio < 1 || devicePixelRatio > 4) {
+        throw new Error(`[Screenshot] Invalid devicePixelRatio: ${devicePixelRatio} (expected 1-4)`);
       }
-      viewportX = 0;
-      viewportY = 0;
-      console.log(`⚠️ [Screenshot] WARNING: Using content size (entire page): ${viewportWidth}x${viewportHeight}. This may be too large!`);
+      
+      console.log(`✅ [Screenshot] Got device pixel ratio from Runtime.evaluate: ${devicePixelRatio}`);
+    } catch (dprError) {
+      const errorMsg = `[Screenshot] Failed to get device pixel ratio: ${dprError instanceof Error ? dprError.message : dprError}`;
+      console.error(`❌ ${errorMsg}`);
+      throw new Error(errorMsg);
     }
     
-    // Safety check: ensure viewport dimensions are reasonable
-    if (viewportWidth <= 0 || viewportHeight <= 0) {
-      console.error(`❌ [Screenshot] Invalid viewport dimensions: ${viewportWidth}x${viewportHeight}. Using fallback 1280x720.`);
-      viewportWidth = 1280;
-      viewportHeight = 720;
-      viewportX = 0;
-      viewportY = 0;
+    // ========================================
+    // STEP 2: Get viewport dimensions (CRITICAL - must be accurate)
+    // ========================================
+    let viewportWidth: number;
+    let viewportHeight: number;
+    
+    try {
+      const viewportResult = await cdpCommander.sendCommand<any>('Runtime.evaluate', {
+        expression: '({width: window.innerWidth, height: window.innerHeight})',
+        returnByValue: true,
+      });
+      
+      if (!viewportResult?.result?.value?.width || !viewportResult?.result?.value?.height) {
+        throw new Error('[Screenshot] Runtime.evaluate returned invalid viewport dimensions');
+      }
+      
+      viewportWidth = Math.floor(viewportResult.result.value.width);
+      viewportHeight = Math.floor(viewportResult.result.value.height);
+      
+      // Validate viewport dimensions are reasonable
+      if (viewportWidth < 100 || viewportWidth > 10000) {
+        throw new Error(`[Screenshot] Invalid viewport width: ${viewportWidth} (expected 100-10000)`);
+      }
+      if (viewportHeight < 100 || viewportHeight > 10000) {
+        throw new Error(`[Screenshot] Invalid viewport height: ${viewportHeight} (expected 100-10000)`);
+      }
+      
+      console.log(`✅ [Screenshot] Got viewport dimensions from Runtime.evaluate: ${viewportWidth}x${viewportHeight}`);
+    } catch (viewportError) {
+      const errorMsg = `[Screenshot] Failed to get viewport dimensions: ${viewportError instanceof Error ? viewportError.message : viewportError}`;
+      console.error(`❌ ${errorMsg}`);
+      throw new Error(errorMsg);
     }
     
-    // Additional check: if dimensions seem too small (less than 640x360), warn
-    if (viewportWidth < 640 || viewportHeight < 360) {
-      console.warn(`⚠️ [Screenshot] Viewport dimensions very small: ${viewportWidth}x${viewportHeight}. Page might be zoomed or CDP metrics incorrect.`);
-    }
-    
-    console.log(`🎯 [Screenshot] Final viewport for capture: ${viewportWidth}x${viewportHeight} at (${viewportX}, ${viewportY})`);
-    
-    // For screenshot, we need to consider device pixel ratio
-    // CDP captureScreenshot expects CSS pixels, but returns device pixels
+    // ========================================
+    // STEP 3: Set up CDP screenshot parameters
+    // ========================================
+    const cssViewportX = 0;
+    const cssViewportY = 0;
     const cssViewportWidth = viewportWidth;
     const cssViewportHeight = viewportHeight;
-    const cssViewportX = viewportX;
-    const cssViewportY = viewportY;
     
     console.log(`🖥️ [Screenshot] Viewport size (CSS pixels): ${cssViewportWidth}x${cssViewportHeight} at (${cssViewportX}, ${cssViewportY})`);
     console.log(`📸 [Screenshot] Expected device pixels: ${cssViewportWidth * devicePixelRatio}x${cssViewportHeight * devicePixelRatio}`);
     
-    // Wait for rendering if requested
+    // ========================================
+    // STEP 4: Wait for rendering if requested
+    // ========================================
     if (waitForRender > 0) {
       console.log(`⏳ Waiting ${waitForRender}ms for page rendering before screenshot...`);
       await new Promise((resolve) => setTimeout(resolve, waitForRender));
     }
     
-    // Capture screenshot of the viewport
-    // Note: CDP captureScreenshot does not include cursor
-    // clip parameters: x,y,width,height are in CSS pixels, scale converts to device pixels
-    // If devicePixelRatio=2, scale=2 means 2 device pixels per CSS pixel
+    // ========================================
+    // STEP 5: Capture screenshot
+    // ========================================
+    // CDP captureScreenshot parameters:
+    // - clip.x, clip.y: starting position in CSS pixels
+    // - clip.width, clip.height: dimensions in CSS pixels
+    // - clip.scale: device pixel ratio (e.g., 2 for Retina displays)
+    // The returned image will be in device pixels (width * scale, height * scale)
+    
     const clipScale = devicePixelRatio;
     
     console.log(`🎯 [Screenshot] Capturing with clip: (${cssViewportX}, ${cssViewportY}) ${cssViewportWidth}x${cssViewportHeight} CSS pixels, scale=${clipScale}`);
     
-    const screenshot = await cdpCommander.sendCommand<any>('Page.captureScreenshot', {
-      format: quality < 90 ? 'jpeg' : 'png', // Use JPEG for lower quality to reduce size
-      quality: quality < 90 ? quality / 100 : undefined, // CDP quality is 0-1 for JPEG
-      fromSurface: true,
-      clip: {
-        x: cssViewportX,
-        y: cssViewportY,
-        width: cssViewportWidth,
-        height: cssViewportHeight,
-        scale: clipScale,
-      },
-    });
+    let screenshot: any;
+    try {
+      screenshot = await cdpCommander.sendCommand<any>('Page.captureScreenshot', {
+        format: quality < 90 ? 'jpeg' : 'png',
+        quality: quality < 90 ? quality / 100 : undefined,
+        fromSurface: true,
+        clip: {
+          x: cssViewportX,
+          y: cssViewportY,
+          width: cssViewportWidth,
+          height: cssViewportHeight,
+          scale: clipScale,
+        },
+      });
+    } catch (captureError) {
+      const errorMsg = `[Screenshot] Page.captureScreenshot failed: ${captureError instanceof Error ? captureError.message : captureError}`;
+      console.error(`❌ ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+    
+    if (!screenshot?.data) {
+      throw new Error('[Screenshot] Page.captureScreenshot returned no data');
+    }
     
     const dataUrl = `data:image/${quality < 90 ? 'jpeg' : 'png'};base64,${screenshot.data}`;
     
-    if (!dataUrl || !dataUrl.startsWith('data:image/')) {
-      throw new Error('Invalid image data captured via CDP');
+    if (!dataUrl.startsWith('data:image/')) {
+      throw new Error('[Screenshot] Invalid image data format from CDP');
     }
     
-    // Image dimensions in device pixels (considering device pixel ratio)
-    // The screenshot data is in device pixels, not CSS pixels
-    let imageWidth = cssViewportWidth * devicePixelRatio;
-    let imageHeight = cssViewportHeight * devicePixelRatio;
+    // ========================================
+    // STEP 6: Validate screenshot data
+    // ========================================
+    // The screenshot should be in device pixels
+    const expectedDeviceWidth = cssViewportWidth * devicePixelRatio;
+    const expectedDeviceHeight = cssViewportHeight * devicePixelRatio;
+    
+    console.log(`📊 [Screenshot] Expected image dimensions (device pixels): ${expectedDeviceWidth}x${expectedDeviceHeight}`);
+    
+    // Basic validation: screenshot data should exist and be reasonably sized
+    // PNG compression is very effective, so don't validate based on expected size
+    // Just ensure we got some data back
+    if (!screenshot.data || screenshot.data.length < 1000) {
+      throw new Error(`[Screenshot] Screenshot data too small or missing (${screenshot.data?.length || 0} bytes)`);
+    }
+    
+    console.log(`✅ [Screenshot] Screenshot captured successfully, data size: ${screenshot.data.length} bytes`);
+    
+    // ========================================
+    // STEP 7: Resize image (optional)
+    // ========================================
     let finalImageData = dataUrl;
+    let finalImageWidth = expectedDeviceWidth;
+    let finalImageHeight = expectedDeviceHeight;
     
-    console.log(`📊 [Screenshot] Image dimensions (device pixels): ${imageWidth}x${imageHeight}`);
-    
-    // Resize image to preset coordinate system dimensions if requested
     if (resizeToPreset) {
+      const PRESET_WIDTH = 1280;
+      const PRESET_HEIGHT = 720;
+      
+      console.log(`🖼️ [Screenshot] Resizing image from ${expectedDeviceWidth}×${expectedDeviceHeight} to ${PRESET_WIDTH}×${PRESET_HEIGHT}`);
+      
       try {
-        const PRESET_WIDTH = 1280;
-        const PRESET_HEIGHT = 720;
-        
-        console.log(`🖼️ [Screenshot] Resizing image from ${imageWidth}×${imageHeight} to ${PRESET_WIDTH}×${PRESET_HEIGHT}`);
-        
-        finalImageData = await resizeImageInContentScript(
-          tabId,
+        finalImageData = await resizeImage(
           dataUrl,
           PRESET_WIDTH,
           PRESET_HEIGHT
         );
-        
-        // Update image dimensions to preset size
-        imageWidth = PRESET_WIDTH;
-        imageHeight = PRESET_HEIGHT;
-        
+        finalImageWidth = PRESET_WIDTH;
+        finalImageHeight = PRESET_HEIGHT;
         console.log(`✅ [Screenshot] Image resized to preset coordinate system dimensions`);
       } catch (resizeError) {
-        console.warn('⚠️ [Screenshot] Failed to resize image, using original:', resizeError);
-        // Continue with original image
+        const errorMsg = `[Screenshot] Failed to resize image: ${resizeError instanceof Error ? resizeError.message : resizeError}`;
+        console.error(`❌ ${errorMsg}`);
+        throw new Error(errorMsg);
       }
     }
     
-    // Cache screenshot metadata for computer tool
-    // Store both CSS viewport size and image dimensions
+    // ========================================
+    // STEP 8: Verify final image data
+    // ========================================
+    // After resize, the image should be at least 10KB for a 1280x720 image
+    const minFinalSize = resizeToPreset ? 10000 : 30000;
+    if (finalImageData.length < minFinalSize) {
+      throw new Error(`[Screenshot] Final image data too small (${finalImageData.length} bytes), likely blank or corrupted`);
+    }
+    
+    // ========================================
+    // STEP 9: Cache metadata and return result
+    // ========================================
     cacheScreenshotMetadata(
       tabId,
-      imageWidth,
-      imageHeight,
+      finalImageWidth,
+      finalImageHeight,
       cssViewportWidth,  // CSS viewport width
       cssViewportHeight, // CSS viewport height
     );
     
-    // Check if image data is suspiciously small (likely blank)
-    if (finalImageData.length < 30000) {
-      console.warn('⚠️ [Screenshot] Image data too small, likely blank. Falling back to legacy method.');
-      throw new Error('Image data too small');
-    }
-    
     const tab = await chrome.tabs.get(tabId);
+    
+    console.log(`✅ [Screenshot] Screenshot complete: ${finalImageWidth}x${finalImageHeight} (${resizeToPreset ? 'resized' : 'original'})`);
     
     return {
       success: true,
       imageData: finalImageData,
       metadata: {
         tabId: tabId,
-        width: imageWidth,
-        height: imageHeight,
+        width: finalImageWidth,
+        height: finalImageHeight,
         viewportWidth: viewportWidth,
         viewportHeight: viewportHeight,
         url: tab?.url || '',
         title: tab?.title || '',
         resizedToPreset: resizeToPreset,
         captureMethod: 'cdp',
+        devicePixelRatio: devicePixelRatio,
       },
     };
+  } catch (error) {
+    // Catch any errors and re-throw with context
+    const errorMsg = `[Screenshot] CDP screenshot failed: ${error instanceof Error ? error.message : error}`;
+    console.error(`❌ ${errorMsg}`);
+    throw new Error(errorMsg);
   } finally {
     // Don't detach debugger immediately, let it auto-detach after timeout
     // This allows subsequent commands to reuse the debugger session
@@ -369,190 +364,100 @@ async function captureScreenshotWithCDP(
 }
 
 /**
- * Capture screenshot of visible tab (legacy method using captureVisibleTab)
- * This captures the currently visible tab in the window, not necessarily the target tab
+ * DEPRECATED: Legacy screenshot method using captureVisibleTab
+ * 
+ * This method is DEPRECATED and should NOT be used because:
+ * 1. It captures the currently visible tab, not the target tab
+ * 2. It may cause tab switching/flashing
+ * 3. It does not work for background tabs
+ * 
+ * This function is kept for reference only and will throw an error if called.
+ * 
+ * @deprecated Use CDP method instead
  */
-async function captureScreenshotLegacy(
-  tabId?: number,
-  _includeCursor: boolean = true,
-  quality: number = 90,
-  resizeToPreset: boolean = true,
-  waitForRender: number = 100,
-): Promise<any> {
-  // Resolve tab ID if not provided
-  let targetTabId = tabId;
-  if (!targetTabId) {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-      throw new Error('No active tab found');
-    }
-    targetTabId = tab.id;
-  }
-
-  const tab = await chrome.tabs.get(targetTabId);
-  if (!tab || !tab.windowId) {
-    throw new Error('Tab not found');
-  }
-
-  // Note: Tab activation should be handled by the caller (activateTabForAutomation)
-  // We only wait for rendering if requested
-  if (waitForRender > 0) {
-    console.log(`⏳ Waiting ${waitForRender}ms for page rendering before screenshot...`);
-    await new Promise((resolve) => setTimeout(resolve, waitForRender));
-  }
-
-  // Capture screenshot of the currently visible tab in the window
-  // WARNING: This captures whatever tab is currently visible, not necessarily the target tab!
-  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-    format: 'png',
-    quality: quality,
-  });
-
-  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
-    throw new Error('Invalid image data captured');
-  }
-
-  // Get viewport dimensions
-  let viewport: { width: number; height: number } | undefined;
-  try {
-    const viewportDimensions = await chrome.scripting.executeScript({
-      target: { tabId: targetTabId },
-      func: () => ({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      }),
-    });
-    viewport = viewportDimensions[0]?.result ?? undefined;
-  } catch (e) {
-    console.warn('[Screenshot] Failed to get viewport dimensions:', e);
-  }
-
-  // Get image dimensions - we can't use Image in background script
-  // Instead, we'll extract dimensions from data URL or use reasonable defaults
-  let imageWidth = 1920;
-  let imageHeight = 1080;
-  let finalImageData = dataUrl;
-  
-  try {
-    // Try to extract dimensions from data URL (base64 encoded)
-    // For PNG format, we could parse the IHDR chunk, but it's complex
-    // For now, use viewport dimensions if available
-    if (viewport) {
-      imageWidth = viewport.width;
-      imageHeight = viewport.height;
-    }
-  } catch (e) {
-    console.warn('[Screenshot] Failed to get image dimensions:', e);
-  }
-  
-  // Resize image to preset coordinate system dimensions if requested
-  if (resizeToPreset && viewport) {
-    try {
-      const PRESET_WIDTH = 1280;
-      const PRESET_HEIGHT = 720;
-      
-      console.log(`🖼️ [Screenshot] Resizing image from ${imageWidth}×${imageHeight} to ${PRESET_WIDTH}×${PRESET_HEIGHT}`);
-      
-      finalImageData = await resizeImageInContentScript(
-        targetTabId,
-        dataUrl,
-        PRESET_WIDTH,
-        PRESET_HEIGHT
-      );
-      
-      // Update image dimensions to preset size
-      imageWidth = PRESET_WIDTH;
-      imageHeight = PRESET_HEIGHT;
-      
-      console.log(`✅ [Screenshot] Image resized to preset coordinate system dimensions`);
-    } catch (resizeError) {
-      console.warn('⚠️ [Screenshot] Failed to resize image, using original:', resizeError);
-      // Continue with original image
-    }
-  }
-  
-  // Cache screenshot metadata for computer tool
-  if (viewport) {
-    cacheScreenshotMetadata(
-      targetTabId,
-      imageWidth,
-      imageHeight,
-      viewport.width,
-      viewport.height,
-    );
-  }
-
-  return {
-    success: true,
-    imageData: finalImageData,
-    metadata: {
-      tabId: targetTabId,
-      width: imageWidth,
-      height: imageHeight,
-      viewportWidth: viewport?.width ?? 0,
-      viewportHeight: viewport?.height ?? 0,
-      url: tab.url,
-      title: tab.title,
-      resizedToPreset: resizeToPreset && viewport !== undefined,
-      captureMethod: 'visible_tab',
-      warning: 'Screenshot captured from currently visible tab, not necessarily the target tab',
-    },
-  };
+function _captureScreenshotLegacy(): never {
+  throw new Error(
+    '[Screenshot] Legacy screenshot method is DEPRECATED and should not be used. ' +
+    'Use CDP method instead. If CDP method fails, the error should be investigated and fixed, ' +
+    'not silently ignored with a fallback.'
+  );
 }
 
 /**
  * Capture screenshot of a tab
- * Primary method uses CDP to capture the specified tab even if it's in the background
- * Falls back to legacy method if CDP fails
+ * 
+ * Uses CDP (Chrome DevTools Protocol) to capture screenshots of any tab,
+ * even if it's in the background. This ensures no disruption to the user's
+ * active tab.
+ * 
+ * IMPORTANT: This function follows "fail fast" principle.
+ * - Any errors will be thrown immediately with detailed error messages
+ * - No silent fallback to legacy methods that might cause tab flashing
+ * - All validation errors are reported clearly for debugging
+ * 
+ * @param tabId Target tab ID (optional, defaults to active tab)
+ * @param includeCursor Whether to include cursor (not supported by CDP)
+ * @param quality Image quality (1-100)
+ * @param resizeToPreset Whether to resize to 1280x720
+ * @param waitForRender Time to wait for rendering in ms
+ * @returns Screenshot data with metadata
  */
 export async function captureScreenshot(
   tabId?: number,
   includeCursor: boolean = true,
   quality: number = 90,
-  resizeToPreset: boolean = true,  // Whether to resize to preset coordinate system dimensions (1280x720)
-  waitForRender: number = 500,     // Wait time after tab activation to ensure rendering (in ms)
+  resizeToPreset: boolean = true,
+  waitForRender: number = 500,
 ): Promise<any> {
   // Resolve tab ID if not provided
   let targetTabId = tabId;
   if (!targetTabId) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) {
-      throw new Error('No active tab found');
+      throw new Error('[Screenshot] No active tab found');
     }
     targetTabId = tab.id;
   }
   
-  console.log(`📸 [Screenshot] Capturing screenshot for tab ${targetTabId}, method: CDP preferred`);
+  console.log(`📸 [Screenshot] Starting screenshot capture for tab ${targetTabId}`);
+  console.log(`📸 [Screenshot] Parameters: quality=${quality}, resizeToPreset=${resizeToPreset}, waitForRender=${waitForRender}`);
   
-  try {
-    // First try CDP method (captures the actual tab, even in background)
-    return await captureScreenshotWithCDP(
-      targetTabId,
-      includeCursor,
-      quality,
-      resizeToPreset,
-      waitForRender
-    );
-  } catch (cdpError) {
-    console.error(`❌ [Screenshot] CDP screenshot failed:`, cdpError);
-    console.log(`🔄 [Screenshot] Falling back to legacy captureVisibleTab method`);
-    
-    // Fall back to legacy method
-    // Note: This will capture the currently visible tab, which may not be the target tab!
-    const result = await captureScreenshotLegacy(
-      targetTabId,
-      includeCursor,
-      quality,
-      resizeToPreset,
-      waitForRender
-    );
-    
-    // Add warning about potential mismatch
-    result.metadata.warning = 'Screenshot captured from currently visible tab (legacy fallback). CDP failed: ' + 
-      (cdpError instanceof Error ? cdpError.message : String(cdpError));
-    
-    return result;
+  // Validate parameters
+  if (quality < 1 || quality > 100) {
+    throw new Error(`[Screenshot] Invalid quality value: ${quality} (expected 1-100)`);
   }
+  
+  if (waitForRender < 0) {
+    throw new Error(`[Screenshot] Invalid waitForRender value: ${waitForRender} (expected >= 0)`);
+  }
+  
+  // Verify tab exists and is accessible
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(targetTabId);
+  } catch (tabError) {
+    throw new Error(`[Screenshot] Cannot access tab ${targetTabId}: ${tabError instanceof Error ? tabError.message : tabError}`);
+  }
+  
+  // Check if tab URL is accessible
+  const url = tab.url || '';
+  if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('edge://')) {
+    throw new Error(`[Screenshot] Cannot capture screenshot of restricted URL: ${url}`);
+  }
+  
+  // Use CDP method - no fallback to legacy method
+  // If CDP fails, the error should be investigated and fixed
+  const result = await captureScreenshotWithCDP(
+    targetTabId,
+    includeCursor,
+    quality,
+    resizeToPreset,
+    waitForRender
+  );
+  
+  console.log(`✅ [Screenshot] Screenshot captured successfully for tab ${targetTabId}`);
+  
+  return result;
 }
 
 /**
