@@ -87,38 +87,86 @@ class OpenBrowserObservation(Observation):
     @property
     def to_llm_content(self) -> Sequence[TextContent | ImageContent]:
         """Convert observation to LLM content format"""
-        content_items = []
+        import json
         
-        # Text content with tab list and mouse position
+        content_items = []
         text_parts = []
         
+        # Operation Status Section
+        text_parts.append("## Operation Status")
+        text_parts.append("")
         if not self.success:
-            text_parts.append(f"❌ Operation failed: {self.error}")
-        elif self.message:
-            text_parts.append(f"✅ {self.message}")
+            text_parts.append(f"**Status**: FAILED")
+            text_parts.append(f"**Error**: {self.error}")
+        else:
+            text_parts.append(f"**Status**: SUCCESS")
+            # For JavaScript operations, show minimal confirmation
+            if self.javascript_result is not None and self.message:
+                # Extract just "Executed JavaScript" without the script content
+                if "Executed JavaScript:" in self.message:
+                    text_parts.append("**Action**: JavaScript code executed successfully")
+                else:
+                    text_parts.append(f"**Action**: {self.message}")
+            elif self.message:
+                text_parts.append(f"**Action**: {self.message}")
         
+        text_parts.append("")
+        
+        # JavaScript Result Section (if applicable)
+        if self.javascript_result is not None:
+            text_parts.append("## Execution Result")
+            text_parts.append("")
+            
+            # Format result based on type
+            if isinstance(self.javascript_result, (dict, list)):
+                try:
+                    # Pretty-print JSON with indentation
+                    result_str = json.dumps(self.javascript_result, indent=2, ensure_ascii=False)
+                    if len(result_str) > 50000:
+                        result_str = result_str[:50000] + "\n... (output truncated)"
+                    text_parts.append("```json")
+                    text_parts.append(result_str)
+                    text_parts.append("```")
+                except (TypeError, ValueError):
+                    # Fallback to string representation
+                    result_str = str(self.javascript_result)
+                    if len(result_str) > 50000:
+                        result_str = result_str[:50000] + "... (truncated)"
+                    text_parts.append("```")
+                    text_parts.append(result_str)
+                    text_parts.append("```")
+            else:
+                # For non-dict/list results (strings, numbers, etc.)
+                result_str = str(self.javascript_result)
+                if len(result_str) > 50000:
+                    result_str = result_str[:50000] + "... (truncated)"
+                text_parts.append("```")
+                text_parts.append(result_str)
+                text_parts.append("```")
+            text_parts.append("")
+        
+        # Browser State Section
         if self.tabs:
-            text_parts.append(f"📑 Current tabs ({len(self.tabs)}):")
-            for i, tab in enumerate(self.tabs):
-                active = "✓" if tab.get('active') else " "
+            text_parts.append("## Browser State")
+            text_parts.append("")
+            text_parts.append(f"**Open Tabs** ({len(self.tabs)}):")
+            text_parts.append("")
+            for i, tab in enumerate(self.tabs, 1):
+                active_marker = "●" if tab.get('active') else "○"
                 title = tab.get('title', 'No title')[:50]
                 url = tab.get('url', 'No URL')
-                text_parts.append(f"  {active} [{tab['id']}] {title}")
-                text_parts.append(f"      {url}")
-                if i < len(self.tabs) - 1:
-                    text_parts.append("")
+                text_parts.append(f"{i}. {active_marker} **[{tab['id']}]** {title}")
+                text_parts.append(f"   URL: {url}")
+            text_parts.append("")
         
         if self.mouse_position:
+            text_parts.append("## Cursor Position")
+            text_parts.append("")
             x = self.mouse_position['x']
             y = self.mouse_position['y']
-            text_parts.append(f"📍 Mouse position: ({x}, {y}) in preset coordinate system")
-            text_parts.append("   (Center is 0,0, right is +X, down is +Y)")
-        
-        if self.javascript_result is not None:
-            result_str = str(self.javascript_result)
-            if len(result_str) > 50000:
-                result_str = result_str[:50000] + "... (truncated)"
-            text_parts.append(f"📜 JavaScript execution result: {result_str}")
+            text_parts.append(f"**Coordinates**: ({x}, {y})")
+            text_parts.append(f"**System**: Preset coordinate system (center: 0,0; right: +X; down: +Y)")
+            text_parts.append("")
         
         text_content = "\n".join(text_parts)
         content_items.append(TextContent(text=text_content))
@@ -128,6 +176,36 @@ class OpenBrowserObservation(Observation):
             content_items.append(ImageContent(image_urls=[self.screenshot_data_url]))
         
         return content_items
+
+    @property
+    def visualize(self):
+        """Return Rich Text representation for visualization.
+        
+        This method is called by QueueVisualizer.on_event() to get text content
+        for SSE streaming. We extract only TextContent from to_llm_content and
+        ignore ImageContent, since images are extracted separately via the
+        screenshot_data_url field.
+        
+        Returns:
+            rich.text.Text: Rich Text object with formatted content
+        """
+        from rich.text import Text
+        
+        # Get all content from to_llm_content
+        llm_content = self.to_llm_content
+        
+        # Extract only text content, ignore ImageContent
+        # (images are extracted separately via screenshot_data_url in agent.py)
+        text_parts = []
+        for item in llm_content:
+            if isinstance(item, TextContent):
+                text_parts.append(item.text)
+        
+        # Combine all text parts
+        full_text = "\n".join(text_parts) if text_parts else "[no content]"
+        
+        # Return as Rich Text object
+        return Text(full_text)
 
 
 # --- Executor ---
