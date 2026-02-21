@@ -516,8 +516,8 @@ async def process_agent_message(
     
     try:
         # Yield events as they arrive from the queue
-        timeout_seconds = 600.0  # Overall timeout for conversation (10 minutes)
-        start_time = time.time()
+        timeout_seconds = 600.0  # Timeout for idle time (no events for 10 minutes)
+        last_event_time = time.time()
         
         while True:
             # Debug: print queue size
@@ -529,10 +529,10 @@ async def process_agent_message(
                 logger.debug(f"DEBUG: Conversation finished and queue empty, breaking loop")
                 break
             
-            # Check for overall timeout
-            elapsed = time.time() - start_time
-            if elapsed > timeout_seconds:
-                logger.warning(f"Timeout waiting for events from conversation {conversation_id}")
+            # Check for idle timeout (no events received for timeout_seconds)
+            idle_time = time.time() - last_event_time
+            if idle_time > timeout_seconds:
+                logger.warning(f"Timeout waiting for events from conversation {conversation_id} (idle for {idle_time:.1f}s)")
                 yield SSEEvent("error", {
                     "conversation_id": conversation_id,
                     "error": "Timeout waiting for agent response"
@@ -543,13 +543,15 @@ async def process_agent_message(
                 # Use asyncio to wait for queue item without blocking event loop
                 loop = asyncio.get_event_loop()
                 try:
-                    # Wait for event with longer timeout (600 seconds total)
-                    # Calculate remaining time before overall timeout
-                    remaining_time = max(10.0, timeout_seconds - elapsed)  # Minimum 10 seconds to reduce log noise
-                    logger.debug(f"DEBUG: Waiting for event from queue (timeout: {remaining_time:.1f}s, elapsed: {elapsed:.1f}s)...")
+                    # Wait for event with timeout based on remaining idle time
+                    # Calculate remaining time before idle timeout
+                    remaining_time = max(10.0, timeout_seconds - idle_time)  # Minimum 10 seconds to reduce log noise
+                    logger.debug(f"DEBUG: Waiting for event from queue (timeout: {remaining_time:.1f}s, idle: {idle_time:.1f}s)...")
                     sse_event = await loop.run_in_executor(
                         None, event_queue.get, remaining_time
                     )
+                    # Reset idle timer when we get an event
+                    last_event_time = time.time()
                     logger.debug(f"DEBUG: Got SSE event from queue: {sse_event.event_type}")
                 except queue.Empty:
                     # Continue loop to check other conditions
