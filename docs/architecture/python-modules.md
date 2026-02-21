@@ -30,7 +30,7 @@ This document provides detailed documentation for the Python server modules.
 
 ### `server/core/config.py`
 
-**Purpose**: Configuration management
+**Purpose**: Server configuration management
 
 **Key Components**:
 - `ServerConfig`: Pydantic settings class
@@ -38,6 +38,36 @@ This document provides detailed documentation for the Python server modules.
 
 **Settings**:
 - Host, port, preset resolution, timeouts, etc.
+
+### `server/core/llm_config.py`
+
+**Purpose**: LLM configuration management
+
+**Key Components**:
+- `LLMConfigManager`: Singleton class managing LLM and CWD configuration
+- `LLMConfig`: Pydantic model for LLM settings (model, base_url, api_key)
+- Configuration file: `~/.openbrowser/llm_config.json`
+
+**Features**:
+- Web UI configuration (recommended)
+- Persistent storage across sessions
+- Default values: model=`dashscope/qwen3.5-plus`, base_url=`https://dashscope.aliyuncs.com/compatible-mode/v1`
+- API key required, must be configured through web interface
+- Lazy initialization - server starts without configuration
+
+**API Methods**:
+- `get_config()`: Get full configuration
+- `get_llm_config()`: Get LLM configuration (API key masked in responses)
+- `update_llm_config()`: Update LLM settings
+- `get_default_cwd()`: Get default working directory
+- `set_default_cwd()`: Set default working directory
+- `is_configured()`: Check if API key is configured
+- `reset_config()`: Clear configuration (for testing)
+
+**Security**:
+- API keys always masked in HTTP responses as `"********"`
+- Configuration file stored in user's home directory
+- No environment variable support (web UI only)
 
 ### `server/core/coordinates.py`
 
@@ -128,12 +158,16 @@ screenshot                      # Now captures from new current tab
 
 ## Configuration
 
-### Environment Variables
+### Environment Variables (Server Only)
+
+The following environment variables control server behavior:
 
 - `CHROME_SERVER_HOST`: Server host (default: 127.0.0.1)
 - `CHROME_SERVER_PORT`: HTTP port (default: 8765)
 - `CHROME_SERVER_WEBSOCKET_PORT`: WebSocket port (default: 8766)
 - `CHROME_SERVER_LOG_LEVEL`: Log level (default: info)
+
+> **Note**: LLM configuration environment variables (LLM_API_KEY, LLM_MODEL, LLM_BASE_URL) are **no longer supported**. Please use the web UI configuration instead.
 
 ### Server Configuration
 

@@ -116,22 +116,10 @@ On first access, you'll be prompted to configure your LLM settings through the w
 4. Optionally configure the **Default Working Directory** (CWD)
 5. Click **Save** and then **Continue to Main Interface**
 
-> **Note**: Configuration is stored in `~/.openbrowser/llm_config.json`
-
-<details>
-<summary>📖 Alternative: Use Environment Variables (Legacy)</summary>
-
-You can still use environment variables for backward compatibility:
-
-```bash
-export LLM_API_KEY="your-api-key"
-export LLM_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
-export LLM_MODEL="qwen3.5-plus"
-```
-
-However, the web UI configuration is recommended as it persists across sessions.
-
-</details>
+> **Note**: 
+> - Configuration is stored in `~/.openbrowser/llm_config.json`
+> - You can modify settings anytime by clicking the **⚙️ Settings** button in the status bar
+> - Environment variables (LLM_API_KEY, LLM_MODEL, LLM_BASE_URL) are **no longer supported** - please use the web UI configuration
 
 ### 4. Build the Chrome Extension
 
