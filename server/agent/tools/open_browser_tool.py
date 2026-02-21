@@ -7,8 +7,7 @@ textual information (current tab list, mouse position) and a screenshot
 image for visual feedback.
 """
 
-import asyncio
-import base64
+import time
 import logging
 import threading
 import requests
@@ -140,196 +139,6 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
         # We'll use the existing command_processor from the server
         pass
     
-    async def _execute_action(self, action: OpenBrowserAction) -> OpenBrowserObservation:
-        """Execute a browser action asynchronously"""
-        logger.debug(f"DEBUG: _execute_action called with action_type={action.type}")
-        try:
-            # Get action type
-            action_type = action.type
-            
-            # Convert to appropriate server command based on type
-            result = None
-            message = ""
-            javascript_result = None  # Store JavaScript execution result
-            
-            if action_type == "tab":
-                # Validate required parameters
-                if action.action is None:
-                    raise ValueError("tab requires action parameter")
-                action_str = action.action
-                # Convert action string to TabAction enum
-                # TabAction enum values are uppercase, so convert 'open' -> 'OPEN'
-                try:
-                    action_enum = TabAction(action_str.upper())
-                except ValueError:
-                    # If direct conversion fails, try to map common values
-                    action_map = {
-                        'init': TabAction.INIT,
-                        'open': TabAction.OPEN,
-                        'close': TabAction.CLOSE,
-                        'switch': TabAction.SWITCH,
-                        'list': TabAction.LIST,
-                        'refresh': TabAction.REFRESH
-                    }
-                    if action_str in action_map:
-                        action_enum = action_map[action_str]
-                    else:
-                        raise ValueError(f"Invalid tab action: {action_str}")
-                
-                command = TabCommand(
-                    action=action_enum,
-                    url=action.url,
-                    tab_id=action.tab_id
-                )
-                result = await self._execute_command(command)
-                
-                if action_str == "open":
-                    message = f"Opened tab with URL: {action.url}"
-                elif action_str == "init":
-                    message = f"Initialized session with URL: {action.url}"
-                elif action_str == "close":
-                    message = f"Closed tab ID: {action.tab_id}"
-                elif action_str == "switch":
-                    message = f"Switched to tab ID: {action.tab_id}"
-                elif action_str == "refresh":
-                    message = f"Refreshed tab ID: {action.tab_id}"
-                elif action_str == "list":
-                    message = "Listed tabs"
-                else:
-                    message = f"Tab action: {action_str}"
-                    
-            elif action_type == "javascript_execute":
-                # Validate required parameters
-                if action.script is None:
-                    raise ValueError("javascript_execute requires script parameter")
-                command = JavascriptExecuteCommand(script=action.script)
-                result = await self._execute_command(command)
-                
-                # Extract JavaScript execution result for observation
-                javascript_result = None
-                
-                # Set initial message
-                script = action.script
-                if len(script) > 50:
-                    message = f"Executed JavaScript: '{script[:50]}...'"
-                else:
-                    message = f"Executed JavaScript: '{script}'"
-                
-                if result and result.data:
-                    js_data = result.data
-                    # JavaScript module returns result in 'result' field
-                    if isinstance(js_data, dict):
-                        if 'result' in js_data:
-                            js_result = js_data['result']
-                            # CDP result object has 'value' field when returnByValue is true
-                            if isinstance(js_result, dict) and 'value' in js_result:
-                                javascript_result = js_result['value']
-                            else:
-                                javascript_result = js_result
-                        # Also check for direct 'value' in data
-                        elif 'value' in js_data:
-                            javascript_result = js_data['value']
-                        else:
-                            # If no result or value, use the entire data dict
-                            javascript_result = js_data
-                    else:
-                        # If data is not a dict (e.g., string error), use it as result
-                        javascript_result = js_data
-                    
-                    # If we have a result, update message to include it (only for successful executions)
-                    if javascript_result is not None and result.success:
-                        result_str = str(javascript_result)
-                        if len(result_str) > 50000:
-                            result_str = result_str[:50000] + '... (Truncated because too long)'
-                        message = f"{message} - Result: {result_str}"
-                elif result and result.error:
-                    # If there's an error but no data, use error as javascript_result
-                    javascript_result = result.error
-                    
-            else:
-                raise ValueError(f"Unknown action type: {action_type}")
-            
-            # Determine what data to collect based on action type
-            tabs_data = []
-            mouse_position = None
-            screenshot_data_url = None
-            
-            # 1. Always collect screenshot for visual feedback (but don't include in text)
-            logger.debug(f"DEBUG: Getting screenshot after action...")
-            screenshot_obs = await self._get_screenshot()
-            logger.debug(f"DEBUG: screenshot_obs: success={screenshot_obs.success if screenshot_obs else 'None'}, data keys={list(screenshot_obs.data.keys()) if screenshot_obs and screenshot_obs.data else 'None'}")
-            
-            if screenshot_obs.success and screenshot_obs.data:
-                # Try to extract image data
-                image_data = None
-                if 'imageData' in screenshot_obs.data:
-                    image_data = screenshot_obs.data['imageData']
-                elif 'image_data' in screenshot_obs.data:
-                    image_data = screenshot_obs.data['image_data']
-                
-                if image_data:
-                    # Ensure it's a data URL
-                    if image_data.startswith('data:image/'):
-                        screenshot_data_url = image_data
-                    else:
-                        # Convert base64 to data URL
-                        screenshot_data_url = f"data:image/png;base64,{image_data}"
-            
-            # 2. Collect tabs data only for tab operations
-            if action_type == "tab":
-                logger.debug(f"DEBUG: Getting tabs after tab action...")
-                tabs_obs = await self._get_tabs()
-                logger.debug(f"DEBUG: tabs_obs: success={tabs_obs.success if tabs_obs else 'None'}, data keys={list(tabs_obs.data.keys()) if tabs_obs and tabs_obs.data else 'None'}")
-                
-                if tabs_obs.success and tabs_obs.data and 'tabs' in tabs_obs.data:
-                    tabs_data = tabs_obs.data['tabs']
-            elif action_type == "javascript_execute":
-                # Also get tabs for javascript execution to show context
-                logger.debug(f"DEBUG: Getting tabs after javascript execution...")
-                tabs_obs = await self._get_tabs()
-                logger.debug(f"DEBUG: tabs_obs: success={tabs_obs.success if tabs_obs else 'None'}, data keys={list(tabs_obs.data.keys()) if tabs_obs and tabs_obs.data else 'None'}")
-                
-                if tabs_obs.success and tabs_obs.data and 'tabs' in tabs_obs.data:
-                    tabs_data = tabs_obs.data['tabs']
-            
-            # 3. javascript_result is already set in javascript_execute branch
-            
-            return OpenBrowserObservation(
-                success=result.success if result else False,
-                message=message,
-                error=result.error if result else None,
-                tabs=tabs_data,
-                mouse_position=mouse_position,
-                screenshot_data_url=screenshot_data_url,
-                javascript_result=javascript_result
-            )
-            
-        except ValueError as e:
-            # Provide friendly error message for missing parameters
-            logger.error(f"ValueError: {e} in action '{action.type}'")
-            error_msg = f"Missing or invalid parameters for action '{action.type}': {e}"
-            return OpenBrowserObservation(
-                success=False,
-                error=error_msg,
-                tabs=[],
-                mouse_position=None,
-                screenshot_data_url=None,
-                javascript_result=None
-            )
-        except Exception as e:
-            logger.debug(f"DEBUG: _execute_action caught exception: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            logger.error(f"Error executing browser action: {e}")
-            return OpenBrowserObservation(
-                success=False,
-                error=str(e),
-                tabs=[],
-                mouse_position=None,
-                screenshot_data_url=None,
-                javascript_result=None
-            )
-    
     def _execute_action_sync(self, action: OpenBrowserAction) -> OpenBrowserObservation:
         """Execute a browser action synchronously via HTTP"""
         logger.debug(f"DEBUG: _execute_action_sync called with action_type={action.type}")
@@ -444,6 +253,8 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             
             # 1. Always collect screenshot for visual feedback (but don't include in text)
             logger.debug(f"DEBUG: Getting screenshot after action (sync)...")
+            # FIXME: temp method to let chrome render for 1 sec.
+            time.sleep(1)
             screenshot_result = self._get_screenshot_sync()
             logger.debug(f"DEBUG: screenshot_result: success={screenshot_result.get('success')}, data keys={list(screenshot_result.get('data', {}).keys()) if screenshot_result.get('data') else 'None'}")
             
@@ -544,17 +355,6 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
             logger.error(traceback.format_exc())
             raise
     
-    async def _execute_command(self, command) -> Any:
-        """Execute a command through the existing command processor"""
-        logger.debug(f"DEBUG: _execute_command called with command type: {command.type if hasattr(command, 'type') else type(command).__name__}")
-        try:
-            result = await command_processor.execute(command)
-            logger.debug(f"DEBUG: _execute_command returned: success={result.success if result else 'None'}")
-            return result
-        except Exception as e:
-            logger.debug(f"DEBUG: _execute_command exception: {e}")
-            raise
-    
     def _execute_command_sync(self, command) -> Any:
         """Execute a command synchronously via HTTP"""
         logger.debug(f"DEBUG: _execute_command_sync called with command type: {command.type if hasattr(command, 'type') else type(command).__name__}")
@@ -575,28 +375,6 @@ class OpenBrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation
         except Exception as e:
             logger.debug(f"DEBUG: _execute_command_sync exception: {e}")
             raise
-    
-    async def _get_tabs(self) -> Any:
-        """Get current tab list"""
-        logger.debug(f"DEBUG: _get_tabs called, sending GetTabsCommand")
-        command = GetTabsCommand(managed_only=True)
-        result = await command_processor.execute(command)
-        logger.debug(f"DEBUG: _get_tabs result: success={result.success if result else 'None'}, data type={type(result.data) if result else 'None'}")
-        return result
-    
-    async def _get_screenshot(self) -> Any:
-        """Capture screenshot"""
-        logger.debug(f"DEBUG: _get_screenshot called, sending ScreenshotCommand")
-        command = ScreenshotCommand(include_cursor=True, include_visual_mouse=True, quality=90)
-        result = await command_processor.execute(command)
-        logger.debug(f"DEBUG: _get_screenshot result: success={result.success if result else 'None'}, data type={type(result.data) if result else 'None'}")
-        return result
-    
-    def _get_mouse_position(self) -> Optional[Dict[str, int]]:
-        """Get current mouse position (placeholder - need to track this)"""
-        # TODO: Implement mouse position tracking
-        # For now, return None
-        return None
 
     def _get_tabs_sync(self) -> Any:
         """Get current tab list synchronously"""
