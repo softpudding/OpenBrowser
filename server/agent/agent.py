@@ -13,12 +13,14 @@ import threading
 import queue
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Dict, List, Any, Optional, Union, AsyncGenerator
 from collections.abc import Sequence
 
 from openhands.sdk import (
     LLM,
     Agent,
+    AgentContext,
     Conversation,
     Event,
     ImageContent,
@@ -50,6 +52,7 @@ from openhands.tools.terminal import TerminalTool
 from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.preset.default import get_default_condenser
 from .tools.open_browser_tool import OpenBrowserTool
+from server.core.llm_config import llm_config_manager
 
 logger = get_logger(__name__)
 
@@ -154,11 +157,11 @@ class QueueVisualizer(ConversationVisualizerBase):
                     sse_data["activated_skills"] = event.activated_skills
                 if event.sender:
                     sse_data["sender"] = event.sender
-            
+
             # We could add more elif branches for other specific event types here:
             # elif isinstance(event, SystemPromptEvent):
             #     # Handle SystemPromptEvent specific fields
-            
+
             # For any LLMConvertibleEvent, extract image content from to_llm_content
             # This is NOT mutually exclusive with the specific type checks above because:
             # - ActionEvent, ObservationEvent, MessageEvent, etc. are all LLMConvertibleEvent
@@ -167,19 +170,18 @@ class QueueVisualizer(ConversationVisualizerBase):
             #   (e.g., if ObservationEvent already found an image in observation.screenshot_data_url)
             # This preserves the original logic where image extraction was a separate step
             # that could potentially find images in any LLMConvertibleEvent
-            if isinstance(event, LLMConvertibleEvent) and 'image' not in sse_data:
-                try:
-                    llm_content = event.to_llm_content()
-                    image_urls = []
-                    for content in llm_content:
-                        if isinstance(content, ImageContent):
-                            image_urls.extend(content.image_urls)
-                    
-                    if image_urls:
-                        sse_data["image"] = image_urls[0]  # Take first image
-                except Exception as e:
-                    logger.debug(f"Error extracting image content from {event_type}: {e}")
-            
+            # if isinstance(event, LLMConvertibleEvent) and 'image' not in sse_data:
+            #     try:
+            #         llm_content = event.to_llm_content()
+            #         image_urls = []
+            #         for content in llm_content:
+            #             if isinstance(content, ImageContent):
+            #                 image_urls.extend(content.image_urls)
+            #         if image_urls:
+            #             sse_data["image"] = image_urls[0]  # Take first image
+            #             logger.debug(f"Added imgae for {event}")
+            #     except Exception as e:
+            #         logger.debug(f"Error extracting image content from {event_type}: {e}")
             # Put event in queue
             sse_event = SSEEvent("agent_event", sse_data)
             self.event_queue.put(sse_event)
@@ -215,8 +217,8 @@ class OpenBrowserAgentManager:
     def __init__(self):
         self.conversations: Dict[str, ConversationState] = {}
         
-        # Default LLM configuration (can be overridden)
-        self.llm = self._create_default_llm()
+        # Lazy initialization of LLM (only when needed)
+        self._llm: Optional[LLM] = None
         
         # Default tools
         self.default_tools = [
@@ -226,26 +228,35 @@ class OpenBrowserAgentManager:
             Tool(name=TaskTrackerTool.name),  # Task tracking
         ]
     
+    @property
+    def llm(self) -> LLM:
+        """Lazy initialization of LLM"""
+        if self._llm is None:
+            self._llm = self._create_default_llm()
+        return self._llm
+    
     def _create_default_llm(self) -> LLM:
-        """Create default LLM configuration"""
-        import os
-        import sys
+        """Create default LLM configuration from config file"""
         from pydantic import SecretStr
         
-        api_key = os.getenv("LLM_API_KEY")
-        if not api_key:
-            print("❌ Error: LLM_API_KEY environment variable is not set")
-            print("   Please set it with: export LLM_API_KEY='your-api-key'")
-            sys.exit(1)
+        # Load LLM configuration from file
+        llm_config = llm_config_manager.get_llm_config()
         
-        model = os.getenv("LLM_MODEL", "dashscope/qwen3.5-plus")
-        base_url = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        # Check if API key is configured
+        if not llm_config.api_key:
+            raise ValueError(
+                "LLM API key is not configured. "
+                "Please configure it through the web interface at http://localhost:8000/ "
+                "Or use the API: POST /api/config/llm with {'api_key': 'your-key'}"
+            )
+        
+        logger.info(f"Loading LLM configuration: model={llm_config.model}, base_url={llm_config.base_url}")
         
         return LLM(
             usage_id="openbrowser-agent",
-            model=model,
-            base_url=base_url,
-            api_key=SecretStr(api_key),
+            model=llm_config.model,
+            base_url=llm_config.base_url,
+            api_key=SecretStr(llm_config.api_key)
         )
     
     def create_conversation(self, conversation_id: Optional[str] = None, cwd: str = ".") -> str:
@@ -262,7 +273,13 @@ class OpenBrowserAgentManager:
             raise ValueError(f"Conversation {conversation_id} already exists")
         
         # Create agent with tools
-        agent = Agent(llm=self.llm, tools=self.default_tools, condenser=get_default_condenser(llm=self.llm.model_copy(update={"usage_id": "condenser"})))
+        agent_context = AgentContext(current_datetime=datetime.now())
+        agent = Agent(
+            llm=self.llm,
+            tools=self.default_tools,
+            condenser=get_default_condenser(llm=self.llm.model_copy(update={"usage_id": "condenser"})),
+            agent_context=agent_context,
+        )
 
         # Create visualizer (queue will be set when processing messages)
         visualizer = QueueVisualizer()
@@ -305,7 +322,8 @@ class OpenBrowserAgentManager:
         
         # Create new conversation with the given ID
         # Create agent with tools
-        agent = Agent(llm=self.llm, tools=self.default_tools)
+        agent_context = AgentContext(current_datetime=datetime.now())
+        agent = Agent(llm=self.llm, tools=self.default_tools, agent_context=agent_context)
         
         # Create visualizer (queue will be set when processing messages)
         visualizer = QueueVisualizer()
@@ -444,13 +462,9 @@ async def process_agent_message(
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
             
-            # Add time hint for AI
-            world_time = time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime())
-            message_with_hint = f"{message_text}\n[HINT] current time is {world_time}"
-            
             # Send user message to conversation
-            logger.debug(f"DEBUG: Sending message to conversation with time hint")
-            conv_state.conversation.send_message(message_with_hint)
+            logger.debug(f"DEBUG: Sending message to conversation")
+            conv_state.conversation.send_message(message_text)
             
             # Run the conversation (check if it's async or sync)
             import inspect
@@ -492,6 +506,8 @@ async def process_agent_message(
             logger.debug(f"DEBUG: run_conversation finally block, setting conversation_finished=True")
             conversation_finished = True
             logger.debug(f"DEBUG: conversation_finished set to True in thread")
+            conv_state.conversation.close()
+            logger.debug(f"DEBUG: closed conversation")
     
     # Start conversation thread
     conversation_thread = threading.Thread(target=run_conversation, daemon=True)

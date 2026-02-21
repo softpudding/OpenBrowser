@@ -85,17 +85,7 @@ Real-world use case: OpenBrowser debugging its own frontend issues.
 
 ## Quick Start
 
-### 1. Set Environment Variables
-
-Configure the LLM connection. Note that `LLM_BASE_URL` must be an **OpenAI-compatible API endpoint**:
-
-```bash
-export LLM_API_KEY="your-api-key"
-export LLM_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"  # OpenAI-compatible URL
-export LLM_MODEL="qwen3.5-plus"
-```
-
-### 2. Install Python Dependencies
+### 1. Install Python Dependencies
 
 ```bash
 # Using uv (recommended)
@@ -105,13 +95,43 @@ uv sync
 pip install -e .
 ```
 
-### 3. Start the Server
+### 2. Start the Server
 
 ```bash
 local-chrome-server serve
 ```
 
 The server will start at `http://127.0.0.1:8765` (HTTP) and `ws://127.0.0.1:8766` (WebSocket).
+
+### 3. Configure LLM Settings
+
+On first access, you'll be prompted to configure your LLM settings through the web interface:
+
+1. Open `http://localhost:8765` in your browser
+2. You'll see the **Configuration Page**
+3. Fill in your API details:
+   - **Model**: Default is `dashscope/qwen3.5-plus`
+   - **Base URL**: Default is `https://dashscope.aliyuncs.com/compatible-mode/v1`
+   - **API Key**: Your API key (required)
+4. Optionally configure the **Default Working Directory** (CWD)
+5. Click **Save** and then **Continue to Main Interface**
+
+> **Note**: Configuration is stored in `~/.openbrowser/llm_config.json`
+
+<details>
+<summary>📖 Alternative: Use Environment Variables (Legacy)</summary>
+
+You can still use environment variables for backward compatibility:
+
+```bash
+export LLM_API_KEY="your-api-key"
+export LLM_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
+export LLM_MODEL="qwen3.5-plus"
+```
+
+However, the web UI configuration is recommended as it persists across sessions.
+
+</details>
 
 ### 4. Build the Chrome Extension
 

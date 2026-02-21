@@ -646,9 +646,211 @@
                 width: 100%;
             }
         }
+        
+        /* Configuration Page Styles */
+        .config-page {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .config-container {
+            background: #222222;
+            border: 1px solid #444444;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+        
+        .config-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .config-header h1 {
+            color: #ffffff;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .config-subtitle {
+            color: #888888;
+            font-size: 14px;
+        }
+        
+        .config-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #444444;
+            padding-bottom: 10px;
+        }
+        
+        .config-tab {
+            background: #1a1a1a;
+            border: 1px solid #444444;
+            color: #cccccc;
+            padding: 8px 20px;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .config-tab:hover {
+            background: #333333;
+        }
+        
+        .config-tab.active {
+            background: #333333;
+            border-bottom-color: #333333;
+            color: #ffffff;
+        }
+        
+        .config-tab-content {
+            padding: 20px 0;
+        }
+        
+        .config-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .form-group label {
+            color: #cccccc;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .form-group input {
+            background: #1a1a1a;
+            border: 1px solid #444444;
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #666666;
+        }
+        
+        .form-group input::placeholder {
+            color: #666666;
+        }
+        
+        .help-text {
+            color: #888888;
+            font-size: 12px;
+            font-style: italic;
+        }
+        
+        .required {
+            color: #ff6b6b;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .btn-primary {
+            background: #4a90e2;
+            color: #ffffff;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        
+        .btn-primary:hover {
+            background: #357abd;
+        }
+        
+        .btn-success {
+            background: #4caf50;
+            color: #ffffff;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.2s;
+            width: 100%;
+        }
+        
+        .btn-success:hover {
+            background: #45a049;
+        }
+        
+        .config-footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #444444;
+        }
+        
+        .settings-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #444444;
+            border: 1px solid #666666;
+            color: #ffffff;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            z-index: 1000;
+        }
+        
+        .settings-btn:hover {
+            background: #666666;
+            transform: rotate(90deg);
+        }
+        
+        /* Main Interface Container */
+        #main-interface {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            width: 100%;
+            overflow: hidden;
+        }
     </style>
 </head>
 <body>
+    <div id="main-interface">
     <div class="terminal-header">
         <div class="ascii-title">
     ,----..   ,-.----.                      ,--.                         ,----..                                                     
@@ -673,6 +875,11 @@
             <div class="status-item" id="cwd-input-container">
                 <label for="cwd-input">CWD:</label>
                 <input type="text" id="cwd-input" placeholder="Enter working directory" value="/tmp">
+            </div>
+            <div class="status-item">
+                <button onclick="openConfigPage()" style="background: #333333; border: 1px solid #666666; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;" title="Configure LLM Settings">
+                    ⚙️ Settings
+                </button>
             </div>
         </div>
     </div>
@@ -799,6 +1006,83 @@
             </div>
         </div>
     </div>
+    </div>  <!-- End of main-interface -->
+    
+    <!-- Configuration Page -->
+    <div id="config-page" class="config-page" style="display: none;">
+        <div class="config-container">
+            <button onclick="hideConfigPage()" style="position: absolute; top: 15px; right: 15px; background: #444444; border: 1px solid #666666; color: #cccccc; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Close Settings" onmouseover="this.style.background='#666666'" onmouseout="this.style.background='#444444'">
+                ✕
+            </button>
+            <div class="config-header">
+                <h1>OpenBrowser Configuration</h1>
+                <p class="config-subtitle">Configure your LLM API settings to get started</p>
+            </div>
+            
+            <div class="config-tabs">
+                <button class="config-tab active" onclick="switchConfigTab('llm')">LLM Configs</button>
+                <button class="config-tab" onclick="switchConfigTab('cwd')">Default CWD</button>
+            </div>
+            
+            <div id="config-llm-tab" class="config-tab-content active">
+                <form onsubmit="saveLLMConfig(event)" class="config-form">
+                    <div class="form-group">
+                        <label for="config-model">Model:</label>
+                        <input type="text" id="config-model" 
+                               placeholder="dashscope/qwen3.5-plus" 
+                               value="dashscope/qwen3.5-plus">
+                        <small class="help-text">Default: dashscope/qwen3.5-plus</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="config-base-url">Base URL:</label>
+                        <input type="text" id="config-base-url" 
+                               placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+                               value="https://dashscope.aliyuncs.com/compatible-mode/v1">
+                        <small class="help-text">Default: https://dashscope.aliyuncs.com/compatible-mode/v1</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="config-api-key">API Key <span class="required">*</span>:</label>
+                        <input type="password" id="config-api-key" 
+                               placeholder="Enter your API key">
+                        <small class="help-text">Your API key is required and will be stored locally</small>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">Save LLM Config</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div id="config-cwd-tab" class="config-tab-content" style="display: none;">
+                <form onsubmit="saveCWDConfig(event)" class="config-form">
+                    <div class="form-group">
+                        <label for="config-default-cwd">Default Working Directory:</label>
+                        <input type="text" id="config-default-cwd" 
+                               placeholder="/tmp"
+                               value="/tmp">
+                        <small class="help-text">The default directory for conversation sessions. You can still override this when starting a conversation.</small>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">Save CWD Config</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="config-footer">
+                <button id="config-continue-btn" class="btn-success" onclick="continueToMain()" style="display: none;">
+                    Continue to Main Interface
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Settings button on main interface -->
+    <button id="settings-btn" class="settings-btn" onclick="openConfigPage()" title="Open Settings">
+        ⚙️
+    </button>
     
     <script>
         // Global variables
@@ -916,6 +1200,10 @@
             updateCurrentTime();
             setInterval(updateCurrentTime, 1000);
             checkServerStatus();
+            
+            // Check configuration and load saved settings
+            checkConfiguration();
+            loadConfigToForm();
             
             // Set up event listeners
             document.getElementById('command-input').addEventListener('keypress', function(e) {
@@ -1833,6 +2121,220 @@
         // Update image handlers after adding new events
         function updateImageHandlers() {
             setTimeout(setupImageClickHandlers, 100);
+        }
+        
+        // --- Configuration Management ---
+        
+        let appConfig = null;
+        
+        // Check if application is configured on page load
+        async function checkConfiguration() {
+            try {
+                const response = await fetch(apiUrl('/api/config'));
+                if (!response.ok) {
+                    throw new Error('Failed to fetch configuration');
+                }
+                const data = await response.json();
+                appConfig = data.config;
+                
+                if (!appConfig.is_configured) {
+                    showConfigPage();
+                } else {
+                    hideConfigPage();
+                    // Set default CWD in the input field
+                    document.getElementById('cwd-input').value = appConfig.default_cwd || '/tmp';
+                }
+            } catch (error) {
+                console.error('Error checking configuration:', error);
+                showConfigPage();
+            }
+        }
+        
+        // Show configuration page
+        function showConfigPage() {
+            const configPage = document.getElementById('config-page');
+            const mainInterface = document.getElementById('main-interface');
+            if (configPage) configPage.style.display = 'flex';
+            if (mainInterface) mainInterface.style.display = 'none';
+        }
+        
+        // Hide configuration page
+        function hideConfigPage() {
+            const configPage = document.getElementById('config-page');
+            const mainInterface = document.getElementById('main-interface');
+            if (configPage) configPage.style.display = 'none';
+            // Use flex with column direction to match CSS
+            if (mainInterface) {
+                mainInterface.style.display = 'flex';
+                mainInterface.style.flexDirection = 'column';
+            }
+        }
+        
+        // Load configuration into form
+        async function loadConfigToForm() {
+            try {
+                const response = await fetch(apiUrl('/api/config'));
+                if (!response.ok) {
+                    throw new Error('Failed to fetch configuration');
+                }
+                const data = await response.json();
+                appConfig = data.config;
+                
+                // Populate LLM config form
+                document.getElementById('config-model').value = appConfig.llm.model || 'dashscope/qwen3.5-plus';
+                document.getElementById('config-base-url').value = appConfig.llm.base_url || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+                document.getElementById('config-api-key').value = appConfig.llm.api_key || '';
+                document.getElementById('config-api-key').placeholder = appConfig.llm.has_api_key ? 'API key configured (hidden)' : 'Enter your API key';
+                
+                // Populate CWD config form
+                document.getElementById('config-default-cwd').value = appConfig.default_cwd || '/tmp';
+            } catch (error) {
+                console.error('Error loading configuration:', error);
+                addEvent({
+                    type: 'SystemEvent',
+                    text: `Error loading configuration: ${error.message}`,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+        
+        // Save LLM configuration
+        async function saveLLMConfig(event) {
+            event.preventDefault();
+            
+            const model = document.getElementById('config-model').value || 'dashscope/qwen3.5-plus';
+            const baseUrl = document.getElementById('config-base-url').value || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+            const apiKey = document.getElementById('config-api-key').value;
+            
+            if (!apiKey && !appConfig?.llm?.has_api_key) {
+                alert('API key is required');
+                return;
+            }
+            
+            try {
+                const response = await fetch(apiUrl('/api/config/llm'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        base_url: baseUrl,
+                        api_key: apiKey || '********'  // Send masked value to keep existing
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to save LLM configuration');
+                }
+                
+                const data = await response.json();
+                console.log('LLM configuration saved:', data);
+                
+                // Update appConfig
+                if (!appConfig) appConfig = { llm: {}, default_cwd: '/tmp' };
+                appConfig.llm.model = data.config.model;
+                appConfig.llm.base_url = data.config.base_url;
+                appConfig.llm.has_api_key = data.config.has_api_key;
+                
+                alert('LLM configuration saved successfully!');
+                
+                // Check if fully configured
+                if (appConfig.is_configured !== undefined) {
+                    appConfig.is_configured = appConfig.llm.has_api_key;
+                }
+                
+                // If configured, allow to continue
+                if (appConfig.llm.has_api_key) {
+                    document.getElementById('config-continue-btn').style.display = 'inline-block';
+                }
+            } catch (error) {
+                console.error('Error saving LLM configuration:', error);
+                alert(`Error saving configuration: ${error.message}`);
+            }
+        }
+        
+        // Save default CWD
+        async function saveCWDConfig(event) {
+            event.preventDefault();
+            
+            const cwd = document.getElementById('config-default-cwd').value;
+            
+            if (!cwd) {
+                alert('Default CWD is required');
+                return;
+            }
+            
+            try {
+                const response = await fetch(apiUrl('/api/config/cwd'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        cwd: cwd
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to save CWD configuration');
+                }
+                
+                const data = await response.json();
+                console.log('CWD configuration saved:', data);
+                
+                // Update appConfig
+                if (!appConfig) appConfig = { llm: {}, default_cwd: '/tmp' };
+                appConfig.default_cwd = data.default_cwd;
+                
+                // Update main interface CWD input
+                document.getElementById('cwd-input').value = data.default_cwd;
+                
+                alert('Default working directory saved successfully!');
+            } catch (error) {
+                console.error('Error saving CWD configuration:', error);
+                alert(`Error saving configuration: ${error.message}`);
+            }
+        }
+        
+        // Continue to main interface
+        function continueToMain() {
+            if (appConfig && appConfig.llm && appConfig.llm.has_api_key) {
+                hideConfigPage();
+                // Reload configuration to ensure CWD is updated
+                checkConfiguration();
+            } else {
+                alert('Please configure your API key first');
+            }
+        }
+        
+        // Show config page from main interface
+        function openConfigPage() {
+            loadConfigToForm();
+            showConfigPage();
+        }
+        
+        // Switch configuration tabs
+        function switchConfigTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.config-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.config-tab-content').forEach(content => {
+                content.style.display = 'none';
+                content.classList.remove('active');
+            });
+            
+            const targetTab = document.getElementById(`config-${tabName}-tab`);
+            if (targetTab) {
+                targetTab.style.display = 'block';
+                targetTab.classList.add('active');
+            }
         }
     </script>
 </body>
