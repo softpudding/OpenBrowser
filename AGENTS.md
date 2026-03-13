@@ -239,6 +239,24 @@ If operation fails twice:
 2. Inspect DOM structure
 3. Consider direct URL navigation
 
+## PERFORMANCE OPTIMIZATIONS
+
+### 2PC Confirmation Cache
+To reduce redundant confirmations for frequently interacted elements, BrowserExecutor maintains a conversation-scoped cache of confirmed element IDs.
+
+- **Cache Scope**: Per conversation (`conversation_id`), stored in `BrowserExecutor.confirmed_elements`
+- **When Added**: Element IDs are added after successful confirmation (`confirm_click`, `confirm_hover`, etc.) or when a cached element is successfully interacted with
+- **When Used**: When `click`, `hover`, `scroll` (with element_id), or `keyboard_input` is called, if the element ID is in the cache, the action executes directly without 2PC confirmation flow
+- **Benefits**: Reduces interaction latency for elements the AI has already verified, improving efficiency in repetitive workflows
+- **Limitations**: Cache is not invalidated on page navigation or DOM changes (simple implementation)
+
+Example flow:
+```
+1. click_element(id="abc123") → Requires confirmation (first time)
+2. confirm_click(id="abc123") → Success, adds "abc123" to cache
+3. click_element(id="abc123") → Cache hit, executes directly without confirmation
+```
+
 ## SISYPHUS MODE
 
 Automated looping mode for repetitive testing and monitoring.

@@ -60,6 +60,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         self.conversation_id = None
         # 2PC state: pending confirmations per conversation
         self.pending_confirmations: Dict[str, Dict[str, Any]] = {}
+        # Cache of element IDs that have been successfully confirmed
+        # Key: conversation_id, Value: set of element_ids that have been confirmed
+        self.confirmed_elements: Dict[str, set] = {}
     
     def __call__(self, action: OpenBrowserAction, conversation) -> OpenBrowserObservation:
         """Execute a browser action and return observation"""
@@ -244,6 +247,23 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         if action_type == "click":
             if not action.element_id:
                 raise ValueError("click requires element_id parameter")
+            
+            # Check if element is already confirmed - if yes, execute directly
+            if self._is_element_confirmed(action.element_id):
+                logger.debug(f"DEBUG: Element {action.element_id} already confirmed, executing click directly")
+                command = ClickElementCommand(
+                    element_id=action.element_id,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id
+                )
+                result_dict = self._execute_command_sync(command)
+                if not result_dict or not result_dict.get('success'):
+                    ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
+                    raise RuntimeError(f"Failed to click element: {ext_error}")
+                message = f"Clicked element (previously confirmed): {action.element_id}"
+                return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
+            
+            # Otherwise proceed with 2PC confirmation flow
             # Get full HTML and screenshot for confirmation
             full_html, screenshot = self._get_element_full_html(action.element_id)
             # Store pending confirmation
@@ -261,6 +281,23 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         elif action_type == "hover":
             if not action.element_id:
                 raise ValueError("hover requires element_id parameter")
+            
+            # Check if element is already confirmed - if yes, execute directly
+            if self._is_element_confirmed(action.element_id):
+                logger.debug(f"DEBUG: Element {action.element_id} already confirmed, executing hover directly")
+                command = HoverElementCommand(
+                    element_id=action.element_id,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id
+                )
+                result_dict = self._execute_command_sync(command)
+                if not result_dict or not result_dict.get('success'):
+                    ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
+                    raise RuntimeError(f"Failed to hover element: {ext_error}")
+                message = f"Hovered element (previously confirmed): {action.element_id}"
+                return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
+            
+            # Otherwise proceed with 2PC confirmation flow
             full_html, screenshot = self._get_element_full_html(action.element_id)
             self._set_pending_confirmation(
                 element_id=action.element_id,
@@ -275,6 +312,24 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             
         elif action_type == "scroll":
             if action.element_id:
+                # Check if element is already confirmed - if yes, execute directly
+                if self._is_element_confirmed(action.element_id):
+                    logger.debug(f"DEBUG: Element {action.element_id} already confirmed, executing scroll directly")
+                    command = ScrollElementCommand(
+                        element_id=action.element_id,
+                        direction=action.direction,
+                        scroll_amount=action.scroll_amount or 0.5,
+                        conversation_id=self.conversation_id,
+                        tab_id=action.tab_id
+                    )
+                    result_dict = self._execute_command_sync(command)
+                    if not result_dict or not result_dict.get('success'):
+                        ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
+                        raise RuntimeError(f"Failed to scroll element: {ext_error}")
+                    message = f"Scrolled element (previously confirmed): {action.element_id}"
+                    return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
+                
+                # Otherwise proceed with 2PC confirmation flow
                 full_html, screenshot = self._get_element_full_html(action.element_id)
                 self._set_pending_confirmation(
                     element_id=action.element_id or '',
@@ -287,7 +342,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 message = f"Scroll action pending confirmation for element: {action.element_id or 'page'}"
                 return self._build_observation_from_result(result_dict, message, screenshot_data_url=screenshot, element_id=action.element_id)
             else:
-                # directly execute for page scroll
+                # directly execute for page scroll (no element_id)
                 command = ScrollElementCommand(
                     direction=action.direction,
                     scroll_amount=action.scroll_amount or 0.5,
@@ -306,6 +361,24 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError("keyboard_input requires element_id parameter")
             if not action.text:
                 raise ValueError("keyboard_input requires text parameter")
+            
+            # Check if element is already confirmed - if yes, execute directly
+            if self._is_element_confirmed(action.element_id):
+                logger.debug(f"DEBUG: Element {action.element_id} already confirmed, executing keyboard_input directly")
+                command = KeyboardInputCommand(
+                    element_id=action.element_id,
+                    text=action.text,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id
+                )
+                result_dict = self._execute_command_sync(command)
+                if not result_dict or not result_dict.get('success'):
+                    ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
+                    raise RuntimeError(f"Failed to input text: {ext_error}")
+                message = f"Input text to element (previously confirmed): {action.element_id}"
+                return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
+            
+            # Otherwise proceed with 2PC confirmation flow
             full_html, screenshot = self._get_element_full_html(action.element_id)
             self._set_pending_confirmation(
                 element_id=action.element_id,
@@ -336,6 +409,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
                 raise RuntimeError(f"Failed to click element: {ext_error}")
             message = f"Confirmed and clicked element: {action.element_id}"
+            self._add_confirmed_element(action.element_id)
             self._clear_pending_confirmation()
             return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
             
@@ -355,6 +429,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
                 raise RuntimeError(f"Failed to hover element: {ext_error}")
             message = f"Confirmed and hovered element: {action.element_id}"
+            self._add_confirmed_element(action.element_id)
             self._clear_pending_confirmation()
             return self._build_observation_from_result(result_dict, message)
             
@@ -376,6 +451,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
                 raise RuntimeError(f"Failed to scroll element: {ext_error}")
             message = f"Confirmed and scrolled element: {action.element_id}"
+            self._add_confirmed_element(action.element_id)
             self._clear_pending_confirmation()
             return self._build_observation_from_result(result_dict, message)
             
@@ -396,6 +472,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
                 raise RuntimeError(f"Failed to input text: {ext_error}")
             message = f"Confirmed and input text to element: {action.element_id}"
+            self._add_confirmed_element(action.element_id)
             self._clear_pending_confirmation()
             return self._build_observation_from_result(result_dict, message)
         
@@ -480,6 +557,28 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
     def _get_pending_confirmation(self) -> Optional[Dict[str, Any]]:
         """Get pending confirmation for current conversation"""
         return self.pending_confirmations.get(self.conversation_id)
+    
+    # ========== Confirmed Elements Cache Methods ==========
+    
+    def _add_confirmed_element(self, element_id: str):
+        """Add an element ID to the confirmed cache for current conversation"""
+        if not self.conversation_id:
+            return
+        if self.conversation_id not in self.confirmed_elements:
+            self.confirmed_elements[self.conversation_id] = set()
+        self.confirmed_elements[self.conversation_id].add(element_id)
+        logger.debug(f"DEBUG: Added element {element_id} to confirmed cache for conversation {self.conversation_id}")
+    
+    def _is_element_confirmed(self, element_id: str) -> bool:
+        """Check if an element ID is in the confirmed cache for current conversation"""
+        if not self.conversation_id:
+            return False
+        return element_id in self.confirmed_elements.get(self.conversation_id, set())
+    
+    def _clear_confirmed_elements(self):
+        """Clear confirmed elements cache for current conversation"""
+        if self.conversation_id in self.confirmed_elements:
+            del self.confirmed_elements[self.conversation_id]
     
     # ========== Helper Methods ==========
     
