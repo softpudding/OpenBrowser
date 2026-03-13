@@ -44,7 +44,7 @@ def get_tab_tool_description() -> str:
 class TabAction(OpenBrowserAction):
     """Action for tab management operations."""
 
-    action: Literal["init", "open", "close", "switch", "list", "refresh", "view"] = (
+    action: Literal["init", "open", "close", "switch", "list", "refresh", "view", "back", "forward"] = (
         Field(description="Tab action to perform")
     )
     url: Optional[str] = Field(
@@ -53,7 +53,7 @@ class TabAction(OpenBrowserAction):
     )
     tab_id: Optional[int] = Field(
         default=None,
-        description="Tab ID for close/switch/refresh/view actions",
+        description="Tab ID for close/switch/refresh/view/back/forward actions",
     )
 
 

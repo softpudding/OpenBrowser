@@ -175,6 +175,30 @@ export async function refreshTab(tabId: number): Promise<any> {
 }
 
 /**
+ * Go back in tab history
+ */
+export async function goBack(tabId: number): Promise<any> {
+  await chrome.tabs.goBack(tabId);
+  
+  return {
+    success: true,
+    message: `Navigated back in tab ${tabId}`,
+  };
+}
+
+/**
+ * Go forward in tab history
+ */
+export async function goForward(tabId: number): Promise<any> {
+  await chrome.tabs.goForward(tabId);
+  
+  return {
+    success: true,
+    message: `Navigated forward in tab ${tabId}`,
+  };
+}
+
+/**
  * Get current active tab
  */
 export async function getCurrentTab(): Promise<chrome.tabs.Tab | null> {
@@ -188,5 +212,7 @@ export const tabs = {
   closeTab,
   switchToTab,
   refreshTab,
+  goBack,
+  goForward,
   getCurrentTab,
 };
