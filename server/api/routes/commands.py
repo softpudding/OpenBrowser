@@ -1,8 +1,10 @@
 """Browser command execution endpoints"""
 
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from server.core.processor import command_processor
+from server.websocket.manager import ws_manager
 from server.models.commands import parse_command, CommandResponse
 
 router = APIRouter(tags=["commands"])
@@ -22,18 +24,30 @@ async def execute_command(command_data: dict):
     - screenshot: Capture screenshot
     - tab: Tab management (open, close, switch)
     - get_tabs: Get list of all tabs
+
+    Optional parameters:
+    - browser_id: Browser UUID to route command to specific browser instance
     """
     try:
-        # Parse and validate command
+        browser_id = command_data.get("browser_id")
+
+        if browser_id is not None:
+            if not ws_manager.is_browser_valid(browser_id):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid or expired browser_id: {browser_id}",
+                )
+
         command = parse_command(command_data)
 
-        # Execute command
         response = await command_processor.execute(command)
 
         return response
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except ConnectionError as e:
         raise HTTPException(
             status_code=503, detail=f"No Chrome extension connection: {e}"

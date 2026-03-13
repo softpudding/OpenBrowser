@@ -42,7 +42,7 @@
   "web_accessible_resources": [
     {
       "matches": ["<all_urls>"],
-      "resources": ["assets/*", "workers/*"]
+      "resources": ["assets/*", "workers/*", "uuid/*"]
     }
   ]
 }

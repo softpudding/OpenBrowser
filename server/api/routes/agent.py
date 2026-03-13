@@ -15,6 +15,7 @@ from server.agent.agent import (
     list_conversations,
 )
 from server.core.session_manager import session_manager
+from server.websocket.manager import ws_manager
 from server.api.sse import (
     SSEEvent,
     create_sse_response_headers,
@@ -28,18 +29,33 @@ logger = logging.getLogger(__name__)
 
 @router.post("")
 async def create_conversation(request: Request):
-    """Create a new agent conversation"""
+    """Create a new agent conversation
+
+    Request body (JSON):
+        cwd: Working directory for the conversation (default: ".")
+        model: Optional model override
+        base_url: Optional base URL override
+        browser_id: Optional browser UUID to associate with this conversation
+    """
     try:
-        # Parse request body for optional parameters
         body = await request.json() if request.body else {}
         cwd = body.get("cwd", ".")
         model = body.get("model")
         base_url = body.get("base_url")
+        browser_id = body.get("browser_id")
+
+        if browser_id is not None:
+            if not ws_manager.is_browser_valid(browser_id):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid or expired browser_id: {browser_id}",
+                )
 
         conversation_id = await create_agent_conversation(
             cwd=cwd, model=model, base_url=base_url
         )
-        return {
+
+        response = {
             "success": True,
             "conversation_id": conversation_id,
             "message": f"Conversation created: {conversation_id}",
@@ -47,6 +63,13 @@ async def create_conversation(request: Request):
             "model": model,
             "base_url": base_url,
         }
+
+        if browser_id is not None:
+            response["browser_id"] = browser_id
+
+        return response
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
