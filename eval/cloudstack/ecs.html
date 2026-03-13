@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elastic Compute Service (ECS) - CloudStack</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="css/cloudstack.css">
+    <style>
+        .product-detail-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 0;
+        }
+        .product-detail-header h1 {
+            font-size: 42px;
+            margin-bottom: 16px;
+        }
+        .product-detail-header p {
+            font-size: 18px;
+            opacity: 0.9;
+            max-width: 800px;
+        }
+        .product-nav {
+            background: #fff;
+            border-bottom: 1px solid #e1e1e1;
+            position: sticky;
+            top: 60px;
+            z-index: 100;
+        }
+        .product-nav ul {
+            display: flex;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .product-nav li a {
+            display: block;
+            padding: 16px 24px;
+            color: #333;
+            text-decoration: none;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .product-nav li a:hover,
+        .product-nav li a.active {
+            color: #ff6a00;
+            border-bottom-color: #ff6a00;
+            background: #fff5f0;
+        }
+        .section {
+            padding: 60px 0;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section-title {
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 48px;
+            color: #1a1a1a;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 32px;
+        }
+        .feature-card {
+            background: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 32px;
+            transition: all 0.3s;
+        }
+        .feature-card:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            transform: translateY(-4px);
+        }
+        .feature-card h3 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            color: #1a1a1a;
+        }
+        .feature-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+        .pricing-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 32px;
+        }
+        .pricing-table th,
+        .pricing-table td {
+            border: 1px solid #e1e1e1;
+            padding: 16px;
+            text-align: left;
+        }
+        .pricing-table th {
+            background: #f5f5f5;
+            font-weight: 600;
+        }
+        .pricing-table tr:hover {
+            background: #f9f9f9;
+        }
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            margin-top: 48px;
+            justify-content: center;
+        }
+        .btn-primary {
+            background: #ff6a00;
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary:hover {
+            background: #ff5500;
+            box-shadow: 0 4px 12px rgba(255,106,0,0.3);
+        }
+        .btn-secondary {
+            background: white;
+            color: #ff6a00;
+            border: 2px solid #ff6a00;
+            padding: 14px 32px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-secondary:hover {
+            background: #fff5f0;
+        }
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 40px;
+        }
+        .spec-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+        }
+        .spec-card h4 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: #1a1a1a;
+        }
+        .spec-card .price {
+            font-size: 36px;
+            color: #ff6a00;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .spec-card .price-unit {
+            font-size: 14px;
+            color: #666;
+        }
+        .spec-card ul {
+            list-style: none;
+            padding: 0;
+            margin: 24px 0;
+            text-align: left;
+        }
+        .spec-card li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+        .spec-card li:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Banner -->
+    <div class="top-banner" id="top-banner">
+        <div class="banner-content">
+            <span class="banner-text">🎉 AI Innovation Season - Get up to ¥500 cashback + 45% off with CloudStack AI plans!</span>
+            <a href="pricing.html" class="banner-link">Learn More →</a>
+            <button class="banner-close" id="banner-close">×</button>
+        </div>
+    </div>
+
+    <!-- Top Navigation Bar -->
+    <header class="homepage-header">
+        <div class="header-container">
+            <div class="logo">
+                <button class="hamburger-menu" id="hamburger-menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <a href="index.html" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="CloudStack" style="width: 32px; height: 32px;">
+                    <span style="color: #ff6a00; font-weight: 600; font-size: 18px;">CloudStack</span>
+                </a>
+            </div>
+            <nav class="header-nav">
+                <a href="products.html" class="nav-link" data-dropdown="products">Products <span class="dropdown-arrow">▼</span></a>
+                <a href="solutions.html" class="nav-link">Solutions</a>
+                <a href="pricing.html" class="nav-link">Pricing</a>
+                <a href="marketplace.html" class="nav-link">Cloud Market</a>
+                <a href="partners.html" class="nav-link">Partners</a>
+                <a href="support.html" class="nav-link">Support</a>
+                <a href="about.html" class="nav-link">About</a>
+            </nav>
+            <div class="header-right">
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search products, docs..." id="search-input">
+                    <button class="search-btn" id="search-btn">Search</button>
+                </div>
+                <button class="icon-btn" id="lang-btn" title="Language">🌐</button>
+                <button class="icon-btn" id="docs-btn" title="Documentation">📚</button>
+                <button class="icon-btn" id="notification-btn" title="Notifications">
+                    🔔
+                    <span class="badge">3</span>
+                </button>
+                <a href="console.html" class="console-link">Console</a>
+                <button class="login-btn" id="login-btn">Log In</button>
+                <button class="signup-btn" id="signup-btn">Sign Up</button>
+                <div class="user-avatar" id="user-avatar" style="display: none;">U</div>
+            </div>
+        </div>
+        
+        <!-- Products Dropdown Menu -->
+        <div class="dropdown-menu" id="products-dropdown">
+            <div class="dropdown-container">
+                <div class="dropdown-section">
+                    <h4>Compute</h4>
+                    <ul>
+                        <li><a href="ecs.html">Cloud Server ECS</a></li>
+                        <li><a href="#">Auto Scaling</a></li>
+                        <li><a href="#">Container Service</a></li>
+                        <li><a href="#">Serverless</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Storage</h4>
+                    <ul>
+                        <li><a href="oss.html">Object Storage OSS</a></li>
+                        <li><a href="#">File Storage</a></li>
+                        <li><a href="#">Archive Storage</a></li>
+                        <li><a href="#">Block Storage</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Database</h4>
+                    <ul>
+                        <li><a href="rds.html">Cloud Database RDS</a></li>
+                        <li><a href="das.html">Database Autonomy DAS</a></li>
+                        <li><a href="#">Redis</a></li>
+                        <li><a href="#">MongoDB</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Network</h4>
+                    <ul>
+                        <li><a href="vpc.html">Virtual Private Cloud</a></li>
+                        <li><a href="slb.html">Load Balancer SLB</a></li>
+                        <li><a href="#">CDN</a></li>
+                        <li><a href="#">DNS</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>AI & Machine Learning</h4>
+                    <ul>
+                        <li><a href="#">CloudStack AI</a></li>
+                        <li><a href="#">Machine Learning PAI</a></li>
+                        <li><a href="#">OpenCLaw AI Assistant</a></li>
+                        <li><a href="#">Image Search</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Product Detail Header -->
+    <div class="product-detail-header">
+        <div class="section">
+            <h1>Elastic Compute Service (ECS)</h1>
+            <p>Simple, efficient, and elastic cloud computing services. Launch virtual servers in seconds with various instance types to meet your computing needs.</p>
+            <div class="cta-buttons">
+                <button class="btn-primary" onclick="window.location.href='console.html'">Buy Now</button>
+                <button class="btn-secondary" onclick="window.location.href='#pricing'">View Pricing</button>
+                <button class="btn-secondary" onclick="window.location.href='#docs'">Documentation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Navigation -->
+    <nav class="product-nav">
+        <ul>
+            <li><a href="#overview" class="active">Overview</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#specs">Instance Types</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#docs">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <!-- Overview Section -->
+    <section class="section" id="overview">
+        <h2 class="section-title">Why Choose CloudStack ECS?</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>🚀 High Performance</h3>
+                <p>Latest generation Intel and AMD processors with up to 104 vCPUs and 768GB memory per instance. NVMe SSD storage for ultra-low latency.</p>
+            </div>
+            <div class="feature-card">
+                <h3>💰 Cost Effective</h3>
+                <p>Pay-as-you-go pricing with no upfront commitment. Save up to 70% with reserved instances and spot instances for flexible workloads.</p>
+            </div>
+            <div class="feature-card">
+                <h3>🔒 Enterprise Security</h3>
+                <p>Built-in DDoS protection, security groups, VPC isolation, and compliance with major certifications including ISO 27001, SOC 2, and GDPR.</p>
+            </div>
+            <div class="feature-card">
+                <h3>🌍 Global Infrastructure</h3>
+                <p>Deploy in 30+ regions and 80+ availability zones worldwide. Low-latency network connectivity and local compliance support.</p>
+            </div>
+            <div class="feature-card">
+                <h3>⚡ Auto Scaling</h3>
+                <p>Automatically scale your compute capacity up or down based on demand. Set scaling policies to optimize costs and performance.</p>
+            </div>
+            <div class="feature-card">
+                <h3>🛠️ Easy Management</h3>
+                <p>Intuitive web console, powerful API, CLI tools, and SDKs for all major programming languages. Integration with popular DevOps tools.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Instance Types Section -->
+    <section class="section" id="specs" style="background: #f9f9f9;">
+        <h2 class="section-title">Popular Instance Types</h2>
+        <div class="specs-grid">
+            <div class="spec-card">
+                <h4>General Purpose</h4>
+                <div class="price">¥17.8<span class="price-unit">/month</span></div>
+                <p style="color: #666; font-size: 14px;">g7 family</p>
+                <ul>
+                    <li>2 vCPU / 8 GB RAM</li>
+                    <li>Intel Xeon Platinum 8369B</li>
+                    <li>Up to 10 Gbps network</li>
+                    <li>ESSD storage support</li>
+                    <li>Ideal for web servers</li>
+                </ul>
+                <button class="btn-primary" style="width: 100%;" onclick="window.location.href='console.html'">Buy Now</button>
+            </div>
+            <div class="spec-card">
+                <h4>Compute Optimized</h4>
+                <div class="price">¥28.5<span class="price-unit">/month</span></div>
+                <p style="color: #666; font-size: 14px;">c7 family</p>
+                <ul>
+                    <li>4 vCPU / 8 GB RAM</li>
+                    <li>Intel Xeon Platinum 8369B</li>
+                    <li>Up to 15 Gbps network</li>
+                    <li>High clock speed (3.5 GHz)</li>
+                    <li>Ideal for batch processing</li>
+                </ul>
+                <button class="btn-primary" style="width: 100%;" onclick="window.location.href='console.html'">Buy Now</button>
+            </div>
+            <div class="spec-card">
+                <h4>Memory Optimized</h4>
+                <div class="price">¥45.2<span class="price-unit">/month</span></div>
+                <p style="color: #666; font-size: 14px;">r7 family</p>
+                <ul>
+                    <li>4 vCPU / 32 GB RAM</li>
+                    <li>Intel Xeon Platinum 8369B</li>
+                    <li>Up to 15 Gbps network</li>
+                    <li>High memory bandwidth</li>
+                    <li>Ideal for databases</li>
+                </ul>
+                <button class="btn-primary" style="width: 100%;" onclick="window.location.href='console.html'">Buy Now</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="section" id="pricing">
+        <h2 class="section-title">Simple, Transparent Pricing</h2>
+        <table class="pricing-table">
+            <thead>
+                <tr>
+                    <th>Billing Method</th>
+                    <th>Description</th>
+                    <th>Best For</th>
+                    <th>Discount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Pay-As-You-Go</strong></td>
+                    <td>Pay by the hour with no commitment</td>
+                    <td>Short-term, unpredictable workloads</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td><strong>Subscription</strong></td>
+                    <td>Monthly or annual billing</td>
+                    <td>Long-term, stable workloads</td>
+                    <td>Up to 45% off</td>
+                </tr>
+                <tr>
+                    <td><strong>Reserved Instances</strong></td>
+                    <td>1 or 3 year commitment</td>
+                    <td>Predictable baseline usage</td>
+                    <td>Up to 70% off</td>
+                </tr>
+                <tr>
+                    <td><strong>Spot Instances</strong></td>
+                    <td>Bid on unused capacity</td>
+                    <td>Flexible, fault-tolerant workloads</td>
+                    <td>Up to 90% off</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="cta-buttons">
+            <button class="btn-primary" onclick="window.location.href='pricing.html'">View Full Pricing</button>
+            <button class="btn-secondary" onclick="window.location.href='console.html'">Calculate Cost</button>
+        </div>
+    </section>
+
+    <!-- Documentation Section -->
+    <section class="section" id="docs" style="background: #f9f9f9;">
+        <h2 class="section-title">Documentation & Resources</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>📖 Quick Start Guide</h3>
+                <p>Get started with ECS in minutes. Learn how to create, configure, and connect to your first instance.</p>
+                <a href="#" style="color: #ff6a00; text-decoration: none;">Read Guide →</a>
+            </div>
+            <div class="feature-card">
+                <h3>🔧 API Reference</h3>
+                <p>Complete API documentation for automating ECS operations. SDKs available for Python, Java, Go, and more.</p>
+                <a href="#" style="color: #ff6a00; text-decoration: none;">View API Docs →</a>
+            </div>
+            <div class="feature-card">
+                <h3>🎓 Best Practices</h3>
+                <p>Learn from experts. Security hardening, performance optimization, and cost management tips.</p>
+                <a href="#" style="color: #ff6a00; text-decoration: none;">Explore →</a>
+            </div>
+            <div class="feature-card">
+                <h3>💬 Community Forum</h3>
+                <p>Ask questions, share knowledge, and learn from other CloudStack users and experts.</p>
+                <a href="#" style="color: #ff6a00; text-decoration: none;">Join Forum →</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Products</h4>
+                <ul>
+                    <li><a href="ecs.html">ECS</a></li>
+                    <li><a href="oss.html">OSS</a></li>
+                    <li><a href="rds.html">RDS</a></li>
+                    <li><a href="vpc.html">VPC</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Solutions</h4>
+                <ul>
+                    <li><a href="solutions.html">By Industry</a></li>
+                    <li><a href="solutions.html">By Use Case</a></li>
+                    <li><a href="solutions.html">By Size</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Support</h4>
+                <ul>
+                    <li><a href="support.html">Help Center</a></li>
+                    <li><a href="#">Documentation</a></li>
+                    <li><a href="#">Community</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Company</h4>
+                <ul>
+                    <li><a href="about.html">About Us</a></li>
+                    <li><a href="partners.html">Partners</a></li>
+                    <li><a href="#">Careers</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Legal</h4>
+                <ul>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                    <li><a href="#">SLA</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 CloudStack. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="login-modal-overlay">
+        <div class="modal">
+            <button class="modal-close" id="login-modal-close">×</button>
+            <h2>Welcome Back</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Enter your password" required>
+                </div>
+                <div class="form-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="remember-me">
+                        <span>Remember me</span>
+                    </label>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+                <button type="submit" class="submit-btn">Log In</button>
+            </form>
+            <p class="modal-footer">Don't have an account? <a href="#" id="show-signup">Sign Up</a></p>
+        </div>
+    </div>
+
+    <!-- Signup Modal -->
+    <div class="modal-overlay" id="signup-modal-overlay">
+        <div class="modal">
+            <button class="modal-close" id="signup-modal-close">×</button>
+            <h2>Create Account</h2>
+            <p class="modal-subtitle">Join CloudStack for free and get ¥1000 credits</p>
+            <form id="signup-form">
+                <div class="form-group">
+                    <label for="signup-email">Email Address</label>
+                    <input type="email" id="signup-email" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-phone">Phone Number</label>
+                    <div class="phone-input">
+                        <select id="country-code">
+                            <option value="+86">🇨 +86</option>
+                            <option value="+1">🇺 +1</option>
+                            <option value="+44">🇬 +44</option>
+                            <option value="+81">🇯🇵 +81</option>
+                        </select>
+                        <input type="tel" id="phone-number" placeholder="Phone number" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" placeholder="8-20 characters" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Confirm Password</label>
+                    <input type="password" id="confirm-password" placeholder="Re-enter password" required>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" required>
+                        <span>I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="verification-code">Verification Code</label>
+                    <div class="code-input">
+                        <input type="text" id="verification-code" placeholder="Enter code" required>
+                        <button type="button" class="send-code-btn">Send Code</button>
+                    </div>
+                </div>
+                <button type="submit" class="submit-btn">Create Account</button>
+            </form>
+            <p class="modal-footer">Already have an account? <a href="#" id="show-login">Log In</a></p>
+        </div>
+    </div>
+
+    <script src="js/homepage.js"></script>
+    <script>
+        // Product-specific JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            // Smooth scroll for navigation
+            document.querySelectorAll('.product-nav a').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href');
+                    const targetSection = document.querySelector(targetId);
+                    if (targetSection) {
+                        targetSection.scrollIntoView({ behavior: 'smooth' });
+                        // Update active state
+                        document.querySelectorAll('.product-nav a').forEach(l => l.classList.remove('active'));
+                        this.classList.add('active');
+                    }
+                });
+            });
+
+            // Banner close functionality
+            const bannerClose = document.getElementById('banner-close');
+            const topBanner = document.getElementById('top-banner');
+            if (bannerClose && topBanner) {
+                bannerClose.addEventListener('click', function() {
+                    topBanner.style.display = 'none';
+                });
+            }
+        });
+    </script>
+</body>
+</html>

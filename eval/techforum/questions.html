@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Questions - TechForum</title>
+    <link rel="stylesheet" href="/css/techforum.css">
+</head>
+<body>
+    <header class="zhihu-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="/techforum/">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40'%3E%3Ccircle fill='%230084ff' cx='20' cy='20' r='18'/%3E%3Ctext fill='white' font-family='Arial' font-size='24' x='45' y='28'%3E知乎%3C/text%3E%3C/svg%3E" alt="知乎 Logo" class="zhihu-logo">
+                </a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search Questions, Topics, People" id="main-search">
+                <button class="search-icon">🔍</button>
+            </div>
+            <nav class="header-nav">
+                <a href="/techforum/" class="nav-item">Front Page</a>
+                <a href="/techforum/questions.html" class="nav-item active">Questions</a>
+                <a href="/techforum/topics.html" class="nav-item">Topics</a>
+                <a href="/techforum/people.html" class="nav-item">Users</a>
+            </nav>
+            <div class="header-actions">
+                <button class="ask-btn" id="ask-btn">提问</button>
+                <button class="login-btn">登录/注册</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="zhihu-main">
+        <div class="main-container" style="grid-template-columns: 1fr 280px;">
+            <section class="feed" style="width: 100%;">
+                <article class="question-card">
+                    <h1 class="question-title" style="font-size: 24px;">如何评价 2025 年人工智能的发展趋势？</h1>
+                    <div class="question-meta" style="margin-bottom: 20px;">
+                        <span>3,421 人关注</span>
+                        <span>128 个回答</span>
+                        <span>被浏览 1,234,567 次</span>
+                    </div>
+                    
+                    <div class="answer-preview">
+                        <div class="author-info">
+                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle fill='%23ddd' cx='20' cy='20' r='20'/%3E%3C/svg%3E" alt="avatar" class="avatar">
+                            <div class="author-details">
+                                <span class="author-name">AI 研究者</span>
+                                <span class="author-bio">人工智能博士，专注机器学习</span>
+                            </div>
+                        </div>
+                        <div class="answer-content">
+                            <p>2025 年人工智能领域将呈现以下几个重要趋势：</p>
+                            <p><strong>1. 大模型将继续演进</strong></p>
+                            <p>参数规模的增长可能会放缓，但重点将从单纯的参数数量转向模型的效率和实用性。企业将更加关注如何在实际业务场景中部署和优化大模型。</p>
+                            <p><strong>2. 多模态 AI 成为主流</strong></p>
+                            <p>能够同时处理文本、图像、音频、视频的多模态模型将成为标准配置。这将极大地扩展 AI 的应用场景，从内容创作到智能助手。</p>
+                            <p><strong>3. AI 安全和伦理受到重视</strong></p>
+                            <p>随着 AI 能力的增强，如何确保 AI 系统的安全性、可解释性和公平性将成为研究热点。各国政府也将出台更多监管政策。</p>
+                            <p><strong>4. 边缘 AI 和端侧部署</strong></p>
+                            <p>模型压缩和量化技术的进步将使得在移动设备和 IoT 设备上运行复杂的 AI 模型成为可能，这将带来新的应用创新。</p>
+                        </div>
+                        <div class="answer-actions">
+                            <button class="action-btn upvote" data-action="upvote">
+                                <span class="icon">👍</span>
+                                <span class="count">2,341</span>
+                            </button>
+                            <button class="action-btn downvote" data-action="downvote">
+                                <span class="icon">👎</span>
+                            </button>
+                            <button class="action-btn comment" data-action="comment">
+                                <span class="icon">💬</span>
+                                <span class="count">89</span>
+                            </button>
+                            <button class="action-btn share" data-action="share">
+                                <span class="icon">📤</span>
+                                <span>分享</span>
+                            </button>
+                            <button class="action-btn collect" data-action="collect">
+                                <span class="icon">⭐</span>
+                                <span>收藏</span>
+                            </button>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <aside class="right-sidebar">
+                <div class="sidebar-card">
+                    <h3 class="sidebar-title">相关Questions</h3>
+                    <ul class="topic-list">
+                        <li><a href="#" class="topic-link">人工智能对未来就业的影响</a></li>
+                        <li><a href="#" class="topic-link">如何学习机器学习？</a></li>
+                        <li><a href="#" class="topic-link">大语言模型的工作原理是什么？</a></li>
+                    </ul>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/js/techforum.js"></script>
+</body>
+</html>

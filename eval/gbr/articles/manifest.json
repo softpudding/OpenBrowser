@@ -1,0 +1,205 @@
+[
+  {
+    "id": "business-article1",
+    "filename": "business-article1.html",
+    "title": "Federal Reserve Signals Rate Cut Amid Economic Uncertainty",
+    "category": "business",
+    "url": "/gbr/articles/business-article1.html"
+  },
+  {
+    "id": "business-article2",
+    "filename": "business-article2.html",
+    "title": "Major Retailer Announces Store Closures Amid Shift to Online",
+    "category": "business",
+    "url": "/gbr/articles/business-article2.html"
+  },
+  {
+    "id": "business-article3",
+    "filename": "business-article3.html",
+    "title": "Manufacturing Activity Contracts for Third Straight Month",
+    "category": "business",
+    "url": "/gbr/articles/business-article3.html"
+  },
+  {
+    "id": "business-article4",
+    "filename": "business-article4.html",
+    "title": "Startup Valuations Drop as Venture Capital Funding Slows",
+    "category": "business",
+    "url": "/gbr/articles/business-article4.html"
+  },
+  {
+    "id": "world-article1",
+    "filename": "world-article1.html",
+    "title": "European Leaders Meet to Discuss Trade Agreement",
+    "category": "world",
+    "url": "/gbr/articles/world-article1.html"
+  },
+  {
+    "id": "world-article2",
+    "filename": "world-article2.html",
+    "title": "Asia Markets React to Central Bank Policy Shifts",
+    "category": "world",
+    "url": "/gbr/articles/world-article2.html"
+  },
+  {
+    "id": "world-article3",
+    "filename": "world-article3.html",
+    "title": "Middle East Peace Talks Resume After Months of Stalemate",
+    "category": "world",
+    "url": "/gbr/articles/world-article3.html"
+  },
+  {
+    "id": "world-article4",
+    "filename": "world-article4.html",
+    "title": "Latin American Elections Signal Political Shift",
+    "category": "world",
+    "url": "/gbr/articles/world-article4.html"
+  },
+  {
+    "id": "markets-article1",
+    "filename": "markets-article1.html",
+    "title": "S&P 500 Reaches New High on Strong Earnings",
+    "category": "markets",
+    "url": "/gbr/articles/markets-article1.html"
+  },
+  {
+    "id": "markets-article2",
+    "filename": "markets-article2.html",
+    "title": "Treasury Yields Fall as Investors Seek Safe Havens",
+    "category": "markets",
+    "url": "/gbr/articles/markets-article2.html"
+  },
+  {
+    "id": "markets-article3",
+    "filename": "markets-article3.html",
+    "title": "Dollar Weakens Against Major Currencies",
+    "category": "markets",
+    "url": "/gbr/articles/markets-article3.html"
+  },
+  {
+    "id": "markets-article4",
+    "filename": "markets-article4.html",
+    "title": "Tech Stocks Rally as AI Spending Continues",
+    "category": "markets",
+    "url": "/gbr/articles/markets-article4.html"
+  },
+  {
+    "id": "tech-article1",
+    "filename": "tech-article1.html",
+    "title": "New AI Regulations Proposed by European Union",
+    "category": "tech",
+    "url": "/gbr/articles/tech-article1.html"
+  },
+  {
+    "id": "tech-article2",
+    "filename": "tech-article2.html",
+    "title": "Social Media Platform Faces Antitrust Scrutiny",
+    "category": "tech",
+    "url": "/gbr/articles/tech-article2.html"
+  },
+  {
+    "id": "tech-article3",
+    "filename": "tech-article3.html",
+    "title": "Chip Shortage Eases as New Factories Come Online",
+    "category": "tech",
+    "url": "/gbr/articles/tech-article3.html"
+  },
+  {
+    "id": "tech-article4",
+    "filename": "tech-article4.html",
+    "title": "Tech Giants Report Strong Quarterly Earnings",
+    "category": "tech",
+    "url": "/gbr/articles/tech-article4.html"
+  },
+  {
+    "id": "politics-article1",
+    "filename": "politics-article1.html",
+    "title": "Congress Debates New Immigration Reform Bill",
+    "category": "politics",
+    "url": "/gbr/articles/politics-article1.html"
+  },
+  {
+    "id": "politics-article2",
+    "filename": "politics-article2.html",
+    "title": "White House Announces Climate Change Initiative",
+    "category": "politics",
+    "url": "/gbr/articles/politics-article2.html"
+  },
+  {
+    "id": "politics-article3",
+    "filename": "politics-article3.html",
+    "title": "Supreme Court Hears Landmark Privacy Case",
+    "category": "politics",
+    "url": "/gbr/articles/politics-article3.html"
+  },
+  {
+    "id": "politics-article4",
+    "filename": "politics-article4.html",
+    "title": "Bipartisan Infrastructure Deal Reaches Final Stages",
+    "category": "politics",
+    "url": "/gbr/articles/politics-article4.html"
+  },
+  {
+    "id": "opinion-article1",
+    "filename": "opinion-article1.html",
+    "title": "The Economic Case for Immigration Reform",
+    "category": "opinion",
+    "url": "/gbr/articles/opinion-article1.html"
+  },
+  {
+    "id": "opinion-article2",
+    "filename": "opinion-article2.html",
+    "title": "Why the Fed Must Act Decisively",
+    "category": "opinion",
+    "url": "/gbr/articles/opinion-article2.html"
+  },
+  {
+    "id": "opinion-article3",
+    "filename": "opinion-article3.html",
+    "title": "Tech's Next Big Challenge: Regulation or Innovation?",
+    "category": "opinion",
+    "url": "/gbr/articles/opinion-article3.html"
+  },
+  {
+    "id": "opinion-article4",
+    "filename": "opinion-article4.html",
+    "title": "The Future of Global Trade in a Fragmented World",
+    "category": "opinion",
+    "url": "/gbr/articles/opinion-article4.html"
+  },
+  {
+    "id": "home-article1",
+    "filename": "home-article1.html",
+    "title": "Federal Reserve Signals Potential Rate Cut Amid Economic Uncertainty",
+    "category": "home",
+    "url": "/gbr/articles/home-article1.html"
+  },
+  {
+    "id": "home-article2",
+    "filename": "home-article2.html",
+    "title": "Oil Prices Fluctuate on Middle East Tensions",
+    "category": "home",
+    "url": "/gbr/articles/home-article2.html"
+  },
+  {
+    "id": "home-article3",
+    "filename": "home-article3.html",
+    "title": "Housing Market Shows Signs of Recovery",
+    "category": "home",
+    "url": "/gbr/articles/home-article3.html"
+  },
+  {
+    "id": "home-article4",
+    "filename": "home-article4.html",
+    "title": "Global Supply Chain Issues Persist Despite Improvements",
+    "category": "home",
+    "url": "/gbr/articles/home-article4.html"
+  },
+  {
+    "id": "home-article5",
+    "filename": "home-article5.html",
+    "title": "Healthcare Costs Continue to Rise, Impacting Consumers",
+    "category": "home",
+    "url": "/gbr/articles/home-article5.html"
+  }
+]

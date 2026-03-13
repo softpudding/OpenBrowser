@@ -78,9 +78,9 @@ export async function getAllTabs(managedOnly: boolean = true, conversationId?: s
 export async function openTab(url: string, conversationId?: string): Promise<any> {
   // Ensure URL has protocol
   let targetUrl = url;
-  if (!url.match(/^https?:\/\//)) {
-    targetUrl = `https://${url}`;
-  }
+  // if (!url.match(/^https?:\/\//)) {
+  //   targetUrl = `https://${url}`;
+  // }
   
   // Use tab manager to open managed tab if conversationId provided
   if (conversationId) {

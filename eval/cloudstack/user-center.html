@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户中心 - CloudStack</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="css/cloudstack.css">
+    <style>
+        .user-center {
+            max-width: 1200px;
+            margin: 60px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 32px;
+        }
+        .user-sidebar {
+            background: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            overflow: hidden;
+            height: fit-content;
+        }
+        .user-profile {
+            padding: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+        }
+        .user-avatar-large {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: white;
+            color: #ff6a00;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 600;
+            margin: 0 auto 16px;
+            border: 4px solid rgba(255,255,255,0.3);
+        }
+        .user-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .user-level {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        .user-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .user-menu li a {
+            display: block;
+            padding: 16px 24px;
+            color: #666;
+            text-decoration: none;
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.3s;
+        }
+        .user-menu li a:hover,
+        .user-menu li a.active {
+            background: #fff5f0;
+            color: #ff6a00;
+            border-left: 3px solid #ff6a00;
+            padding-left: 21px;
+        }
+        .user-content {
+            background: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 32px;
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .section-header {
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e1e1e1;
+        }
+        .section-header h2 {
+            font-size: 24px;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        .section-header p {
+            color: #666;
+            font-size: 14px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .info-item label {
+            font-size: 13px;
+            color: #999;
+        }
+        .info-item .value {
+            font-size: 16px;
+            color: #333;
+            font-weight: 500;
+        }
+        .info-item .value.verified {
+            color: #10b981;
+        }
+        .info-item .value.unverified {
+            color: #f59e0b;
+        }
+        .action-btn {
+            padding: 8px 16px;
+            border: 1px solid #e1e1e1;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        .action-btn:hover {
+            border-color: #ff6a00;
+            color: #ff6a00;
+        }
+        .action-btn.primary {
+            background: #ff6a00;
+            color: white;
+            border: none;
+        }
+        .action-btn.primary:hover {
+            background: #ff5500;
+        }
+        .security-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        .security-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .security-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .security-details h4 {
+            font-size: 16px;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+        .security-details p {
+            font-size: 13px;
+            color: #666;
+        }
+        .security-status {
+            text-align: right;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .status-enabled {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .status-disabled {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .billing-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+        .billing-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+        }
+        .billing-card h4 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        .billing-card .amount {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        .billing-card .period {
+            font-size: 13px;
+            color: #999;
+        }
+        .billing-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .billing-table th {
+            background: #f5f5f5;
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e1e1e1;
+        }
+        .billing-table td {
+            padding: 16px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #444;
+        }
+        .billing-table tr:hover {
+            background: #fafafa;
+        }
+        .resource-list {
+            display: grid;
+            gap: 16px;
+        }
+        .resource-card {
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .resource-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+        .resource-info {
+            flex: 1;
+        }
+        .resource-info h4 {
+            font-size: 16px;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+        .resource-info p {
+            font-size: 13px;
+            color: #666;
+        }
+        .resource-status {
+            text-align: right;
+        }
+        .usage-bar {
+            width: 100%;
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .usage-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="homepage-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="index.html" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="CloudStack" style="width: 32px; height: 32px;">
+                    <span style="color: #ff6a00; font-weight: 600; font-size: 18px;">CloudStack</span>
+                </a>
+            </div>
+            <nav class="header-nav">
+                <a href="products.html" class="nav-link">Products</a>
+                <a href="solutions.html" class="nav-link">Solutions</a>
+                <a href="pricing.html" class="nav-link">Pricing</a>
+                <a href="console.html" class="nav-link">Console</a>
+            </nav>
+            <div class="header-right">
+                <a href="console.html" class="console-link">Console</a>
+                <div class="user-avatar" id="user-avatar">U</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- User Center -->
+    <div class="user-center">
+        <!-- Sidebar -->
+        <aside class="user-sidebar">
+            <div class="user-profile">
+                <div class="user-avatar-large">U</div>
+                <div class="user-name">user@example.com</div>
+                <div class="user-level">VIP 会员</div>
+            </div>
+            <ul class="user-menu">
+                <li><a href="#" class="active" data-section="overview">📊 账户总览</a></li>
+                <li><a href="#" data-section="security">🔒 安全设置</a></li>
+                <li><a href="#" data-section="billing">💰 账单管理</a></li>
+                <li><a href="#" data-section="resources">☁️ 我的资源</a></li>
+                <li><a href="#" data-section="coupons">🎫 优惠券</a></li>
+                <li><a href="#" data-section="messages">📧 站内信</a></li>
+                <li><a href="#" data-section="settings">⚙️ 账户设置</a></li>
+            </ul>
+        </aside>
+
+        <!-- Content -->
+        <main class="user-content">
+            <!-- Overview Section -->
+            <div class="content-section active" id="overview">
+                <div class="section-header">
+                    <h2>账户总览</h2>
+                    <p>欢迎回来！查看您的账户概况</p>
+                </div>
+
+                <div class="billing-summary">
+                    <div class="billing-card">
+                        <h4>账户余额</h4>
+                        <div class="amount">¥2,458.00</div>
+                        <div class="period">可用余额</div>
+                    </div>
+                    <div class="billing-card">
+                        <h4>代金券</h4>
+                        <div class="amount">¥1,200</div>
+                        <div class="period">3 张可用</div>
+                    </div>
+                    <div class="billing-card">
+                        <h4>本月消费</h4>
+                        <div class="amount">¥1,234</div>
+                        <div class="period">截至今天</div>
+                    </div>
+                </div>
+
+                <div class="section-header" style="margin-top: 40px;">
+                    <h2>认证状态</h2>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>实名认证</label>
+                        <div class="value verified">✓ 已认证</div>
+                    </div>
+                    <div class="info-item">
+                        <label>企业认证</label>
+                        <div class="value unverified">○ 未认证</div>
+                    </div>
+                    <div class="info-item">
+                        <label>账号类型</label>
+                        <div class="value">个人账号</div>
+                    </div>
+                    <div class="info-item">
+                        <label>注册时间</label>
+                        <div class="value">2025-06-15</div>
+                    </div>
+                </div>
+
+                <div class="section-header" style="margin-top: 40px;">
+                    <h2>资源概览</h2>
+                </div>
+                <div class="resource-list">
+                    <div class="resource-card">
+                        <div class="resource-icon">☁️</div>
+                        <div class="resource-info">
+                            <h4>ECS 云服务器</h4>
+                            <p>12 台运行中 · 3 台已停止</p>
+                            <div class="usage-bar">
+                                <div class="usage-fill" style="width: 80%;"></div>
+                            </div>
+                        </div>
+                        <div class="resource-status">
+                            <button class="action-btn primary">管理</button>
+                        </div>
+                    </div>
+                    <div class="resource-card">
+                        <div class="resource-icon"></div>
+                        <div class="resource-info">
+                            <h4>OSS 对象存储</h4>
+                            <p>已用 125.6 GB / 500 GB</p>
+                            <div class="usage-bar">
+                                <div class="usage-fill" style="width: 25%;"></div>
+                            </div>
+                        </div>
+                        <div class="resource-status">
+                            <button class="action-btn primary">管理</button>
+                        </div>
+                    </div>
+                    <div class="resource-card">
+                        <div class="resource-icon">🗄️</div>
+                        <div class="resource-info">
+                            <h4>RDS 云数据库</h4>
+                            <p>3 个实例运行中</p>
+                            <div class="usage-bar">
+                                <div class="usage-fill" style="width: 60%;"></div>
+                            </div>
+                        </div>
+                        <div class="resource-status">
+                            <button class="action-btn primary">管理</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Section -->
+            <div class="content-section" id="security">
+                <div class="section-header">
+                    <h2>安全设置</h2>
+                    <p>保护您的账号安全，建议开启所有安全选项</p>
+                </div>
+
+                <div class="security-item">
+                    <div class="security-info">
+                        <div class="security-icon"></div>
+                        <div class="security-details">
+                            <h4>手机绑定</h4>
+                            <p>绑定手机：138****1234</p>
+                        </div>
+                    </div>
+                    <div class="security-status">
+                        <div class="status-badge status-enabled">已绑定</div>
+                        <div><button class="action-btn">修改</button></div>
+                    </div>
+                </div>
+
+                <div class="security-item">
+                    <div class="security-info">
+                        <div class="security-icon">📧</div>
+                        <div class="security-details">
+                            <h4>邮箱绑定</h4>
+                            <p>绑定邮箱：use***@example.com</p>
+                        </div>
+                    </div>
+                    <div class="security-status">
+                        <div class="status-badge status-enabled">已绑定</div>
+                        <div><button class="action-btn">修改</button></div>
+                    </div>
+                </div>
+
+                <div class="security-item">
+                    <div class="security-info">
+                        <div class="security-icon">🔑</div>
+                        <div class="security-details">
+                            <h4>登录密码</h4>
+                            <p>定期修改密码可提高账号安全性</p>
+                        </div>
+                    </div>
+                    <div class="security-status">
+                        <div><button class="action-btn primary">修改密码</button></div>
+                    </div>
+                </div>
+
+                <div class="security-item">
+                    <div class="security-info">
+                        <div class="security-icon">🔐</div>
+                        <div class="security-details">
+                            <h4>MFA 多因素认证</h4>
+                            <p>开启后登录时需要验证码</p>
+                        </div>
+                    </div>
+                    <div class="security-status">
+                        <div class="status-badge status-disabled">未开启</div>
+                        <div><button class="action-btn primary">立即开启</button></div>
+                    </div>
+                </div>
+
+                <div class="security-item">
+                    <div class="security-info">
+                        <div class="security-icon">🔑</div>
+                        <div class="security-details">
+                            <h4>AccessKey</h4>
+                            <p>用于 API 调用的访问密钥</p>
+                        </div>
+                    </div>
+                    <div class="security-status">
+                        <div class="status-badge status-enabled">已创建</div>
+                        <div><button class="action-btn">管理</button></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Billing Section -->
+            <div class="content-section" id="billing">
+                <div class="section-header">
+                    <h2>账单管理</h2>
+                    <p>查看您的消费记录和账单详情</p>
+                </div>
+
+                <div class="billing-summary">
+                    <div class="billing-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        <h4 style="color: rgba(255,255,255,0.8);">待支付金额</h4>
+                        <div class="amount" style="color: white;">¥0.00</div>
+                        <div class="period">无待支付账单</div>
+                    </div>
+                    <div class="billing-card">
+                        <h4>本月预估</h4>
+                        <div class="amount">¥1,850</div>
+                        <div class="period">预计支出</div>
+                    </div>
+                    <div class="billing-card">
+                        <h4>上月实际</h4>
+                        <div class="amount">¥1,680</div>
+                        <div class="period">实际支出</div>
+                    </div>
+                </div>
+
+                <h3 style="margin: 32px 0 16px; font-size: 18px;">最近账单</h3>
+                <table class="billing-table">
+                    <thead>
+                        <tr>
+                            <th>账单编号</th>
+                            <th>账单周期</th>
+                            <th>账单金额</th>
+                            <th>支付状态</th>
+                            <th>账单日期</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>B202601001</td>
+                            <td>2026-01-01 ~ 2026-01-31</td>
+                            <td>¥1,680.00</td>
+                            <td><span class="status-badge status-enabled">已支付</span></td>
+                            <td>2026-02-01</td>
+                            <td><button class="action-btn">查看详情</button></td>
+                        </tr>
+                        <tr>
+                            <td>B202512001</td>
+                            <td>2025-12-01 ~ 2025-12-31</td>
+                            <td>¥1,520.00</td>
+                            <td><span class="status-badge status-enabled">已支付</span></td>
+                            <td>2026-01-01</td>
+                            <td><button class="action-btn">查看详情</button></td>
+                        </tr>
+                        <tr>
+                            <td>B202511001</td>
+                            <td>2025-11-01 ~ 2025-11-30</td>
+                            <td>¥1,380.00</td>
+                            <td><span class="status-badge status-enabled">已支付</span></td>
+                            <td>2025-12-01</td>
+                            <td><button class="action-btn">查看详情</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Resources Section -->
+            <div class="content-section" id="resources">
+                <div class="section-header">
+                    <h2>我的资源</h2>
+                    <p>管理您的所有云资源</p>
+                </div>
+
+                <div class="resource-list">
+                    <div class="resource-card">
+                        <div class="resource-icon">☁️</div>
+                        <div class="resource-info">
+                            <h4>ECS 实例 - i-bp1a2b3c4d5e6f7g8h</h4>
+                            <p>华东 1（杭州）· ecs.g6.large · 2 vCPU 8GiB</p>
+                            <div class="usage-bar">
+                                <div class="usage-fill" style="width: 45%;"></div>
+                            </div>
+                        </div>
+                        <div class="resource-status">
+                            <div class="status-badge status-enabled">运行中</div>
+                            <div style="margin-top: 8px;"><button class="action-btn">管理</button></div>
+                        </div>
+                    </div>
+                    <div class="resource-card">
+                        <div class="resource-icon">☁️</div>
+                        <div class="resource-info">
+                            <h4>ECS 实例 - i-bp2b3c4d5e6f7g8h9i</h4>
+                            <p>华北 2（北京）· ecs.c6.xlarge · 4 vCPU 8GiB</p>
+                            <div class="usage-bar">
+                                <div class="usage-fill" style="width: 78%;"></div>
+                            </div>
+                        </div>
+                        <div class="resource-status">
+                            <div class="status-badge status-enabled">运行中</div>
+                            <div style="margin-top: 8px;"><button class="action-btn">管理</button></div>
+                        </div>
+                    </div>
+                    <div class="resource-card">
+                        <div class="resource-icon">📦</div>
+                        <div class="resource-info">
+                            <h4>OSS 存储桶 - cloudstack-assets</h4>
+                            <p>华东 1（杭州）· 标准存储 · 125.6 GB</p>
+                            <div class="usage-bar">
+                                <div class="usage-fill" style="width: 25%;"></div>
+                            </div>
+                        </div>
+                        <div class="resource-status">
+                            <div class="status-badge status-enabled">正常</div>
+                            <div style="margin-top: 8px;"><button class="action-btn">管理</button></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coupons Section -->
+            <div class="content-section" id="coupons">
+                <div class="section-header">
+                    <h2>优惠券</h2>
+                    <p>查看和使用您的优惠券</p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                    <div style="background: linear-gradient(135deg, #ff6a00 0%, #ff8800 100%); color: white; padding: 24px; border-radius: 12px;">
+                        <div style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">¥500</div>
+                        <div style="opacity: 0.9; margin-bottom: 16px;">满 1000 元可用</div>
+                        <div style="font-size: 13px; opacity: 0.8;">有效期至 2026-06-30</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; border-radius: 12px;">
+                        <div style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">¥200</div>
+                        <div style="opacity: 0.9; margin-bottom: 16px;">满 500 元可用</div>
+                        <div style="font-size: 13px; opacity: 0.8;">有效期至 2026-04-30</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 24px; border-radius: 12px;">
+                        <div style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">¥500</div>
+                        <div style="opacity: 0.9; margin-bottom: 16px;">新用户专享券</div>
+                        <div style="font-size: 13px; opacity: 0.8;">有效期至 2026-12-31</div>
+                    </div>
+                    <div style="border: 2px dashed #ddd; padding: 24px; border-radius: 12px; text-align: center; color: #999;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">+</div>
+                        <div>暂无更多优惠券</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Section -->
+            <div class="content-section" id="messages">
+                <div class="section-header">
+                    <h2>站内信</h2>
+                    <p>查看系统通知和消息</p>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="border: 1px solid #e1e1e1; border-radius: 8px; padding: 20px; background: #fff5f0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <strong style="color: #ff6a00;">💰 账单提醒</strong>
+                            <span style="color: #999; font-size: 13px;">2026-02-01</span>
+                        </div>
+                        <p style="color: #666; margin: 0;">1 月份账单已出，总金额 ¥1,680.00，请及时支付。</p>
+                    </div>
+                    <div style="border: 1px solid #e1e1e1; border-radius: 8px; padding: 20px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <strong>🔒 安全提醒</strong>
+                            <span style="color: #999; font-size: 13px;">2026-01-28</span>
+                        </div>
+                        <p style="color: #666; margin: 0;">检测到您的账号在新设备登录，如非本人操作请及时修改密码。</p>
+                    </div>
+                    <div style="border: 1px solid #e1e1e1; border-radius: 8px; padding: 20px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <strong>📢 系统公告</strong>
+                            <span style="color: #999; font-size: 13px;">2026-01-25</span>
+                        </div>
+                        <p style="color: #666; margin: 0;">CloudStack 将于 2026 年 2 月 15 日进行系统升级，届时部分服务可能短暂不可用。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Section -->
+            <div class="content-section" id="settings">
+                <div class="section-header">
+                    <h2>账户设置</h2>
+                    <p>管理您的账户偏好设置</p>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>用户名</label>
+                        <div class="value">user@example.com</div>
+                    </div>
+                    <div class="info-item">
+                        <label>昵称</label>
+                        <div class="value">
+                            CloudUser
+                            <button class="action-btn" style="margin-left: 12px;">修改</button>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <label>账号 ID</label>
+                        <div class="value">1234567890</div>
+                    </div>
+                    <div class="info-item">
+                        <label>注册时间</label>
+                        <div class="value">2025-06-15 10:30:00</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 32px; padding-top: 32px; border-top: 1px solid #e1e1e1;">
+                    <h3 style="margin-bottom: 20px; font-size: 18px;">通知偏好</h3>
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        <label style="display: flex; align-items: center; gap: 12px;">
+                            <input type="checkbox" checked>
+                            <span>接收账单提醒邮件</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 12px;">
+                            <input type="checkbox" checked>
+                            <span>接收系统公告通知</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 12px;">
+                            <input type="checkbox">
+                            <span>接收产品促销信息</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 12px;">
+                            <input type="checkbox" checked>
+                            <span>接收安全提醒短信</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="margin-top: 32px; padding-top: 32px; border-top: 1px solid #e1e1e1;">
+                    <h3 style="margin-bottom: 20px; font-size: 18px; color: #dc2626;">危险区域</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #fef2f2; border: 1px solid #fee2e2; border-radius: 8px;">
+                        <div>
+                            <strong style="color: #dc2626;">注销账号</strong>
+                            <p style="color: #999; font-size: 13px; margin: 4px 0 0;">注销后所有数据将被删除，此操作不可恢复</p>
+                        </div>
+                        <button class="action-btn" style="border-color: #dc2626; color: #dc2626;">注销账号</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Products</h4>
+                <ul>
+                    <li><a href="ecs.html">ECS</a></li>
+                    <li><a href="oss.html">OSS</a></li>
+                    <li><a href="rds.html">RDS</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Support</h4>
+                <ul>
+                    <li><a href="support.html">Help Center</a></li>
+                    <li><a href="docs.html">Documentation</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Legal</h4>
+                <ul>
+                    <li><a href="real-name-verification.html">Real-name Verification</a></li>
+                    <li><a href="beian.html">ICP Filing</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 CloudStack. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Menu navigation
+            const menuLinks = document.querySelectorAll('.user-menu a');
+            const sections = document.querySelectorAll('.content-section');
+
+            menuLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Update menu active state
+                    menuLinks.forEach(l => l.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show corresponding section
+                    const sectionId = this.dataset.section;
+                    sections.forEach(section => {
+                        section.classList.remove('active');
+                        if (section.id === sectionId) {
+                            section.classList.add('active');
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html>

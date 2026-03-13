@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Partners - CloudStack Partner Network</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="css/cloudstack.css">
+</head>
+<body>
+    <!-- Top Banner -->
+    <div class="top-banner" id="top-banner">
+        <div class="banner-content">
+            <span class="banner-text">🎉 AI Innovation Season - Get up to ¥500 cashback + 45% off with CloudStack AI plans!</span>
+            <a href="pricing.html" class="banner-link">Learn More →</a>
+            <button class="banner-close" id="banner-close">×</button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="homepage-header">
+        <div class="header-container">
+            <div class="logo">
+                <button class="hamburger-menu" id="hamburger-menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <a href="index.html" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="CloudStack" style="width: 32px; height: 32px;">
+                    <span style="color: #ff6a00; font-weight: 600; font-size: 18px;">CloudStack</span>
+                </a>
+            </div>
+            <nav class="header-nav">
+                <a href="products.html" class="nav-link" data-dropdown="products">Products <span class="dropdown-arrow">▼</span></a>
+                <a href="solutions.html" class="nav-link">Solutions</a>
+                <a href="pricing.html" class="nav-link">Pricing</a>
+                <a href="marketplace.html" class="nav-link">Cloud Market</a>
+                <a href="partners.html" class="nav-link active">Partners</a>
+                <a href="support.html" class="nav-link">Support</a>
+                <a href="about.html" class="nav-link">About</a>
+            </nav>
+            <div class="header-right">
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search products, docs..." id="search-input">
+                    <button class="search-btn" id="search-btn">Search</button>
+                </div>
+                <button class="icon-btn" id="lang-btn">🌐</button>
+                <button class="icon-btn" id="docs-btn">📚</button>
+                <button class="icon-btn" id="notification-btn">
+                    🔔<span class="badge">3</span>
+                </button>
+                <a href="console.html" class="console-link">Console</a>
+                <button class="login-btn" id="login-btn">Log In</button>
+                <button class="signup-btn" id="signup-btn">Sign Up</button>
+                <div class="user-avatar" id="user-avatar" style="display: none;">U</div>
+            </div>
+        </div>
+        
+        <!-- Products Dropdown -->
+        <div class="dropdown-menu" id="products-dropdown">
+            <div class="dropdown-container">
+                <div class="dropdown-section">
+                    <h4>Compute</h4>
+                    <ul>
+                        <li><a href="console.html">Cloud Server ECS</a></li>
+                        <li><a href="#">Auto Scaling</a></li>
+                        <li><a href="#">Container Service</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Storage</h4>
+                    <ul>
+                        <li><a href="oss.html">Object Storage OSS</a></li>
+                        <li><a href="#">File Storage</a></li>
+                        <li><a href="#">Block Storage</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Database</h4>
+                    <ul>
+                        <li><a href="rds.html">Cloud Database RDS</a></li>
+                        <li><a href="das.html">Database Autonomy DAS</a></li>
+                        <li><a href="#">Redis</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Network</h4>
+                    <ul>
+                        <li><a href="vpc.html">Virtual Private Cloud</a></li>
+                        <li><a href="slb.html">Load Balancer SLB</a></li>
+                        <li><a href="#">CDN</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay">
+        <div class="mobile-menu">
+            <button class="mobile-menu-close" id="mobile-menu-close">×</button>
+            <a href="index.html" class="mobile-logo">
+                <span style="color: #ff6a00; font-size: 20px; font-weight: 600;">CloudStack</span>
+            </a>
+            <nav class="mobile-nav">
+                <a href="products.html" class="mobile-nav-item">Products</a>
+                <a href="solutions.html" class="mobile-nav-item">Solutions</a>
+                <a href="pricing.html" class="mobile-nav-item">Pricing</a>
+                <a href="marketplace.html" class="mobile-nav-item">Cloud Market</a>
+                <a href="partners.html" class="mobile-nav-item active">Partners</a>
+                <a href="support.html" class="mobile-nav-item">Support</a>
+                <a href="about.html" class="mobile-nav-item">About</a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Partners Hero -->
+    <section class="partners-hero">
+        <div class="container">
+            <h1>CloudStack Partner Network</h1>
+            <p>Join our global ecosystem of partners delivering innovative cloud solutions</p>
+            <div class="hero-cta">
+                <a href="#become-partner" class="btn btn-primary">Become a Partner</a>
+                <a href="#find-partner" class="btn btn-secondary">Find a Partner</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Partner Types -->
+    <section class="partner-types">
+        <div class="container">
+            <h2>Partner Programs</h2>
+            <div class="partner-grid">
+                <div class="partner-type-card">
+                    <div class="type-icon">🤝</div>
+                    <h3>Technology Partners</h3>
+                    <p>Integrate your solutions with CloudStack platform and reach millions of customers</p>
+                    <ul class="benefits-list">
+                        <li>✓ API integration support</li>
+                        <li>✓ Co-marketing opportunities</li>
+                        <li>✓ Technical certification</li>
+                        <li>✓ Partner portal access</li>
+                    </ul>
+                    <a href="partner-tech.html" class="learn-more">Learn More →</a>
+                </div>
+                <div class="partner-type-card">
+                    <div class="type-icon">💼</div>
+                    <h3>Consulting Partners</h3>
+                    <p>Help customers design, implement, and optimize their cloud infrastructure</p>
+                    <ul class="benefits-list">
+                        <li>✓ Sales commission program</li>
+                        <li>✓ Pre-sales technical support</li>
+                        <li>✓ Partner training programs</li>
+                        <li>✓ Deal registration</li>
+                    </ul>
+                    <a href="partner-consulting.html" class="learn-more">Learn More →</a>
+                </div>
+                <div class="partner-type-card">
+                    <div class="type-icon"></div>
+                    <h3>Training Partners</h3>
+                    <p>Deliver CloudStack certification training and courses to customers</p>
+                    <ul class="benefits-list">
+                        <li>✓ Authorized training center</li>
+                        <li>✓ Course materials access</li>
+                        <li>✓ Instructor certification</li>
+                        <li>✓ Exam voucher program</li>
+                    </ul>
+                    <a href="partner-training.html" class="learn-more">Learn More →</a>
+                </div>
+                <div class="partner-type-card">
+                    <div class="type-icon">🌐</div>
+                    <h3>Managed Service Partners</h3>
+                    <p>Provide managed services and support for CloudStack customers</p>
+                    <ul class="benefits-list">
+                        <li>✓ MSP certification</li>
+                        <li>✓ 24/7 support escalation</li>
+                        <li>✓ Service delivery toolkit</li>
+                        <li>✓ Revenue sharing model</li>
+                    </ul>
+                    <a href="partner-msp.html" class="learn-more">Learn More →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Partner Stats -->
+    <section class="partner-stats">
+        <div class="container">
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-value">10,000+</div>
+                    <div class="stat-label">Global Partners</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">150+</div>
+                    <div class="stat-label">Countries</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">500K+</div>
+                    <div class="stat-label">Joint Customers</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">$2B+</div>
+                    <div class="stat-label">Partner Revenue</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Featured Partners -->
+    <section class="featured-partners">
+        <div class="container">
+            <h2>Featured Partners</h2>
+            <div class="partner-logos">
+                <div class="logo-card">
+                    <div class="partner-logo">🏢</div>
+                    <h4>TechCorp Solutions</h4>
+                    <p>Technology Partner</p>
+                </div>
+                <div class="logo-card">
+                    <div class="partner-logo">🚀</div>
+                    <h4>CloudExperts Inc</h4>
+                    <p>Consulting Partner</p>
+                </div>
+                <div class="logo-card">
+                    <div class="partner-logo">📚</div>
+                    <h4>LearnCloud Academy</h4>
+                    <p>Training Partner</p>
+                </div>
+                <div class="logo-card">
+                    <div class="partner-logo">⚙️</div>
+                    <h4>ManagePro Services</h4>
+                    <p>MSP Partner</p>
+                </div>
+                <div class="logo-card">
+                    <div class="partner-logo">🔧</div>
+                    <h4>Integration Masters</h4>
+                    <p>Technology Partner</p>
+                </div>
+                <div class="logo-card">
+                    <div class="partner-logo">📊</div>
+                    <h4>DataFlow Consulting</h4>
+                    <p>Consulting Partner</p>
+                </div>
+            </div>
+            <div class="view-all">
+                <a href="partner-directory.html" class="btn btn-outline">View All Partners</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Become Partner CTA -->
+    <section class="partner-cta" id="become-partner">
+        <div class="container">
+            <h2>Ready to Join Our Partner Network?</h2>
+            <p>Grow your business with CloudStack's comprehensive partner program</p>
+            <div class="cta-form">
+                <form id="partner-form">
+                    <div class="form-row">
+                        <input type="text" class="form-input" placeholder="Company Name" required>
+                        <input type="text" class="form-input" placeholder="Your Name" required>
+                    </div>
+                    <div class="form-row">
+                        <input type="email" class="form-input" placeholder="Business Email" required>
+                        <input type="tel" class="form-input" placeholder="Phone Number">
+                    </div>
+                    <div class="form-row">
+                        <select class="form-input" required>
+                            <option value="">Select Partner Type</option>
+                            <option value="technology">Technology Partner</option>
+                            <option value="consulting">Consulting Partner</option>
+                            <option value="training">Training Partner</option>
+                            <option value="msp">Managed Service Partner</option>
+                        </select>
+                        <input type="text" class="form-input" placeholder="Country/Region">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-large">Apply Now</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Partner Resources -->
+    <section class="partner-resources">
+        <div class="container">
+            <h2>Partner Resources</h2>
+            <div class="resource-grid">
+                <a href="#" class="resource-card">
+                    <div class="resource-icon">📖</div>
+                    <h4>Partner Portal</h4>
+                    <p>Access sales tools, marketing materials, and training resources</p>
+                </a>
+                <a href="#" class="resource-card">
+                    <div class="resource-icon">🎯</div>
+                    <h4>Co-Marketing</h4>
+                    <p>Joint marketing campaigns and lead generation programs</p>
+                </a>
+                <a href="#" class="resource-card">
+                    <div class="resource-icon">🏆</div>
+                    <h4>Certification</h4>
+                    <p>Technical and sales certification programs for partners</p>
+                </a>
+                <a href="#" class="resource-card">
+                    <div class="resource-icon">💬</div>
+                    <h4>Partner Community</h4>
+                    <p>Connect with other partners and share best practices</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-column">
+                    <h4>Products</h4>
+                    <ul>
+                        <li><a href="#">Compute</a></li>
+                        <li><a href="#">Storage</a></li>
+                        <li><a href="#">Database</a></li>
+                        <li><a href="#">Network</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Partners</h4>
+                    <ul>
+                        <li><a href="#">Partner Directory</a></li>
+                        <li><a href="#">Become a Partner</a></li>
+                        <li><a href="#">Partner Portal</a></li>
+                        <li><a href="#">Partner Success</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="#">Help Center</a></li>
+                        <li><a href="#">Documentation</a></li>
+                        <li><a href="#">Community</a></li>
+                        <li><a href="#">Contact Us</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="#">Careers</a></li>
+                        <li><a href="#">Press</a></li>
+                        <li><a href="#">Blog</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CloudStack Inc. All Rights Reserved.</p>
+                <div class="footer-links">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                    <a href="#">Cookie Policy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/homepage.js"></script>
+</body>
+</html>

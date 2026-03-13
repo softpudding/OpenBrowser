@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - CloudStack</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="css/cloudstack.css">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="homepage-header">
+        <div class="header-container">
+            <div class="logo">
+                <button class="hamburger-menu" id="hamburger-menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <a href="/cloudstack/" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="CloudStack" style="width: 32px; height: 32px;">
+                    <span style="color: #ff6a00;">CloudStack</span>
+                </a>
+            </div>
+            <nav class="header-nav">
+                <a href="products.html" class="nav-link">Products <span class="dropdown-arrow">▼</span></a>
+                <a href="solutions.html" class="nav-link">Solutions</a>
+                <a href="pricing.html" class="nav-link">Pricing</a>
+                <a href="marketplace.html" class="nav-link">Cloud Market</a>
+                <a href="partners.html" class="nav-link">Partners</a>
+                <a href="support.html" class="nav-link">Support</a>
+                <a href="about.html" class="nav-link">About</a>
+            </nav>
+            <div class="header-right">
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search products, docs..." id="search-input">
+                    <button class="search-btn" id="search-btn">Search</button>
+                </div>
+                <button class="icon-btn" id="lang-btn">🌐</button>
+                <button class="icon-btn" id="docs-btn">📚</button>
+                <button class="icon-btn" id="notification-btn">
+                    🔔<span class="badge">3</span>
+                </button>
+                <a href="console.html" class="console-link">Console</a>
+                <button class="login-btn" id="login-btn">Log In</button>
+                <button class="signup-btn" id="signup-btn">Sign Up</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Products Page Content -->
+    <main class="products-page">
+        <!-- Page Header -->
+        <section class="page-header">
+            <h1>Cloud Products</h1>
+            <p>Explore our comprehensive suite of cloud computing services</p>
+        </section>
+
+        <!-- Category Filter -->
+        <section class="product-filters">
+            <button class="filter-btn active" data-category="all">All Products</button>
+            <button class="filter-btn" data-category="compute">Compute</button>
+            <button class="filter-btn" data-category="storage">Storage</button>
+            <button class="filter-btn" data-category="database">Database</button>
+            <button class="filter-btn" data-category="network">Network</button>
+            <button class="filter-btn" data-category="security">Security</button>
+            <button class="filter-btn" data-category="ai">AI & Analytics</button>
+        </section>
+
+        <!-- Product Grid -->
+        <section class="product-grid">
+            <!-- Compute -->
+            <a href="console.html" class="product-item compute">
+                <div class="product-icon">☁️</div>
+                <h3>Cloud Server ECS</h3>
+                <p>Elastic compute service with scalable virtual machines for any workload</p>
+                <span class="price">From ¥0.024/hour</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item compute">
+                <div class="product-icon">📈</div>
+                <h3>Auto Scaling</h3>
+                <p>Automatically adjust compute resources based on demand</p>
+                <span class="price">Free</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item compute">
+                <div class="product-icon">📦</div>
+                <h3>Container Service</h3>
+                <p>Managed Kubernetes and Docker container orchestration</p>
+                <span class="price">From ¥0.048/hour</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item compute">
+                <div class="product-icon">⚡</div>
+                <h3>Serverless</h3>
+                <p>Event-driven compute without managing servers</p>
+                <span class="price">Pay per request</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+
+            <!-- Storage -->
+            <a href="oss.html" class="product-item storage">
+                <div class="product-icon">🗄️</div>
+                <h3>Object Storage OSS</h3>
+                <p>Secure and cost-effective object storage for any type of data</p>
+                <span class="price">From ¥0.12/GB/month</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item storage">
+                <div class="product-icon">📁</div>
+                <h3>File Storage</h3>
+                <p>Shared file system for compute instances</p>
+                <span class="price">From ¥0.35/GB/month</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item storage">
+                <div class="product-icon">💾</div>
+                <h3>Block Storage</h3>
+                <p>High-performance block storage for ECS instances</p>
+                <span class="price">From ¥0.30/GB/month</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item storage">
+                <div class="product-icon">📦</div>
+                <h3>Archive Storage</h3>
+                <p>Long-term cold data storage at lowest cost</p>
+                <span class="price">From ¥0.03/GB/month</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+
+            <!-- Database -->
+            <a href="rds.html" class="product-item database">
+                <div class="product-icon">🗃️</div>
+                <h3>Cloud Database RDS</h3>
+                <p>Managed relational database service with high availability</p>
+                <span class="price">From ¥0.06/hour</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="das.html" class="product-item database">
+                <div class="product-icon">🤖</div>
+                <h3>Database Autonomy DAS</h3>
+                <p>AI-powered database management and optimization</p>
+                <span class="price">From ¥99/month</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item database">
+                <div class="product-icon">🔴</div>
+                <h3>Redis</h3>
+                <p>In-memory data structure store for caching</p>
+                <span class="price">From ¥0.04/hour</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item database">
+                <div class="product-icon">🍃</div>
+                <h3>MongoDB</h3>
+                <p>Document database for modern applications</p>
+                <span class="price">From ¥0.08/hour</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+
+            <!-- Network -->
+            <a href="vpc.html" class="product-item network">
+                <div class="product-icon">🌐</div>
+                <h3>Virtual Private Cloud</h3>
+                <p>Isolated network environment for enhanced security</p>
+                <span class="price">Free</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="slb.html" class="product-item network">
+                <div class="product-icon">⚖️</div>
+                <h3>Load Balancer SLB</h3>
+                <p>Distribute traffic across multiple servers</p>
+                <span class="price">From ¥0.024/hour</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item network">
+                <div class="product-icon">🚀</div>
+                <h3>CDN</h3>
+                <p>Content delivery network for faster access</p>
+                <span class="price">From ¥0.24/GB</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item network">
+                <div class="product-icon">🔖</div>
+                <h3>DNS</h3>
+                <p>Domain name resolution service</p>
+                <span class="price">Free</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+
+            <!-- Security -->
+            <a href="security.html" class="product-item security">
+                <div class="product-icon">🔒</div>
+                <h3>Security Center</h3>
+                <p>Comprehensive security protection and management</p>
+                <span class="price">From ¥199/month</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item security">
+                <div class="product-icon">🛡️</div>
+                <h3>DDoS Protection</h3>
+                <p>Protection against distributed denial of service attacks</p>
+                <span class="price">From ¥999/month</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item security">
+                <div class="product-icon">🧱</div>
+                <h3>Web Application Firewall</h3>
+                <p>Protect web applications from common exploits</p>
+                <span class="price">From ¥499/month</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item security">
+                <div class="product-icon">🔐</div>
+                <h3>SSL Certificates</h3>
+                <p>Secure sockets layer certificates for websites</p>
+                <span class="price">From ¥0/year</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+
+            <!-- AI & Analytics -->
+            <a href="#" class="product-item ai">
+                <div class="product-icon">🧠</div>
+                <h3>Machine Learning</h3>
+                <p>Platform for building and deploying ML models</p>
+                <span class="price">Pay as you go</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item ai">
+                <div class="product-icon">📊</div>
+                <h3>Data Analytics</h3>
+                <p>Big data processing and analytics service</p>
+                <span class="price">From ¥0.12/CU/hour</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item ai">
+                <div class="product-icon">🤖</div>
+                <h3>AI Platform</h3>
+                <p>End-to-end platform for AI development</p>
+                <span class="price">From ¥1.99/hour</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+            <a href="#" class="product-item ai">
+                <div class="product-icon">💬</div>
+                <h3>NLP Service</h3>
+                <p>Natural language processing APIs</p>
+                <span class="price">From ¥0.0008/call</span>
+                <button class="product-btn">Learn More</button>
+            </a>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="products-cta">
+            <h2>Ready to Get Started?</h2>
+            <p>Start building with CloudStack today and get ¥1000 in free credits</p>
+            <div class="cta-buttons">
+                <button class="cta-btn primary" onclick="window.location.href='console.html'">Start Free Trial</button>
+                <button class="cta-btn secondary" onclick="window.location.href='support.html'">Contact Sales</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-column">
+                <h4>Products</h4>
+                <ul>
+                    <li><a href="console.html">Cloud Server ECS</a></li>
+                    <li><a href="rds.html">Cloud Database RDS</a></li>
+                    <li><a href="oss.html">Object Storage OSS</a></li>
+                    <li><a href="vpc.html">Virtual Private Cloud</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h4>Solutions</h4>
+                <ul>
+                    <li><a href="solutions.html">E-commerce</a></li>
+                    <li><a href="solutions.html">Gaming</a></li>
+                    <li><a href="solutions.html">Finance</a></li>
+                    <li><a href="solutions.html">Media</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h4>Support</h4>
+                <ul>
+                    <li><a href="support.html">Help Center</a></li>
+                    <li><a href="docs.html">Documentation</a></li>
+                    <li><a href="support.html">Contact Us</a></li>
+                    <li><a href="support.html">Submit Ticket</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h4>About</h4>
+                <ul>
+                    <li><a href="about.html">About Us</a></li>
+                    <li><a href="careers.html">Careers</a></li>
+                    <li><a href="partners.html">Partners</a></li>
+                    <li><a href="contact.html">Contact</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h4>Account</h4>
+                <ul>
+                    <li><a href="console.html">Console</a></li>
+                    <li><a href="pricing.html">Pricing</a></li>
+                    <li><a href="promotions.html">Promotions</a></li>
+                    <li><a href="marketplace.html">Marketplace</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="footer-links">
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="terms.html">Terms of Service</a>
+                <a href="cookie.html">Cookie Policy</a>
+            </div>
+            <div class="footer-social">
+                <a href="#" class="social-icon">🐦</a>
+                <a href="#" class="social-icon">💼</a>
+                <a href="#" class="social-icon">📘</a>
+                <a href="#" class="social-icon">📸</a>
+            </div>
+        </div>
+        <div class="footer-legal">
+            <p>© 2025 CloudStack. All rights reserved.</p>
+            <p class="icp">京 ICP 备 12345678 号 | 京公网安备 110000000001 号</p>
+        </div>
+    </footer>
+
+    <script src="js/homepage.js"></script>
+    <script src="js/products.js"></script>
+</body>
+</html>

@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solutions - CloudStack</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="css/cloudstack.css">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="homepage-header">
+        <div class="header-container">
+            <div class="logo">
+                <button class="hamburger-menu" id="hamburger-menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <a href="index.html" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="CloudStack" style="width: 32px; height: 32px;">
+                    <span style="color: #ff6a00;">CloudStack</span>
+                </a>
+            </div>
+            <nav class="header-nav">
+                <a href="products.html" class="nav-link" data-dropdown="products">Products <span class="dropdown-arrow">▼</span></a>
+                <a href="solutions.html" class="nav-link active">Solutions</a>
+                <a href="pricing.html" class="nav-link">Pricing</a>
+                <a href="marketplace.html" class="nav-link">Cloud Market</a>
+                <a href="partners.html" class="nav-link">Partners</a>
+                <a href="support.html" class="nav-link">Support</a>
+                <a href="about.html" class="nav-link">About</a>
+            </nav>
+            <div class="header-right">
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search products, docs..." id="search-input">
+                    <button class="search-btn" id="search-btn">Search</button>
+                </div>
+                <button class="icon-btn" id="lang-btn" title="Language">🌐</button>
+                <button class="icon-btn" id="docs-btn" title="Documentation">📚</button>
+                <button class="icon-btn" id="notification-btn" title="Notifications">
+                    🔔
+                    <span class="badge">3</span>
+                </button>
+                <a href="console.html" class="console-link">Console</a>
+                <button class="login-btn" id="login-btn">Log In</button>
+                <button class="signup-btn" id="signup-btn">Sign Up</button>
+                <div class="user-avatar" id="user-avatar" style="display: none;">U</div>
+            </div>
+        </div>
+        
+        <!-- Products Dropdown Menu -->
+        <div class="dropdown-menu" id="products-dropdown">
+            <div class="dropdown-container">
+                <div class="dropdown-section">
+                    <h4>Compute</h4>
+                    <ul>
+                        <li><a href="console.html">Cloud Server ECS</a></li>
+                        <li><a href="#">Auto Scaling</a></li>
+                        <li><a href="#">Container Service</a></li>
+                        <li><a href="#">Serverless</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Storage</h4>
+                    <ul>
+                        <li><a href="oss.html">Object Storage OSS</a></li>
+                        <li><a href="#">File Storage</a></li>
+                        <li><a href="#">Archive Storage</a></li>
+                        <li><a href="#">Block Storage</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Database</h4>
+                    <ul>
+                        <li><a href="rds.html">Cloud Database RDS</a></li>
+                        <li><a href="das.html">Database Autonomy DAS</a></li>
+                        <li><a href="#">Redis</a></li>
+                        <li><a href="#">MongoDB</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Network</h4>
+                    <ul>
+                        <li><a href="vpc.html">Virtual Private Cloud</a></li>
+                        <li><a href="slb.html">Load Balancer SLB</a></li>
+                        <li><a href="#">CDN</a></li>
+                        <li><a href="#">DNS</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Security</h4>
+                    <ul>
+                        <li><a href="security.html">Security Center</a></li>
+                        <li><a href="#">DDoS Protection</a></li>
+                        <li><a href="#">WAF</a></li>
+                        <li><a href="#">SSL Certificates</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Analytics</h4>
+                    <ul>
+                        <li><a href="#">MaxCompute</a></li>
+                        <li><a href="#">DataV</a></li>
+                        <li><a href="#">QuickBI</a></li>
+                        <li><a href="#">DataWorks</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay">
+        <div class="mobile-menu">
+            <button class="mobile-menu-close" id="mobile-menu-close">×</button>
+            <a href="index.html" class="mobile-logo">
+                <span style="color: #ff6a00; font-size: 20px; font-weight: 600;">CloudStack</span>
+            </a>
+            <nav class="mobile-nav">
+                <a href="products.html" class="mobile-nav-item">Products</a>
+                <a href="solutions.html" class="mobile-nav-item active">Solutions</a>
+                <a href="pricing.html" class="mobile-nav-item">Pricing</a>
+                <a href="marketplace.html" class="mobile-nav-item">Cloud Market</a>
+                <a href="partners.html" class="mobile-nav-item">Partners</a>
+                <a href="support.html" class="mobile-nav-item">Support</a>
+                <a href="about.html" class="mobile-nav-item">About</a>
+                <a href="console.html" class="mobile-nav-item">Console</a>
+            </nav>
+            <div class="mobile-auth">
+                <button class="mobile-login-btn" id="mobile-login-btn">Log In</button>
+                <button class="mobile-signup-btn">Sign Up</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Solutions Hero Section -->
+    <section class="solutions-hero">
+        <div class="container">
+            <h1 class="hero-title">Industry Solutions</h1>
+            <p class="hero-subtitle">Empower your business with cloud-native solutions tailored for your industry</p>
+        </div>
+    </section>
+
+    <!-- Solutions Categories -->
+    <section class="solutions-categories">
+        <div class="container">
+            <div class="category-tabs">
+                <button class="tab-btn active" data-category="all">All Solutions</button>
+                <button class="tab-btn" data-category="finance">Finance</button>
+                <button class="tab-btn" data-category="retail">Retail</button>
+                <button class="tab-btn" data-category="manufacturing">Manufacturing</button>
+                <button class="tab-btn" data-category="healthcare">Healthcare</button>
+                <button class="tab-btn" data-category="education">Education</button>
+                <button class="tab-btn" data-category="media">Media</button>
+                <button class="tab-btn" data-category="gaming">Gaming</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solutions Grid -->
+    <section class="solutions-grid-section">
+        <div class="container">
+            <div class="solutions-grid">
+                <!-- Finance Solutions -->
+                <div class="solution-card" data-category="finance">
+                    <div class="solution-icon">🏦</div>
+                    <h3>Digital Banking</h3>
+                    <p>Modernize your banking infrastructure with secure, scalable cloud solutions</p>
+                    <ul class="solution-features">
+                        <li>✓ Core banking modernization</li>
+                        <li>✓ Real-time fraud detection</li>
+                        <li>✓ Regulatory compliance</li>
+                        <li>✓ Mobile banking platforms</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <div class="solution-card" data-category="finance">
+                    <div class="solution-icon">📈</div>
+                    <h3>Trading Platform</h3>
+                    <p>High-performance trading systems with ultra-low latency</p>
+                    <ul class="solution-features">
+                        <li>✓ High-frequency trading</li>
+                        <li>✓ Market data analytics</li>
+                        <li>✓ Risk management</li>
+                        <li>✓ Compliance reporting</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <div class="solution-card" data-category="finance">
+                    <div class="solution-icon">🛡️</div>
+                    <h3>Insurance Core</h3>
+                    <p>Transform insurance operations with AI-powered solutions</p>
+                    <ul class="solution-features">
+                        <li>✓ Claims processing automation</li>
+                        <li>✓ Risk assessment AI</li>
+                        <li>✓ Customer portal</li>
+                        <li>✓ Policy management</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <!-- Retail Solutions -->
+                <div class="solution-card" data-category="retail">
+                    <div class="solution-icon">🛒</div>
+                    <h3>E-Commerce Platform</h3>
+                    <p>Build scalable online shopping experiences</p>
+                    <ul class="solution-features">
+                        <li>✓ Omnichannel commerce</li>
+                        <li>✓ Personalization engine</li>
+                        <li>✓ Inventory management</li>
+                        <li>✓ Payment processing</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <div class="solution-card" data-category="retail">
+                    <div class="solution-icon">📊</div>
+                    <h3>Retail Analytics</h3>
+                    <p>Data-driven insights for retail optimization</p>
+                    <ul class="solution-features">
+                        <li>✓ Customer behavior analysis</li>
+                        <li>✓ Demand forecasting</li>
+                        <li>✓ Price optimization</li>
+                        <li>✓ Store performance</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <div class="solution-card" data-category="retail">
+                    <div class="solution-icon">🏪</div>
+                    <h3>Smart Store</h3>
+                    <p>Transform physical stores with IoT and AI</p>
+                    <ul class="solution-features">
+                        <li>✓ Smart shelves</li>
+                        <li>✓ Cashier-less checkout</li>
+                        <li>✓ Foot traffic analysis</li>
+                        <li>✓ Inventory tracking</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <!-- Manufacturing Solutions -->
+                <div class="solution-card" data-category="manufacturing">
+                    <div class="solution-icon">🏭</div>
+                    <h3>Smart Factory</h3>
+                    <p>Industry 4.0 solutions for modern manufacturing</p>
+                    <ul class="solution-features">
+                        <li>✓ IoT sensor integration</li>
+                        <li>✓ Predictive maintenance</li>
+                        <li>✓ Quality control AI</li>
+                        <li>✓ Supply chain optimization</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <div class="solution-card" data-category="manufacturing">
+                    <div class="solution-icon">🤖</div>
+                    <h3>Industrial IoT</h3>
+                    <p>Connect and monitor industrial equipment</p>
+                    <ul class="solution-features">
+                        <li>✓ Equipment monitoring</li>
+                        <li>✓ Remote diagnostics</li>
+                        <li>✓ Energy management</li>
+                        <li>✓ Safety systems</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <!-- Healthcare Solutions -->
+                <div class="solution-card" data-category="healthcare">
+                    <div class="solution-icon">🏥</div>
+                    <h3>Healthcare Platform</h3>
+                    <p>Digital health solutions for better patient care</p>
+                    <ul class="solution-features">
+                        <li>✓ Electronic health records</li>
+                        <li>✓ Telemedicine</li>
+                        <li>✓ Medical imaging AI</li>
+                        <li>✓ Patient portal</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <div class="solution-card" data-category="healthcare">
+                    <div class="solution-icon">💊</div>
+                    <h3>Pharma Research</h3>
+                    <p>Accelerate drug discovery with cloud computing</p>
+                    <ul class="solution-features">
+                        <li>✓ Genomic analysis</li>
+                        <li>✓ Clinical trial management</li>
+                        <li>✓ Drug interaction modeling</li>
+                        <li>✓ Regulatory submissions</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <!-- Education Solutions -->
+                <div class="solution-card" data-category="education">
+                    <div class="solution-icon">🎓</div>
+                    <h3>Online Learning</h3>
+                    <p>Build engaging digital learning experiences</p>
+                    <ul class="solution-features">
+                        <li>✓ Learning management system</li>
+                        <li>✓ Video streaming</li>
+                        <li>✓ Interactive content</li>
+                        <li>✓ Student analytics</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <div class="solution-card" data-category="education">
+                    <div class="solution-icon">📚</div>
+                    <h3>Campus Management</h3>
+                    <p>Streamline university operations</p>
+                    <ul class="solution-features">
+                        <li>✓ Student information system</li>
+                        <li>✓ Course management</li>
+                        <li>✓ Resource scheduling</li>
+                        <li>✓ Alumni portal</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <!-- Media Solutions -->
+                <div class="solution-card" data-category="media">
+                    <div class="solution-icon">🎬</div>
+                    <h3>Media Processing</h3>
+                    <p>Cloud-native media processing and delivery</p>
+                    <ul class="solution-features">
+                        <li>✓ Video transcoding</li>
+                        <li>✓ Content delivery</li>
+                        <li>✓ DRM protection</li>
+                        <li>✓ Live streaming</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <div class="solution-card" data-category="media">
+                    <div class="solution-icon">📺</div>
+                    <h3>OTT Platform</h3>
+                    <p>Launch your streaming service quickly</p>
+                    <ul class="solution-features">
+                        <li>✓ Content management</li>
+                        <li>✓ User subscriptions</li>
+                        <li>✓ Multi-device support</li>
+                        <li>✓ Analytics dashboard</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <!-- Gaming Solutions -->
+                <div class="solution-card" data-category="gaming">
+                    <div class="solution-icon">🎮</div>
+                    <h3>Game Hosting</h3>
+                    <p>Scalable infrastructure for online games</p>
+                    <ul class="solution-features">
+                        <li>✓ Low-latency networking</li>
+                        <li>✓ Auto-scaling</li>
+                        <li>✓ DDoS protection</li>
+                        <li>✓ Global deployment</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+
+                <div class="solution-card" data-category="gaming">
+                    <div class="solution-icon">🏆</div>
+                    <h3>Gaming Analytics</h3>
+                    <p>Understand player behavior and optimize gameplay</p>
+                    <ul class="solution-features">
+                        <li>✓ Player segmentation</li>
+                        <li>✓ Churn prediction</li>
+                        <li>✓ Monetization analytics</li>
+                        <li>✓ A/B testing</li>
+                    </ul>
+                    <a href="#" class="solution-link">Learn More →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solution Scenarios -->
+    <section class="solution-scenarios">
+        <div class="container">
+            <h2 class="section-title">Popular Solution Scenarios</h2>
+            <div class="scenarios-grid">
+                <div class="scenario-card">
+                    <div class="scenario-image">🌍</div>
+                    <h3>Global Expansion</h3>
+                    <p>Deploy your applications worldwide with our global infrastructure</p>
+                    <a href="#" class="scenario-link">Explore Solution →</a>
+                </div>
+                <div class="scenario-card">
+                    <div class="scenario-image">🔄</div>
+                    <h3>Digital Transformation</h3>
+                    <p>Modernize legacy systems with cloud-native architectures</p>
+                    <a href="#" class="scenario-link">Explore Solution →</a>
+                </div>
+                <div class="scenario-card">
+                    <div class="scenario-image">💰</div>
+                    <h3>Cost Optimization</h3>
+                    <p>Reduce IT costs while improving performance and reliability</p>
+                    <a href="#" class="scenario-link">Explore Solution →</a>
+                </div>
+                <div class="scenario-card">
+                    <div class="scenario-image">🔒</div>
+                    <h3>Security & Compliance</h3>
+                    <p>Meet regulatory requirements with enterprise-grade security</p>
+                    <a href="#" class="scenario-link">Explore Solution →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="solutions-cta">
+        <div class="container">
+            <h2>Ready to Transform Your Business?</h2>
+            <p>Connect with our solutions architects to design the perfect cloud strategy</p>
+            <div class="cta-buttons">
+                <a href="#" class="btn btn-primary">Contact Sales</a>
+                <a href="#" class="btn btn-secondary">View Case Studies</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-column">
+                    <h4>Products</h4>
+                    <ul>
+                        <li><a href="#">Compute</a></li>
+                        <li><a href="#">Storage</a></li>
+                        <li><a href="#">Database</a></li>
+                        <li><a href="#">Network</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Solutions</h4>
+                    <ul>
+                        <li><a href="#">Finance</a></li>
+                        <li><a href="#">Retail</a></li>
+                        <li><a href="#">Manufacturing</a></li>
+                        <li><a href="#">Healthcare</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="support.html">Help Center</a></li>
+                        <li><a href="#">Documentation</a></li>
+                        <li><a href="#">Community</a></li>
+                        <li><a href="#">Contact Us</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>About</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="#">Careers</a></li>
+                        <li><a href="#">News</a></li>
+                        <li><a href="#">Partners</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#">Privacy Policy</a></li>
+                        <li><a href="#">Terms of Service</a></li>
+                        <li><a href="#">Cookie Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 CloudStack. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="login-modal-overlay">
+        <div class="modal">
+            <button class="modal-close" id="modal-close">×</button>
+            <div class="modal-header">
+                <h2>Welcome Back</h2>
+                <p>Log in to access your CloudStack account</p>
+            </div>
+            <div class="modal-body">
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="login-username">Username / Email / Phone</label>
+                        <input type="text" id="login-username" class="form-input" placeholder="Enter your username">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" class="form-input" placeholder="Enter your password">
+                        <a href="#" class="forgot-link">Forgot Password?</a>
+                    </div>
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="remember-me">
+                        <label for="remember-me">Remember me for 7 days</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Log In</button>
+                </form>
+                <div class="divider">OR</div>
+                <div class="social-login">
+                    <button class="social-btn">💬 WeChat</button>
+                    <button class="social-btn">💳 Alipay</button>
+                    <button class="social-btn">📱 Phone</button>
+                </div>
+                <p class="signup-link">Don't have an account? <a href="#">Sign Up Now</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/homepage.js"></script>
+    <script>
+        // Solutions page category filter
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const solutionCards = document.querySelectorAll('.solution-card');
+            
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const category = this.dataset.category;
+                    
+                    // Update active tab
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Filter cards
+                    solutionCards.forEach(card => {
+                        if (category === 'all' || card.dataset.category === category) {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudStack SLB - Load Balancer Service</title>
+    <link rel="stylesheet" href="/css/cloudstack.css">
+</head>
+<body>
+    <header class="cloudstack-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="/cloudstack/" style="display: flex; align-items: center; gap: 8px; text-decoration: none;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="" style="width: 28px; height: 28px;">
+                    <span style="color: #ff6a00; font-size: 18px; font-weight: 600;">CloudStack</span>
+                </a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search products, docs, tickets" id="header-search">
+                <button class="search-btn">Search</button>
+            </div>
+            <nav class="header-nav">
+                <a href="#" class="nav-link">Console</a>
+                <a href="#" class="nav-link">Products</a>
+                <a href="#" class="nav-link">Solutions</a>
+                <a href="#" class="nav-link">Pricing</a>
+                <a href="#" class="nav-link">Support</a>
+            </nav>
+            <div class="header-actions">
+                <button class="icon-btn" id="notification-btn">🔔 <span class="badge">3</span></button>
+                <button class="icon-btn" id="user-btn">👤</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="console-container">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Common Services</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="/cloudstack/" class="menu-item">☁️ Cloud Server ECS</a></li>
+                    <li><a href="/cloudstack/rds.html" class="menu-item">🗄️ Cloud Database RDS</a></li>
+                    <li><a href="/cloudstack/oss.html" class="menu-item">📦 Object Storage OSS</a></li>
+                    <li><a href="/cloudstack/vpc.html" class="menu-item">🌐 Virtual Private Cloud VPC</a></li>
+                    <li><a href="/cloudstack/slb.html" class="menu-item active">⚖️ Load Balancer SLB</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="breadcrumb">
+                <span>Console</span> &gt; <span>CloudStack SLB</span>
+            </div>
+
+            <div class="dashboard-header">
+                <h1 class="page-title">CloudStack SLB Console</h1>
+                <div class="header-actions-row">
+                    <button class="primary-btn" id="create-slb-btn">+ Create Load Balancer</button>
+                    <button class="secondary-btn" id="refresh-btn">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Active Load Balancers</div>
+                    <div class="stat-value">9</div>
+                    <div class="stat-change positive">+2 this month</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Listeners</div>
+                    <div class="stat-value">24</div>
+                    <div class="stat-change positive">+5</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Monthly Cost (¥)</div>
+                    <div class="stat-value">¥1,234.56</div>
+                    <div class="stat-change negative">+10% MoM</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Connections</div>
+                    <div class="stat-value">12.4K</div>
+                    <div class="stat-change positive">+2.1K</div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="select-all"></th>
+                            <th>Load Balancer ID/Name</th>
+                            <th>Region</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Listeners</th>
+                            <th>Backend Servers</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="table-row" data-slb="lb-bp1a2b3c4d5e6f7g8h">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div class="instance-info">
+                                    <div class="instance-id">lb-bp1a2b3c4d5e6f7g8h</div>
+                                    <div class="instance-name">web-tier-lb</div>
+                                </div>
+                            </td>
+                            <td>Hangzhou</td>
+                            <td>Application</td>
+                            <td><span class="status-badge running">Running</span></td>
+                            <td>3</td>
+                            <td>8</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="view">View</button>
+                                    <button class="action-link" data-action="config">Configure</button>
+                                    <button class="action-link" data-action="more">More ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="table-row" data-slb="lb-bp2b3c4d5e6f7g8h9i">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div class="instance-info">
+                                    <div class="instance-id">lb-bp2b3c4d5e6f7g8h9i</div>
+                                    <div class="instance-name">api-tier-lb</div>
+                                </div>
+                            </td>
+                            <td>Beijing</td>
+                            <td>Network</td>
+                            <td><span class="status-badge running">Running</span></td>
+                            <td>2</td>
+                            <td>6</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="view">View</button>
+                                    <button class="action-link" data-action="config">Configure</button>
+                                    <button class="action-link" data-action="more">More ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <span class="pagination-info">Total 9 records</span>
+                <div class="pagination-controls">
+                    <button class="page-btn" disabled>&lt;</button>
+                    <button class="page-btn active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">&gt;</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/js/cloudstack.js"></script>
+    <script>
+        // SLB-specific JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update page title
+            document.title = "CloudStack SLB - Load Balancer Service";
+            
+            // Update sidebar active state
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('href') === '/cloudstack/slb.html') {
+                    item.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

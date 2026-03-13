@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudStack RDS - Cloud Database Service</title>
+    <link rel="stylesheet" href="/css/cloudstack.css">
+</head>
+<body>
+    <header class="cloudstack-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="/cloudstack/" style="display: flex; align-items: center; gap: 8px; text-decoration: none;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="" style="width: 28px; height: 28px;">
+                    <span style="color: #ff6a00; font-size: 18px; font-weight: 600;">CloudStack</span>
+                </a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search products, docs, tickets" id="header-search">
+                <button class="search-btn">Search</button>
+            </div>
+            <nav class="header-nav">
+                <a href="#" class="nav-link">Console</a>
+                <a href="#" class="nav-link">Products</a>
+                <a href="#" class="nav-link">Solutions</a>
+                <a href="#" class="nav-link">Pricing</a>
+                <a href="#" class="nav-link">Support</a>
+            </nav>
+            <div class="header-actions">
+                <button class="icon-btn" id="notification-btn">🔔 <span class="badge">3</span></button>
+                <button class="icon-btn" id="user-btn">👤</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="console-container">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Common Services</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="/cloudstack/" class="menu-item">☁️ Cloud Server ECS</a></li>
+                    <li><a href="/cloudstack/rds.html" class="menu-item active">🗄️ Cloud Database RDS</a></li>
+                    <li><a href="/cloudstack/oss.html" class="menu-item">📦 Object Storage OSS</a></li>
+                    <li><a href="/cloudstack/vpc.html" class="menu-item">🌐 Virtual Private Cloud VPC</a></li>
+                    <li><a href="/cloudstack/slb.html" class="menu-item">⚖️ Load Balancer SLB</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Database Operations</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="#" class="menu-item">📊 Instance List</a></li>
+                    <li><a href="#" class="menu-item">➕ Create Instance</a></li>
+                    <li><a href="#" class="menu-item">⚙️ Configuration</a></li>
+                    <li><a href="#" class="menu-item">📈 Monitoring</a></li>
+                    <li><a href="#" class="menu-item">🔒 Security</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="breadcrumb">
+                <span>Console</span> &gt; <span>CloudStack RDS</span>
+            </div>
+
+            <div class="dashboard-header">
+                <h1 class="page-title">CloudStack RDS Console</h1>
+                <div class="header-actions-row">
+                    <button class="primary-btn" id="create-database-btn">+ Create Database</button>
+                    <button class="secondary-btn" id="refresh-btn">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Running Instances</div>
+                    <div class="stat-value">8</div>
+                    <div class="stat-change positive">+1 this week</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Storage Used</div>
+                    <div class="stat-value">2.4 TB</div>
+                    <div class="stat-change positive">+120 GB</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Monthly Cost (¥)</div>
+                    <div class="stat-value">¥3,456.78</div>
+                    <div class="stat-change negative">+8% MoM</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Alert Count</div>
+                    <div class="stat-value">3</div>
+                    <div class="stat-change neutral">No change</div>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label>Region:</label>
+                    <select class="filter-select" id="region-select">
+                        <option value="cn-hangzhou">East China 1 (Hangzhou)</option>
+                        <option value="cn-beijing">North China 2 (Beijing)</option>
+                        <option value="cn-shanghai">East China 2 (Shanghai)</option>
+                        <option value="cn-shenzhen">South China 1 (Shenzhen)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Engine:</label>
+                    <select class="filter-select" id="engine-select">
+                        <option value="all">All</option>
+                        <option value="mysql">MySQL</option>
+                        <option value="postgresql">PostgreSQL</option>
+                        <option value="sqlserver">SQL Server</option>
+                        <option value="mongodb">MongoDB</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <input type="text" class="filter-input" placeholder="Instance ID/Name" id="instance-search">
+                </div>
+                <button class="filter-btn" id="filter-apply">Query</button>
+                <button class="filter-btn" id="filter-reset">Reset</button>
+            </div>
+
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="select-all"></th>
+                            <th>Instance ID/Name</th>
+                            <th>Region</th>
+                            <th>Engine</th>
+                            <th>Specification</th>
+                            <th>Status</th>
+                            <th>Storage</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="table-row" data-instance="rds-bp1a2b3c4d5e6f7g8h">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div class="instance-info">
+                                    <div class="instance-id">rds-bp1a2b3c4d5e6f7g8h</div>
+                                    <div class="instance-name">production-db-01</div>
+                                </div>
+                            </td>
+                            <td>Hangzhou</td>
+                            <td>MySQL 8.0</td>
+                            <td>rds.mysql.x4.large</td>
+                            <td><span class="status-badge running">Running</span></td>
+                            <td>500 GB</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="connect">Connect</button>
+                                    <button class="action-link" data-action="restart">Restart</button>
+                                    <button class="action-link" data-action="config">Configure</button>
+                                    <button class="action-link" data-action="more">More ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="table-row" data-instance="rds-bp2b3c4d5e6f7g8h9i">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div class="instance-info">
+                                    <div class="instance-id">rds-bp2b3c4d5e6f7g8h9i</div>
+                                    <div class="instance-name">analytics-db-01</div>
+                                </div>
+                            </td>
+                            <td>Beijing</td>
+                            <td>PostgreSQL 14</td>
+                            <td>rds.pg.x2.large</td>
+                            <td><span class="status-badge running">Running</span></td>
+                            <td>1 TB</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="connect">Connect</button>
+                                    <button class="action-link" data-action="restart">Restart</button>
+                                    <button class="action-link" data-action="config">Configure</button>
+                                    <button class="action-link" data-action="more">More ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="table-row" data-instance="rds-bp3c4d5e6f7g8h9i0j">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div class="instance-info">
+                                    <div class="instance-id">rds-bp3c4d5e6f7g8h9i0j</div>
+                                    <div class="instance-name">backup-db-01</div>
+                                </div>
+                            </td>
+                            <td>Shanghai</td>
+                            <td>MongoDB 6.0</td>
+                            <td>rds.mongo.x4.xlarge</td>
+                            <td><span class="status-badge stopped">Stopped</span></td>
+                            <td>200 GB</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="start">Start</button>
+                                    <button class="action-link" data-action="config">Configure</button>
+                                    <button class="action-link" data-action="more">More ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <span class="pagination-info">Total 8 records</span>
+                <div class="pagination-controls">
+                    <button class="page-btn" disabled>&lt;</button>
+                    <button class="page-btn active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">&gt;</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/js/cloudstack.js"></script>
+    <script>
+        // RDS-specific JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update page title
+            document.title = "CloudStack RDS - Cloud Database Service";
+            
+            // RDS-specific button handlers
+            const createDatabaseBtn = document.getElementById('create-database-btn');
+            if (createDatabaseBtn) {
+                createDatabaseBtn.addEventListener('click', function() {
+                    alert('Create Database functionality would open here');
+                });
+            }
+            
+            // Update sidebar active state
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('href') === '/cloudstack/rds.html') {
+                    item.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
