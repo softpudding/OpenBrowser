@@ -63,6 +63,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         # Cache of element IDs that have been successfully confirmed
         # Key: conversation_id, Value: set of element_ids that have been confirmed
         self.confirmed_elements: Dict[str, set] = {}
+        # Single element candidate for skipping 2PC when only one element is highlighted
+        # Key: conversation_id, Value: element_id of the single highlighted element (or None)
+        self.single_element_candidate: Dict[str, Optional[str]] = {}
     
     def __call__(self, action: OpenBrowserAction, conversation) -> OpenBrowserObservation:
         """Execute a browser action and return observation"""
@@ -230,6 +233,19 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         else:
             message = f"Found {len(elements)} {element_type} elements on page {current_page}/{total_pages} (total: {total_elements})"
         
+        # If there's only one element total, store it as a candidate for direct execution
+        # The element will be added to confirmed cache only when the agent actually interacts with it
+        if total_elements == 1 and len(elements) == 1:
+            element_id = elements[0].get('id')
+            if element_id:
+                self.single_element_candidate[self.conversation_id] = element_id
+                logger.debug(f"DEBUG: Single element {element_id} stored as candidate for direct execution")
+        else:
+            # Clear candidate if not a single element scenario
+            if self.conversation_id in self.single_element_candidate:
+                del self.single_element_candidate[self.conversation_id]
+                logger.debug(f"DEBUG: Cleared single element candidate (not a single element scenario)")
+        
         return self._build_observation_from_result(
             result_dict, message,
             highlighted_elements=elements,
@@ -261,6 +277,20 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
                     raise RuntimeError(f"Failed to click element: {ext_error}")
                 message = f"Clicked element (previously confirmed): {action.element_id}"
+                return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
+            
+            # Check if element matches single element candidate - if yes, execute directly and add to confirmed cache
+            command_kwargs = {}
+            if action.tab_id is not None:
+                command_kwargs['tab_id'] = action.tab_id
+            result_dict = self._try_execute_via_single_element_candidate(
+                element_id=action.element_id,
+                command_class=ClickElementCommand,
+                command_kwargs=command_kwargs,
+                action_type='click'
+            )
+            if result_dict:
+                message = f"Clicked element: {action.element_id}"
                 return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
             
             # Otherwise proceed with 2PC confirmation flow
@@ -297,6 +327,20 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 message = f"Hovered element (previously confirmed): {action.element_id}"
                 return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
             
+            # Check if element matches single element candidate - if yes, execute directly and add to confirmed cache
+            command_kwargs = {}
+            if action.tab_id is not None:
+                command_kwargs['tab_id'] = action.tab_id
+            result_dict = self._try_execute_via_single_element_candidate(
+                element_id=action.element_id,
+                command_class=HoverElementCommand,
+                command_kwargs=command_kwargs,
+                action_type='hover'
+            )
+            if result_dict:
+                message = f"Hovered element: {action.element_id}"
+                return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
+            
             # Otherwise proceed with 2PC confirmation flow
             full_html, screenshot = self._get_element_full_html(action.element_id)
             self._set_pending_confirmation(
@@ -327,6 +371,23 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                         ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
                         raise RuntimeError(f"Failed to scroll element: {ext_error}")
                     message = f"Scrolled element (previously confirmed): {action.element_id}"
+                    return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
+                
+                # Check if element matches single element candidate - if yes, execute directly and add to confirmed cache
+                command_kwargs = {
+                    'direction': action.direction,
+                    'scroll_amount': action.scroll_amount
+                }
+                if action.tab_id is not None:
+                    command_kwargs['tab_id'] = action.tab_id
+                result_dict = self._try_execute_via_single_element_candidate(
+                    element_id=action.element_id,
+                    command_class=ScrollElementCommand,
+                    command_kwargs=command_kwargs,
+                    action_type='scroll'
+                )
+                if result_dict:
+                    message = f"Scrolled element: {action.element_id}"
                     return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
                 
                 # Otherwise proceed with 2PC confirmation flow
@@ -376,6 +437,22 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
                     raise RuntimeError(f"Failed to input text: {ext_error}")
                 message = f"Input text to element (previously confirmed): {action.element_id}"
+                return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
+            
+            # Check if element matches single element candidate - if yes, execute directly and add to confirmed cache
+            command_kwargs = {
+                'text': action.text
+            }
+            if action.tab_id is not None:
+                command_kwargs['tab_id'] = action.tab_id
+            result_dict = self._try_execute_via_single_element_candidate(
+                element_id=action.element_id,
+                command_class=KeyboardInputCommand,
+                command_kwargs=command_kwargs,
+                action_type='keyboard_input'
+            )
+            if result_dict:
+                message = f"Input text to element: {action.element_id}"
                 return self._build_observation_from_result(result_dict, message, element_id=action.element_id)
             
             # Otherwise proceed with 2PC confirmation flow
@@ -579,6 +656,37 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         """Clear confirmed elements cache for current conversation"""
         if self.conversation_id in self.confirmed_elements:
             del self.confirmed_elements[self.conversation_id]
+    
+    def _try_execute_via_single_element_candidate(self, element_id: str, command_class, command_kwargs, action_type: str) -> Optional[Dict[str, Any]]:
+        """Try to execute an action directly if element_id matches the single element candidate.
+        
+        Returns result_dict if executed, None otherwise.
+        """
+        if not self.conversation_id:
+            return None
+            
+        candidate = self.single_element_candidate.get(self.conversation_id)
+        if candidate and candidate == element_id:
+            logger.debug(f"DEBUG: Element {element_id} matches single element candidate, executing {action_type} directly")
+            # Create and execute command
+            command = command_class(
+                element_id=element_id,
+                conversation_id=self.conversation_id,
+                **command_kwargs
+            )
+            result_dict = self._execute_command_sync(command)
+            if not result_dict or not result_dict.get('success'):
+                ext_error = result_dict.get('error', 'Unknown error') if result_dict else 'No response'
+                raise RuntimeError(f"Failed to {action_type} element: {ext_error}")
+            
+            # Add to confirmed cache since agent explicitly chose this single element
+            self._add_confirmed_element(element_id)
+            # Clear candidate as it has been used
+            del self.single_element_candidate[self.conversation_id]
+            logger.debug(f"DEBUG: Added element {element_id} to confirmed cache and cleared candidate")
+            
+            return result_dict
+        return None
     
     # ========== Helper Methods ==========
     
