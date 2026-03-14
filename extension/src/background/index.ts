@@ -767,6 +767,49 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             };
           }
 
+          case 'back':
+          case 'forward': {
+            // Determine which tab to use: provided tab_id or current active tab
+            let targetTabId: number;
+            if (command.tab_id) {
+              targetTabId = command.tab_id;
+              console.log(`↩️ [Tab ${command.action}] Using provided tab_id ${targetTabId}`);
+            } else {
+              targetTabId = tabManager.getCurrentActiveTabId(conversationId);
+              if (!targetTabId) {
+                throw new Error(`No active tab found for conversation ${conversationId}. Use tab init first or specify tab_id.`);
+              }
+              console.log(`↩️ [Tab ${command.action}] Using current active tab ${targetTabId}`);
+            }
+            
+            await tabManager.ensureTabManaged(targetTabId, conversationId);
+            tabManager.updateTabActivity(targetTabId, conversationId);
+            
+            console.log(`↩️ [Tab ${command.action}] Navigating ${command.action} in tab ${targetTabId}, conversation: ${conversationId}`);
+            
+            // Execute back or forward navigation
+            const navigationResult = command.action === 'back' 
+              ? await tabs.goBack(targetTabId)
+              : await tabs.goForward(targetTabId);
+            
+            // Capture screenshot after navigation
+            const screenshotResult = await captureScreenshot(targetTabId, conversationId, true, 90, false, 0);
+            
+            return {
+              success: true,
+              message: navigationResult.message,
+              data: {
+                ...navigationResult,
+                tabId: targetTabId,
+                conversationId: conversationId,
+                screenshot: screenshotResult?.imageData,
+                ...(screenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted } : {}),
+                ...(screenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list } : {}),
+              },
+              timestamp: Date.now(),
+            };
+          }
+
           default:
             throw new Error(`Unknown tab action: ${(command as any).action}`);
         }

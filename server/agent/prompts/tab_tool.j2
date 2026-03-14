@@ -18,6 +18,8 @@ Tab commands return screenshots to verify page state after operations:
 - `tab open` - Returns screenshot of newly opened tab
 - `tab switch` - Returns screenshot of switched-to tab
 - `tab refresh` - Returns screenshot of refreshed page
+- `tab back` - Returns screenshot after navigating back in history
+- `tab forward` - Returns screenshot after navigating forward in history
 
 Commands that do NOT return screenshots:
 - `tab list` - Returns tab list only
@@ -133,6 +135,31 @@ Get a clean screenshot of the current active tab without element highlights.
 
 **Use Case**: Check page state during loading or when you just need to see the page.
 
+### tab back
+Navigate back in the browser history (equivalent to clicking the browser's back button).
+
+```json
+{ "action": "back" }
+```
+
+**Behavior**:
+1. Navigates to the previous page in the tab's history
+2. Returns screenshot of the navigated page
+
+**Use Case**: Go back to the previous page after clicking a link or navigating forward.
+
+### tab forward
+Navigate forward in the browser history (equivalent to clicking the browser's forward button).
+
+```json
+{ "action": "forward" }
+```
+
+**Behavior**:
+1. Navigates to the next page in the tab's history (if available)
+2. Returns screenshot of the navigated page
+
+**Use Case**: Go forward after having navigated back.
 ## Workflow Integration
 
 1. **Start session**: `tab init https://example.com`
