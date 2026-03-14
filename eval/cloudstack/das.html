@@ -282,5 +282,11 @@
     </div>
 
     <script src="js/das-agent.js"></script>
+    <script src="/js/tracker.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            window.tracker = new AgentTracker('cloudstack.com', 'hard');
+        });
+    </script>
 </body>
 </html>
