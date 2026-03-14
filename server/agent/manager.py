@@ -53,8 +53,16 @@ class OpenBrowserAgentManager:
 
 
 
-    def _create_default_llm(self) -> LLM:
-        """Create default LLM configuration from config file"""
+    def _create_llm_from_config(self, model: Optional[str] = None, base_url: Optional[str] = None) -> LLM:
+        """Create LLM configuration from config file with optional overrides
+        
+        Args:
+            model: Optional model name override (e.g., "dashscope/qwen3.5-plus")
+            base_url: Optional base URL override
+            
+        Returns:
+            Configured LLM instance
+        """
         # Load LLM configuration from file (force reload from disk)
         llm_config = llm_config_manager.reload_config().llm
 
@@ -66,25 +74,35 @@ class OpenBrowserAgentManager:
                 "Or use the API: POST /api/config/llm with {'api_key': 'your-key'}"
             )
 
+        # Use provided model/base_url or fall back to config
+        model_to_use = model if model is not None else llm_config.model
+        base_url_to_use = base_url if base_url is not None else llm_config.base_url
+
         logger.info(
-            f"Loading LLM configuration: model={llm_config.model}, base_url={llm_config.base_url}"
+            f"Loading LLM configuration: model={model_to_use}, base_url={base_url_to_use}"
         )
 
         return LLM(
             usage_id="openbrowser-agent",
-            model=llm_config.model,
-            base_url=llm_config.base_url,
+            model=model_to_use,
+            base_url=base_url_to_use,
             api_key=SecretStr(llm_config.api_key),
         )
 
     def create_conversation(
-        self, conversation_id: Optional[str] = None, cwd: str = "."
+        self, conversation_id: Optional[str] = None, cwd: str = ".",
+        model: Optional[str] = None, base_url: Optional[str] = None
     ) -> str:
         """Create a new conversation with session management
 
         Args:
             conversation_id: Optional conversation ID (auto-generated if None)
             cwd: Working directory for the conversation (default: current directory)
+            model: Optional model name override (e.g., "dashscope/qwen3.5-plus")
+            base_url: Optional base URL override
+            
+        Returns:
+            Conversation ID
         """
         import uuid
 
@@ -94,14 +112,22 @@ class OpenBrowserAgentManager:
         if conversation_id in self.conversations:
             raise ValueError(f"Conversation {conversation_id} already exists")
 
-        # Create session in session manager
+        # Create session in session manager with model metadata
+        metadata = {}
+        if model:
+            metadata["model"] = model
+        if base_url:
+            metadata["base_url"] = base_url
+            
         session_manager.create_session(
-            conversation_id=conversation_id, working_directory=cwd
+            conversation_id=conversation_id, 
+            working_directory=cwd,
+            metadata=metadata
         )
 
         # Create agent with tools
         agent_context = AgentContext(current_datetime=datetime.now())
-        llm_instance = self._create_default_llm()
+        llm_instance = self._create_llm_from_config(model, base_url)
         agent = Agent(
             llm=llm_instance,
             tools=self.default_tools,
@@ -143,13 +169,19 @@ class OpenBrowserAgentManager:
         return self.conversations.get(conversation_id)
 
     def get_or_create_conversation(
-        self, conversation_id: str, cwd: str = "."
+        self, conversation_id: str, cwd: str = ".",
+        model: Optional[str] = None, base_url: Optional[str] = None
     ) -> ConversationState:
         """Get existing conversation or create a new one with the given ID
 
         Args:
             conversation_id: Conversation ID to get or create
             cwd: Working directory for the conversation (default: current directory)
+            model: Optional model name override (e.g., "dashscope/qwen3.5-plus")
+            base_url: Optional base URL override
+            
+        Returns:
+            ConversationState
         """
         conv_state = self.get_conversation(conversation_id)
         if conv_state:
@@ -160,16 +192,43 @@ class OpenBrowserAgentManager:
             # Race condition: conversation was just created by another thread
             return self.conversations[conversation_id]
 
-        # Create session in session manager (if not exists)
-        if not session_manager.get_session(conversation_id):
+        # Check if session exists and has model metadata
+        existing_session = session_manager.get_session(conversation_id)
+        if existing_session:
+            # Use model from existing session metadata if available
+            session_model = existing_session.metadata.get("model")
+            session_base_url = existing_session.metadata.get("base_url")
+            
+            # If model was not provided as parameter, use session model
+            if model is None and session_model:
+                model = session_model
+            if base_url is None and session_base_url:
+                base_url = session_base_url
+            
+            # Create metadata for session update if needed
+            metadata = existing_session.metadata.copy()
+            if model and "model" not in metadata:
+                metadata["model"] = model
+            if base_url and "base_url" not in metadata:
+                metadata["base_url"] = base_url
+        else:
+            # Create new session with model metadata
+            metadata = {}
+            if model:
+                metadata["model"] = model
+            if base_url:
+                metadata["base_url"] = base_url
+            
             session_manager.create_session(
-                conversation_id=conversation_id, working_directory=cwd
+                conversation_id=conversation_id, 
+                working_directory=cwd,
+                metadata=metadata
             )
 
         # Create new conversation with the given ID
         # Create agent with tools
         agent_context = AgentContext(current_datetime=datetime.now())
-        llm_instance = self._create_default_llm()
+        llm_instance = self._create_llm_from_config(model, base_url)
         agent = Agent(
             llm=llm_instance, tools=self.default_tools, agent_context=agent_context
         )

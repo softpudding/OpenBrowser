@@ -1,0 +1,105 @@
+id: cloudstack_interactive
+name: "CloudStack DAS Interactive Test"
+difficulty: very hard
+description: "AI Agent should find DAS console, ask DAS agent for system status, and request to check storage usage"
+start_url: "http://localhost:16605/cloudstack/"
+instruction: "Find the DAS console and engage in a conversation with the DAS agent. First say hello, then ask for the current system status, and finally request to check the storage usage. Have a proper conversation with the DAS agent to complete these tasks."
+time_limit: 700.0  # ~11.7 minutes - complex multi-step interaction
+cost_limit: 2.0    # 2.0 RMB
+
+criteria:
+  # Original navigation criteria
+  - type: navigate_to_das_console
+    description: "Navigate to DAS console page"
+    points: 1
+    expected:
+      event_type: page_view
+      page: "/cloudstack/das.html"
+  
+  # New: Open DAS agent interface
+  - type: open_das_agent
+    description: "Open DAS agent interface"
+    points: 1
+    expected:
+      event_type: click
+      element_id: "das-agent-toggle"
+      page: "/cloudstack/das.html"
+    alternative:
+      event_type: click
+      element_id: "open-chat-btn"
+      page: "/cloudstack/das.html"
+  
+  # New: Send initial greeting
+  - type: greet_das_agent
+    description: "Send an initial greeting message to DAS agent"
+    points: 1
+    expected:
+      event_type: input
+      element_id: "chat-input"
+      value_length_min: 3
+      value_contains_any: ["hello", "hi", "greetings", "hey"]
+      page: "/cloudstack/das.html"
+  
+  # New: Submit greeting
+  - type: submit_greeting
+    description: "Submit the greeting message"
+    points: 0.5
+    expected:
+      event_type: click
+      element_id: "send-btn"
+      page: "/cloudstack/das.html"
+    optional: true
+  
+  # New: Ask for system status
+  - type: ask_system_status
+    description: "Ask DAS agent for system status"
+    points: 1.5
+    expected:
+      event_type: input
+      element_id: "chat-input"
+      value_contains_any: ["status", "system", "health", "how are you", "report"]
+      page: "/cloudstack/das.html"
+    # check: "after_greeting"  # Not yet implemented
+  
+  # New: Submit system status request
+  - type: submit_status_request
+    description: "Submit system status request"
+    points: 0.5
+    expected:
+      event_type: click
+      element_id: "send-btn"
+      page: "/cloudstack/das.html"
+    # check: "after_system_status_input"  # Not yet implemented
+    optional: true
+  
+  # New: Ask for storage usage
+  - type: ask_storage_usage
+    description: "Ask DAS agent to check storage usage"
+    points: 1.5
+    expected:
+      event_type: input
+      element_id: "chat-input"
+      value_contains_any: ["storage", "disk", "usage", "capacity", "space"]
+      page: "/cloudstack/das.html"
+    # check: "after_system_status"  # Not yet implemented
+  
+  # New: Submit storage request
+  - type: submit_storage_request
+    description: "Submit storage usage request"
+    points: 0.5
+    expected:
+      event_type: click
+      element_id: "send-btn"
+      page: "/cloudstack/das.html"
+    # check: "after_storage_input"  # Not yet implemented
+    optional: true
+  
+  # New: Verify multi-turn conversation happened (at least 3 distinct chat inputs or submits)
+  - type: multiple_interactions
+    description: "Have at least 3 distinct interactions with DAS agent"
+    points: 1.5
+    expected:
+      event_type: count_min
+      condition: "chat_interactions"
+      count: 3
+      page: "/cloudstack/das.html"

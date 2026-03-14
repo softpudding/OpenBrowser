@@ -71,11 +71,29 @@ class AgentTracker {
         // Track clicks
         document.addEventListener('click', (e) => {
             const target = e.target;
+            // Get parent element that might contain meaningful text
+            let parentWithText = null;
+            let current = target.parentElement;
+            let levelsChecked = 0;
+            
+            while (current && levelsChecked < 3) { // Check up to 3 levels up
+                if (current.textContent && current.textContent.trim().length > 0) {
+                    const text = current.textContent.trim().substring(0, 200);
+                    if (text.length > (target.textContent?.trim().length || 0)) {
+                        parentWithText = text;
+                        break;
+                    }
+                }
+                current = current.parentElement;
+                levelsChecked++;
+            }
+            
             this.track('click', {
                 element: target.tagName,
                 elementId: target.id || null,
                 elementClass: target.className || null,
                 elementText: target.textContent?.trim().substring(0, 100) || null,
+                parentText: parentWithText || null,
                 selector: this.getSelector(target),
                 x: e.clientX,
                 y: e.clientY

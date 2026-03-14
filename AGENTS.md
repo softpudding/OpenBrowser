@@ -361,21 +361,96 @@ OpenBrowser/eval/
 - **Image storage**: Extracts and saves screenshots in sequential order
 - **Criteria-based scoring**: Evaluates performance against YAML-defined criteria
 - **Service management**: Automatically starts/stops OpenBrowser and eval servers
+- **Multi-model testing**: Supports testing multiple LLM models with cross-model comparison
+- **Comprehensive scoring**: Task completion, time efficiency, and cost efficiency scores
+- **Structured output**: Organized output directory with timestamp and model subdirectories
+
+### Enhanced Evaluation Features (2025-03-12)
+
+#### 1. Multi-Model Support
+- **Model parameter**: `--model` can be specified multiple times to test different LLMs
+- **Default models**: `dashscope/qwen3.5-plus` and `dashscope/qwen3.5-flash`
+- **Cross-model comparison**: Generates summary reports comparing performance across models
+- **Model persistence**: Each conversation stores its LLM model in session metadata, ensuring consistency
+
+#### 2. Comprehensive Scoring System
+- **Task score**: Based on YAML-defined criteria completion (0-max_points)
+- **Efficiency score**: Based on completion time (0-1, higher for faster completion)
+- **Usage score**: Based on cost in RMB (0-1, higher for lower cost)
+- **Total score**: Combined task + efficiency + usage scores
+- **Time limits**: Configurable per test case (`time_limit` in seconds, default: 600)
+- **Cost limits**: Configurable per test case (`cost_limit` in RMB, default: 1.0)
+
+#### 3. Enhanced Output Organization
+```
+output/
+└── YYYYMMDD_HHMMSS/           # Timestamped run directory
+    ├── dashscope_qwen3.5-plus/    # Model-specific subdirectory
+    │   ├── images/            # Screenshots
+    │   ├── events/            # SSE events (JSON, images removed)
+    │   └── evaluation_report_...json
+    ├── dashscope_qwen3.5-flash/
+    │   ├── images/
+    │   ├── events/
+    │   └── evaluation_report_...json
+    ├── cross_model_summary.json   # Cross-model comparison
+    └── evaluation_report_...json  # Overall report
+```
+
+#### 4. Cost Tracking and Currency Conversion
+- **Usage metrics**: Extracts cost from `usage_metrics` SSE events
+- **Currency conversion**: Automatically converts USD to RMB (exchange rate: 7)
+- **DashScope models**: Costs already in RMB, no conversion needed
+- **Cost extraction**: Handles both `model_name` and token usage model fields
+
+#### 5. SSE Event Recording
+- **Complete event log**: All SSE events saved to JSON files (excluding image data)
+- **Image data removed**: Base64 image data replaced with `[IMAGE_DATA_REMOVED]`
+- **Event structure**: Preserves event types, timestamps, and metadata
 
 ### Usage
 ```bash
 # List available tests
 python eval/evaluate_browser_agent.py --list
 
-# Run single test
+# Run single test with default models
 python eval/evaluate_browser_agent.py --test techforum
 
-# Run all tests (with service management)
-python eval/evaluate_browser_agent.py
+# Run all tests with specific models
+python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
 
-# Run without starting services (assumes servers already running)
+# Run without starting services
 python eval/evaluate_browser_agent.py --no-services
+
+# Run with custom time/cost limits in test case YAML
+# Add to YAML: time_limit: 300 (5 minutes), cost_limit: 5.0 (5 RMB)
 ```
+
+### API Enhancements for Model Support
+
+#### Conversation Creation with Model Parameter
+```python
+# Agent Manager API
+agent_manager.create_conversation(
+    conversation_id="...", 
+    cwd=".", 
+    model="dashscope/qwen3.5-plus",
+    base_url=None  # Optional override
+)
+
+# REST API
+POST /agent/conversations
+{
+    "cwd": ".",
+    "model": "dashscope/qwen3.5-plus",
+    "base_url": "https://api.example.com"
+}
+```
+
+#### Model Persistence
+- **Session metadata**: Model stored in `metadata["model"]` field
+- **Consistent usage**: Conversation always uses the same model it was created with
+- **Database storage**: SQLite sessions table stores metadata as JSON
 
 ### Test Case Definition
 Tests are defined in YAML format with:
@@ -383,6 +458,31 @@ Tests are defined in YAML format with:
 - `start_url`: Initial URL to load
 - `instruction`: Task description for AI agent
 - `criteria`: List of scoring criteria with expected event patterns
+- `time_limit`: Maximum allowed time in seconds (default: 600)
+- `cost_limit`: Maximum allowed cost in RMB (default: 1.0)
+
+### Available Test Cases (2025-03-14)
+
+#### Core Tests
+| ID | Name | Difficulty | Time Limit | Cost Limit | Description |
+|----|------|------------|------------|------------|-------------|
+| `techforum` | TechForum Upvote Test | medium | 300s (5min) | 0.5 RMB | Upvote the first AI-related post |
+| `gbr` | GBR Search Test | easy | 400s (~6.7min) | 0.8 RMB | Search for "fed" related news |
+| `cloudstack` | CloudStack DAS Agent Test | hard | 500s (~8.3min) | 1.2 RMB | Find DAS console and greet DAS agent |
+
+#### Advanced Tests (New)
+| ID | Name | Difficulty | Time Limit | Cost Limit | Description |
+|----|------|------------|------------|------------|-------------|
+| `gbr_detailed` | GBR Detailed Search & Read Test | medium | 600s (10min) | 1.5 RMB | Search for "fed", click into each article (3 articles), and summarize content |
+| `techforum_reply` | TechForum Comment Reply Test | hard | 500s (~8.3min) | 1.0 RMB | Open comments, find "Graduate Student" comment, reply with paper name (complex UI navigation) |
+| `cloudstack_interactive` | CloudStack DAS Interactive Test | very hard | 700s (~11.7min) | 2.0 RMB | Multi-turn conversation with DAS agent: greeting, system status, storage check (counts chat interactions) |
+
+#### Event Matching Notes
+- **Standard events**: `page_view`, `click`, `input`, `submit`, `hover`, `scroll`, `answer_action`
+- **Special event types**: 
+  - `count_min`: Count-based condition (e.g., `condition: "chat_interactions"`, `count: 3`)
+- **Reserved fields**: `event_type`, `page`, `page_contains`, `element_id`, `element_class`, `element_text`, `element_href`, `value_contains`, `value_length_min`, `condition`, `count`
+- **Not yet implemented**: Sequence-based `check` conditions (e.g., `after_greeting`, `previous_page_was_search`)
 
 ### Event Tracking
 Mock websites include tracking JavaScript (`js/tracker.js`) that sends events to `/api/track`. Events include:
