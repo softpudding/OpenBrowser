@@ -1429,6 +1429,40 @@
                 </div>
                 
                 <div class="sidebar-section">
+                    <div class="sidebar-title">USAGE METRICS</div>
+                    <div class="event-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Cost:</span>
+                            <span class="stat-value" id="usage-cost">$0.00</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Prompt Tokens:</span>
+                            <span class="stat-value" id="usage-prompt-tokens">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Completion Tokens:</span>
+                            <span class="stat-value" id="usage-completion-tokens">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total Tokens:</span>
+                            <span class="stat-value" id="usage-total-tokens">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Cache Read Tokens:</span>
+                            <span class="stat-value" id="usage-cache-read">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Cache Write Tokens:</span>
+                            <span class="stat-value" id="usage-cache-write">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Reasoning Tokens:</span>
+                            <span class="stat-value" id="usage-reasoning">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="sidebar-section">
                     <div class="sidebar-title">FILTER SETTINGS</div>
                     <div class="event-stats">
                         <div class="stat-item">
@@ -2585,6 +2619,14 @@
                         isConversationRunning = false;
                     } else if (eventType === 'connected') {
                         console.log(`[Frontend] SSE connected: ${eventData}`);
+                    } else if (eventType === 'usage_metrics') {
+                        console.log(`[Frontend] Received usage metrics event`);
+                        try {
+                            const data = JSON.parse(eventData);
+                            updateUsageMetrics(data);
+                        } catch (e) {
+                            console.error(`[Frontend] Failed to parse usage metrics:`, e, 'data:', eventData);
+                        }
                     } else {
                         console.warn(`[Frontend] Unknown SSE event type: ${eventType}`);
                     }
@@ -3500,6 +3542,52 @@
                 document.removeEventListener('mousemove', handleHorizontalMouseMove);
                 document.removeEventListener('mouseup', handleHorizontalMouseUp);
             }
+        }
+        
+        // Update usage metrics display
+        function updateUsageMetrics(data) {
+            console.log('[Frontend] Updating usage metrics:', data);
+            const metrics = data.metrics || {};
+            const accumulatedCost = metrics.accumulated_cost || 0;
+            const tokenUsage = metrics.accumulated_token_usage || {};
+            
+            // Get model name to determine currency - try model_name field first, then accumulated_token_usage.model
+            const modelName = metrics.model_name || tokenUsage.model || '';
+            const isDashScopeModel = modelName.includes('dashscope/qwen3.5-plus') || 
+                                     modelName.includes('dashscope/qwen3.5-flash');
+            
+            // Format cost with appropriate currency symbol
+            let costFormatted;
+            if (isDashScopeModel) {
+                // For DashScope models, amount is already in RMB, show with ¥ symbol
+                costFormatted = '¥' + accumulatedCost.toFixed(4);
+            } else {
+                // Default to USD
+                costFormatted = new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 4
+                }).format(accumulatedCost);
+            }
+            document.getElementById('usage-cost').textContent = costFormatted;
+            
+            // Token counts
+            const promptTokens = tokenUsage.prompt_tokens || 0;
+            const completionTokens = tokenUsage.completion_tokens || 0;
+            const totalTokens = promptTokens + completionTokens;
+            const cacheRead = tokenUsage.cache_read_tokens || 0;
+            const cacheWrite = tokenUsage.cache_write_tokens || 0;
+            const reasoningTokens = tokenUsage.reasoning_tokens || 0;
+            
+            document.getElementById('usage-prompt-tokens').textContent = promptTokens.toLocaleString();
+            document.getElementById('usage-completion-tokens').textContent = completionTokens.toLocaleString();
+            document.getElementById('usage-total-tokens').textContent = totalTokens.toLocaleString();
+            document.getElementById('usage-cache-read').textContent = cacheRead.toLocaleString();
+            document.getElementById('usage-cache-write').textContent = cacheWrite.toLocaleString();
+            document.getElementById('usage-reasoning').textContent = reasoningTokens.toLocaleString();
+            
+            const currencySymbol = isDashScopeModel ? '¥' : '$';
+            console.log(`[Frontend] Updated usage metrics: ${currencySymbol}${accumulatedCost}, ${totalTokens} tokens (model: ${modelName})`);
         }
         
         // Initialize resizers when page loads

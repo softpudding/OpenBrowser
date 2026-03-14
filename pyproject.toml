@@ -19,6 +19,7 @@ dependencies = [
     "requests>=2.31.0",
     "openhands-sdk @ git+https://github.com/softpudding/agent-sdk.git@open-browser#subdirectory=openhands-sdk",
     "openhands-tools @ git+https://github.com/softpudding/agent-sdk.git@open-browser#subdirectory=openhands-tools",
+    "litellm @ git+https://github.com/softpudding/litellm.git@bfba5e3889829067baeab3b12d38008360913771",
 ]
 
 [project.optional-dependencies]
@@ -32,14 +33,14 @@ dev = [
 
 [project.scripts]
 local-chrome-server = "server.main:cli"
-chrome-cli = "cli.main:main"
+# chrome-cli = "cli.main:main"  # cli directory removed
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["server", "cli"]
+packages = ["server"]
 
 [tool.black]
 line-length = 88

@@ -122,6 +122,24 @@ async def process_agent_message(
                 run_method()
                 logger.debug(f"DEBUG: Sync conversation.run() completed successfully")
             logger.debug(f"Conversation {conversation_id} execution completed")
+
+            # Collect usage metrics before closing conversation
+            usage_metrics = {}
+            try:
+                if hasattr(conv_state.conversation, "conversation_stats"):
+                    stats = conv_state.conversation.conversation_stats
+                    if hasattr(stats, "get_combined_metrics"):
+                        combined_metrics = stats.get_combined_metrics()
+                        usage_metrics = combined_metrics.get()
+                        usage_metrics["model_name"] = combined_metrics.model_name
+                        logger.info(
+                            f"Usage metrics: cost={usage_metrics.get('accumulated_cost', 0):.6f}, "
+                            f"model_name={combined_metrics.model_name}, "
+                            f"tokens={usage_metrics.get('accumulated_token_usage', {})}"
+                        )
+            except Exception as e:
+                logger.warning(f"Failed to collect usage metrics: {e}")
+
             logger.debug(f"DEBUG: Putting complete event into queue")
             # Put completion event in queue
             event_queue.put(
@@ -134,6 +152,20 @@ async def process_agent_message(
                 )
             )
             logger.debug(f"DEBUG: Complete event put into queue")
+
+            # Put usage metrics event in queue (will be drained after complete event)
+            if usage_metrics:
+                logger.debug(f"DEBUG: Putting usage_metrics event into queue")
+                event_queue.put(
+                    SSEEvent(
+                        "usage_metrics",
+                        {
+                            "conversation_id": conversation_id,
+                            "metrics": usage_metrics,
+                        },
+                    )
+                )
+                logger.debug(f"DEBUG: usage_metrics event put into queue")
 
         except Exception as e:
             logger.debug(f"DEBUG: Exception in run_conversation: {e}")
@@ -373,15 +405,18 @@ def initialize_agent():
         # Import the old OpenBrowserTool for backward compatibility
         # from .tools.open_browser_tool import OpenBrowserTool
         # logger.info("OpenBrowserTool registered (deprecated, for backward compatibility)")
-        
+
         # Import new focused tools to ensure they're registered
         from .tools.tab_tool import TabTool
         from .tools.highlight_tool import HighlightTool
         from .tools.element_interaction_tool import ElementInteractionTool
         from .tools.dialog_tool import DialogTool
         from .tools.javascript_tool import JavaScriptTool
-        logger.info("5 focused OpenBrowser tools registered: tab, highlight, element_interaction, dialog, javascript")
-        
+
+        logger.info(
+            "5 focused OpenBrowser tools registered: tab, highlight, element_interaction, dialog, javascript"
+        )
+
     except Exception as e:
         logger.error(f"Failed to register OpenBrowser tools: {e}")
 
