@@ -175,27 +175,104 @@ export async function refreshTab(tabId: number): Promise<any> {
 }
 
 /**
+ * Get tab history info for debugging
+ */
+async function getTabHistoryInfo(tabId: number): Promise<{ length: number; canGoBack: boolean; canGoForward: boolean }> {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => ({
+        length: window.history.length,
+        canGoBack: window.history.length > 1,
+        canGoForward: false,
+      }),
+    });
+    
+    if (results && results[0] && results[0].result) {
+      return results[0].result as { length: number; canGoBack: boolean; canGoForward: boolean };
+    }
+  } catch (error) {
+    console.warn(`[History] Failed to get history info for tab ${tabId}:`, error);
+  }
+  
+  return { length: 0, canGoBack: false, canGoForward: false };
+}
+
+/**
  * Go back in tab history
  */
 export async function goBack(tabId: number): Promise<any> {
-  await chrome.tabs.goBack(tabId);
+  const historyInfo = await getTabHistoryInfo(tabId);
+  console.log(`[History] Tab ${tabId} history.length = ${historyInfo.length}, canGoBack = ${historyInfo.canGoBack}`);
   
-  return {
-    success: true,
-    message: `Navigated back in tab ${tabId}`,
-  };
+  if (!historyInfo.canGoBack) {
+    return {
+      success: false,
+      error: 'No previous page in history (history.length <= 1)',
+      historyInfo,
+      tabId,
+    };
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        window.history.back();
+        return 'executed';
+      },
+    });
+    console.log(`[History] Successfully navigated back in tab ${tabId}`);
+    return {
+      success: true,
+      message: `Navigated back in tab ${tabId}`,
+      historyInfo,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[History] Failed to go back in tab ${tabId}:`, errorMessage);
+    
+    return {
+      success: false,
+      error: errorMessage,
+      historyInfo,
+      tabId,
+    };
+  }
 }
 
 /**
  * Go forward in tab history
  */
 export async function goForward(tabId: number): Promise<any> {
-  await chrome.tabs.goForward(tabId);
-  
-  return {
-    success: true,
-    message: `Navigated forward in tab ${tabId}`,
-  };
+  const historyInfo = await getTabHistoryInfo(tabId);
+  console.log(`[History] Tab ${tabId} history.length = ${historyInfo.length}`);
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        window.history.forward();
+        return 'executed';
+      },
+    });
+    console.log(`[History] Successfully navigated forward in tab ${tabId}`);
+    return {
+      success: true,
+      message: `Navigated forward in tab ${tabId}`,
+      historyInfo,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[History] Failed to go forward in tab ${tabId}:`, errorMessage);
+    
+    return {
+      success: false,
+      error: errorMessage,
+      historyInfo,
+      tabId,
+    };
+  }
 }
 
 /**
