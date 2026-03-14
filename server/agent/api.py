@@ -22,15 +22,18 @@ logger = logging.getLogger(__name__)
 
 
 async def create_agent_conversation(
-    conversation_id: Optional[str] = None, cwd: str = "."
+    conversation_id: Optional[str] = None, cwd: str = ".",
+    model: Optional[str] = None, base_url: Optional[str] = None
 ) -> str:
     """Create a new agent conversation
 
     Args:
         conversation_id: Optional conversation ID (auto-generated if None)
         cwd: Working directory for the conversation (default: current directory)
+        model: Optional model name override (e.g., "dashscope/qwen3.5-plus")
+        base_url: Optional base URL override
     """
-    return agent_manager.create_conversation(conversation_id, cwd)
+    return agent_manager.create_conversation(conversation_id, cwd, model, base_url)
 
 
 async def process_agent_message(

@@ -4,6 +4,8 @@ difficulty: easy
 description: "AI Agent should search for 'fed' related news on Global Business Review"
 start_url: "http://localhost:16605/gbr/"
 instruction: "Search for all news related to 'fed' (Federal Reserve)."
+time_limit: 400.0  # ~6.7 minutes
+cost_limit: 0.8    # 0.8 RMB
 
 criteria:
   - type: input_search_term

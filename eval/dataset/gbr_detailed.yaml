@@ -1,0 +1,102 @@
+id: gbr_detailed
+name: "GBR Detailed Search & Read Test"
+difficulty: medium
+description: "AI Agent should search for 'fed' related news, click into each article, and summarize content"
+start_url: "http://localhost:16605/gbr/"
+instruction: "Search for all news related to 'fed' (Federal Reserve). Click into each search result article, read it, and provide a brief summary of each article's content."
+time_limit: 600.0  # 10 minutes - more complex task
+cost_limit: 1.5    # 1.5 RMB
+
+criteria:
+  # Original search criteria
+  - type: input_search_term
+    description: "Input 'fed' into search input field"
+    points: 1
+    expected:
+      event_type: input
+      element_id: "search-input"
+      value_contains: "fed"
+      page: "/gbr/"
+  - type: click_search_button
+    description: "Click the search submit button or search toggle"
+    points: 1
+    expected:
+      event_type: click
+      element_id: "search-submit"
+      page: "/gbr/"
+    alternative:
+      event_type: click
+      element_id: "search-toggle"
+      page: "/gbr/"
+  - type: verify_search_results
+    description: "Verify search results page loaded"
+    points: 0.5
+    expected:
+      event_type: page_view
+      page_contains: "/gbr/search"
+    optional: true
+  
+  # New: Click and read each article
+  - type: click_first_article
+    description: "Click first article (Federal Reserve Signals Rate Cut)"
+    points: 1
+    expected:
+      event_type: click
+      element_href: "/gbr/articles/business-article1.html"
+      page_contains: "/gbr/search"
+    alternative:
+      event_type: page_view
+      page: "/gbr/articles/business-article1.html"
+  - type: view_first_article
+    description: "View first article page"
+    points: 0.5
+    expected:
+      event_type: page_view
+      page: "/gbr/articles/business-article1.html"
+    optional: true
+  
+  - type: click_second_article
+    description: "Click second article (Why the Fed Must Act Decisively)"
+    points: 1
+    expected:
+      event_type: click
+      element_href: "/gbr/articles/opinion-article2.html"
+      page_contains: "/gbr/search"
+    alternative:
+      event_type: page_view
+      page: "/gbr/articles/opinion-article2.html"
+      # check: "previous_page_was_search"  # Not yet implemented
+    alternative:
+      event_type: click
+      element_href: "/gbr/articles/opinion-article2.html"
+      page: "/gbr/articles/business-article1.html"
+  - type: view_second_article
+    description: "View second article page"
+    points: 0.5
+    expected:
+      event_type: page_view
+      page: "/gbr/articles/opinion-article2.html"
+    optional: true
+  
+  - type: click_third_article
+    description: "Click third article (Federal Reserve Signals Potential Rate Cut)"
+    points: 1
+    expected:
+      event_type: click
+      element_href: "/gbr/articles/home-article1.html"
+      page_contains: "/gbr/search"
+    alternative:
+      event_type: page_view
+      page: "/gbr/articles/home-article1.html"
+      # check: "previous_page_was_article"  # Not yet implemented
+    alternative:
+      event_type: click
+      element_href: "/gbr/articles/home-article1.html"
+      page: "/gbr/articles/opinion-article2.html"
+  - type: view_third_article
+    description: "View third article page"
+    points: 0.5
+    expected:
+      event_type: page_view
+      page: "/gbr/articles/home-article1.html"
+    optional: true

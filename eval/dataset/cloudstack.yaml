@@ -4,6 +4,8 @@ difficulty: hard
 description: "AI Agent should find DAS console and greet the DAS agent"
 start_url: "http://localhost:16605/cloudstack/"
 instruction: "Find the DAS console and say hello to the DAS agent."
+time_limit: 500.0  # ~8.3 minutes
+cost_limit: 1.2    # 1.2 RMB
 
 criteria:
   - type: navigate_to_das_console

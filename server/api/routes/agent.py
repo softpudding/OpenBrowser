@@ -30,16 +30,22 @@ logger = logging.getLogger(__name__)
 async def create_conversation(request: Request):
     """Create a new agent conversation"""
     try:
-        # Parse request body for optional cwd parameter
+        # Parse request body for optional parameters
         body = await request.json() if request.body else {}
         cwd = body.get("cwd", ".")
+        model = body.get("model")
+        base_url = body.get("base_url")
 
-        conversation_id = await create_agent_conversation(cwd=cwd)
+        conversation_id = await create_agent_conversation(
+            cwd=cwd, model=model, base_url=base_url
+        )
         return {
             "success": True,
             "conversation_id": conversation_id,
             "message": f"Conversation created: {conversation_id}",
             "cwd": cwd,
+            "model": model,
+            "base_url": base_url,
         }
     except Exception as e:
         logger.error(f"Error creating conversation: {e}")

@@ -4,6 +4,8 @@ difficulty: medium
 description: "AI Agent should upvote the first AI-related post (first post) on TechForum"
 start_url: "http://localhost:16605/techforum/"
 instruction: "Please upvote the first AI-related post you see (the first post)."
+time_limit: 300.0  # 5 minutes
+cost_limit: 0.5    # 0.5 RMB
 
 criteria:
   - type: upvote_action
