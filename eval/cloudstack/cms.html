@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudStack CMS - Cloud Monitoring Service</title>
+    <link rel="stylesheet" href="/css/cloudstack.css">
+</head>
+<body>
+    <header class="cloudstack-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="/cloudstack/" style="display: flex; align-items: center; gap: 8px; text-decoration: none;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="" style="width: 28px; height: 28px;">
+                    <span style="color: #ff6a00; font-size: 18px; font-weight: 600;">CloudStack</span>
+                </a>
+            </div>
+        </div>
+    </header>
+    <div class="console-container">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Common Services</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="/cloudstack/" class="menu-item">☁️ Cloud Server ECS</a></li>
+                    <li><a href="/cloudstack/rds.html" class="menu-item">🗄️ Cloud Database RDS</a></li>
+                    <li><a href="/cloudstack/oss.html" class="menu-item">📦 Object Storage OSS</a></li>
+                    <li><a href="/cloudstack/vpc.html" class="menu-item">🌐 Virtual Private Cloud VPC</a></li>
+                    <li><a href="/cloudstack/slb.html" class="menu-item">⚖️ Load Balancer SLB</a></li>
+                </ul>
+            </div>
+        </aside>
+        <main class="main-content">
+            <h1>CloudStack Cloud Monitoring Service (CMS)</h1>
+            <p>Monitor your cloud resources, set up alerts, and view metrics.</p>
+            <p id="service-message">You are viewing CloudStack Cloud Monitoring Service.</p>
+            <button onclick="window.history.back()">Go Back</button>
+        </main>
+    </div>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const service = urlParams.get('service');
+        const action = urlParams.get('action');
+        const id = urlParams.get('id');
+        const q = urlParams.get('q');
+        
+        let message = 'This is a placeholder page for demonstration purposes.';
+        if (service) {
+            message = `You are viewing CloudStack ${service.toUpperCase()} service.`;
+        } else if (action) {
+            let actionText = action;
+            if (action === 'connect') actionText = 'Connect to Instance';
+            else if (action === 'restart') actionText = 'Restart Instance';
+            else if (action === 'start') actionText = 'Start Instance';
+            else if (action === 'config') actionText = 'Configure Instance';
+            else if (action === 'search') actionText = 'Search';
+            else if (action === 'user') actionText = 'User Profile';
+            message = `Action: ${actionText}`;
+            if (id) message += ` (Instance ID: ${id})`;
+            if (q) message += ` (Query: ${q})`;
+        }
+        document.getElementById('service-message').textContent = message;
+    </script>
+</body>
+</html>

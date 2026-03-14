@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICP 备案管理 - CloudStack</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="css/cloudstack.css">
+    <style>
+        .beian-container {
+            max-width: 1200px;
+            margin: 60px auto;
+            padding: 0 20px;
+        }
+        .beian-header {
+            margin-bottom: 40px;
+        }
+        .beian-header h1 {
+            font-size: 28px;
+            color: #1a1a1a;
+            margin-bottom: 12px;
+        }
+        .beian-header p {
+            color: #666;
+            font-size: 14px;
+        }
+        .beian-tabs {
+            display: flex;
+            border-bottom: 2px solid #e1e1e1;
+            margin-bottom: 32px;
+        }
+        .beian-tab {
+            padding: 16px 24px;
+            cursor: pointer;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        .beian-tab.active {
+            color: #ff6a00;
+            border-bottom-color: #ff6a00;
+        }
+        .beian-tab:hover {
+            color: #ff6a00;
+        }
+        .beian-content {
+            background: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .beian-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .beian-table th {
+            background: #f5f5f5;
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e1e1e1;
+        }
+        .beian-table td {
+            padding: 16px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #444;
+        }
+        .beian-table tr:hover {
+            background: #fafafa;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-success {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .status-pending {
+            background: #fef3c7;
+            color: #d97706;
+        }
+        .status-failed {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-right: 8px;
+            transition: all 0.3s;
+        }
+        .action-btn.primary {
+            background: #ff6a00;
+            color: white;
+        }
+        .action-btn.primary:hover {
+            background: #ff5500;
+        }
+        .action-btn.secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+        .action-btn.secondary:hover {
+            background: #e1e1e1;
+        }
+        .beian-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #e1e1e1;
+        }
+        .beian-actions h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #1a1a1a;
+        }
+        .btn-new-filing {
+            background: #ff6a00;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-new-filing:hover {
+            background: #ff5500;
+            box-shadow: 0 4px 12px rgba(255,106,0,0.3);
+        }
+        .info-box {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .info-box h4 {
+            color: #0369a1;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+        .info-box ul {
+            color: #0c4a6e;
+            padding-left: 20px;
+            line-height: 1.8;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+        .empty-state svg {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 24px;
+            color: #ddd;
+        }
+        .empty-state h3 {
+            color: #666;
+            margin-bottom: 16px;
+        }
+        .empty-state p {
+            color: #999;
+            margin-bottom: 32px;
+        }
+        .filing-steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin: 40px 0;
+        }
+        .filing-step {
+            text-align: center;
+            padding: 24px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .filing-step .step-num {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #ff6a00;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin: 0 auto 16px;
+        }
+        .filing-step h4 {
+            font-size: 16px;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        .filing-step p {
+            font-size: 13px;
+            color: #666;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="homepage-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="index.html" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="CloudStack" style="width: 32px; height: 32px;">
+                    <span style="color: #ff6a00; font-weight: 600; font-size: 18px;">CloudStack</span>
+                </a>
+            </div>
+            <nav class="header-nav">
+                <a href="products.html" class="nav-link">Products</a>
+                <a href="solutions.html" class="nav-link">Solutions</a>
+                <a href="pricing.html" class="nav-link">Pricing</a>
+                <a href="console.html" class="nav-link">Console</a>
+            </nav>
+            <div class="header-right">
+                <a href="console.html" class="console-link">Console</a>
+                <div class="user-avatar" id="user-avatar">U</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="beian-container">
+        <div class="beian-header">
+            <h1>ICP 备案管理</h1>
+            <p>根据中国法律法规，在中国大陆提供网站服务需要完成 ICP 备案</p>
+        </div>
+
+        <div class="beian-actions">
+            <h3>我的备案</h3>
+            <button class="btn-new-filing" onclick="alert('启动备案申请流程...')">
+                <span>+</span> 新增备案
+            </button>
+        </div>
+
+        <div class="beian-content">
+            <div class="beian-tabs">
+                <div class="beian-tab active">全部备案</div>
+                <div class="beian-tab">审核中</div>
+                <div class="beian-tab">已通过</div>
+                <div class="beian-tab">已拒绝</div>
+            </div>
+
+            <table class="beian-table">
+                <thead>
+                    <tr>
+                        <th>备案编号</th>
+                        <th>网站名称</th>
+                        <th>域名</th>
+                        <th>主办单位</th>
+                        <th>备案类型</th>
+                        <th>提交日期</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>京 ICP 备 12345678 号 -1</td>
+                        <td>CloudStack 官网</td>
+                        <td>cloudstack.com</td>
+                        <td>北京云计算科技有限公司</td>
+                        <td>企业备案</td>
+                        <td>2025-12-15</td>
+                        <td><span class="status-badge status-success">已通过</span></td>
+                        <td>
+                            <button class="action-btn secondary">查看详情</button>
+                            <button class="action-btn secondary">变更备案</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>京 ICP 备 12345679 号 -1</td>
+                        <td>CloudStack 开发者社区</td>
+                        <td>dev.cloudstack.com</td>
+                        <td>北京云计算科技有限公司</td>
+                        <td>企业备案</td>
+                        <td>2026-01-05</td>
+                        <td><span class="status-badge status-pending">审核中</span></td>
+                        <td>
+                            <button class="action-btn secondary">查看详情</button>
+                            <button class="action-btn primary">补充材料</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>京 ICP 备 12345680 号 -1</td>
+                        <td>我的个人博客</td>
+                        <td>blog.example.com</td>
+                        <td>张三</td>
+                        <td>个人备案</td>
+                        <td>2025-11-20</td>
+                        <td><span class="status-badge status-failed">已拒绝</span></td>
+                        <td>
+                            <button class="action-btn secondary">查看详情</button>
+                            <button class="action-btn primary">重新申请</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Filing Process -->
+        <div style="margin-top: 48px;">
+            <h3 style="font-size: 20px; margin-bottom: 24px; color: #1a1a1a;">备案流程</h3>
+            <div class="filing-steps">
+                <div class="filing-step">
+                    <div class="step-num">1</div>
+                    <h4>填写信息</h4>
+                    <p>在线填写备案申请表，上传相关证件</p>
+                </div>
+                <div class="filing-step">
+                    <div class="step-num">2</div>
+                    <h4>初审</h4>
+                    <p>CloudStack 审核专员进行初审（1 个工作日）</p>
+                </div>
+                <div class="filing-step">
+                    <div class="step-num">3</div>
+                    <h4>管局审核</h4>
+                    <p>提交至通信管理局审核（5-20 个工作日）</p>
+                </div>
+                <div class="filing-step">
+                    <div class="step-num">4</div>
+                    <h4>备案成功</h4>
+                    <p>获取备案号，网站可正常访问</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box" style="margin-top: 40px;">
+            <h4>📋 备案须知</h4>
+            <ul>
+                <li>备案信息必须真实有效，虚假信息将导致备案失败</li>
+                <li>备案期间网站可以访问，但建议标注"备案中"字样</li>
+                <li>备案通过后，需要在网站首页底部标注备案号并链接到工信部网站</li>
+                <li>备案信息发生变更时，需要及时办理变更手续</li>
+                <li>如不再使用，需要办理注销备案手续</li>
+            </ul>
+        </div>
+
+        <!-- Empty State Example (hidden) -->
+        <div class="beian-content" style="display: none;" id="empty-state">
+            <div class="empty-state">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <h3>暂无备案记录</h3>
+                <p>点击"新增备案"开始您的第一个备案申请</p>
+                <button class="btn-new-filing" style="margin: 0 auto;">
+                    <span>+</span> 新增备案
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Products</h4>
+                <ul>
+                    <li><a href="ecs.html">ECS</a></li>
+                    <li><a href="oss.html">OSS</a></li>
+                    <li><a href="rds.html">RDS</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Support</h4>
+                <ul>
+                    <li><a href="support.html">Help Center</a></li>
+                    <li><a href="docs.html">Documentation</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Legal</h4>
+                <ul>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 CloudStack. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tab switching
+            const tabs = document.querySelectorAll('.beian-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+        });
+    </script>
+</body>
+</html>

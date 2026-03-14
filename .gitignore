@@ -71,3 +71,6 @@ test_results/
 
 # Reference directory (external reference material)
 reference/
+
+# eval
+eval/.server_port

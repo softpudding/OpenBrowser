@@ -456,53 +456,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         else:
             message = f"Executed JavaScript: '{script}'"
         
-        # Extract JavaScript execution result for observation
-        javascript_result = None
-        console_output = None
-        
-        if result_dict and result_dict.get('data'):
-            js_data = result_dict['data']
-            # JavaScript module returns result in 'result' field
-            if isinstance(js_data, dict):
-                # Extract console output if available
-                if 'consoleOutput' in js_data:
-                    console_output = js_data['consoleOutput']
-                    logger.debug(f"DEBUG: Captured console output: {len(console_output)} entries")
-                
-                if 'result' in js_data:
-                    js_result = js_data['result']
-                    # CDP result object has 'value' field when returnByValue is true
-                    if isinstance(js_result, dict) and 'value' in js_result:
-                        javascript_result = js_result['value']
-                    else:
-                        javascript_result = js_result
-                # Also check for direct 'value' in data
-                elif 'value' in js_data:
-                    javascript_result = js_data['value']
-                else:
-                    # If no result or value, use the entire data dict
-                    javascript_result = js_data
-            else:
-                # If data is not a dict (e.g., string error), use it as result
-                javascript_result = js_data
-            
-            # If we have a result, update message to include it (only for successful executions)
-            if javascript_result is not None and result_dict.get('success'):
-                result_str = str(javascript_result)
-                if len(result_str) > 100:
-                    result_str = result_str[:100] + '...'
-                message = f"{message} - Result: {result_str}"
-        elif result_dict and result_dict.get('error'):
-            # If there's an error but no data, use error as javascript_result
-            javascript_result = result_dict['error']
-        
         observation = self._build_observation_from_result(result_dict, message)
-        # Add JavaScript-specific fields
-        if javascript_result is not None:
-            observation.javascript_result = javascript_result
-        if console_output is not None:
-            observation.console_output = console_output
-            
         return observation
     
     # ========== 2PC State Management Methods ==========
@@ -574,8 +528,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         dialog_auto_accepted = None
         auto_accepted_dialogs = None
         new_tabs_created = None
-
-        logger.info(f"result_dict: {result_dict}")
+        javascript_result = None
+        console_output = None
         
         if result_dict:
             success = result_dict.get('success', False)
@@ -622,39 +576,75 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 auto_accepted_dialogs = result_dict['dialog_auto_accepted_list']
             
             # Also check in data field if present
-            if 'data' in result_dict and isinstance(result_dict['data'], dict):
-                data = result_dict['data']
-                if not dialog_auto_accepted and 'dialog_auto_accepted' in data:
-                    dialog_auto_accepted = data['dialog_auto_accepted']
-                elif not dialog_auto_accepted and 'dialogAutoAccepted' in data:
-                    dialog_auto_accepted = data['dialogAutoAccepted']
-                
-                if not auto_accepted_dialogs and 'auto_accepted_dialogs' in data:
-                    auto_accepted_dialogs = data['auto_accepted_dialogs']
-                elif not auto_accepted_dialogs and 'dialogAutoAcceptedList' in data:
-                    auto_accepted_dialogs = data['dialogAutoAcceptedList']
-                elif not auto_accepted_dialogs and 'dialog_auto_accepted_list' in data:
-                    auto_accepted_dialogs = data['dialog_auto_accepted_list']
-                
-                # Extract screenshot from visual interaction commands
-                # highlight_elements returns data.screenshot (highlighted image)
-                # click/hover/scroll/keyboard_input return data.screenshot
-                if 'screenshot' in data:
-                    screenshot_data_url = data['screenshot']
-                    logger.debug(f"DEBUG: Extracted screenshot from data['screenshot'], length={len(screenshot_data_url) if screenshot_data_url else 0}")
-                elif 'imageData' in data:
-                    screenshot_data_url = data['imageData']
-                    logger.debug(f"DEBUG: Extracted screenshot from data['imageData'], length={len(screenshot_data_url) if screenshot_data_url else 0}")
-                
-                # Extract highlighted elements for highlight_elements action
-                if highlighted_elements is None and 'elements' in data:
-                    highlighted_elements = data['elements']
-                if total_elements is None and 'totalElements' in data:
-                    total_elements = data['totalElements']
-                
-                # Extract new_tabs_created for javascript_execute and confirm_click_element
-                if 'new_tabs_created' in data:
-                    new_tabs_created = data['new_tabs_created']
+            if 'data' in result_dict:
+                if isinstance(result_dict['data'], dict):
+                    data = result_dict['data']
+                    if not dialog_auto_accepted and 'dialog_auto_accepted' in data:
+                        dialog_auto_accepted = data['dialog_auto_accepted']
+                    elif not dialog_auto_accepted and 'dialogAutoAccepted' in data:
+                        dialog_auto_accepted = data['dialogAutoAccepted']
+                    
+                    if not auto_accepted_dialogs and 'auto_accepted_dialogs' in data:
+                        auto_accepted_dialogs = data['auto_accepted_dialogs']
+                    elif not auto_accepted_dialogs and 'dialogAutoAcceptedList' in data:
+                        auto_accepted_dialogs = data['dialogAutoAcceptedList']
+                    elif not auto_accepted_dialogs and 'dialog_auto_accepted_list' in data:
+                        auto_accepted_dialogs = data['dialog_auto_accepted_list']
+                    
+                    # Extract screenshot from visual interaction commands
+                    # highlight_elements returns data.screenshot (highlighted image)
+                    # click/hover/scroll/keyboard_input return data.screenshot
+                    if 'screenshot' in data:
+                        screenshot_data_url = data['screenshot']
+                        logger.debug(f"DEBUG: Extracted screenshot from data['screenshot'], length={len(screenshot_data_url) if screenshot_data_url else 0}")
+                    elif 'imageData' in data:
+                        screenshot_data_url = data['imageData']
+                        logger.debug(f"DEBUG: Extracted screenshot from data['imageData'], length={len(screenshot_data_url) if screenshot_data_url else 0}")
+                    
+                    # Extract highlighted elements for highlight_elements action
+                    if highlighted_elements is None and 'elements' in data:
+                        highlighted_elements = data['elements']
+                    if total_elements is None and 'totalElements' in data:
+                        total_elements = data['totalElements']
+                    
+                    # Extract new_tabs_created for javascript_execute and confirm_click_element
+                    if 'new_tabs_created' in data:
+                        new_tabs_created = data['new_tabs_created']
+                    
+                    # Extract JavaScript execution result if present
+                    if 'result' in data or 'value' in data or 'consoleOutput' in data:
+                        # Extract console output if available
+                        if 'consoleOutput' in data:
+                            console_output = data['consoleOutput']
+                            logger.debug(f"DEBUG: Captured console output: {len(console_output)} entries")
+                        
+                        if 'result' in data:
+                            js_result = data['result']
+                            # CDP result object has 'value' field when returnByValue is true
+                            if isinstance(js_result, dict) and 'value' in js_result:
+                                javascript_result = js_result['value']
+                            else:
+                                javascript_result = js_result
+                        # Also check for direct 'value' in data
+                        elif 'value' in data:
+                            javascript_result = data['value']
+                        else:
+                            # If no result or value, use the entire data dict
+                            javascript_result = data
+                else:
+                    # data is not a dict (e.g., string error), use it as javascript_result
+                    javascript_result = result_dict['data']
+        
+            # If there's an error but no data, use error as javascript_result
+            if javascript_result is None and result_dict.get('error'):
+                javascript_result = result_dict['error']
+        
+            # If we have a JavaScript result, update message to include it (only for successful executions)
+            if javascript_result is not None and success:
+                result_str = str(javascript_result)
+                if len(result_str) > 100:
+                    result_str = result_str[:100] + '...'
+                message = f"{message} - Result: {result_str}"
         
         # Get pending confirmation (do NOT auto-clear - original behavior)
         pending_confirmation = self._get_pending_confirmation()
@@ -674,6 +664,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             total_elements=total_elements,
             new_tabs_created=new_tabs_created,
             element_id=element_id,
+            javascript_result=javascript_result,
+            console_output=console_output,
             pending_confirmation=pending_confirmation
         )
         

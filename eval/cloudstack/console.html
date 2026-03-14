@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudStack Console - Cloud Computing Services</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="css/cloudstack.css">
+</head>
+<body>
+    <!-- Top Navigation -->
+    <header class="cloudstack-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="index.html" style="display: flex; align-items: center; gap: 8px; text-decoration: none;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="" style="width: 28px; height: 28px;">
+                    <span style="color: #ff6a00; font-size: 18px; font-weight: 600;">CloudStack</span>
+                </a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search products, docs, tickets" id="header-search">
+                <button class="search-btn">Search</button>
+            </div>
+            <nav class="header-nav">
+                <a href="index.html" style="color: #999;">Home</a>
+                <a href="#" class="nav-link">Products</a>
+                <a href="#" class="nav-link">Solutions</a>
+                <a href="#" class="nav-link">Pricing</a>
+                <a href="#" class="nav-link">Support</a>
+            </nav>
+            <div class="header-actions">
+                <button class="icon-btn" id="notification-btn">🔔 <span class="badge">3</span></button>
+                <button class="icon-btn" id="user-btn">👤</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Console Layout -->
+    <div class="console-container">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Common Services</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="console.html" class="menu-item active" data-service="ecs">☁️ Cloud Server ECS</a></li>
+                    <li><a href="rds.html" class="menu-item" data-service="rds">🗄️ Cloud Database RDS</a></li>
+                    <li><a href="oss.html" class="menu-item" data-service="oss">📦 Object Storage OSS</a></li>
+                    <li><a href="vpc.html" class="menu-item" data-service="vpc">🌐 Virtual Private Cloud VPC</a></li>
+                    <li><a href="slb.html" class="menu-item" data-service="slb">⚖️ Load Balancer SLB</a></li>
+                    <li><a href="das.html" class="menu-item" data-service="das">🤖 Database Autonomy DAS</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Monitoring & Management</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="cms.html" class="menu-item" data-service="cms">📊 Cloud Monitoring</a></li>
+                    <li><a href="actiontrail.html" class="menu-item" data-service="actiontrail">📝 Operation Audit</a></li>
+                    <li><a href="config.html" class="menu-item" data-service="config">⚙️ Configuration Audit</a></li>
+                    <li><a href="security.html" class="menu-item" data-service="security">🔒 Security Center</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Billing</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="billing.html" class="menu-item" data-service="billing">💰 Billing Center</a></li>
+                    <li><a href="budget.html" class="menu-item" data-service="budget">📋 Budget Management</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <span>Console</span> &gt; <span>CloudStack ECS</span>
+            </div>
+
+            <!-- Dashboard Header -->
+            <div class="dashboard-header">
+                <h1 class="page-title">CloudStack ECS Console</h1>
+                <div class="header-actions-row">
+                    <button class="primary-btn" id="create-instance-btn">+ Create Instance</button>
+                    <button class="secondary-btn" id="refresh-btn">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- Stats Overview -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Running Instances</div>
+                    <div class="stat-value">12</div>
+                    <div class="stat-change positive">+2 this week</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Stopped Instances</div>
+                    <div class="stat-value">3</div>
+                    <div class="stat-change neutral">No change</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Monthly Cost (¥)</div>
+                    <div class="stat-value">¥1,234.56</div>
+                    <div class="stat-change negative">+15% MoM</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Alert Count</div>
+                    <div class="stat-value">5</div>
+                    <div class="stat-change negative">+3 unresolved</div>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label>Region:</label>
+                    <select class="filter-select" id="region-select">
+                        <option value="cn-hangzhou">East China 1 (Hangzhou)</option>
+                        <option value="cn-beijing">North China 2 (Beijing)</option>
+                        <option value="cn-shanghai">East China 2 (Shanghai)</option>
+                        <option value="cn-shenzhen">South China 1 (Shenzhen)</option>
+                        <option value="us-west-1">USA (Silicon Valley)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Zone:</label>
+                    <select class="filter-select" id="zone-select">
+                        <option value="all">All</option>
+                        <option value="a">Zone A</option>
+                        <option value="b">Zone B</option>
+                        <option value="c">Zone C</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <input type="text" class="filter-input" placeholder="Instance ID/Name" id="instance-search">
+                </div>
+                <button class="filter-btn" id="filter-apply">Query</button>
+                <button class="filter-btn" id="filter-reset">Reset</button>
+            </div>
+
+            <!-- Instance Table -->
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="select-all"></th>
+                            <th>Instance ID/Name</th>
+                            <th>Region</th>
+                            <th>Specification</th>
+                            <th>CPU/Memory</th>
+                            <th>Status</th>
+                            <th>Public IP</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="table-row">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div style="font-weight: 500; color: #333;">i-bp1a2b3c4d5e6f7g8h</div>
+                                <div style="font-size: 12px; color: #999;">web-server-01</div>
+                            </td>
+                            <td>East China 1 (Hangzhou)</td>
+                            <td>ecs.g6.large</td>
+                            <td>2 vCPU / 8 GiB</td>
+                            <td><span class="status-badge status-running">Running</span></td>
+                            <td>47.98.123.45</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="connect">Connect</button>
+                                    <button class="action-link" data-action="restart">Restart</button>
+                                    <button class="action-link" data-action="config">Configure</button>
+                                    <button class="action-link" data-action="more">More ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="table-row">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div style="font-weight: 500; color: #333;">i-bp1b2c3d4e5f6g7h8i</div>
+                                <div style="font-size: 12px; color: #999;">db-server-01</div>
+                            </td>
+                            <td>North China 2 (Beijing)</td>
+                            <td>ecs.r6.xlarge</td>
+                            <td>4 vCPU / 32 GiB</td>
+                            <td><span class="status-badge status-running">Running</span></td>
+                            <td>47.99.234.56</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="connect">Connect</button>
+                                    <button class="action-link" data-action="restart">Restart</button>
+                                    <button class="action-link" data-action="config">Configure</button>
+                                    <button class="action-link" data-action="more">More ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="table-row">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div style="font-weight: 500; color: #333;">i-bp1c2d3e4f5g6h7i8j</div>
+                                <div style="font-size: 12px; color: #999;">app-server-01</div>
+                            </td>
+                            <td>East China 2 (Shanghai)</td>
+                            <td>ecs.g6.xlarge</td>
+                            <td>4 vCPU / 16 GiB</td>
+                            <td><span class="status-badge status-stopped">Stopped</span></td>
+                            <td>-</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="start">Start</button>
+                                    <button class="action-link" data-action="config">Configure</button>
+                                    <button class="action-link" data-action="more">More ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination">
+                <span class="pagination-info">Total 15 records</span>
+                <div class="pagination-controls">
+                    <button class="page-btn" disabled>&lt;</button>
+                    <button class="page-btn active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">3</button>
+                    <button class="page-btn">&gt;</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Spam Popups (Hard Mode) -->
+    
+    <!-- Notification Popup 1 -->
+    <div class="spam-popup" id="spam-popup-1" style="display:none;">
+        <div class="popup-header">
+            <h4>🎉 Limited Time Offer!</h4>
+            <button class="popup-close" data-popup="spam-popup-1">×</button>
+        </div>
+        <div class="popup-body">
+            <p>Cloud Server ECS first purchase only <strong>¥99/year</strong></p>
+            <p class="popup-subtitle">Exclusive for new users, limited time offer!</p>
+            <button class="popup-cta" data-popup="spam-popup-1">Buy Now</button>
+        </div>
+    </div>
+
+    <!-- Notification Popup 2 -->
+    <div class="spam-popup" id="spam-popup-2" style="display:none;">
+        <div class="popup-header">
+            <h4>⚠️ Security Alert</h4>
+            <button class="popup-close" data-popup="spam-popup-2">×</button>
+        </div>
+        <div class="popup-body">
+            <p>Security risk detected in your account</p>
+            <p class="popup-subtitle">Recommend binding MFA device immediately</p>
+            <button class="popup-cta primary" data-popup="spam-popup-2">Set Up Now</button>
+            <button class="popup-cta secondary" data-popup="spam-popup-2">Later</button>
+        </div>
+    </div>
+
+    <!-- Notification Popup 3 -->
+    <div class="spam-popup" id="spam-popup-3" style="display:none;">
+        <div class="popup-header">
+            <h4>📢 System Announcement</h4>
+            <button class="popup-close" data-popup="spam-popup-3">×</button>
+        </div>
+        <div class="popup-body">
+            <p>System maintenance upgrade scheduled for March 15, 2025</p>
+            <p class="popup-subtitle">Expected impact time: 02:00-04:00</p>
+            <button class="popup-cta" data-popup="spam-popup-3">View Details</button>
+        </div>
+    </div>
+
+    <!-- Notification Popup 4 -->
+    <div class="spam-popup" id="spam-popup-4" style="display:none;">
+        <div class="popup-header">
+            <h4>💰 Coupons Available</h4>
+            <button class="popup-close" data-popup="spam-popup-4">×</button>
+        </div>
+        <div class="popup-body">
+            <p>You have 3 coupons about to expire</p>
+            <p class="popup-subtitle">¥100 off over ¥1000, ¥600 off over ¥5000</p>
+            <button class="popup-cta" data-popup="spam-popup-4">Claim Now</button>
+        </div>
+    </div>
+
+    <!-- Notification Panel -->
+    <div class="notification-panel" id="notification-panel" style="display:none;">
+        <div class="panel-header">
+            <h4>Notifications</h4>
+            <button class="panel-close" id="notification-panel-close">×</button>
+        </div>
+        <div class="panel-body">
+            <div class="notification-item">
+                <span class="notif-icon">📢</span>
+                <div class="notif-content">
+                    <div class="notif-title">Billing Reminder</div>
+                    <div class="notif-desc">Monthly bill issued, total ¥1,234.56</div>
+                </div>
+            </div>
+            <div class="notification-item">
+                <span class="notif-icon">⚠️</span>
+                <div class="notif-content">
+                    <div class="notif-title">Resource Alert</div>
+                    <div class="notif-desc">Instance i-bp1a2b3c4d5e6f7g8h CPU usage exceeds 90%</div>
+                </div>
+            </div>
+            <div class="notification-item">
+                <span class="notif-icon">✅</span>
+                <div class="notif-content">
+                    <div class="notif-title">Ticket Reply</div>
+                    <div class="notif-desc">Your ticket has been replied by an engineer</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Instance Modal -->
+    <div class="modal-overlay" id="create-instance-modal" style="display:none;">
+        <div class="modal-dialog large">
+            <div class="modal-header">
+                <h3>Create Cloud Server ECS</h3>
+                <button class="modal-close-btn" id="create-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-steps">
+                    <div class="step active">1 Basic Configuration</div>
+                    <div class="step">2 Network Configuration</div>
+                    <div class="step">3 System Configuration</div>
+                    <div class="step">4 Confirm Order</div>
+                </div>
+                <div class="form-content">
+                    <div class="form-group">
+                        <label>Billing Method</label>
+                        <div class="radio-group">
+                            <label class="radio-label"><input type="radio" name="billing" checked> Subscription</label>
+                            <label class="radio-label"><input type="radio" name="billing"> Pay-As-You-Go</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Region</label>
+                        <select class="form-select">
+                            <option>East China 1 (Hangzhou)</option>
+                            <option>North China 2 (Beijing)</option>
+                            <option>East China 2 (Shanghai)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Instance Specification</label>
+                        <select class="form-select">
+                            <option>ecs.g6.large (2 vCPU 8 GiB)</option>
+                            <option>ecs.g6.xlarge (4 vCPU 16 GiB)</option>
+                            <option>ecs.r6.xlarge (4 vCPU 32 GiB)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Image</label>
+                        <select class="form-select">
+                            <option>Ubuntu 22.04 64-bit</option>
+                            <option>CentOS 7.9 64-bit</option>
+                            <option>Windows Server 2022</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="create-modal-cancel">Cancel</button>
+                <button class="btn-primary" id="create-modal-next">Next: Network Configuration</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/tracker.js"></script>
+    <script src="js/cloudstack.js"></script>
+</body>
+</html>

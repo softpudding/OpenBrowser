@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechForum - Where Questions Meet Answers</title>
+    <link rel="stylesheet" href="/css/techforum.css?v=2">
+    <style>
+        /* Local styles only - no external dependencies */
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="zhihu-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="/techforum/">
+                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgNDAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iNDAiIGZpbGw9IiM1NDcwYzYiLz48dGV4dCB4PSI2MCIgeT0iMjAiIGZvbnQtc2l6ZT0iMTYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIiBmaWxsPSJ3aGl0ZSI+VGVjaEZvcnVtPC90ZXh0Pjwvc3ZnPg==" alt="TechForum Logo" class="techforum-logo" style="height: 30px;">
+                </a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search Questions, Topics, Peoplecs、People" id="main-search">
+                <button class="search-icon">🔍</button>
+            </div>
+            <nav class="header-nav">
+                <a href="/techforum/" class="nav-item active">Home</a>
+                <a href="/techforum/questions.html" class="nav-item">Questions</a>
+                <a href="/techforum/topics.html" class="nav-item">Topics</a>
+                <a href="/techforum/people.html" class="nav-item">Users</a>
+            </nav>
+            <div class="header-actions">
+                <button class="ask-btn" id="ask-btn">Ask Question</button>
+                <button class="login-btn">Log in / Sign up</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="zhihu-main">
+        <div class="main-container">
+            <!-- Left Sidebar -->
+            <aside class="left-sidebar">
+                <nav class="sidebar-nav">
+                    <a href="#" class="sidebar-item active">
+                        <span class="icon">📋</span>
+                        <span>Recommended</span>
+                    </a>
+                    <a href="#" class="sidebar-item">
+                        <span class="icon">🔥</span>
+                        <span>Hot</span>
+                    </a>
+                    <a href="#" class="sidebar-item">
+                        <span class="icon">⭐</span>
+                        <span>Favorite</span>
+                    </a>
+                    <a href="#" class="sidebar-item">
+                        <span class="icon">👤</span>
+                        <span>Profile</span>
+                    </a>
+                </nav>
+            </aside>
+
+            <!-- Feed -->
+            <section class="feed">
+                <!-- Question Card 1 -->
+                <article class="question-card" data-question-id="1">
+                    <div class="question-header">
+                        <h2 class="question-title"><a href="#" class="question-link">How do you evaluate the development trends of AI in 2025?</a></h2>
+                        <div class="question-meta">
+                            <span class="followers">3,421 people followingQuestions</span>
+                            <span class="answers">128 answers</span>
+                        </div>
+                    </div>
+                    <div class="answer-preview">
+                        <div class="author-info">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="avatar" style="width: 38px; height: 38px; border-radius: 50%;">
+                            <div class="author-details">
+                                <span class="author-name">AI Researcher</span>
+                                <span class="author-bio">PhD in AI, focused on machine learning</span>
+                            </div>
+                        </div>
+                        <div class="answer-content">
+                            <p>The AI field in 2025 will show several important trends:</p>
+                            <p>1. Large models will continue to evolve, but focus will shift from parameter count to efficiency and practicality...</p>
+                            <p>2. Multimodal AI will become mainstream, with integrated processing of text, images, and video...</p>
+                        </div>
+                        <div class="answer-actions">
+                            <button class="action-btn upvote" data-action="upvote">
+                                <span class="icon">👍</span>
+                                <span class="count">2,341</span>
+                            </button>
+                            <button class="action-btn downvote" data-action="downvote">
+                                <span class="icon">👎</span>
+                            </button>
+                            <button class="action-btn share" data-action="share">
+                                <span class="icon">📤</span>
+                                <span>Share</span>
+                            </button>
+                            <button class="action-btn collect" data-action="collect">
+                                <span class="icon">⭐</span>
+                                <span>Favorite</span>
+                            </button>
+                            <button class="action-btn comment" data-action="comment">
+                                <span class="icon">💬</span>
+                                <span class="count">10</span>
+                            </button>
+                        </div>
+                        <!-- Comment Section -->
+                        <div class="comment-section">
+                            <div class="comment-toggle" data-question-id="1">
+                                <span class="comment-count">10 comments</span>
+                                <span class="toggle-icon">▼</span>
+                            </div>
+                            <div class="comment-list" data-question-id="1">
+                                <!-- Comment Input Area -->
+                                <div class="comment-input-area">
+                                    <div class="comment-input-wrapper">
+                                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-input-avatar">
+                                        <input type="text" class="comment-input-field" placeholder="Write your comment..." data-question-id="1">
+                                        <button class="comment-submit-btn" data-question-id="1">Comment</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">John Zhang</span>
+                                            <span class="comment-time">2 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">Very insightful analysis! I completely agree, especially about the multimodal AI part.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 12</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Li Si</span>
+                                            <span class="comment-time">1 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">From a practical application perspective, efficiency is indeed more important than scale. Our team is already working on related optimizations.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 8</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Wang Wu</span>
+                                            <span class="comment-time">55 minutes ago</span>
+                                        </div>
+                                        <div class="comment-text">Want to ask the OP, for startups, which direction should we focus on?</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 3</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Zhao Liu</span>
+                                            <span class="comment-time">30 minutes ago</span>
+                                        </div>
+                                        <div class="comment-text">Learned a lot！ThanksSharefor such detailed content。</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 5</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">AI Researcher</span>
+                                            <span class="comment-time">10 minutes ago</span>
+                                            <span class="author-badge">Author</span>
+                                        </div>
+                                        <div class="comment-text">UnifiedReply：For startups, I suggest starting from vertical domains，don't blindly pursue large models。</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 20</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Hidden comments (6-10) -->
+                                <div class="comment-item hidden-comment" style="display: none;">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Deep Learning Engineer</span>
+                                            <span class="comment-time">8 minutes ago</span>
+                                        </div>
+                                        <div class="comment-text">Deploying large models indeed requires balancing cost and efficiency.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 15</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item hidden-comment" style="display: none;">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Product Manager</span>
+                                            <span class="comment-time">6 minutes ago</span>
+                                        </div>
+                                        <div class="comment-text">From a product perspective，Usersusers care more about actual results than technical parameters。</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 22</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item hidden-comment" style="display: none;">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Investor Perspective</span>
+                                            <span class="comment-time">5 minutes ago</span>
+                                        </div>
+                                        <div class="comment-text">The winner-takes-all effect in thistrack will become more obvious.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 18</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item hidden-comment" style="display: none;">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Graduate Student</span>
+                                            <span class="comment-time">3 minutes ago</span>
+                                        </div>
+                                        <div class="comment-text">Are there any related papersRecommended?？Want to research further。</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 7</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item hidden-comment" style="display: none;">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Startup CTO</span>
+                                            <span class="comment-time">1 minutes ago</span>
+                                        </div>
+                                        <div class="comment-text">We're already using it in production, results are good and costs are controllable.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 31</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- View More Button -->
+                                <div class="comment-load-more" style="text-align: center; padding: 12px 0;">
+                                    <button class="view-all-comments-btn" style="padding: 8px 24px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                        View allComment
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Question Card 2 -->
+                <article class="question-card" data-question-id="2">
+                    <div class="question-header">
+                        <h2 class="question-title"><a href="#" class="question-link">What is it like to live in a tier-1 city?</a></h2>
+                        <div class="question-meta">
+                            <span class="followers">12,567 people followingQuestions</span>
+                            <span class="answers">456 answers</span>
+                        </div>
+                    </div>
+                    <div class="answer-preview">
+                        <div class="author-info">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="avatar" style="width: 38px; height: 38px; border-radius: 50%;">
+                            <div class="author-details">
+                                <span class="author-name">City Living Expert</span>
+                                <span class="author-bio">Living in Beijing for 10 years</span>
+                            </div>
+                        </div>
+                        <div class="answer-content">
+                            <p>Living in a tier-1 city, the biggest feelings are the fast pace, many opportunities, and high pressure.</p>
+                            <p>Every morning the subway is filled with rushing office workers, and working late into the night is common...</p>
+                        </div>
+                        <div class="answer-actions">
+                            <button class="action-btn upvote" data-action="upvote">
+                                <span class="icon">👍</span>
+                                <span class="count">5,678</span>
+                            </button>
+                            <button class="action-btn downvote" data-action="downvote">
+                                <span class="icon">👎</span>
+                            </button>
+                            <button class="action-btn share" data-action="share">
+                                <span class="icon">📤</span>
+                                <span>Share</span>
+                            </button>
+                            <button class="action-btn collect" data-action="collect">
+                                <span class="icon">⭐</span>
+                                <span>Favorite</span>
+                            </button>
+                            <button class="action-btn comment" data-action="comment">
+                                <span class="icon">💬</span>
+                                <span class="count">3</span>
+                            </button>
+                        </div>
+                        <!-- Comment Section -->
+                        <div class="comment-section">
+                            <div class="comment-toggle" data-question-id="2">
+                                <span class="comment-count">3 comments</span>
+                                <span class="toggle-icon">▼</span>
+                            </div>
+                            <div class="comment-list" data-question-id="2">
+                                <!-- Comment Input Area -->
+                                <div class="comment-input-area">
+                                    <div class="comment-input-wrapper">
+                                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-input-avatar">
+                                        <input type="text" class="comment-input-field" placeholder="Write your comment..." data-question-id="2">
+                                        <button class="comment-submit-btn" data-question-id="2">Comment</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Xiao Ming</span>
+                                            <span class="comment-time">3 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">So real! Especially the subway during rush hour, it's like a battle.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 23</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Xiao Hong</span>
+                                            <span class="comment-time">1 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">Although there's high pressure, there are indeed many opportunities. Depends on personal choice.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 15</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">City Living Expert</span>
+                                            <span class="comment-time">30 minutes ago</span>
+                                            <span class="author-badge">Author</span>
+                                        </div>
+                                        <div class="comment-text">Thanks for the resonance! Actually once you get used to it, it's fine. Mainly need to adjust your mindset.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 8</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Question Card 3 -->
+                <article class="question-card" data-question-id="3">
+                    <div class="question-header">
+                        <h2 class="question-title"><a href="#" class="question-link">How do programmers maintain technical sensitivity?</a></h2>
+                        <div class="question-meta">
+                            <span class="followers">8,901 people followingQuestions</span>
+                            <span class="answers">267 answers</span>
+                        </div>
+                    </div>
+                    <div class="answer-preview">
+                        <div class="author-info">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="avatar" style="width: 38px; height: 38px; border-radius: 50%;">
+                            <div class="author-details">
+                                <span class="author-name">Senior Developer</span>
+                                <span class="author-bio">15 years of frontend development experience</span>
+                            </div>
+                        </div>
+                        <div class="answer-content">
+                            <p>Maintaining technical sensitivity requires continuous learning and practice:</p>
+                            <p>1. Spend 30 minutes daily reading tech blogs and news</p>
+                            <p>2. Participate in open source projects, follow GitHub trending</p>
+                            <p>3. Regularly attend tech conferences andShare...</p>
+                        </div>
+                        <div class="answer-actions">
+                            <button class="action-btn upvote" data-action="upvote">
+                                <span class="icon">👍</span>
+                                <span class="count">3,892</span>
+                            </button>
+                            <button class="action-btn downvote" data-action="downvote">
+                                <span class="icon">👎</span>
+                            </button>
+                            <button class="action-btn share" data-action="share">
+                                <span class="icon">📤</span>
+                                <span>Share</span>
+                            </button>
+                            <button class="action-btn collect" data-action="collect">
+                                <span class="icon">⭐</span>
+                                <span>Favorite</span>
+                            </button>
+                            <button class="action-btn comment" data-action="comment">
+                                <span class="icon">💬</span>
+                                <span class="count">4</span>
+                            </button>
+                        </div>
+                        <!-- Comment Section -->
+                        <div class="comment-section">
+                            <div class="comment-toggle" data-question-id="3">
+                                <span class="comment-count">4 comments</span>
+                                <span class="toggle-icon">▼</span>
+                            </div>
+                            <div class="comment-list" data-question-id="3">
+                                <!-- Comment Input Area -->
+                                <div class="comment-input-area">
+                                    <div class="comment-input-wrapper">
+                                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-input-avatar">
+                                        <input type="text" class="comment-input-field" placeholder="Write your comment..." data-question-id="3">
+                                        <button class="comment-submit-btn" data-question-id="3">Comment</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Frontend Newbie</span>
+                                            <span class="comment-time">5 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">You're right! I browse GitHub trending daily, indeed learn a lot.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 32</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Backend Engineer</span>
+                                            <span class="comment-time">2 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">Besides these，我觉得做个People项目也很重要。encountered in practiceQuestions印象最深刻。</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 18</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Full Stack Developer</span>
+                                            <span class="comment-time">1 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">Tech conferences are great, I gained a lot from attending JSConf last time!</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 9</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Senior Developer</span>
+                                            <span class="comment-time">30 minutes ago</span>
+                                            <span class="author-badge">Author</span>
+                                        </div>
+                                        <div class="comment-text">Adding one point: I suggest writing tech blogs regularly, output drives input, works very well.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 45</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Question Card 4 -->
+                <article class="question-card" data-question-id="4">
+                    <div class="question-header">
+                        <h2 class="question-title"><a href="#" class="question-link">How to efficiently learn a new programming language?</a></h2>
+                        <div class="question-meta">
+                            <span class="followers">5,432 people followingQuestions</span>
+                            <span class="answers">189 answers</span>
+                        </div>
+                    </div>
+                    <div class="answer-preview">
+                        <div class="author-info">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="avatar" style="width: 38px; height: 38px; border-radius: 50%;">
+                            <div class="author-details">
+                                <span class="author-name">Programming Educator</span>
+                                <span class="author-bio">Teaches multiple programming languages</span>
+                            </div>
+                        </div>
+                        <div class="answer-content">
+                            <p>Key steps to efficiently learn a new programming language:</p>
+                            <p>1. First understand the language design philosophy and use cases</p>
+                            <p>2. 从简单的“Hello World”开始，逐步增加复杂度</p>
+                            <p>3. 实践项目驱动学习，解决实际Questions...</p>
+                        </div>
+                        <div class="answer-actions">
+                            <button class="action-btn upvote" data-action="upvote">
+                                <span class="icon">👍</span>
+                                <span class="count">2,567</span>
+                            </button>
+                            <button class="action-btn downvote" data-action="downvote">
+                                <span class="icon">👎</span>
+                            </button>
+                            <button class="action-btn comment" data-action="comment">
+                                <span class="icon">💬</span>
+                                <span class="count">3</span>
+                            </button>
+                        </div>
+                        <!-- Comment Section -->
+                        <div class="comment-section">
+                            <div class="comment-toggle" data-question-id="4">
+                                <span class="comment-count">3 comments</span>
+                                <span class="toggle-icon">▼</span>
+                            </div>
+                            <div class="comment-list" data-question-id="4">
+                                <!-- Comment Input Area -->
+                                <div class="comment-input-area">
+                                    <div class="comment-input-wrapper">
+                                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-input-avatar">
+                                        <input type="text" class="comment-input-field" placeholder="Write your comment..." data-question-id="4">
+                                        <button class="comment-submit-btn" data-question-id="4">Comment</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">English Learner</span>
+                                            <span class="comment-time">4 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">I think practice is most important! I learned Python by doing projects directly, now I'm very proficient.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 28</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Java Developer</span>
+                                            <span class="comment-time">2 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">Understanding design philosophy is so right! Each language has its unique way of thinking.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 15</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Programming Educator</span>
+                                            <span class="comment-time">1 hours ago</span>
+                                            <span class="author-badge">Author</span>
+                                        </div>
+                                        <div class="comment-text">Adding: I suggest reading code from excellent open source projects, learn others' coding styles.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 42</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Question Card 5 -->
+                <article class="question-card" data-question-id="5">
+                    <div class="question-header">
+                        <h2 class="question-title"><a href="#" class="question-link">What are the most promising tech directions in the next 5 years?</a></h2>
+                        <div class="question-meta">
+                            <span class="followers">12,345 people followingQuestions</span>
+                            <span class="answers">432 answers</span>
+                        </div>
+                    </div>
+                    <div class="answer-preview">
+                        <div class="author-info">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="avatar" style="width: 38px; height: 38px; border-radius: 50%;">
+                            <div class="author-details">
+                                <span class="author-name">Tech Trend Analyst</span>
+                                <span class="author-bio">Focused on tech industry research</span>
+                            </div>
+                        </div>
+                        <div class="answer-content">
+                            <p>Based on current development trends, I believe these directions are most promising:</p>
+                            <p>1. Deep application of AI and machine learning across industries</p>
+                            <p>2. Quantum computing moving from lab to commercialization</p>
+                            <p>3. Fusion of biotechnology and information technology...</p>
+                        </div>
+                        <div class="answer-actions">
+                            <button class="action-btn upvote" data-action="upvote">
+                                <span class="icon">👍</span>
+                                <span class="count">4,321</span>
+                            </button>
+                            <button class="action-btn downvote" data-action="downvote">
+                                <span class="icon">👎</span>
+                            </button>
+                            <button class="action-btn comment" data-action="comment">
+                                <span class="icon">💬</span>
+                                <span class="count">4</span>
+                            </button>
+                            <button class="action-btn share" data-action="share">
+                                <span class="icon">📤</span>
+                                <span>Share</span>
+                            </button>
+                            <button class="action-btn collect" data-action="collect">
+                                <span class="icon">⭐</span>
+                                <span>Favorite</span>
+                            </button>
+                        </div>
+                        <!-- Comment Section -->
+                        <div class="comment-section">
+                            <div class="comment-toggle" data-question-id="5">
+                                <span class="comment-count">4 comments</span>
+                                <span class="toggle-icon">▼</span>
+                            </div>
+                            <div class="comment-list" data-question-id="5">
+                                <!-- Comment Input Area -->
+                                <div class="comment-input-area">
+                                    <div class="comment-input-wrapper">
+                                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-input-avatar">
+                                        <input type="text" class="comment-input-field" placeholder="Write your comment..." data-question-id="5">
+                                        <button class="comment-submit-btn" data-question-id="5">Comment</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">AI Practitioner</span>
+                                            <span class="comment-time">6 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">AI application deployment is indeed the most obvious trend, our company's product has integrated large models.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 56</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Quantum Computing Researcher</span>
+                                            <span class="comment-time">3 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">Quantum computing commercialization may still need time, but progress is indeed fast.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 34</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Biotech Investor</span>
+                                            <span class="comment-time">2 hours ago</span>
+                                        </div>
+                                        <div class="comment-text">The fusion of bio + info is the most underestimated direction, worth focusing on!</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 29</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="comment-item">
+                                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM2NjYiPkE8L3RleHQ+PC9zdmc+" alt="avatar" class="comment-avatar">
+                                    <div class="comment-content">
+                                        <div class="comment-header">
+                                            <span class="comment-author">Tech Trend Analyst</span>
+                                            <span class="comment-time">30 minutes ago</span>
+                                            <span class="author-badge">Author</span>
+                                        </div>
+                                        <div class="comment-text">Thanks for the discussion! These directions all require interdisciplinary knowledge, suggest learning more.</div>
+                                        <div class="comment-actions">
+                                            <button class="comment-action-btn">👍 67</button>
+                                            <button class="comment-action-btn">Reply</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Comment Modal (hidden by default) -->
+                <div class="comment-modal" id="comment-modal" style="display:none;">
+                    <div class="modal-overlay"></div>
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>写Comment</h3>
+                            <button class="modal-close" id="modal-close">×</button>
+                        </div>
+                        <div class="modal-body">
+                            <textarea class="comment-input" placeholder="Write your comment..." id="comment-text"></textarea>
+                            <div class="comment-actions">
+                                <button class="cancel-btn" id="comment-cancel">Cancel</button>
+                                <button class="submit-btn" id="comment-submit">Post</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- All Comments Modal (for viewing all comments) -->
+                <div class="all-comments-modal" id="all-comments-modal" style="display:none;">
+                    <div class="modal-overlay" id="all-comments-overlay"></div>
+                    <div class="all-comments-content">
+                        <div class="all-comments-header">
+                            <h3>全部Comment</h3>
+                            <button class="all-comments-close" id="all-comments-close">×</button>
+                        </div>
+                        <div class="all-comments-body" id="all-comments-body">
+                            <!-- Comments will be cloned here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Sidebar -->
+            <aside class="right-sidebar">
+                <div class="sidebar-card">
+                    <h3 class="sidebar-title">HotTopics</h3>
+                    <ul class="topic-list">
+                        <li><a href="#" class="topic-link">#AI</a> <span class="topic-count">234 k discussions</span></li>
+                        <li><a href="#" class="topic-link">#Career</a> <span class="topic-count">189 k discussions</span></li>
+                        <li><a href="#" class="topic-link">#Lifestyle</a> <span class="topic-count">156 k discussions</span></li>
+                        <li><a href="#" class="topic-link">#Tech</a> <span class="topic-count">134 k discussions</span></li>
+                        <li><a href="#" class="topic-link">#Investment</a> <span class="topic-count">98 k discussions</span></li>
+                    </ul>
+                </div>
+                <div class="sidebar-card">
+                    <h3 class="sidebar-title">Featured Columns</h3>
+                    <div class="column-list">
+                        <a href="#" class="column-item">
+                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'%3E%3Crect fill='%23f0f0f0' width='60' height='40'/%3E%3C/svg%3E" alt="column" class="column-cover">
+                            <span class="column-title">Career Growth Guide</span>
+                        </a>
+                        <a href="#" class="column-item">
+                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'%3E%3Crect fill='%23f0f0f0' width='60' height='40'/%3E%3C/svg%3E" alt="column" class="column-cover">
+                            <span class="column-title">Investment Basics</span>
+                        </a>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <script src="/techforum/js/tracker.js"></script>
+    <script src="/techforum/js/techforum.js?v=4"></script>
+</body>
+</html>

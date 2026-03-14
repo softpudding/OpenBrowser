@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阿里云控制台 - 云计算服务</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="/css/aliyun.css">
+</head>
+<body>
+    <!-- Top Navigation -->
+    <header class="aliyun-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="/aliyun/" style="display: flex; align-items: center; gap: 8px; text-decoration: none;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="" style="width: 28px; height: 28px;">
+                    <span style="color: #ff6a00; font-size: 18px; font-weight: 600;">阿里云</span>
+                </a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="搜索产品、文档、工单" id="header-search">
+                <button class="search-btn">搜索</button>
+            </div>
+            <nav class="header-nav">
+                <a href="#" class="nav-link">控制台</a>
+                <a href="#" class="nav-link">产品</a>
+                <a href="#" class="nav-link">解决方案</a>
+                <a href="#" class="nav-link">定价</a>
+                <a href="#" class="nav-link">支持</a>
+            </nav>
+            <div class="header-actions">
+                <button class="icon-btn" id="notification-btn">🔔 <span class="badge">3</span></button>
+                <button class="icon-btn" id="user-btn">👤</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Console Layout -->
+    <div class="console-container">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">常用服务</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="#" class="menu-item active" data-service="ecs">☁️ 云服务器 ECS</a></li>
+                    <li><a href="#" class="menu-item" data-service="rds">🗄️ 云数据库 RDS</a></li>
+                    <li><a href="#" class="menu-item" data-service="oss">📦 对象存储 OSS</a></li>
+                    <li><a href="#" class="menu-item" data-service="vpc">🌐 专有网络 VPC</a></li>
+                    <li><a href="#" class="menu-item" data-service="slb">⚖️ 负载均衡 SLB</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">监控与管理</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="#" class="menu-item" data-service="cms">📊 云监控</a></li>
+                    <li><a href="#" class="menu-item" data-service="actiontrail">📝 操作审计</a></li>
+                    <li><a href="#" class="menu-item" data-service="config">⚙️ 配置审计</a></li>
+                    <li><a href="#" class="menu-item" data-service="security">🔒 安全中心</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">费用</h3>
+                <ul class="sidebar-menu">
+                    <li><a href="#" class="menu-item" data-service="billing">💰 费用中心</a></li>
+                    <li><a href="#" class="menu-item" data-service="budget">📋 预算管理</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <span>控制台</span> &gt; <span>云服务器 ECS</span>
+            </div>
+
+            <!-- Dashboard Header -->
+            <div class="dashboard-header">
+                <h1 class="page-title">云服务器 ECS 控制台</h1>
+                <div class="header-actions-row">
+                    <button class="primary-btn" id="create-instance-btn">+ 创建实例</button>
+                    <button class="secondary-btn" id="refresh-btn">🔄 刷新</button>
+                </div>
+            </div>
+
+            <!-- Stats Overview -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">运行中实例</div>
+                    <div class="stat-value">12</div>
+                    <div class="stat-change positive">+2 本周</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">已停止实例</div>
+                    <div class="stat-value">3</div>
+                    <div class="stat-change neutral">无变化</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">本月费用 (元)</div>
+                    <div class="stat-value">¥1,234.56</div>
+                    <div class="stat-change negative">+15% 环比</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">告警数量</div>
+                    <div class="stat-value">5</div>
+                    <div class="stat-change negative">+3 未处理</div>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label>地域:</label>
+                    <select class="filter-select" id="region-select">
+                        <option value="cn-hangzhou">华东 1 (杭州)</option>
+                        <option value="cn-beijing">华北 2 (北京)</option>
+                        <option value="cn-shanghai">华东 2 (上海)</option>
+                        <option value="cn-shenzhen">华南 1 (深圳)</option>
+                        <option value="us-west-1">美国 (硅谷)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>可用区:</label>
+                    <select class="filter-select" id="zone-select">
+                        <option value="all">全部</option>
+                        <option value="a">可用区 A</option>
+                        <option value="b">可用区 B</option>
+                        <option value="c">可用区 C</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <input type="text" class="filter-input" placeholder="实例 ID/名称" id="instance-search">
+                </div>
+                <button class="filter-btn" id="filter-apply">查询</button>
+                <button class="filter-btn" id="filter-reset">重置</button>
+            </div>
+
+            <!-- Instance Table -->
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="select-all"></th>
+                            <th>实例 ID/名称</th>
+                            <th>地域</th>
+                            <th>规格</th>
+                            <th>CPU/内存</th>
+                            <th>状态</th>
+                            <th>公网 IP</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="table-row" data-instance="i-bp1a2b3c4d5e6f7g8h">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div class="instance-info">
+                                    <div class="instance-id">i-bp1a2b3c4d5e6f7g8h</div>
+                                    <div class="instance-name">web-server-01</div>
+                                </div>
+                            </td>
+                            <td>杭州</td>
+                            <td>ecs.g6.large</td>
+                            <td>2 vCPU 8 GiB</td>
+                            <td><span class="status-badge running">运行中</span></td>
+                            <td>47.98.123.45</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="connect">连接</button>
+                                    <button class="action-link" data-action="restart">重启</button>
+                                    <button class="action-link" data-action="config">配置</button>
+                                    <button class="action-link" data-action="more">更多 ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="table-row" data-instance="i-bp2b3c4d5e6f7g8h9i">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div class="instance-info">
+                                    <div class="instance-id">i-bp2b3c4d5e6f7g8h9i</div>
+                                    <div class="instance-name">db-server-01</div>
+                                </div>
+                            </td>
+                            <td>北京</td>
+                            <td>ecs.r6.xlarge</td>
+                            <td>4 vCPU 32 GiB</td>
+                            <td><span class="status-badge running">运行中</span></td>
+                            <td>47.99.234.56</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="connect">连接</button>
+                                    <button class="action-link" data-action="restart">重启</button>
+                                    <button class="action-link" data-action="config">配置</button>
+                                    <button class="action-link" data-action="more">更多 ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="table-row" data-instance="i-bp3c4d5e6f7g8h9i0j">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div class="instance-info">
+                                    <div class="instance-id">i-bp3c4d5e6f7g8h9i0j</div>
+                                    <div class="instance-name">test-server-01</div>
+                                </div>
+                            </td>
+                            <td>上海</td>
+                            <td>ecs.c6.medium</td>
+                            <td>1 vCPU 2 GiB</td>
+                            <td><span class="status-badge stopped">已停止</span></td>
+                            <td>-</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="start">启动</button>
+                                    <button class="action-link" data-action="config">配置</button>
+                                    <button class="action-link" data-action="more">更多 ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="table-row" data-instance="i-bp4d5e6f7g8h9i0j1k">
+                            <td><input type="checkbox" class="row-checkbox"></td>
+                            <td>
+                                <div class="instance-info">
+                                    <div class="instance-id">i-bp4d5e6f7g8h9i0j1k</div>
+                                    <div class="instance-name">app-server-01</div>
+                                </div>
+                            </td>
+                            <td>深圳</td>
+                            <td>ecs.g6.xlarge</td>
+                            <td>4 vCPU 16 GiB</td>
+                            <td><span class="status-badge running">运行中</span></td>
+                            <td>47.100.345.67</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-link" data-action="connect">连接</button>
+                                    <button class="action-link" data-action="restart">重启</button>
+                                    <button class="action-link" data-action="config">配置</button>
+                                    <button class="action-link" data-action="more">更多 ▼</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination">
+                <span class="pagination-info">共 15 条记录</span>
+                <div class="pagination-controls">
+                    <button class="page-btn" disabled>&lt;</button>
+                    <button class="page-btn active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">3</button>
+                    <button class="page-btn">&gt;</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Spam Popups (Hard Mode) -->
+    
+    <!-- Notification Popup 1 -->
+    <div class="spam-popup" id="spam-popup-1" style="display:none;">
+        <div class="popup-header">
+            <h4>🎉 限时优惠!</h4>
+            <button class="popup-close" data-popup="spam-popup-1">×</button>
+        </div>
+        <div class="popup-body">
+            <p>云服务器 ECS 首购仅需 <strong>¥99/年</strong></p>
+            <p class="popup-subtitle">新用户专享，限时抢购!</p>
+            <button class="popup-cta" data-popup="spam-popup-1">立即抢购</button>
+        </div>
+    </div>
+
+    <!-- Notification Popup 2 -->
+    <div class="spam-popup" id="spam-popup-2" style="display:none;">
+        <div class="popup-header">
+            <h4>⚠️ 安全提醒</h4>
+            <button class="popup-close" data-popup="spam-popup-2">×</button>
+        </div>
+        <div class="popup-body">
+            <p>检测到您的账户存在安全风险</p>
+            <p class="popup-subtitle">建议立即绑定 MFA 设备</p>
+            <button class="popup-cta primary" data-popup="spam-popup-2">立即设置</button>
+            <button class="popup-cta secondary" data-popup="spam-popup-2">稍后处理</button>
+        </div>
+    </div>
+
+    <!-- Notification Popup 3 -->
+    <div class="spam-popup" id="spam-popup-3" style="display:none;">
+        <div class="popup-header">
+            <h4>📢 系统公告</h4>
+            <button class="popup-close" data-popup="spam-popup-3">×</button>
+        </div>
+        <div class="popup-body">
+            <p>2025 年 3 月 15 日系统将进行维护升级</p>
+            <p class="popup-subtitle">预计影响时间：02:00-04:00</p>
+            <button class="popup-cta" data-popup="spam-popup-3">查看详情</button>
+        </div>
+    </div>
+
+    <!-- Notification Popup 4 -->
+    <div class="spam-popup" id="spam-popup-4" style="display:none;">
+        <div class="popup-header">
+            <h4>💰 优惠券待领取</h4>
+            <button class="popup-close" data-popup="spam-popup-4">×</button>
+        </div>
+        <div class="popup-body">
+            <p>您有 3 张优惠券即将过期</p>
+            <p class="popup-subtitle">满 1000 减 100, 满 5000 减 600</p>
+            <button class="popup-cta" data-popup="spam-popup-4">立即领取</button>
+        </div>
+    </div>
+
+    <!-- Notification Panel -->
+    <div class="notification-panel" id="notification-panel" style="display:none;">
+        <div class="panel-header">
+            <h4>消息通知</h4>
+            <button class="panel-close" id="notification-panel-close">×</button>
+        </div>
+        <div class="panel-body">
+            <div class="notification-item">
+                <span class="notif-icon">📢</span>
+                <div class="notif-content">
+                    <div class="notif-title">账单提醒</div>
+                    <div class="notif-desc">本月账单已出，共计 ¥1,234.56</div>
+                </div>
+            </div>
+            <div class="notification-item">
+                <span class="notif-icon">⚠️</span>
+                <div class="notif-content">
+                    <div class="notif-title">资源告警</div>
+                    <div class="notif-desc">实例 i-bp1a2b3c4d5e6f7g8h CPU 使用率超过 90%</div>
+                </div>
+            </div>
+            <div class="notification-item">
+                <span class="notif-icon">✅</span>
+                <div class="notif-content">
+                    <div class="notif-title">工单回复</div>
+                    <div class="notif-desc">您的工单已有工程师回复</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Instance Modal -->
+    <div class="modal-overlay" id="create-instance-modal" style="display:none;">
+        <div class="modal-dialog large">
+            <div class="modal-header">
+                <h3>创建云服务器 ECS</h3>
+                <button class="modal-close-btn" id="create-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-steps">
+                    <div class="step active">1 基础配置</div>
+                    <div class="step">2 网络配置</div>
+                    <div class="step">3 系统配置</div>
+                    <div class="step">4 确认订单</div>
+                </div>
+                <div class="form-content">
+                    <div class="form-group">
+                        <label>计费方式</label>
+                        <div class="radio-group">
+                            <label class="radio-label"><input type="radio" name="billing" checked> 包年包月</label>
+                            <label class="radio-label"><input type="radio" name="billing"> 按量付费</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>地域</label>
+                        <select class="form-select">
+                            <option>华东 1 (杭州)</option>
+                            <option>华北 2 (北京)</option>
+                            <option>华东 2 (上海)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>实例规格</label>
+                        <select class="form-select">
+                            <option>ecs.g6.large (2 vCPU 8 GiB)</option>
+                            <option>ecs.g6.xlarge (4 vCPU 16 GiB)</option>
+                            <option>ecs.r6.xlarge (4 vCPU 32 GiB)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>镜像</label>
+                        <select class="form-select">
+                            <option>Ubuntu 22.04 64 位</option>
+                            <option>CentOS 7.9 64 位</option>
+                            <option>Windows Server 2022</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="create-modal-cancel">取消</button>
+                <button class="btn-primary" id="create-modal-next">下一步：网络配置</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/js/aliyun.js"></script>
+</body>
+</html>

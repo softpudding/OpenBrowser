@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About CloudStack - Cloud Computing Services</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="css/cloudstack.css">
+</head>
+<body>
+    <!-- Top Banner -->
+    <div class="top-banner" id="top-banner">
+        <div class="banner-content">
+            <span class="banner-text">🎉 AI Innovation Season - Get up to ¥500 cashback + 45% off with CloudStack AI plans!</span>
+            <a href="pricing.html" class="banner-link">Learn More →</a>
+            <button class="banner-close" id="banner-close">×</button>
+        </div>
+    </div>
+
+    <!-- Top Navigation Bar -->
+    <header class="homepage-header">
+        <div class="header-container">
+            <div class="logo">
+                <button class="hamburger-menu" id="hamburger-menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <a href="index.html" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="CloudStack" style="width: 32px; height: 32px;">
+                    <span style="color: #ff6a00; font-weight: 600; font-size: 18px;">CloudStack</span>
+                </a>
+            </div>
+            <nav class="header-nav">
+                <a href="products.html" class="nav-link" data-dropdown="products">Products <span class="dropdown-arrow">▼</span></a>
+                <a href="solutions.html" class="nav-link">Solutions</a>
+                <a href="pricing.html" class="nav-link">Pricing</a>
+                <a href="marketplace.html" class="nav-link">Cloud Market</a>
+                <a href="partners.html" class="nav-link">Partners</a>
+                <a href="support.html" class="nav-link">Support</a>
+                <a href="about.html" class="nav-link active">About</a>
+            </nav>
+            <div class="header-right">
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search products, docs..." id="search-input">
+                    <button class="search-btn" id="search-btn">Search</button>
+                </div>
+                <button class="icon-btn" id="lang-btn" title="Language">🌐</button>
+                <button class="icon-btn" id="docs-btn" title="Documentation">📚</button>
+                <button class="icon-btn" id="notification-btn" title="Notifications">
+                    🔔
+                    <span class="badge">3</span>
+                </button>
+                <a href="console.html" class="console-link">Console</a>
+                <button class="login-btn" id="login-btn">Log In</button>
+                <button class="signup-btn" id="signup-btn">Sign Up</button>
+                <div class="user-avatar" id="user-avatar" style="display: none;">U</div>
+            </div>
+        </div>
+        
+        <!-- Products Dropdown Menu -->
+        <div class="dropdown-menu" id="products-dropdown">
+            <div class="dropdown-container">
+                <div class="dropdown-section">
+                    <h4>Compute</h4>
+                    <ul>
+                        <li><a href="console.html">Cloud Server ECS</a></li>
+                        <li><a href="#">Auto Scaling</a></li>
+                        <li><a href="#">Container Service</a></li>
+                        <li><a href="#">Serverless</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Storage</h4>
+                    <ul>
+                        <li><a href="oss.html">Object Storage OSS</a></li>
+                        <li><a href="#">File Storage</a></li>
+                        <li><a href="#">Archive Storage</a></li>
+                        <li><a href="#">Block Storage</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Database</h4>
+                    <ul>
+                        <li><a href="rds.html">Cloud Database RDS</a></li>
+                        <li><a href="das.html">Database Autonomy DAS</a></li>
+                        <li><a href="#">Redis</a></li>
+                        <li><a href="#">MongoDB</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Network</h4>
+                    <ul>
+                        <li><a href="vpc.html">Virtual Private Cloud</a></li>
+                        <li><a href="slb.html">Load Balancer SLB</a></li>
+                        <li><a href="#">CDN</a></li>
+                        <li><a href="#">DNS</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>Security</h4>
+                    <ul>
+                        <li><a href="security.html">Security Center</a></li>
+                        <li><a href="#">DDoS Protection</a></li>
+                        <li><a href="#">WAF</a></li>
+                        <li><a href="#">SSL Certificates</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown-section">
+                    <h4>AI & Analytics</h4>
+                    <ul>
+                        <li><a href="#">Machine Learning</a></li>
+                        <li><a href="#">Data Analytics</a></li>
+                        <li><a href="#">AI Platform</a></li>
+                        <li><a href="#">Big Data</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay">
+        <div class="mobile-menu">
+            <button class="mobile-menu-close" id="mobile-menu-close">×</button>
+            <a href="index.html" class="mobile-logo">
+                <span style="color: #ff6a00; font-size: 20px; font-weight: 600;">CloudStack</span>
+            </a>
+            <nav class="mobile-nav">
+                <a href="products.html" class="mobile-nav-item">Products</a>
+                <a href="solutions.html" class="mobile-nav-item">Solutions</a>
+                <a href="pricing.html" class="mobile-nav-item">Pricing</a>
+                <a href="marketplace.html" class="mobile-nav-item">Cloud Market</a>
+                <a href="partners.html" class="mobile-nav-item">Partners</a>
+                <a href="support.html" class="mobile-nav-item">Support</a>
+                <a href="about.html" class="mobile-nav-item active">About</a>
+                <a href="console.html" class="mobile-nav-item">Console</a>
+            </nav>
+            <div class="mobile-auth">
+                <button class="mobile-login-btn" id="mobile-login-btn">Log In</button>
+                <button class="mobile-signup-btn">Sign Up</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- About Hero Section -->
+    <section class="about-hero">
+        <div class="container">
+            <h1>About CloudStack</h1>
+            <p>Empowering businesses with innovative cloud solutions since 2010</p>
+        </div>
+    </section>
+
+    <!-- Company Stats -->
+    <section class="stats-section">
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">200+</div>
+                    <div class="stat-label">Countries & Regions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">4M+</div>
+                    <div class="stat-label">Active Customers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">99.99%</div>
+                    <div class="stat-label">Service Availability</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">24/7</div>
+                    <div class="stat-label">Global Support</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Mission Section -->
+    <section class="mission-section">
+        <div class="container">
+            <div class="mission-content">
+                <h2>Our Mission</h2>
+                <p class="mission-text">To make computing accessible, affordable, and scalable for businesses of all sizes. We believe in empowering innovation through cutting-edge cloud technology.</p>
+                <div class="mission-values">
+                    <div class="value-card">
+                        <div class="value-icon">🎯</div>
+                        <h3>Customer First</h3>
+                        <p>Everything we do starts with understanding customer needs</p>
+                    </div>
+                    <div class="value-card">
+                        <div class="value-icon">💡</div>
+                        <h3>Innovation</h3>
+                        <p>Continuously pushing the boundaries of what's possible</p>
+                    </div>
+                    <div class="value-card">
+                        <div class="value-icon">🤝</div>
+                        <h3>Trust</h3>
+                        <p>Building long-term relationships based on reliability</p>
+                    </div>
+                    <div class="value-card">
+                        <div class="value-icon">🌍</div>
+                        <h3>Sustainability</h3>
+                        <p>Committed to carbon-neutral cloud infrastructure</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Timeline Section -->
+    <section class="timeline-section">
+        <div class="container">
+            <h2>Our Journey</h2>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-year">2010</div>
+                    <div class="timeline-content">
+                        <h3>CloudStack Founded</h3>
+                        <p>Started with a vision to democratize cloud computing</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-year">2014</div>
+                    <div class="timeline-content">
+                        <h3>Global Expansion</h3>
+                        <p>Launched data centers in 10 countries across Asia, Europe, and Americas</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-year">2018</div>
+                    <div class="timeline-content">
+                        <h3>AI & ML Platform</h3>
+                        <p>Introduced industry-leading AI and machine learning services</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-year">2022</div>
+                    <div class="timeline-content">
+                        <h3>Carbon Neutral</h3>
+                        <p>Achieved carbon neutrality across all data centers</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-year">2025</div>
+                    <div class="timeline-content">
+                        <h3>4 Million Customers</h3>
+                        <p>Reached milestone of 4M+ active customers worldwide</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Leadership Section -->
+    <section class="leadership-section">
+        <div class="container">
+            <h2>Leadership Team</h2>
+            <div class="leadership-grid">
+                <div class="leader-card">
+                    <div class="leader-avatar">👨‍💼</div>
+                    <h3>John Chen</h3>
+                    <p class="leader-title">CEO & Co-Founder</p>
+                    <p class="leader-bio">Former VP at major tech companies, 20+ years in cloud computing</p>
+                </div>
+                <div class="leader-card">
+                    <div class="leader-avatar">👩‍</div>
+                    <h3>Sarah Wang</h3>
+                    <p class="leader-title">CTO</p>
+                    <p class="leader-bio">Pioneer in distributed systems and AI, PhD from MIT</p>
+                </div>
+                <div class="leader-card">
+                    <div class="leader-avatar">👨‍💼</div>
+                    <h3>Michael Zhang</h3>
+                    <p class="leader-title">CFO</p>
+                    <p class="leader-bio">20+ years in finance, previously at leading investment banks</p>
+                </div>
+                <div class="leader-card">
+                    <div class="leader-avatar">👩‍💼</div>
+                    <h3>Emily Liu</h3>
+                    <p class="leader-title">COO</p>
+                    <p class="leader-bio">Expert in scaling operations, MBA from Stanford</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="about-cta">
+        <div class="container">
+            <h2>Ready to Get Started?</h2>
+            <p>Join millions of businesses using CloudStack to power their digital transformation</p>
+            <div class="cta-buttons">
+                <a href="pricing.html" class="btn btn-primary">View Pricing</a>
+                <a href="support.html" class="btn btn-secondary">Contact Sales</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-column">
+                    <h4>Products</h4>
+                    <ul>
+                        <li><a href="#">Compute</a></li>
+                        <li><a href="#">Storage</a></li>
+                        <li><a href="#">Database</a></li>
+                        <li><a href="#">Network</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Solutions</h4>
+                    <ul>
+                        <li><a href="#">Finance</a></li>
+                        <li><a href="#">Retail</a></li>
+                        <li><a href="#">Manufacturing</a></li>
+                        <li><a href="#">Healthcare</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="#">Help Center</a></li>
+                        <li><a href="#">Documentation</a></li>
+                        <li><a href="#">Community</a></li>
+                        <li><a href="#">Contact Us</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="#">Careers</a></li>
+                        <li><a href="#">Press</a></li>
+                        <li><a href="#">Blog</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CloudStack Inc. All Rights Reserved.</p>
+                <div class="footer-links">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                    <a href="#">Cookie Policy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="login-modal-overlay">
+        <div class="modal">
+            <button class="modal-close" id="modal-close">×</button>
+            <div class="modal-header">
+                <h2>Welcome Back</h2>
+                <p>Log in to access your CloudStack account</p>
+            </div>
+            <div class="modal-body">
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="login-username">Username / Email / Phone</label>
+                        <input type="text" id="login-username" class="form-input" placeholder="Enter your username">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" class="form-input" placeholder="Enter your password">
+                        <a href="#" class="forgot-link">Forgot Password?</a>
+                    </div>
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="remember-me">
+                        <label for="remember-me">Remember me for 7 days</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Log In</button>
+                </form>
+                <div class="divider">OR</div>
+                <div class="social-login">
+                    <button class="social-btn">💬 WeChat</button>
+                    <button class="social-btn">💳 Alipay</button>
+                    <button class="social-btn">📱 Phone</button>
+                </div>
+                <p class="signup-link">Don't have an account? <a href="#">Sign Up Now</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/homepage.js"></script>
+</body>
+</html>

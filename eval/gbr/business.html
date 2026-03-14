@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business News - Global Business Review</title>
+    <link rel="stylesheet" href="/css/gbr.css">
+    <style>
+        .page-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            font-family: 'Arial', sans-serif;
+        }
+        .page-subtitle {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .article-list {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        .full-article {
+            padding-bottom: 30px;
+            border-bottom: 1px solid #ddd;
+        }
+        .full-article:last-child {
+            border-bottom: none;
+        }
+        .full-article h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .full-article h2 a {
+            color: #000;
+            text-decoration: none;
+        }
+        .full-article h2 a:hover {
+            color: #555;
+        }
+        .article-meta {
+            font-size: 13px;
+            color: #777;
+            margin-bottom: 15px;
+            font-family: 'Arial', sans-serif;
+        }
+        .article-content {
+            font-size: 16px;
+            line-height: 1.7;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .read-more {
+            color: #0066cc;
+            text-decoration: none;
+            font-weight: 600;
+            font-family: 'Arial', sans-serif;
+        }
+        .read-more:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header class="gbr-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="/gbr/">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 40'%3E%3Crect fill='%23000' width='200' height='40'/%3E%3Ctext fill='white' font-family='Georgia, serif' font-size='24' x='10' y='28'%3EGlobal Business Review%3C/text%3E%3C/svg%3E" alt="GBR Logo" class="gbr-logo">
+                </a>
+            </div>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="/gbr/">Home</a></li>
+                    <li><a href="/gbr/world.html">World</a></li>
+                    <li><a href="/gbr/business.html" class="active">Business</a></li>
+                    <li><a href="/gbr/markets.html">Markets</a></li>
+                    <li><a href="/gbr/tech.html">Tech</a></li>
+                    <li><a href="/gbr/politics.html">Politics</a></li>
+                    <li><a href="/gbr/opinion.html">Opinion</a></li>
+                </ul>
+            </nav>
+            <div class="header-actions">
+                <button class="search-btn" id="search-toggle">🔍</button>
+                <button class="subscribe-btn">Subscribe</button>
+                <button class="sign-in-btn">Sign In</button>
+            </div>
+        </div>
+        <div class="search-bar" id="search-bar" style="display:none;">
+            <input type="text" placeholder="Search GBR..." id="search-input">
+            <button id="search-submit" type="button">Search</button>
+        </div>
+    </header>
+
+    <main class="gbr-main">
+        <section class="section-page">
+            <h1 class="page-title">Business</h1>
+            <p class="page-subtitle">Corporate news, industry analysis, and business trends</p>
+            
+            <div class="article-list">
+                <article class="full-article">
+                    <h2><a href="/gbr/articles/business-article1.html" class="article-link">Major Merger Announced in Pharmaceutical Industry</a></h2>
+                    <p class="article-meta">By Peter Loftus | Updated 2 hours ago</p>
+                    <p class="article-content">Two of the largest pharmaceutical companies announced plans to merge in a deal valued at $85 billion, creating an industry giant focused on developing treatments for rare diseases and cancer. The merger awaits regulatory approval.</p>
+                    <a href="/gbr/articles/business-article1.html" class="read-more">Read More →</a>
+                </article>
+                
+                <article class="full-article">
+                    <h2><a href="/gbr/articles/business-article2.html" class="article-link">Retail Sales Exceed Expectations in Holiday Quarter</a></h2>
+                    <p class="article-meta">By Sarah Nassauer | Updated 4 hours ago</p>
+                    <p class="article-content">U.S. retail sales surged during the holiday shopping season, beating analyst forecasts and suggesting consumer spending remains resilient despite economic headwinds. E-commerce continued to gain market share.</p>
+                    <a href="/gbr/articles/business-article1.html" class="read-more">Read More →</a>
+                </article>
+                
+                <article class="full-article">
+                    <h2><a href="/gbr/articles/business-article3.html" class="article-link">Energy Companies Pivot to Renewable Investments</a></h2>
+                    <p class="article-meta">By Collin Eaton | Updated 6 hours ago</p>
+                    <p class="article-content">Traditional energy companies are increasingly allocating capital to renewable projects as investor pressure mounts and government incentives make clean energy more attractive. The shift marks a strategic transformation for the sector.</p>
+                    <a href="/gbr/articles/business-article1.html" class="read-more">Read More →</a>
+                </article>
+                
+                <article class="full-article">
+                    <h2><a href="/gbr/articles/business-article4.html" class="article-link">Airline Industry Faces Labor Shortage Challenges</a></h2>
+                    <p class="article-meta">By Andrew Tangel | Updated 8 hours ago</p>
+                    <p class="article-content">Airlines are struggling to hire enough pilots and ground staff to meet growing travel demand, leading to flight cancellations and delays. Companies are offering signing bonuses and higher pay to attract workers.</p>
+                    <a href="/gbr/articles/business-article1.html" class="read-more">Read More →</a>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <footer class="gbr-footer">
+        <div class="footer-container">
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>Sections</h4>
+                    <ul>
+                        <li><a href="/gbr/world.html">World</a></li>
+                        <li><a href="/gbr/business.html">Business</a></li>
+                        <li><a href="/gbr/markets.html">Markets</a></li>
+                        <li><a href="/gbr/tech.html">Technology</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>More</h4>
+                    <ul>
+                        <li><a href="/gbr/podcasts.html">Podcasts</a></li>
+                        <li><a href="/gbr/videos.html">Videos</a></li>
+                        <li><a href="/gbr/newsletters.html">Newsletters</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="/gbr/contact.html">Contact Us</a></li>
+                        <li><a href="/gbr/subscribers.html">Subscribers</a></li>
+                        <li><a href="/gbr/help.html">Help Center</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 Global Business Review Inc. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/js/gbr.js"></script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Market - CloudStack Marketplace</title>
+    <link rel="icon" href="https://img.alicdn.com/imgextra/i2/O1CN017O0yKb1zVqH8zKzJL_!!6000000006718-2-tps-200-200.png">
+    <link rel="stylesheet" href="css/cloudstack.css">
+</head>
+<body>
+    <div class="top-banner" id="top-banner">
+        <div class="banner-content">
+            <span class="banner-text">🎉 AI Innovation Season - Get up to ¥500 cashback + 45% off!</span>
+            <a href="pricing.html" class="banner-link">Learn More →</a>
+            <button class="banner-close" id="banner-close">×</button>
+        </div>
+    </div>
+
+    <header class="homepage-header">
+        <div class="header-container">
+            <div class="logo">
+                <button class="hamburger-menu" id="hamburger-menu"><span></span><span></span><span></span></button>
+                <a href="index.html" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="https://img.alicdn.com/imgextra/i1/O1CN01V7S91N1zXqH8zKzJL_!!6000000006718-2-tps-32-32.png" alt="CloudStack" style="width: 32px; height: 32px;">
+                    <span style="color: #ff6a00; font-weight: 600; font-size: 18px;">CloudStack</span>
+                </a>
+            </div>
+            <nav class="header-nav">
+                <a href="products.html" class="nav-link">Products</a>
+                <a href="solutions.html" class="nav-link">Solutions</a>
+                <a href="pricing.html" class="nav-link">Pricing</a>
+                <a href="marketplace.html" class="nav-link active">Cloud Market</a>
+                <a href="partners.html" class="nav-link">Partners</a>
+                <a href="support.html" class="nav-link">Support</a>
+                <a href="about.html" class="nav-link">About</a>
+            </nav>
+            <div class="header-right">
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search apps, services..." id="search-input">
+                    <button class="search-btn" id="search-btn">Search</button>
+                </div>
+                <button class="icon-btn" id="lang-btn">🌐</button>
+                <button class="icon-btn" id="docs-btn">📚</button>
+                <a href="console.html" class="console-link">Console</a>
+                <button class="login-btn" id="login-btn">Log In</button>
+                <button class="signup-btn" id="signup-btn">Sign Up</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay">
+        <div class="mobile-menu">
+            <button class="mobile-menu-close" id="mobile-menu-close">×</button>
+            <nav class="mobile-nav">
+                <a href="index.html" class="mobile-nav-item">Home</a>
+                <a href="products.html" class="mobile-nav-item">Products</a>
+                <a href="marketplace.html" class="mobile-nav-item active">Cloud Market</a>
+                <a href="support.html" class="mobile-nav-item">Support</a>
+            </nav>
+        </div>
+    </div>
+
+    <section class="marketplace-hero">
+        <div class="container">
+            <h1>Cloud Market</h1>
+            <p>Discover and deploy pre-configured applications and services</p>
+            <div class="marketplace-search">
+                <input type="text" class="search-large" placeholder="Search for applications, solutions, and services...">
+                <button class="btn btn-primary">Search</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="marketplace-categories">
+        <div class="container">
+            <div class="category-tabs">
+                <button class="tab-btn active" data-category="all">All</button>
+                <button class="tab-btn" data-category="ai">AI & Machine Learning</button>
+                <button class="tab-btn" data-category="devops">DevOps</button>
+                <button class="tab-btn" data-category="security">Security</button>
+                <button class="tab-btn" data-category="database">Database</button>
+                <button class="tab-btn" data-category="analytics">Analytics</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="marketplace-products">
+        <div class="container">
+            <div class="product-grid">
+                <div class="market-product" data-category="ai">
+                    <div class="product-badge">Popular</div>
+                    <div class="product-icon">🤖</div>
+                    <h3>AI Chatbot Platform</h3>
+                    <p>Build and deploy intelligent chatbots with NLP capabilities</p>
+                    <div class="product-meta">
+                        <span class="rating">⭐ 4.8</span>
+                        <span class="price">From ¥99/mo</span>
+                    </div>
+                    <button class="btn btn-small">Deploy Now</button>
+                </div>
+                <div class="market-product" data-category="devops">
+                    <div class="product-icon">🚀</div>
+                    <h3>CI/CD Pipeline</h3>
+                    <p>Automated continuous integration and deployment</p>
+                    <div class="product-meta">
+                        <span class="rating">⭐ 4.7</span>
+                        <span class="price">From ¥199/mo</span>
+                    </div>
+                    <button class="btn btn-small">Deploy Now</button>
+                </div>
+                <div class="market-product" data-category="security">
+                    <div class="product-badge">New</div>
+                    <div class="product-icon">🔒</div>
+                    <h3>Security Scanner</h3>
+                    <p>Automated vulnerability scanning and compliance</p>
+                    <div class="product-meta">
+                        <span class="rating">⭐ 4.9</span>
+                        <span class="price">From ¥299/mo</span>
+                    </div>
+                    <button class="btn btn-small">Deploy Now</button>
+                </div>
+                <div class="market-product" data-category="database">
+                    <div class="product-icon">📊</div>
+                    <h3>MySQL Cluster</h3>
+                    <p>High-availability MySQL database cluster</p>
+                    <div class="product-meta">
+                        <span class="rating">⭐ 4.6</span>
+                        <span class="price">From ¥399/mo</span>
+                    </div>
+                    <button class="btn btn-small">Deploy Now</button>
+                </div>
+                <div class="market-product" data-category="analytics">
+                    <div class="product-icon">📈</div>
+                    <h3>Business Analytics</h3>
+                    <p>Real-time business intelligence and dashboards</p>
+                    <div class="product-meta">
+                        <span class="rating">⭐ 4.5</span>
+                        <span class="price">From ¥499/mo</span>
+                    </div>
+                    <button class="btn btn-small">Deploy Now</button>
+                </div>
+                <div class="market-product" data-category="ai">
+                    <div class="product-icon">🎨</div>
+                    <h3>Image Recognition</h3>
+                    <p>AI-powered image analysis and classification</p>
+                    <div class="product-meta">
+                        <span class="rating">⭐ 4.7</span>
+                        <span class="price">From ¥199/mo</span>
+                    </div>
+                    <button class="btn btn-small">Deploy Now</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="main-footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2025 CloudStack Inc. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/homepage.js"></script>
+</body>
+</html>
