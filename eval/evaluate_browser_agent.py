@@ -22,6 +22,7 @@ import subprocess
 import signal
 import atexit
 import logging
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ DATASET_DIR.mkdir(exist_ok=True)
 @dataclass
 class TestCase:
     """A test case definition"""
+
     id: str
     name: str
     description: str
@@ -53,12 +55,13 @@ class TestCase:
     criteria: List[Dict[str, Any]]
     difficulty: str = "medium"
     time_limit: float = 600.0  # default 10 minutes in seconds
-    cost_limit: float = 1.0    # default 1 RMB
+    cost_limit: float = 1.0  # default 1 RMB
 
 
 @dataclass
 class TestResult:
     """Test execution result"""
+
     test_case: TestCase
     passed: bool
     score: float
@@ -83,11 +86,11 @@ class TestResult:
 
 class OpenBrowserClient:
     """Client for OpenBrowser server API"""
-    
+
     def __init__(self, base_url: str = OPENBROWSER_API_URL):
         self.base_url = base_url
         self.session = requests.Session()
-    
+
     def health_check(self) -> bool:
         """Check if OpenBrowser server is running"""
         try:
@@ -95,10 +98,12 @@ class OpenBrowserClient:
             return response.status_code == 200
         except requests.exceptions.RequestException:
             return False
-    
-    def create_conversation(self, model: Optional[str] = None, base_url: Optional[str] = None) -> Optional[str]:
+
+    def create_conversation(
+        self, model: Optional[str] = None, base_url: Optional[str] = None
+    ) -> Optional[str]:
         """Create a new conversation and return its ID
-        
+
         Args:
             model: Optional model name (e.g., "dashscope/qwen3.5-plus")
             base_url: Optional base URL override
@@ -109,11 +114,9 @@ class OpenBrowserClient:
                 request_json["model"] = model
             if base_url:
                 request_json["base_url"] = base_url
-                
+
             response = self.session.post(
-                f"{self.base_url}/agent/conversations",
-                json=request_json,
-                timeout=5
+                f"{self.base_url}/agent/conversations", json=request_json, timeout=5
             )
             if response.status_code == 200:
                 data = response.json()
@@ -121,8 +124,10 @@ class OpenBrowserClient:
         except Exception as e:
             logger.error(f"Failed to create conversation: {e}")
         return None
-    
-    def send_message(self, conversation_id: str, message: str, cwd: str = ".") -> List[Dict[str, Any]]:
+
+    def send_message(
+        self, conversation_id: str, message: str, cwd: str = "."
+    ) -> List[Dict[str, Any]]:
         """Send a message to the agent and collect SSE events"""
         events = []
         try:
@@ -131,93 +136,92 @@ class OpenBrowserClient:
                 json={"text": message, "cwd": cwd},
                 stream=True,
                 headers={"Accept": "text/event-stream"},
-                timeout=90  # Increased timeout for longer conversations
+                timeout=90,  # Increased timeout for longer conversations
             )
             response.raise_for_status()
-            
+
             # Parse SSE events manually
             buffer = ""
-            
+
             # Simply iterate until iter_content returns empty (connection closed)
             for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
                 if not chunk:
                     # Empty chunk means end of stream
                     break
-                
+
                 buffer += chunk
                 # Split on double newlines
                 while "\n\n" in buffer:
                     event_str, buffer = buffer.split("\n\n", 1)
-                    event_lines = event_str.strip().split('\n')
+                    event_lines = event_str.strip().split("\n")
                     event_type = None
                     data = {}
                     for line in event_lines:
                         line = line.strip()
-                        if line.startswith('event:'):
+                        if line.startswith("event:"):
                             event_type = line[6:].strip()
-                        elif line.startswith('data:'):
+                        elif line.startswith("data:"):
                             data_str = line[5:].strip()
                             try:
                                 data = json.loads(data_str)
                             except json.JSONDecodeError:
                                 data = data_str
                     if event_type:
-                        events.append({
-                            "type": event_type,
-                            "data": data,
-                            "timestamp": time.time()
-                        })
+                        events.append(
+                            {"type": event_type, "data": data, "timestamp": time.time()}
+                        )
                         logger.debug(f"SSE event: {event_type}")
-            
+
             # Process any remaining buffer (incomplete event)
             if buffer.strip():
                 logger.debug(f"Processing trailing buffer: {buffer[:200]}")
                 # Try to parse as event even without \n\n delimiter
-                event_lines = buffer.strip().split('\n')
+                event_lines = buffer.strip().split("\n")
                 event_type = None
                 data = {}
                 for line in event_lines:
                     line = line.strip()
-                    if line.startswith('event:'):
+                    if line.startswith("event:"):
                         event_type = line[6:].strip()
-                    elif line.startswith('data:'):
+                    elif line.startswith("data:"):
                         data_str = line[5:].strip()
                         try:
                             data = json.loads(data_str)
                         except json.JSONDecodeError:
                             data = data_str
                 if event_type:
-                    events.append({
-                        "type": event_type,
-                        "data": data,
-                        "timestamp": time.time()
-                    })
+                    events.append(
+                        {"type": event_type, "data": data, "timestamp": time.time()}
+                    )
                     logger.debug(f"Processed trailing SSE event: {event_type}")
-            
+
             # Check if we have complete and usage_metrics events
             has_complete = any(e["type"] == "complete" for e in events)
             has_usage_metrics = any(e["type"] == "usage_metrics" for e in events)
-            
-            logger.debug(f"Event summary - Complete: {has_complete}, Usage Metrics: {has_usage_metrics}")
-            
+
+            logger.debug(
+                f"Event summary - Complete: {has_complete}, Usage Metrics: {has_usage_metrics}"
+            )
+
             if has_complete and not has_usage_metrics:
-                logger.warning(f"Conversation completed but no usage_metrics event received")
-            
+                logger.warning(
+                    f"Conversation completed but no usage_metrics event received"
+                )
+
         except Exception as e:
             logger.error(f"Failed to send message: {e}")
-        
+
         # Log all event types for debugging
         event_types = [e["type"] for e in events]
         logger.debug(f"Total SSE events collected: {len(events)}, types: {event_types}")
-        
+
         return events
-    
+
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete a conversation"""
         try:
             response = self.session.delete(
-                f"{self.base_url}/agent/conversations/{conversation_id}",
-                timeout=5
+                f"{self.base_url}/agent/conversations/{conversation_id}", timeout=5
             )
             return response.status_code == 200
         except Exception:
@@ -226,10 +230,10 @@ class OpenBrowserClient:
 
 class EvalServerClient:
     """Client for evaluation server tracking API"""
-    
+
     def __init__(self, base_url: str = EVAL_SERVER_URL):
         self.base_url = base_url
-    
+
     def health_check(self) -> bool:
         """Check if eval server is running"""
         try:
@@ -237,7 +241,7 @@ class EvalServerClient:
             return response.status_code == 200
         except requests.exceptions.RequestException:
             return False
-    
+
     def clear_events(self) -> bool:
         """Clear all tracked events"""
         try:
@@ -245,7 +249,7 @@ class EvalServerClient:
             return response.status_code == 200
         except Exception:
             return False
-    
+
     def get_events(self) -> List[Dict[str, Any]]:
         """Get all tracked events"""
         try:
@@ -256,7 +260,7 @@ class EvalServerClient:
         except Exception as e:
             logger.error(f"Failed to get events: {e}")
         return []
-    
+
     def get_sites(self) -> List[str]:
         """Get available sites"""
         try:
@@ -270,11 +274,11 @@ class EvalServerClient:
 
 class ServiceManager:
     """Manage OpenBrowser and eval server processes"""
-    
+
     def __init__(self):
         self.openbrowser_proc = None
         self.eval_server_proc = None
-    
+
     def start_openbrowser(self) -> bool:
         """Check if OpenBrowser server is running, prompt user to start if not"""
         try:
@@ -283,7 +287,7 @@ class ServiceManager:
             if client.health_check():
                 logger.info("OpenBrowser server is running ✓")
                 return True
-            
+
             root_dir = EVAL_DIR.parent
             logger.error(f"""
 ❌ OpenBrowser server is not running!
@@ -295,11 +299,11 @@ class ServiceManager:
    The server should start on port 8765 (REST API) and 8766 (WebSocket).
 """)
             return False
-            
+
         except Exception as e:
             logger.error(f"Failed to check OpenBrowser server status: {e}")
             return False
-    
+
     def start_eval_server(self) -> bool:
         """Check if eval server is running, prompt user to start if not"""
         try:
@@ -307,7 +311,7 @@ class ServiceManager:
             if client.health_check():
                 logger.info("Eval server is running ✓")
                 return True
-            
+
             eval_dir = EVAL_DIR
             root_dir = EVAL_DIR.parent
             logger.error(f"""
@@ -324,11 +328,11 @@ class ServiceManager:
    The server should start on port 16605.
 """)
             return False
-            
+
         except Exception as e:
             logger.error(f"Failed to check eval server status: {e}")
             return False
-    
+
     def stop_services(self):
         """Stop all services"""
         if self.openbrowser_proc:
@@ -339,7 +343,7 @@ class ServiceManager:
             except Exception as e:
                 logger.error(f"Error stopping OpenBrowser server: {e}")
             self.openbrowser_proc = None
-        
+
         if self.eval_server_proc:
             try:
                 os.killpg(os.getpgid(self.eval_server_proc.pid), signal.SIGTERM)
@@ -352,7 +356,7 @@ class ServiceManager:
 
 class Evaluator:
     """Main evaluator class"""
-    
+
     def __init__(self):
         self.openbrowser = OpenBrowserClient()
         self.eval_server = EvalServerClient()
@@ -360,43 +364,43 @@ class Evaluator:
         self.results: List[TestResult] = []
         self.output_dir: Optional[Path] = None  # Will be set per run
         self.current_model: Optional[str] = None  # Current model being tested
-    
+
     def ensure_services(self, skip_services: bool = False) -> bool:
         """Ensure required services are running, or skip check if requested"""
         if skip_services:
             logger.info("Skipping service checks (--no-services flag used)")
             return True
-        
+
         logger.info("Checking services...")
-        
+
         # Check eval server
         if not self.eval_server.health_check():
             if not self.service_manager.start_eval_server():
                 logger.error("Eval server check failed")
                 return False
-        
+
         # Check OpenBrowser server
         if not self.openbrowser.health_check():
             if not self.service_manager.start_openbrowser():
                 logger.error("OpenBrowser server check failed")
                 return False
-        
+
         logger.info("All services are running ✓")
         return True
-    
+
     def load_test_cases(self) -> List[TestCase]:
         """Load all test cases from dataset directory"""
         test_cases = []
-        
+
         if not DATASET_DIR.exists():
             logger.warning(f"Dataset directory not found: {DATASET_DIR}")
             return test_cases
-        
+
         for yaml_file in DATASET_DIR.glob("*.yaml"):
             try:
-                with open(yaml_file, 'r') as f:
+                with open(yaml_file, "r") as f:
                     data = yaml.safe_load(f)
-                
+
                 test_case = TestCase(
                     id=data.get("id", yaml_file.stem),
                     name=data.get("name", yaml_file.stem),
@@ -406,27 +410,27 @@ class Evaluator:
                     criteria=data.get("criteria", []),
                     difficulty=data.get("difficulty", "medium"),
                     time_limit=data.get("time_limit", 600.0),
-                    cost_limit=data.get("cost_limit", 1.0)
+                    cost_limit=data.get("cost_limit", 1.0),
                 )
                 test_cases.append(test_case)
                 logger.info(f"Loaded test case: {test_case.name}")
-                
+
             except Exception as e:
                 logger.error(f"Failed to load test case from {yaml_file}: {e}")
-        
+
         return test_cases
-    
+
     def run_test(self, test_case: TestCase) -> TestResult:
         """Run a single test case"""
         logger.info(f"Running test: {test_case.name}")
-        
+
         # Ensure output directory exists with model subdirectory
         if self.output_dir is None:
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             self.output_dir = OUTPUT_BASE_DIR / timestamp
             self.output_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Created base output directory: {self.output_dir}")
-        
+
         # Create model-specific subdirectory if model is set
         model_output_dir = self.output_dir
         if self.current_model:
@@ -435,10 +439,10 @@ class Evaluator:
             model_output_dir = self.output_dir / model_name_safe
             model_output_dir.mkdir(exist_ok=True)
             logger.info(f"Using model output directory: {model_output_dir}")
-        
+
         # Clear previous events
         self.eval_server.clear_events()
-        
+
         # Create new conversation with current model
         conversation_id = self.openbrowser.create_conversation(model=self.current_model)
         if not conversation_id:
@@ -451,50 +455,62 @@ class Evaluator:
                 sse_events=[],
                 track_events=[],
                 images=[],
-                error="Failed to create conversation"
+                error="Failed to create conversation",
             )
-        
+
         # Initialize with start URL if provided
         if test_case.start_url:
             init_message = f"Open {test_case.start_url}"
             self.openbrowser.send_message(conversation_id, init_message)
             time.sleep(2)  # Wait for page load
-        
+
         # Send the main instruction with timing
         start_time = time.time()
-        sse_events = self.openbrowser.send_message(conversation_id, test_case.instruction)
+        sse_events = self.openbrowser.send_message(
+            conversation_id, test_case.instruction
+        )
         end_time = time.time()
         duration = end_time - start_time
-        
+
         # Wait a bit for any pending actions
         time.sleep(3)
-        
+
         # Get tracking events
         track_events = self.eval_server.get_events()
-        
+
         # Save track events to file
-        track_events_file = self._save_track_events(track_events, test_case.id, conversation_id, model_output_dir)
-        
+        track_events_file = self._save_track_events(
+            track_events, test_case.id, conversation_id, model_output_dir
+        )
+
         # Extract and save images from SSE events
-        images = self._extract_images(sse_events, test_case.id, conversation_id, model_output_dir)
-        
+        images = self._extract_images(
+            sse_events, test_case.id, conversation_id, model_output_dir
+        )
+
         # Extract and save SSE events (excluding images) to file
-        sse_events_file = self._save_sse_events(sse_events, test_case.id, conversation_id, model_output_dir)
-        
+        sse_events_file = self._save_sse_events(
+            sse_events, test_case.id, conversation_id, model_output_dir
+        )
+
         # Extract usage metrics from SSE events
         cost = self._extract_cost_from_sse_events(sse_events)
-        
+
         # Evaluate against criteria
-        passed, score, max_score = self._evaluate_criteria(test_case, track_events, sse_events)
-        
+        passed, score, max_score = self._evaluate_criteria(
+            test_case, track_events, sse_events
+        )
+
         # Calculate efficiency and usage scores
-        efficiency_score = self._calculate_efficiency_score(duration, test_case.time_limit)
+        efficiency_score = self._calculate_efficiency_score(
+            duration, test_case.time_limit
+        )
         usage_score = self._calculate_usage_score(cost, test_case.cost_limit)
         total_score = score + efficiency_score + usage_score
-        
+
         # Clean up conversation
         self.openbrowser.delete_conversation(conversation_id)
-        
+
         return TestResult(
             test_case=test_case,
             passed=passed,
@@ -514,12 +530,18 @@ class Evaluator:
             total_score=total_score,
             sse_events_file=sse_events_file,
             track_events_file=track_events_file,
-            model=self.current_model
+            model=self.current_model,
         )
-    
-    def _extract_images(self, sse_events: List[Dict[str, Any]], test_id: str, conversation_id: str, output_dir: Optional[Path] = None) -> List[str]:
+
+    def _extract_images(
+        self,
+        sse_events: List[Dict[str, Any]],
+        test_id: str,
+        conversation_id: str,
+        output_dir: Optional[Path] = None,
+    ) -> List[str]:
         """Extract and save images from SSE events
-        
+
         Args:
             sse_events: List of SSE events
             test_id: Test case ID
@@ -528,51 +550,65 @@ class Evaluator:
         """
         images = []
         image_count = 0
-        
+
         # Use provided output_dir or fall back to self.output_dir
         target_dir = output_dir if output_dir is not None else self.output_dir
         if target_dir is None:
             logger.warning("No output directory specified, cannot save images")
             return images
-        
+
         # Create images subdirectory
         images_dir = target_dir / "images"
         images_dir.mkdir(exist_ok=True)
-        
+
         for event in sse_events:
             if event["type"] == "screenshot" or "image" in event.get("data", {}):
                 data = event.get("data", {})
-                image_data = data.get("image") or data.get("screenshot") or data.get("data", {}).get("image")
-                
+                image_data = (
+                    data.get("image")
+                    or data.get("screenshot")
+                    or data.get("data", {}).get("image")
+                )
+
                 if image_data:
                     try:
                         # Handle base64 image data
-                        if isinstance(image_data, str) and image_data.startswith("data:image"):
+                        if isinstance(image_data, str) and image_data.startswith(
+                            "data:image"
+                        ):
                             # data:image/png;base64,...
                             parts = image_data.split(",")
                             if len(parts) == 2:
                                 image_data = parts[1]
-                        
+
                         # Decode and save
                         image_bytes = base64.b64decode(image_data)
-                        image_filename = f"{test_id}_{conversation_id}_{image_count:03d}.png"
+                        image_filename = (
+                            f"{test_id}_{conversation_id}_{image_count:03d}.png"
+                        )
                         image_path = images_dir / image_filename
-                        
+
                         with open(image_path, "wb") as f:
                             f.write(image_bytes)
-                        
+
                         images.append(str(image_path))
                         image_count += 1
                         # logger.info(f"Saved image: {image_filename}")
-                        
+
                     except Exception as e:
                         logger.error(f"Failed to extract image: {e}")
-        
+
         return images
-    
-    def _save_sse_events(self, sse_events: List[Dict[str, Any]], test_id: str, conversation_id: str, output_dir: Optional[Path] = None) -> Optional[str]:
+
+    def _save_sse_events(
+        self,
+        sse_events: List[Dict[str, Any]],
+        test_id: str,
+        conversation_id: str,
+        output_dir: Optional[Path] = None,
+    ) -> Optional[str]:
         """Save SSE events (excluding image data) to JSON file
-        
+
         Args:
             sse_events: List of SSE events
             test_id: Test case ID
@@ -585,11 +621,11 @@ class Evaluator:
             if target_dir is None:
                 logger.warning("No output directory specified, cannot save SSE events")
                 return None
-            
+
             # Create events subdirectory
             events_dir = target_dir / "events"
             events_dir.mkdir(exist_ok=True)
-            
+
             # Prepare events for saving (remove large image data)
             events_to_save = []
             for event in sse_events:
@@ -602,28 +638,38 @@ class Evaluator:
                         if field in data_copy:
                             data_copy[field] = "[IMAGE_DATA_REMOVED]"
                     # Also check nested data field
-                    if "data" in data_copy and isinstance(data_copy["data"], dict) and "image" in data_copy["data"]:
+                    if (
+                        "data" in data_copy
+                        and isinstance(data_copy["data"], dict)
+                        and "image" in data_copy["data"]
+                    ):
                         data_copy["data"]["image"] = "[IMAGE_DATA_REMOVED]"
                     event_copy["data"] = data_copy
                 events_to_save.append(event_copy)
-            
+
             # Save to JSON file
             filename = f"{test_id}_{conversation_id}_events.json"
             filepath = events_dir / filename
-            
-            with open(filepath, 'w') as f:
+
+            with open(filepath, "w") as f:
                 json.dump(events_to_save, f, indent=2, default=str)
-            
+
             # logger.info(f"Saved SSE events to: {filepath}")
             return str(filepath)
-            
+
         except Exception as e:
             logger.error(f"Failed to save SSE events: {e}")
             return None
-    
-    def _save_track_events(self, track_events: List[Dict[str, Any]], test_id: str, conversation_id: str, output_dir: Optional[Path] = None) -> Optional[str]:
+
+    def _save_track_events(
+        self,
+        track_events: List[Dict[str, Any]],
+        test_id: str,
+        conversation_id: str,
+        output_dir: Optional[Path] = None,
+    ) -> Optional[str]:
         """Save browser track events to JSON file
-        
+
         Args:
             track_events: List of track events (from eval server /api/events)
             test_id: Test case ID
@@ -634,28 +680,32 @@ class Evaluator:
             # Use provided output_dir or fall back to self.output_dir
             target_dir = output_dir if output_dir is not None else self.output_dir
             if target_dir is None:
-                logger.warning("No output directory specified, cannot save track events")
+                logger.warning(
+                    "No output directory specified, cannot save track events"
+                )
                 return None
-            
+
             # Create events subdirectory
             events_dir = target_dir / "events"
             events_dir.mkdir(exist_ok=True)
-            
+
             # Save to JSON file
             filename = f"{test_id}_{conversation_id}_track_events.json"
             filepath = events_dir / filename
-            
-            with open(filepath, 'w') as f:
+
+            with open(filepath, "w") as f:
                 json.dump(track_events, f, indent=2, default=str)
-            
+
             logger.debug(f"Saved track events to: {filepath}")
             return str(filepath)
-            
+
         except Exception as e:
             logger.error(f"Failed to save track events: {e}")
             return None
-    
-    def _extract_cost_from_sse_events(self, sse_events: List[Dict[str, Any]]) -> Optional[float]:
+
+    def _extract_cost_from_sse_events(
+        self, sse_events: List[Dict[str, Any]]
+    ) -> Optional[float]:
         """Extract cost in RMB from SSE events (usage_metrics event)"""
         for event in sse_events:
             event_type = event.get("type")
@@ -664,37 +714,50 @@ class Evaluator:
                 data = event.get("data", {})
                 metrics = data.get("metrics", {})
                 accumulated_cost = metrics.get("accumulated_cost")
-                
-                logger.debug(f"Extracted metrics keys: {list(metrics.keys())}, accumulated_cost: {accumulated_cost}")
-                
+
+                logger.debug(
+                    f"Extracted metrics keys: {list(metrics.keys())}, accumulated_cost: {accumulated_cost}"
+                )
+
                 if accumulated_cost is not None:
                     # Check if model is dashscope/qwen3.5 series (cost already in RMB)
                     # Otherwise convert from USD to RMB (exchange rate 7)
                     model_name = metrics.get("model_name", "")
                     token_usage = metrics.get("accumulated_token_usage", {})
                     model_name_from_token = token_usage.get("model", "")
-                    
-                    logger.debug(f"Model name from metrics: '{model_name}', from token usage: '{model_name_from_token}'")
-                    
-                    is_dashscope = "dashscope/qwen3.5" in model_name or "dashscope/qwen3.5" in model_name_from_token
-                    
+
+                    logger.debug(
+                        f"Model name from metrics: '{model_name}', from token usage: '{model_name_from_token}'"
+                    )
+
+                    is_dashscope = (
+                        "dashscope/qwen3.5" in model_name
+                        or "dashscope/qwen3.5" in model_name_from_token
+                    )
+
                     if is_dashscope:
                         # Already in RMB
-                        logger.debug(f"DashScope model detected, cost already in RMB: {accumulated_cost}")
+                        logger.debug(
+                            f"DashScope model detected, cost already in RMB: {accumulated_cost}"
+                        )
                         return float(accumulated_cost)
                     else:
                         # Assume USD, convert to RMB
-                        logger.debug(f"Non-DashScope model, converting USD to RMB: {accumulated_cost} * 7 = {float(accumulated_cost) * 7.0}")
+                        logger.debug(
+                            f"Non-DashScope model, converting USD to RMB: {accumulated_cost} * 7 = {float(accumulated_cost) * 7.0}"
+                        )
                         return float(accumulated_cost) * 7.0
                 else:
-                    logger.debug(f"No accumulated_cost found in metrics. Available keys: {list(metrics.keys())}")
-        
+                    logger.debug(
+                        f"No accumulated_cost found in metrics. Available keys: {list(metrics.keys())}"
+                    )
+
         logger.debug(f"No usage_metrics event found in {len(sse_events)} SSE events")
         # Log event types for debugging
         event_types = [e.get("type") for e in sse_events]
         logger.debug(f"Event types found: {event_types}")
         return None
-    
+
     def _calculate_efficiency_score(self, duration: float, time_limit: float) -> float:
         """Calculate efficiency score based on duration (0-1)"""
         if duration <= 0:
@@ -703,7 +766,7 @@ class Evaluator:
             return 0.0
         # Linear score: 1 at 0 seconds, 0 at time_limit
         return max(0.0, 1.0 - (duration / time_limit))
-    
+
     def _calculate_usage_score(self, cost: Optional[float], cost_limit: float) -> float:
         """Calculate usage score based on cost (0-1)"""
         if cost is None or cost <= 0:
@@ -713,69 +776,81 @@ class Evaluator:
             return 0.0
         # Linear score: 1 at 0 cost, 0 at cost_limit
         return max(0.0, 1.0 - (cost / cost_limit))
-    
-    def _evaluate_criteria(self, test_case: TestCase, track_events: List[Dict], sse_events: List[Dict]) -> Tuple[bool, float, float]:
+
+    def _evaluate_criteria(
+        self, test_case: TestCase, track_events: List[Dict], sse_events: List[Dict]
+    ) -> Tuple[bool, float, float]:
         """Evaluate test against criteria"""
         max_score = sum(criterion.get("points", 1) for criterion in test_case.criteria)
         score = 0
-        
+
         for criterion in test_case.criteria:
             criterion_type = criterion.get("type")
             expected = criterion.get("expected")
             points = criterion.get("points", 1)
             alternative = criterion.get("alternative")
-            
-            if self._check_criterion(expected, track_events, sse_events) or \
-               (alternative and self._check_criterion(alternative, track_events, sse_events)):
+
+            if self._check_criterion(expected, track_events, sse_events) or (
+                alternative
+                and self._check_criterion(alternative, track_events, sse_events)
+            ):
                 score += points
-        
+
         passed = score >= max_score * 0.8  # 80% threshold
         return passed, score, max_score
-    
-    def _check_criterion(self, expected: Dict, track_events: List[Dict], sse_events: List[Dict]) -> bool:
+
+    def _check_criterion(
+        self, expected: Dict, track_events: List[Dict], sse_events: List[Dict]
+    ) -> bool:
         """Check if a single criterion is met"""
         event_type = expected.get("event_type")
-        
+
         # Special handling for count_min conditions (not a real event type)
         if event_type == "count_min":
             return self._check_count_min_condition(expected, track_events)
-        
+
         # Check each track event for match
         for event in track_events:
             if self._event_matches_expected(event, expected):
                 logger.debug(f"Criterion matched by event: {event.get('eventType')}")
                 return True
-        
+
         # Also check SSE events if needed
         for event in sse_events:
             # SSE events have 'type' and 'data'
             if self._sse_event_matches_expected(event, expected):
                 logger.debug(f"Criterion matched by SSE event: {event.get('type')}")
                 return True
-        
+
         logger.debug(f"Criterion not met")
         return False
-    
-    def _check_count_min_condition(self, expected: Dict, track_events: List[Dict]) -> bool:
+
+    def _check_count_min_condition(
+        self, expected: Dict, track_events: List[Dict]
+    ) -> bool:
         """Check if a count_min condition is met"""
         condition = expected.get("condition", "")
         required_count = expected.get("count", 0)
         page_filter = expected.get("page")
         page_contains_filter = expected.get("page_contains")
-        
-        logger.debug(f"Checking count_min condition: {condition}, min count: {required_count}")
-        
+
+        logger.debug(
+            f"Checking count_min condition: {condition}, min count: {required_count}"
+        )
+
         count = 0
-        
+
         for event in track_events:
             # Apply page filters if specified
             if page_filter and event.get("page") != page_filter:
                 continue
-            if page_contains_filter and page_contains_filter not in event.get("page", ""):
+            if page_contains_filter and page_contains_filter not in event.get(
+                "page", ""
+            ):
                 continue
-            
+
             event_type = event.get("eventType")
-            
+
             # Check condition type
             if condition == "chat_interactions":
                 # Count chat input or send button clicks
@@ -787,58 +862,77 @@ class Evaluator:
                 # Default: just check event type matches condition
                 if event_type == condition:
                     count += 1
-        
+
         logger.debug(f"Count result: {count} >= {required_count}")
         return count >= required_count
-    
+
     def _event_matches_expected(self, event: Dict, expected: Dict) -> bool:
         """Check if a track event matches expected criteria"""
         # List of reserved keys that have special handling
         reserved_keys = {
-            "event_type", "page", "page_contains", "element_id", "element_class",
-            "element_text", "element_href", "value_contains", "value_contains_any", "value_length_min", "check",
-            "condition", "count", "parent_text_contains"
+            "event_type",
+            "page",
+            "page_contains",
+            "element_id",
+            "element_class",
+            "element_text",
+            "element_href",
+            "value_contains",
+            "value_contains_any",
+            "value_length_min",
+            "check",
+            "condition",
+            "count",
+            "parent_text_contains",
         }
-        
+
         # First check event type (mapping from event_type to eventType)
         expected_event_type = expected.get("event_type")
         if expected_event_type and event.get("eventType") != expected_event_type:
             return False
-        
+
         # Check page condition
         expected_page = expected.get("page")
         if expected_page and event.get("page") != expected_page:
             return False
-        
+
         expected_page_contains = expected.get("page_contains")
-        if expected_page_contains and expected_page_contains not in event.get("page", ""):
+        if expected_page_contains and expected_page_contains not in event.get(
+            "page", ""
+        ):
             return False
-        
+
         # Check element conditions
         expected_element_id = expected.get("element_id")
         if expected_element_id and event.get("elementId") != expected_element_id:
             return False
-        
+
         expected_element_class = expected.get("element_class")
-        if expected_element_class and event.get("elementClass") != expected_element_class:
+        if expected_element_class and expected_element_class not in (
+            event.get("elementClass") or ""
+        ):
             return False
-        
+
         expected_element_text = expected.get("element_text")
-        if expected_element_text and expected_element_text not in (event.get("elementText") or ""):
+        if expected_element_text and expected_element_text not in (
+            event.get("elementText") or ""
+        ):
             return False
-        
+
         expected_element_href = expected.get("element_href")
-        if expected_element_href and expected_element_href not in (event.get("elementHref") or ""):
+        if expected_element_href and expected_element_href not in (
+            event.get("elementHref") or ""
+        ):
             # elementHref may not be tracked, we can check selector
             pass
-        
+
         # Check parent text contains (for contextual matching)
         expected_parent_text_contains = expected.get("parent_text_contains")
         if expected_parent_text_contains:
             parent_text = event.get("parentText")
             if not parent_text or expected_parent_text_contains not in parent_text:
                 return False
-        
+
         # Check input value
         expected_value_contains = expected.get("value_contains")
         if expected_value_contains:
@@ -846,7 +940,7 @@ class Evaluator:
             value = event.get("value") or event.get("inputValue")
             if not value or expected_value_contains not in value:
                 return False
-        
+
         expected_value_contains_any = expected.get("value_contains_any")
         if expected_value_contains_any:
             # For input events, value may be in data
@@ -861,20 +955,20 @@ class Evaluator:
                 # If it's a single string, check containment
                 if expected_value_contains_any not in value:
                     return False
-        
+
         expected_value_length_min = expected.get("value_length_min")
         if expected_value_length_min is not None:
             value_length = event.get("valueLength")
             if value_length is None or value_length < expected_value_length_min:
                 return False
-        
+
         # Additional custom checks
         expected_check = expected.get("check")
         if expected_check == "upvote_count_changed":
             # Placeholder for custom logic
             # Could check if upvote count increased in subsequent events
             pass
-        
+
         # Check all other expected fields directly against event
         for key, expected_value in expected.items():
             if key in reserved_keys:
@@ -884,15 +978,15 @@ class Evaluator:
                 return False
             if event[key] != expected_value:
                 return False
-        
+
         # All conditions satisfied
         return True
-    
+
     def _sse_event_matches_expected(self, event: Dict, expected: Dict) -> bool:
         """Check if an SSE event matches expected criteria"""
         # Currently not using SSE events for criteria
         return False
-    
+
     def generate_report(self):
         """Generate evaluation report"""
         # Use output_dir if set, otherwise fall back to base directory
@@ -900,16 +994,20 @@ class Evaluator:
             report_dir = self.output_dir
         else:
             report_dir = OUTPUT_BASE_DIR
-        report_path = report_dir / f"evaluation_report_{time.strftime('%Y%m%d_%H%M%S')}.json"
-        
+        report_path = (
+            report_dir / f"evaluation_report_{time.strftime('%Y%m%d_%H%M%S')}.json"
+        )
+
         # Calculate aggregated scores
         total_task_score = sum(r.score for r in self.results)
         total_task_max_score = sum(r.max_score for r in self.results)
         total_efficiency_score = sum(r.efficiency_score or 0 for r in self.results)
         total_usage_score = sum(r.usage_score or 0 for r in self.results)
         total_combined_score = sum(r.total_score or r.score for r in self.results)
-        total_combined_max_score = total_task_max_score + len(self.results) * 2  # each test has 2 bonus points (efficiency + usage)
-        
+        total_combined_max_score = (
+            total_task_max_score + len(self.results) * 2
+        )  # each test has 2 bonus points (efficiency + usage)
+
         report = {
             "timestamp": time.time(),
             "total_tests": len(self.results),
@@ -920,8 +1018,13 @@ class Evaluator:
             "total_usage_score": total_usage_score,
             "total_combined_score": total_combined_score,
             "total_combined_max_score": total_combined_max_score,
-            "average_duration": sum(r.duration or 0 for r in self.results) / len(self.results) if self.results else 0,
-            "average_cost": sum(r.cost or 0 for r in self.results) / len(self.results) if self.results else 0,
+            "average_duration": sum(r.duration or 0 for r in self.results)
+            / len(self.results)
+            if self.results
+            else 0,
+            "average_cost": sum(r.cost or 0 for r in self.results) / len(self.results)
+            if self.results
+            else 0,
             "results": [
                 {
                     "test_id": r.test_case.id,
@@ -940,43 +1043,53 @@ class Evaluator:
                     "track_event_count": len(r.track_events),
                     "sse_event_count": len(r.sse_events),
                     "sse_events_file": r.sse_events_file,
-                    "track_events_file": r.track_events_file
+                    "track_events_file": r.track_events_file,
+                    "model": r.model if hasattr(r, "model") else None,
                 }
                 for r in self.results
-            ]
+            ],
         }
-        
-        with open(report_path, 'w') as f:
+
+        with open(report_path, "w") as f:
             json.dump(report, f, indent=2, default=str)
-        
+
         logger.info(f"Report saved to: {report_path}")
-        
+
         # Print summary
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("EVALUATION SUMMARY")
-        print("="*80)
+        print("=" * 80)
         print(f"Total tests: {report['total_tests']}")
         print(f"Passed tests: {report['passed_tests']}")
         print(f"Task score: {total_task_score:.1f}/{total_task_max_score:.1f}")
         print(f"Efficiency score: {total_efficiency_score:.1f}/{len(self.results):.1f}")
         print(f"Usage score: {total_usage_score:.1f}/{len(self.results):.1f}")
-        print(f"Combined score: {total_combined_score:.1f}/{total_combined_max_score:.1f}")
+        print(
+            f"Combined score: {total_combined_score:.1f}/{total_combined_max_score:.1f}"
+        )
         print(f"Average duration: {report['average_duration']:.1f}s")
         print(f"Average cost: {report['average_cost']:.6f} RMB")
-        print("="*80)
-        
+        print("=" * 80)
+
         for result in self.results:
             status = "PASS" if result.passed else "FAIL"
-            print(f"{result.test_case.name:30} {status:10} Task:{result.score:.1f}/{result.max_score:.1f} "
-                  f"Eff:{result.efficiency_score or 0:.2f} Usage:{result.usage_score or 0:.2f} "
-                  f"Total:{result.total_score or result.score:.1f} "
-                  f"Time:{result.duration or 0:.1f}s Cost:{result.cost or 0:.6f}RMB")
-        
+            model_info = (
+                f" [{result.model}]"
+                if hasattr(result, "model") and result.model
+                else ""
+            )
+            print(
+                f"{result.test_case.name:30}{model_info:15} {status:10} Task:{result.score:.1f}/{result.max_score:.1f} "
+                f"Eff:{result.efficiency_score or 0:.2f} Usage:{result.usage_score or 0:.2f} "
+                f"Total:{result.total_score or result.score:.1f} "
+                f"Time:{result.duration or 0:.1f}s Cost:{result.cost or 0:.6f}RMB"
+            )
+
         return report_path
-    
+
     def run_all(self, models: Optional[List[str]] = None, skip_services: bool = False):
         """Run all test cases for specified models
-        
+
         Args:
             models: List of model names to test. If None, uses default models.
                    Default models: ["dashscope/qwen3.5-plus", "dashscope/qwen3.5-flash"]
@@ -985,183 +1098,319 @@ class Evaluator:
         if not self.ensure_services(skip_services=skip_services):
             logger.error("Cannot run tests: services unavailable")
             return False
-        
+
         # Determine models to test
         if models is None or len(models) == 0:
             models = ["dashscope/qwen3.5-plus", "dashscope/qwen3.5-flash"]
-        
+
         # Create timestamped output directory
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         self.output_dir = OUTPUT_BASE_DIR / timestamp
         self.output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Base output directory: {self.output_dir}")
-        
+
         test_cases = self.load_test_cases()
         if not test_cases:
             logger.warning("No test cases found")
             return False
-        
+
         # Store overall results for summary report
         all_results = []
-        
+
         for model in models:
-            logger.info(f"\n{'='*60}")
+            logger.info(f"\n{'=' * 60}")
             logger.info(f"Testing model: {model}")
-            logger.info(f"{'='*60}")
-            
+            logger.info(f"{'=' * 60}")
+
             # Set current model
             self.current_model = model
-            
+
             # Clear results for this model
             self.results = []
-            
+
             # Run all test cases for this model
             for test_case in test_cases:
                 result = self.run_test(test_case)
                 self.results.append(result)
-                
+
                 status = "PASSED" if result.passed else "FAILED"
-                logger.info(f"Test '{test_case.name}' {status}: {result.score:.1f}/{result.max_score:.1f}")
-            
+                logger.info(
+                    f"Test '{test_case.name}' {status}: {result.score:.1f}/{result.max_score:.1f}"
+                )
+
             # Generate report for this model
             if self.results:
                 model_report_path = self.generate_report()
                 logger.info(f"Model report saved to: {model_report_path}")
-                
+
                 # Add model information to results and store for summary
                 for result in self.results:
                     result.model = model
                 all_results.extend(self.results)
-        
+
         # Generate cross-model summary report if we tested multiple models
         if len(models) > 1 and all_results:
             self._generate_cross_model_summary(all_results, models)
-        
+
         # Restore results for backward compatibility
         self.results = all_results
-        
+
         return True
-    
-    def _generate_cross_model_summary(self, all_results: List[TestResult], models: List[str]):
+
+    def _build_summary(
+        self, all_results: List[TestResult], models: List[str]
+    ) -> Dict[str, Any]:
+        """Build summary dictionary from test results"""
+        # Group results by model
+        results_by_model = {}
+        for result in all_results:
+            model = result.model or "unknown"
+            if model not in results_by_model:
+                results_by_model[model] = []
+            results_by_model[model].append(result)
+
+        # Calculate statistics per model
+        model_stats = {}
+        for model, results in results_by_model.items():
+            task_score = sum(r.score for r in results)
+            task_max_score = sum(r.max_score for r in results)
+            efficiency_score = sum(r.efficiency_score or 0 for r in results)
+            usage_score = sum(r.usage_score or 0 for r in results)
+            total_score = sum(r.total_score or r.score for r in results)
+            avg_duration = sum(r.duration or 0 for r in results) / len(results)
+            avg_cost = sum(r.cost or 0 for r in results) / len(results)
+            passed_count = sum(1 for r in results if r.passed)
+
+            model_stats[model] = {
+                "task_score": task_score,
+                "task_max_score": task_max_score,
+                "efficiency_score": efficiency_score,
+                "usage_score": usage_score,
+                "total_score": total_score,
+                "avg_duration": avg_duration,
+                "avg_cost": avg_cost,
+                "passed_count": passed_count,
+                "total_tests": len(results),
+                "pass_rate": passed_count / len(results) * 100
+                if len(results) > 0
+                else 0,
+            }
+
+        # Group by test case
+        test_cases = {}
+        for result in all_results:
+            test_id = result.test_case.id
+            if test_id not in test_cases:
+                test_cases[test_id] = {
+                    "test_name": result.test_case.name,
+                    "results_by_model": {},
+                }
+            test_cases[test_id]["results_by_model"][result.model or "unknown"] = {
+                "passed": result.passed,
+                "task_score": result.score,
+                "task_max_score": result.max_score,
+                "efficiency_score": result.efficiency_score,
+                "usage_score": result.usage_score,
+                "total_score": result.total_score,
+                "duration": result.duration,
+                "cost": result.cost,
+            }
+
+        summary = {
+            "timestamp": time.time(),
+            "models_tested": models,
+            "model_stats": model_stats,
+            "results_by_test": test_cases,
+        }
+
+        return summary
+
+    def _generate_cross_model_summary(
+        self, all_results: List[TestResult], models: List[str]
+    ):
         """Generate cross-model comparison summary report"""
         try:
-            # Group results by model
-            results_by_model = {}
-            for result in all_results:
-                model = result.model or "unknown"
-                if model not in results_by_model:
-                    results_by_model[model] = []
-                results_by_model[model].append(result)
-            
-            # Calculate statistics per model
-            model_stats = {}
-            for model, results in results_by_model.items():
-                task_score = sum(r.score for r in results)
-                task_max_score = sum(r.max_score for r in results)
-                efficiency_score = sum(r.efficiency_score or 0 for r in results)
-                usage_score = sum(r.usage_score or 0 for r in results)
-                total_score = sum(r.total_score or r.score for r in results)
-                avg_duration = sum(r.duration or 0 for r in results) / len(results)
-                avg_cost = sum(r.cost or 0 for r in results) / len(results)
-                passed_count = sum(1 for r in results if r.passed)
-                
-                model_stats[model] = {
-                    "task_score": task_score,
-                    "task_max_score": task_max_score,
-                    "efficiency_score": efficiency_score,
-                    "usage_score": usage_score,
-                    "total_score": total_score,
-                    "avg_duration": avg_duration,
-                    "avg_cost": avg_cost,
-                    "passed_count": passed_count,
-                    "total_tests": len(results),
-                    "pass_rate": passed_count / len(results) * 100 if len(results) > 0 else 0
-                }
-            
-            # Create summary report
-            summary = {
-                "timestamp": time.time(),
-                "models_tested": models,
-                "model_stats": model_stats,
-                "results_by_test": {}
-            }
-            
-            # Also group by test case for comparison
-            test_cases = {}
-            for result in all_results:
-                test_id = result.test_case.id
-                if test_id not in test_cases:
-                    test_cases[test_id] = {
-                        "test_name": result.test_case.name,
-                        "results_by_model": {}
-                    }
-                test_cases[test_id]["results_by_model"][result.model or "unknown"] = {
-                    "passed": result.passed,
-                    "task_score": result.score,
-                    "task_max_score": result.max_score,
-                    "efficiency_score": result.efficiency_score,
-                    "usage_score": result.usage_score,
-                    "total_score": result.total_score,
-                    "duration": result.duration,
-                    "cost": result.cost
-                }
-            
-            summary["results_by_test"] = test_cases
-            
+            # Build summary using helper method
+            summary = self._build_summary(all_results, models)
+            model_stats = summary.get("model_stats", {})
+
             # Save to file
             summary_path = self.output_dir / "cross_model_summary.json"
-            with open(summary_path, 'w') as f:
+            with open(summary_path, "w") as f:
                 json.dump(summary, f, indent=2, default=str)
-            
+
             logger.info(f"Cross-model summary saved to: {summary_path}")
-            
+
+            # Generate JSON report
+            json_path = self._generate_json_report(summary, all_results, models)
+            if json_path:
+                logger.info(f"JSON report saved to: {json_path}")
+
             # Print summary table
-            print(f"\n{'='*80}")
+            print(f"\n{'=' * 80}")
             print("CROSS-MODEL COMPARISON SUMMARY")
-            print(f"{'='*80}")
-            print(f"{'Model':30} {'Pass Rate':10} {'Task Score':12} {'Eff Score':10} {'Usage Score':10} {'Avg Time':10} {'Avg Cost':10}")
-            print(f"{'-'*30} {'-'*10} {'-'*12} {'-'*10} {'-'*10} {'-'*10} {'-'*10}")
-            
+            print(f"{'=' * 80}")
+            print(
+                f"{'Model':30} {'Pass Rate':10} {'Task Score':12} {'Eff Score':10} {'Usage Score':10} {'Avg Time':10} {'Avg Cost':10}"
+            )
+            print(
+                f"{'-' * 30} {'-' * 10} {'-' * 12} {'-' * 10} {'-' * 10} {'-' * 10} {'-' * 10}"
+            )
+
             for model in models:
                 if model in model_stats:
                     stats = model_stats[model]
-                    print(f"{model:30} {stats['pass_rate']:9.1f}% {stats['task_score']:4.1f}/{stats['task_max_score']:4.1f} "
-                          f"{stats['efficiency_score']:9.2f} {stats['usage_score']:9.2f} "
-                          f"{stats['avg_duration']:9.1f}s {stats['avg_cost']:9.4f}RMB")
-            
-            print(f"{'='*80}")
-            
+                    print(
+                        f"{model:30} {stats['pass_rate']:9.1f}% {stats['task_score']:4.1f}/{stats['task_max_score']:4.1f} "
+                        f"{stats['efficiency_score']:9.2f} {stats['usage_score']:9.2f} "
+                        f"{stats['avg_duration']:9.1f}s {stats['avg_cost']:9.4f}RMB"
+                    )
+
+            print(f"{'=' * 80}")
+
         except Exception as e:
             logger.error(f"Failed to generate cross-model summary: {e}")
+
+    def _generate_json_report(
+        self, summary: Dict[str, Any], all_results: List[TestResult], models: List[str]
+    ):
+        """Generate a concise JSON evaluation report with timestamp only"""
+        try:
+            timestamp = summary.get("timestamp", time.time())
+            human_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+            model_stats = summary.get("model_stats", {})
+            results_by_test = summary.get("results_by_test", {})
+
+            # Calculate overall statistics
+            total_tests = len(all_results)
+            passed_tests = sum(1 for r in all_results if r.passed)
+            overall_pass_rate = (
+                passed_tests / total_tests * 100 if total_tests > 0 else 0
+            )
+
+            # Build JSON structure
+            report = {
+                "evaluation": {
+                    "timestamp": human_time,
+                    "unix_timestamp": timestamp,
+                    "summary": {
+                        "total_tests": total_tests,
+                        "passed_tests": passed_tests,
+                        "pass_rate": round(overall_pass_rate, 2),
+                        "models_tested": models,
+                    },
+                    "model_performance": {},
+                    "test_results": {},
+                }
+            }
+
+            # Add model performance data
+            for model in models:
+                if model in model_stats:
+                    stats = model_stats[model]
+                    report["evaluation"]["model_performance"][model] = {
+                        "pass_rate": round(stats["pass_rate"], 2),
+                        "task_score": round(stats["task_score"], 2),
+                        "task_max_score": round(stats["task_max_score"], 2),
+                        "efficiency_score": round(stats["efficiency_score"], 4),
+                        "usage_score": round(stats["usage_score"], 4),
+                        "avg_duration": round(stats["avg_duration"], 2),
+                        "avg_cost": round(stats["avg_cost"], 6),
+                        "passed_count": stats["passed_count"],
+                        "total_tests": stats["total_tests"],
+                    }
+
+            # Add test results data
+            for test_id, test_info in results_by_test.items():
+                test_name = test_info.get("test_name", test_id)
+                test_result = {"name": test_name, "results_by_model": {}}
+
+                for model in models:
+                    if model in test_info.get("results_by_model", {}):
+                        result = test_info["results_by_model"][model]
+                        test_result["results_by_model"][model] = {
+                            "passed": result["passed"],
+                            "task_score": round(result["task_score"], 2),
+                            "task_max_score": round(result["task_max_score"], 2),
+                            "efficiency_score": round(
+                                result.get("efficiency_score", 0), 4
+                            ),
+                            "usage_score": round(result.get("usage_score", 0), 4),
+                            "total_score": round(
+                                result.get("total_score", result["task_score"]), 2
+                            ),
+                            "duration": round(result["duration"], 2),
+                            "cost": round(result["cost"], 6),
+                        }
+
+                report["evaluation"]["test_results"][test_id] = test_result
+
+            # Determine output directory
+            report_dir = self.output_dir if self.output_dir else OUTPUT_BASE_DIR
+            report_path = report_dir / "evaluation_report.json"
+
+            # Write to file
+            with open(report_path, "w") as f:
+                json.dump(report, f, indent=2, default=str)
+
+            logger.info(f"JSON report saved to: {report_path}")
+
+            # Also create a symbolic link in the eval directory for easy access
+            try:
+                link_path = EVAL_DIR / "evaluation_report.json"
+                if link_path.exists():
+                    link_path.unlink()
+                link_path.symlink_to(report_path)
+                logger.info(f"Symbolic link created at: {link_path}")
+            except Exception as e:
+                logger.warning(f"Could not create symbolic link: {e}")
+
+            return report_path
+
+        except Exception as e:
+            logger.error(f"Failed to generate JSON report: {e}")
+            return None
 
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate OpenBrowser agent")
     parser.add_argument("--test", help="Run specific test by ID")
     parser.add_argument("--list", action="store_true", help="List available tests")
-    parser.add_argument("--model", action="append", help="LLM model to test (can be specified multiple times, default: dashscope/qwen3.5-plus and dashscope/qwen3.5-flash)")
-    parser.add_argument("--no-services", action="store_true", help="Don't start services")
-    parser.add_argument("--keep-alive", action="store_true", help="Keep services running after evaluation")
+    parser.add_argument(
+        "--model",
+        action="append",
+        help="LLM model to test (can be specified multiple times, default: dashscope/qwen3.5-plus and dashscope/qwen3.5-flash)",
+    )
+    parser.add_argument(
+        "--no-services", action="store_true", help="Don't start services"
+    )
+    parser.add_argument(
+        "--keep-alive",
+        action="store_true",
+        help="Keep services running after evaluation",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    
+
     args = parser.parse_args()
-    
+
     # Configure logging
     log_level = logging.DEBUG if args.debug else logging.INFO
-    logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
-    
+    logging.basicConfig(
+        level=log_level, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
     # Determine models to test
     models = args.model
     if not models:
         models = ["dashscope/qwen3.5-plus", "dashscope/qwen3.5-flash"]
     logger.info(f"Models to test: {models}")
-    
+
     evaluator = Evaluator()
-    
+
     # Register cleanup
     if not args.keep_alive:
         atexit.register(evaluator.service_manager.stop_services)
-    
+
     if args.list:
         test_cases = evaluator.load_test_cases()
         print(f"\nAvailable tests ({len(test_cases)}):")
@@ -1169,7 +1418,7 @@ def main():
             print(f"  {tc.id:20} {tc.name:30} ({tc.difficulty})")
             print(f"    {tc.description[:80]}...")
         return
-    
+
     if args.test:
         # Run single test with first model (or specified model)
         test_cases = evaluator.load_test_cases()
@@ -1177,22 +1426,22 @@ def main():
         if not test_case:
             logger.error(f"Test not found: {args.test}")
             return
-        
+
         if not evaluator.ensure_services(skip_services=args.no_services):
             logger.error("Services unavailable")
             return
-        
+
         # Create output directory for single test
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         evaluator.output_dir = OUTPUT_BASE_DIR / timestamp
         evaluator.output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output directory: {evaluator.output_dir}")
-        
+
         # Use first model for single test
         model_for_test = models[0] if models else None
         evaluator.current_model = model_for_test
         logger.info(f"Using model: {model_for_test}")
-        
+
         result = evaluator.run_test(test_case)
         print(f"\nTest result for {test_case.name} (model: {model_for_test}):")
         print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
@@ -1200,7 +1449,9 @@ def main():
         print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
         print(f"  Usage score: {result.usage_score or 0:.2f}/1.0")
         print(f"  Total score: {result.total_score or result.score:.1f}")
-        print(f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)")
+        print(
+            f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)"
+        )
         print(f"  Cost: {result.cost or 0:.6f} RMB (limit: {test_case.cost_limit}RMB)")
         print(f"  Conversation ID: {result.conversation_id}")
         print(f"  Track events: {len(result.track_events)}")
@@ -1212,7 +1463,7 @@ def main():
             print(f"  Track events file: {result.track_events_file}")
         if result.model:
             print(f"  Model: {result.model}")
-        
+
     else:
         # Run all tests for all models
         success = evaluator.run_all(models=models, skip_services=args.no_services)

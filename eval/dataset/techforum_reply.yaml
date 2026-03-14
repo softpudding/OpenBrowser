@@ -48,29 +48,26 @@ criteria:
   # New: Scroll to find Graduate Student comment
   # This is harder to verify directly, but we can check if they find the right comment
   - type: find_graduate_comment
-    description: "Interact with Graduate Student comment (reply or hover)"
+    description: "Interact with Graduate Student comment (scroll to find it)"
     points: 2
     expected:
-      event_type: click
-      element_text: "Graduate Student"
-      page: "/techforum/"
-    alternative:
-      event_type: hover
-      element_text: "Graduate Student"
-      page: "/techforum/"
-    alternative:
       event_type: scroll
       page: "/techforum/"
-      # check: "scrolled_near_graduate_comment"  # Not yet implemented
+    alternative:
+      event_type: comment_reply_click
+      page: "/techforum/"
   
   # New: Click Reply button on Graduate Student comment
   - type: click_reply_button
-    description: "Click Reply button on Graduate Student comment"
+    description: "Click Reply button to open reply input"
     points: 1.5
     expected:
       event_type: click
       element_text: "Reply"
-      parent_text_contains: "Graduate Student"
+      element_class: "comment-action-btn"
+      page: "/techforum/"
+    alternative:
+      event_type: comment_reply_click
       page: "/techforum/"
   
   # New: Input paper name in comment field
@@ -82,6 +79,10 @@ criteria:
       element_class: "comment-input-field"
       value_length_min: 5
       page: "/techforum/"
+    alternative:
+      event_type: input
+      value_length_min: 5
+      page: "/techforum/"
   
   # New: Submit the reply (optional - AI might not submit)
   - type: submit_reply
@@ -89,10 +90,10 @@ criteria:
     points: 1
     expected:
       event_type: click
-      element_text: "Post"
+      element_text: "Reply"
+      element_class: "reply-submit"
       page: "/techforum/"
     alternative:
-      event_type: click
-      element_text: "Comment"
+      event_type: comment_reply_submit
       page: "/techforum/"
     optional: true

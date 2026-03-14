@@ -119,6 +119,7 @@ class AgentTracker {
                 this.track('input', {
                     element: e.target.tagName,
                     elementId: e.target.id || null,
+                    elementClass: e.target.className || null,
                     elementName: e.target.name || null,
                     inputType: e.target.type || null,
                     valueLength: e.target.value?.length || 0
