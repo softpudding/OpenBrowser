@@ -337,6 +337,64 @@ This explicit approach gives the AI full control over when visual feedback is ne
 ---
 
 
+## EVALUATION SYSTEM
+
+Automated testing framework for evaluating AI agent performance on browser automation tasks.
+
+### Structure
+```
+OpenBrowser/eval/
+├── evaluate_browser_agent.py    # Main evaluation entry point
+├── dataset/                     # YAML test case definitions
+│   ├── techforum.yaml          # TechForum upvote test
+│   ├── gbr.yaml                # GBR search test
+│   └── cloudstack.yaml         # CloudStack DAS agent test
+├── output/                      # Generated results and images
+├── server.py                    # Mock websites server with tracking API
+└── (existing mock websites directories)
+```
+
+### Key Features
+- **Automated test execution**: Creates isolated OpenBrowser conversations for each test
+- **Event tracking**: Captures browser interaction events via `/api/track` endpoint
+- **SSE monitoring**: Records all SSE events from OpenBrowser agent (including images)
+- **Image storage**: Extracts and saves screenshots in sequential order
+- **Criteria-based scoring**: Evaluates performance against YAML-defined criteria
+- **Service management**: Automatically starts/stops OpenBrowser and eval servers
+
+### Usage
+```bash
+# List available tests
+python eval/evaluate_browser_agent.py --list
+
+# Run single test
+python eval/evaluate_browser_agent.py --test techforum
+
+# Run all tests (with service management)
+python eval/evaluate_browser_agent.py
+
+# Run without starting services (assumes servers already running)
+python eval/evaluate_browser_agent.py --no-services
+```
+
+### Test Case Definition
+Tests are defined in YAML format with:
+- `id`, `name`, `description`, `difficulty`
+- `start_url`: Initial URL to load
+- `instruction`: Task description for AI agent
+- `criteria`: List of scoring criteria with expected event patterns
+
+### Event Tracking
+Mock websites include tracking JavaScript (`js/tracker.js`) that sends events to `/api/track`. Events include:
+- `page_view`, `click`, `input`, `scroll`, `hover`, `submit`
+- Custom event types for specific interactions (e.g., `answer_action` for upvotes)
+
+### Evaluation Criteria
+Criteria match tracked events using flexible pattern matching:
+- Event type, element IDs, classes, text content
+- Page URLs, input values, custom fields
+- Alternative conditions for flexible scoring
+
 ## NOTES
 
 - **Git dependencies:** `openhands-sdk` and `openhands-tools` from git subdirectories

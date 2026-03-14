@@ -51,6 +51,16 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Track input message if tracker exists
+        if (window.tracker && typeof window.tracker.track === 'function') {
+            window.tracker.track('input', {
+                element: chatInput.tagName,
+                elementId: chatInput.id,
+                valueLength: message.length,
+                value: message.substring(0, 50) // Limit length for privacy
+            });
+        }
+        
         // Add user message to chat
         addUserMessage(message);
         

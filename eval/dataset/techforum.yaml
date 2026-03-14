@@ -1,0 +1,16 @@
+id: techforum
+name: "TechForum Upvote Test"
+difficulty: medium
+description: "AI Agent should upvote the first AI-related post (first post) on TechForum"
+start_url: "http://localhost:16605/techforum/"
+instruction: "Please upvote the first AI-related post you see (the first post)."
+
+criteria:
+  - type: upvote_action
+    description: "Upvote the first AI-related post"
+    points: 2
+    expected:
+      event_type: answer_action
+      action: upvote
+      questionId: "1"
+      page: "/techforum/"
