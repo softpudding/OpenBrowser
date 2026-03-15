@@ -25,7 +25,7 @@ Expected output:
 🎉 OpenBrowser is ready to use!
 ```
 
-If not ready, see [Setup](#setup) below.
+If not ready, see [First-Time Setup](#first-time-setup) below.
 
 ### 2. Submit Task
 
@@ -54,9 +54,19 @@ tail -f task.log
 curl http://localhost:8765/agent/conversations/{conversation_id}
 ```
 
-## Setup
+---
 
-If OpenBrowser is not ready, follow these steps
+## First-Time Setup
+
+Before using OpenBrowser, you must complete three setup steps. This section guides you through the entire process.
+
+### Setup Checklist
+
+| Check | How to Verify | Expected Result |
+|-------|---------------|-----------------|
+| Server Running | `curl http://localhost:8765/health` | `{"status": "healthy"}` |
+| Extension Connected | Visit http://localhost:8765/api | `websocket_connected: true` |
+| API Key Configured | Visit http://localhost:8765 → Settings | `has_api_key: true` |
 
 ### Step 1: Install and Start Server
 
@@ -68,48 +78,62 @@ uv run local-chrome-server serve
 
 Server runs at http://127.0.0.1:8765
 
-**Important:** Do NOT start the server yet. Use scripts/check_status.py first.
+**Important:** Check status first before assuming the server needs to be started:
+```bash
+python3 scripts/check_status.py
+```
 
 ### Step 2: Configure LLM API Key (REQUIRED)
 
-**Ask the user to configure the LLM API key:**
+OpenBrowser requires a DashScope API key from Alibaba Cloud.
 
-1. Go to https://dashscope.aliyun.com/ to get a DashScope API key
-2. Open http://localhost:8765 in Chrome
-3. Click the ⚙️ Settings button in the status bar
-4. Fill in:
-   - Model: `dashscope/qwen3.5-plus`
-   - Base URL: `https://dashscope.aliyuncs.com/compatible-mode/v1`
-   - API Key: `YOUR_API_KEY`
-5. Click Save
+#### Getting Your DashScope API Key
 
-Verify configuration:
+1. **Visit** https://dashscope.aliyun.com/
+2. **Sign in** with your Alibaba Cloud account (create one if needed)
+3. **Navigate** to API Key Management (API-KEY管理)
+4. **Create** a new API Key
+5. **Copy** the API Key (starts with `sk-`)
+
+#### Configuring in OpenBrowser
+
+1. Open http://localhost:8765 in Chrome
+2. Click the **⚙️ Settings** button in the status bar
+3. Fill in:
+   - **Model**: Choose from the options below (see [Model Selection Guide](#model-selection-guide))
+   - **Base URL**: `https://dashscope.aliyuncs.com/compatible-mode/v1` (default)
+   - **API Key**: Paste your API key
+4. Click **Save**
+
+#### Verify Configuration
+
 ```bash
 python3 scripts/check_status.py
-# Should show: ✅ LLM Config: dashscope/qwen3.5-plus
+# Should show: ✅ LLM Config: dashscope/qwen3.5-plus (or dashscope/qwen3.5-flash)
 ```
 
-**Note:** The LLM API key is stored in `~/.openbrowser/llm_config.json`.
+**Note:** The LLM API key is stored locally in `~/.openbrowser/llm_config.json`.
 
 ### Step 3: Install Chrome Extension (REQUIRED)
 
-**Ask the user to install the Chrome extension**
+#### Build the Extension
 
-1. Build the extension:
-   ```bash
-   cd /path/to/OpenBrowser/extension
-   npm install
-   npm run build
-   ```
+```bash
+cd /path/to/OpenBrowser/extension
+npm install
+npm run build
+```
 
-2. Load in Chrome:
-   - Open `chrome://extensions/`
-   - Enable **Developer mode** (top-right toggle)
-   - Click **Load unpacked**
-   - Select the `extension/dist` folder
-3. Verify extension appears and list
+#### Load in Chrome
 
-Verify extension is connected:
+1. Open `chrome://extensions/`
+2. Enable **Developer mode** (toggle in top-right)
+3. Click **Load unpacked**
+4. Select the `extension/dist` folder
+5. Verify the extension appears in the list
+
+#### Verify Extension Connection
+
 ```bash
 python3 scripts/check_status.py
 # Should show: ✅ Extension: Connected
@@ -119,8 +143,6 @@ python3 scripts/check_status.py
 
 **⚠️ IMPORTANT: Chrome blocks pop-up windows by default, which prevents OpenBrowser from opening new tabs when clicking links.**
 
-**Instruct the user to configure pop-up permissions:**
-
 **Option A: Allow pop-ups for specific sites (Recommended)**
 1. When a pop-up is blocked, a blocked pop-up icon (🚫) appears in the address bar
 2. Click the icon and select "Always allow pop-ups and redirects from [site]"
@@ -129,9 +151,148 @@ python3 scripts/check_status.py
 **Option B: Allow pop-ups globally**
 1. Navigate to `chrome://settings/content/popups`
 2. Under "Default behavior", select **Sites can send pop-ups and use redirects**
-3. Or add specific sites to "Allowed to send pop-ups" section
 
 **Common symptom**: User reports that OpenBrowser clicks a link but no new tab opens. This indicates pop-ups are blocked. Check the address bar for the blocked pop-up icon.
+
+---
+
+## Model Selection Guide
+
+OpenBrowser supports two models from the Qwen3.5 family. Choose based on your task requirements and budget.
+
+### Quick Comparison
+
+| Model | Best For | Cost per Task | Speed |
+|-------|----------|---------------|-------|
+| **dashscope/qwen3.5-plus** | Complex tasks, mission-critical automation | ~¥0.48 | Faster |
+| **dashscope/qwen3.5-flash** | Simple tasks, cost-sensitive scenarios | ~¥0.13 | Slightly slower |
+
+### Detailed Evaluation Results
+
+Based on comprehensive testing (see `eval/evaluation_report.json`):
+
+| Metric | Qwen3.5-Plus | Qwen3.5-Flash | Difference |
+|--------|--------------|---------------|------------|
+| **Pass Rate** | 100% | 100% | Same |
+| **Task Score** | 32.0/33.5 | 31.0/33.5 | Plus +1 |
+| **Avg Duration** | 127.6s | 140.7s | Plus 9% faster |
+| **Avg Cost** | ¥0.479 | ¥0.133 | Flash 72% cheaper |
+| **Efficiency Score** | 4.57 | 4.39 | Plus slightly higher |
+| **Usage Score** | 3.55 | 5.31 | Flash much better |
+
+### When to Choose Qwen3.5-Plus
+
+- ✅ Complex multi-step workflows
+- ✅ Visual reasoning intensive tasks
+- ✅ Mission-critical automation where reliability is paramount
+- ✅ When speed matters more than cost
+
+### When to Choose Qwen3.5-Flash
+
+- ✅ Simple navigation and scraping tasks
+- ✅ High-volume repetitive operations
+- ✅ Budget-constrained scenarios
+- ✅ Development and testing workflows
+
+### Cost Savings Example
+
+For 100 typical browser automation tasks:
+- **Plus**: ~¥48 total
+- **Flash**: ~¥13 total
+- **Savings**: ¥35 (73% reduction)
+
+---
+
+## First-Time User Interaction Flow
+
+When a user requests browser automation for the first time, follow this interaction flow:
+
+### Scenario A: Everything Ready
+
+```
+AI: Checking OpenBrowser status...
+    
+✅ Server: Running
+✅ Extension: Connected
+✅ LLM Config: dashscope/qwen3.5-plus
+
+OpenBrowser is ready! What would you like me to do?
+```
+
+### Scenario B: API Key Not Configured
+
+```
+AI: Checking OpenBrowser status...
+    
+✅ Server: Running
+✅ Extension: Connected
+❌ LLM Config: API key not configured
+
+OpenBrowser needs an API key to function. Here's how to set it up:
+
+1. Get your DashScope API key:
+   - Visit https://dashscope.aliyun.com/
+   - Sign in with Alibaba Cloud
+   - Go to API Key Management
+   - Create and copy your API key
+
+2. Configure in OpenBrowser:
+   - Open http://localhost:8765
+   - Click ⚙️ Settings
+   - Paste your API key
+   - Select a model (Plus for complex tasks, Flash for cost savings)
+   - Click Save
+
+Please let me know once you've configured the API key.
+```
+
+### Scenario C: Extension Not Connected
+
+```
+AI: Checking OpenBrowser status...
+    
+✅ Server: Running
+❌ Extension: Not connected
+✅ LLM Config: dashscope/qwen3.5-plus
+
+The Chrome extension is not connected. Please:
+
+1. Build the extension:
+   cd /path/to/OpenBrowser/extension
+   npm install && npm run build
+
+2. Load in Chrome:
+   - Open chrome://extensions/
+   - Enable "Developer mode" (top-right toggle)
+   - Click "Load unpacked"
+   - Select the extension/dist folder
+
+Let me know when the extension is loaded.
+```
+
+### Scenario D: Model Selection Prompt
+
+```
+AI: OpenBrowser is configured with dashscope/qwen3.5-plus.
+
+📊 Model options based on your needs:
+
+┌─────────────────────────────────────────────────────────────┐
+│ 🟢 dashscope/qwen3.5-plus (current)                         │
+│    • Best for complex tasks                                  │
+│    • Faster average completion                               │
+│    • Cost: ~¥0.48 per task                                   │
+├─────────────────────────────────────────────────────────────┤
+│ 🟡 dashscope/qwen3.5-flash                                   │
+│    • Best for cost savings (72% cheaper)                     │
+│    • Same pass rate (100%)                                   │
+│    • Cost: ~¥0.13 per task                                   │
+└─────────────────────────────────────────────────────────────┘
+
+Would you like to keep the current model or switch to Flash for cost savings?
+```
+
+---
 
 ## Important Notes
 
@@ -139,6 +300,8 @@ python3 scripts/check_status.py
 - **Extension must stay loaded in Chrome** - Browser automation won't work if extension is disabled
 - **Visual-based automation** - OpenBrowser sees pages via screenshots
 - **Uses your browser session** - Leverages existing logins/cookies
+
+---
 
 ## Troubleshooting
 
@@ -153,8 +316,6 @@ python3 scripts/check_status.py
 2. Click the icon and select "Always allow pop-ups and redirects from [site]"
 3. Or configure globally at `chrome://settings/content/popups`
 
-See [Step 4: Configure Chrome Pop-up Settings](#step-4-configure-chrome-pop-up-settings-critical) for detailed instructions.
-
 ### Extension Not Connected (`websocket_connected: false`)
 
 1. Verify extension is loaded in `chrome://extensions/`
@@ -166,6 +327,7 @@ See [Step 4: Configure Chrome Pop-up Settings](#step-4-configure-chrome-pop-up-s
 
 1. Configure via web UI at http://localhost:8765
 2. Check config file: `cat ~/.openbrowser/llm_config.json`
+3. Ensure the API key starts with `sk-` and is not empty
 
 ### Task Not Progressing
 
@@ -173,6 +335,8 @@ See [Step 4: Configure Chrome Pop-up Settings](#step-4-configure-chrome-pop-up-s
 2. View browser window - may be waiting for dialogs
 3. Check for dialog prompts (confirm/alert)
 4. Restart with new conversation
+
+---
 
 ## Additional Resources
 
@@ -187,6 +351,5 @@ See [Step 4: Configure Chrome Pop-up Settings](#step-4-configure-chrome-pop-up-s
 ```
 AI Assistant → REST API → OpenBrowser Agent → Chrome Extension
                                      ↓
-                              Qwen3.5-Plus (Visual Understanding)
+                              Qwen3.5 (Visual Understanding)
 ```
-

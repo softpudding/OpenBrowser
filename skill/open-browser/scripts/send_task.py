@@ -25,7 +25,7 @@ def create_conversation(base_url: str, cwd: str) -> str:
         f"{base_url}/agent/conversations",
         data=json.dumps({"cwd": cwd}).encode("utf-8"),
         headers={"Content-Type": "application/json"},
-        method="POST"
+        method="POST",
     )
     with urlopen(req, timeout=10) as resp:
         data = json.loads(resp.read().decode("utf-8"))
@@ -51,6 +51,7 @@ def get_conversation_status(base_url: str, conversation_id: str) -> dict:
     except Exception:
         return {}
 
+
 def stream_task(base_url: str, conversation_id: str, task: str, cwd: str):
     """Stream task execution with SSE events."""
     url = f"{base_url}/agent/conversations/{conversation_id}/messages"
@@ -58,7 +59,7 @@ def stream_task(base_url: str, conversation_id: str, task: str, cwd: str):
         url,
         data=json.dumps({"text": task, "cwd": cwd}).encode("utf-8"),
         headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
-        method="POST"
+        method="POST",
     )
 
     try:
@@ -70,10 +71,10 @@ def stream_task(base_url: str, conversation_id: str, task: str, cwd: str):
             # SSE event parsing state
             sse_event = None
             sse_data = None
-            
+
             for line in resp:
                 line = line.decode("utf-8").strip()
-                
+
                 # Empty line signals end of an event
                 if not line:
                     if sse_event and sse_data:
@@ -86,7 +87,7 @@ def stream_task(base_url: str, conversation_id: str, task: str, cwd: str):
                     sse_event = None
                     sse_data = None
                     continue
-                
+
                 # Parse SSE fields
                 if line.startswith("event:"):
                     sse_event = line[6:].strip()
@@ -102,9 +103,9 @@ def stream_task(base_url: str, conversation_id: str, task: str, cwd: str):
 
 def format_event(event_type: str, data: dict):
     """Format and print SSE event.
-    
+
     Args:
-        event_type: SSE event type (e.g., "agent_event", "complete")
+        event_type: SSE event type (e.g., "agent_event", "complete", "usage_metrics")
         data: Event data dictionary
     """
     # Handle SSE event types
@@ -113,39 +114,61 @@ def format_event(event_type: str, data: dict):
         print(f"✅ Completed: {data.get('conversation_id', '')}")
         print(f"   {data.get('message', '')}")
         return
-    
+
+    # Handle usage metrics event
+    if event_type == "usage_metrics":
+        metrics = data.get("metrics", {})
+        model_name = metrics.get("model_name", "unknown")
+        cost = metrics.get("accumulated_cost", 0)
+        token_usage = metrics.get("accumulated_token_usage", {})
+
+        print("-" * 50)
+        print(f"📊 Usage Metrics:")
+        print(f"   Model: {model_name}")
+        print(f"   Cost: ¥{cost:.6f}")
+
+        if token_usage:
+            prompt_tokens = token_usage.get("prompt_tokens", 0)
+            completion_tokens = token_usage.get("completion_tokens", 0)
+            total_tokens = token_usage.get("total_tokens", 0)
+            if total_tokens > 0:
+                print(
+                    f"   Tokens: {total_tokens:,} (prompt: {prompt_tokens:,}, completion: {completion_tokens:,})"
+                )
+        return
+
     # Handle agent events (check data.type field)
     if event_type == "agent_event":
         data_type = data.get("type", "unknown")
-        
+
         if data_type == "SystemPromptEvent":
             # System prompt - skip or summarize
             print("📝 System prompt loaded")
-            
+
         elif data_type == "MessageEvent":
             role = data.get("role", "unknown")
             text = data.get("text", "")
             timestamp = data.get("timestamp", "")
-            
+
             if role == "user":
                 print(f"👤 User: {text}")
             elif role == "assistant":
                 print(f"🤖 Assistant: {text}")
             else:
                 print(f"💬 [{role}]: {text}")
-                
+
         elif data_type == "ThoughtEvent":
             content = data.get("thought", data.get("content", ""))
             if content:
                 # Show first 150 chars of thought
                 preview = content[:150] + "..." if len(content) > 150 else content
                 print(f"💭 Thinking: {preview}")
-                
+
         elif data_type == "ActionEvent":
             # Extract action info from the text field which contains structured info
             text = data.get("text", "")
             action = data.get("action", "unknown")
-            
+
             # Parse action from the string representation
             if action and "action=" in str(action):
                 # Extract action type from string like "type='tab' action='init'"
@@ -156,40 +179,42 @@ def format_event(event_type: str, data: dict):
                     action_name = str(action).split()[0] if action else "unknown"
             else:
                 action_name = str(action) if action else "unknown"
-            
+
             print(f"🔧 Action: {action_name}")
-            
+
             # Extract key info from text summary
             if "Summary:" in text:
                 summary = text.split("Summary:")[1].split("\n")[0].strip()
                 if summary:
                     print(f"   → {summary[:100]}")
-                    
+
         elif data_type == "ObservationEvent":
             success = data.get("success", False)
             message = data.get("message", "")
             has_image = "image" in data
-            
+
             status_emoji = "✓" if success else "✗"
             extras = []
-            
+
             if has_image:
                 extras.append("📷 screenshot")
-            
+
             extras_str = f" ({', '.join(extras)})" if extras else ""
             print(f"👁️  Observation: {status_emoji}{extras_str}")
-            
+
             if message:
                 print(f"   → {message[:100]}")
-            
+
         elif data_type == "ErrorEvent":
             error = data.get("error", "Unknown error")
             print(f"❌ Error: {error}")
-            
+
         else:
             # Unknown agent event type - show type and basic info
-            print(f"📡 [{data_type}] {json.dumps(data, indent=2, ensure_ascii=False)[:200]}...")
-    
+            print(
+                f"📡 [{data_type}] {json.dumps(data, indent=2, ensure_ascii=False)[:200]}..."
+            )
+
     else:
         # Unknown SSE event type
         print(f"❓ [{event_type}] {json.dumps(data, ensure_ascii=False)[:200]}")
@@ -202,35 +227,31 @@ def main():
     parser.add_argument(
         "task",
         nargs="?",
-        help="Task description for the agent to execute (optional with --check or --status)"
+        help="Task description for the agent to execute (optional with --check or --status)",
     )
     parser.add_argument(
         "--url",
         default="http://127.0.0.1:8765",
-        help="OpenBrowser server URL (default: http://127.0.0.1:8765)"
+        help="OpenBrowser server URL (default: http://127.0.0.1:8765)",
     )
     parser.add_argument(
         "--cwd",
         default=".",
-        help="Working directory for the agent (default: current directory)"
+        help="Working directory for the agent (default: current directory)",
     )
     parser.add_argument(
         "--background",
         action="store_true",
-        help="Run in background (requires --output)"
+        help="Run in background (requires --output)",
     )
-    parser.add_argument(
-        "--output",
-        help="Output file for background mode or logging"
-    )
+    parser.add_argument("--output", help="Output file for background mode or logging")
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Only check server status, don't submit task"
+        help="Only check server status, don't submit task",
     )
     parser.add_argument(
-        "--status",
-        help="Check conversation status (requires conversation ID)"
+        "--status", help="Check conversation status (requires conversation ID)"
     )
 
     args = parser.parse_args()
@@ -260,16 +281,15 @@ def main():
             sys.executable,
             __file__,
             args.task,
-            "--url", args.url,
-            "--cwd", args.cwd,
+            "--url",
+            args.url,
+            "--cwd",
+            args.cwd,
         ]
 
         with open(args.output, "a") as log_file:
             process = subprocess.Popen(
-                cmd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                start_new_session=True
+                cmd, stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True
             )
 
         print(f"🚀 Started task in background")

@@ -127,6 +127,24 @@ class AgentTracker {
             }
         });
         
+        // Track keyboard events for Enter key (for message submission)
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.keyCode === 13) && 
+                (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+                // Track Enter key press in input/textarea (for chat/message submission)
+                this.track('keydown_enter', {
+                    element: e.target.tagName,
+                    elementId: e.target.id || null,
+                    elementClass: e.target.className || null,
+                    elementName: e.target.name || null,
+                    inputType: e.target.type || null,
+                    valueLength: e.target.value?.length || 0,
+                    key: e.key,
+                    keyCode: e.keyCode
+                });
+            }
+        });
+        
         // Track hover (with debounce)
         let hoverTimeout;
         document.addEventListener('mouseover', (e) => {
