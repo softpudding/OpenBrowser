@@ -406,7 +406,6 @@ def initialize_agent():
     # Register tools if not already registered
     try:
         # Import the old OpenBrowserTool for backward compatibility
-        # from .tools.open_browser_tool import OpenBrowserTool
         # logger.info("OpenBrowserTool registered (deprecated, for backward compatibility)")
 
         # Import new focused tools to ensure they're registered

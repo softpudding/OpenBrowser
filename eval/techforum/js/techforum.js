@@ -327,6 +327,13 @@ document.querySelectorAll('.view-all-comments-btn').forEach(function(btn) {
             
             // Show modal
             allCommentsModal.style.display = 'flex';
+            // Disable body scroll when modal is open
+            // Use position: fixed to completely lock the page
+            const scrollY = window.scrollY;
+            document.body.style.position = 'fixed';
+            document.body.style.top = -scrollY + 'px';
+            document.body.style.left = '0';
+            document.body.style.right = '0';
             document.body.style.overflow = 'hidden';
         }
     });
@@ -335,7 +342,15 @@ document.querySelectorAll('.view-all-comments-btn').forEach(function(btn) {
 // Close modal
 function closeAllCommentsModal() {
     allCommentsModal.style.display = 'none';
-    document.body.style.overflow = 'auto';
+    // Restore body scroll when modal is closed
+    const scrollY = document.body.style.top;
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.overflow = '';
+    // Restore scroll position
+    window.scrollTo(0, parseInt(scrollY || '0') * -1);
 }
 
 if (allCommentsClose) {

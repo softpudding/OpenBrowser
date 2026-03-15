@@ -451,7 +451,13 @@ export type ScrollDirection = 'up' | 'down' | 'left' | 'right';
  */
 export interface ScrollResult extends ElementActionResult {
   scrolled: boolean;
+  /** Whether the scroll position actually changed */
+  scrollEffective?: boolean;
+  /** Warning message if scroll had no effect */
+  warning?: string;
   scrollPosition?: { x: number; y: number };
+  /** Scroll position before the scroll attempt */
+  scrollPositionBefore?: { x: number; y: number };
   staleElement?: boolean;
   error?: string;
 }
@@ -563,6 +569,10 @@ export async function performElementScroll(
           const scrollX = Math.round(scrollWidth * xMultiplier);
           const scrollY = Math.round(scrollHeight * yMultiplier);
           
+          // Capture scroll position BEFORE scrolling
+          const beforeX = scrollTarget.scrollLeft;
+          const beforeY = scrollTarget.scrollTop;
+          
           // Use scrollBy for smooth relative scrolling
           scrollTarget.scrollBy({
             left: scrollX,
@@ -570,18 +580,25 @@ export async function performElementScroll(
             behavior: 'instant'
           });
 
+          // Capture scroll position AFTER scrolling
+          const afterX = scrollTarget.scrollLeft;
+          const afterY = scrollTarget.scrollTop;
+          
+          // Verify if scroll actually happened
+          const scrollEffective = (afterX !== beforeX) || (afterY !== beforeY);
+
           return {
             scrolled: true,
-            scrollPosition: {
-              x: scrollTarget.scrollLeft,
-              y: scrollTarget.scrollTop
-            },
+            scrollEffective,
+            scrollPosition: { x: afterX, y: afterY },
+            scrollPositionBefore: { x: beforeX, y: beforeY },
             scrollAmount: {
               x: scrollX,
               y: scrollY,
               viewportHeight: scrollHeight,
               viewportWidth: scrollWidth
-            }
+            },
+            ...(scrollEffective ? {} : { reason: "Scroll had no effect - may already be at boundary" })
           };
         } catch (e) {
           return { scrolled: false, error: e.message || String(e) };
@@ -605,24 +622,35 @@ export async function performElementScroll(
           const scrollX = Math.round(scrollWidth * xMultiplier);
           const scrollY = Math.round(scrollHeight * yMultiplier);
           
+          // Capture scroll position BEFORE scrolling
+          const beforeX = scrollTarget.scrollLeft;
+          const beforeY = scrollTarget.scrollTop;
+          
           scrollTarget.scrollBy({
             left: scrollX,
             top: scrollY,
             behavior: 'instant'
           });
 
+          // Capture scroll position AFTER scrolling
+          const afterX = scrollTarget.scrollLeft;
+          const afterY = scrollTarget.scrollTop;
+          
+          // Verify if scroll actually happened
+          const scrollEffective = (afterX !== beforeX) || (afterY !== beforeY);
+
           return {
             scrolled: true,
-            scrollPosition: {
-              x: scrollTarget.scrollLeft,
-              y: scrollTarget.scrollTop
-            },
+            scrollEffective,
+            scrollPosition: { x: afterX, y: afterY },
+            scrollPositionBefore: { x: beforeX, y: beforeY },
             scrollAmount: {
               x: scrollX,
               y: scrollY,
               viewportHeight: scrollHeight,
               viewportWidth: scrollWidth
-            }
+            },
+            ...(scrollEffective ? {} : { reason: "Page scroll had no effect - may already be at boundary" })
           };
         } catch (e) {
           return { scrolled: false, error: e.message || String(e) };
@@ -681,7 +709,15 @@ export async function performElementScroll(
   }
 
   // Check the result from the script (only if no dialog opened)
-  const scrollResult = jsResult.result?.value as { scrolled: boolean; error?: string; stale?: boolean; scrollPosition?: { x: number; y: number } } | undefined;
+  const scrollResult = jsResult.result?.value as {
+    scrolled: boolean;
+    scrollEffective?: boolean;
+    reason?: string;
+    error?: string;
+    stale?: boolean;
+    scrollPosition?: { x: number; y: number };
+    scrollPositionBefore?: { x: number; y: number };
+  } | undefined;
 
   if (!scrollResult?.scrolled) {
     const isStale = scrollResult?.stale === true;
@@ -697,14 +733,23 @@ export async function performElementScroll(
     };
   }
 
-  console.log(`✅ [ElementScroll] Scroll executed successfully`);
+  const scrollEffective = scrollResult.scrollEffective !== false;
+  const warning = scrollResult.reason;
 
-  // If dialog opened during scroll, propagate dialog info
+  if (!scrollEffective) {
+    console.log(`⚠️ [ElementScroll] Scroll executed but had no effect: ${warning}`);
+  } else {
+    console.log(`✅ [ElementScroll] Scroll executed successfully`);
+  }
+
   const result: ScrollResult = {
     success: true,
     elementId,
     scrolled: true,
+    scrollEffective,
+    ...(warning ? { warning } : {}),
     scrollPosition: scrollResult.scrollPosition,
+    scrollPositionBefore: scrollResult.scrollPositionBefore,
   };
 
   if (jsResult.dialog_opened && jsResult.dialog) {

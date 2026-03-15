@@ -106,6 +106,75 @@ Use this to:
 - Scroll within specific containers (when element_id is provided, requires confirmation)
 - Scroll the entire page (when element_id is omitted, executes immediately)
 
+**⚠️ Troubleshooting Whole-Page Scroll**:
+
+If a whole-page scroll (without `element_id`) has no effect and you see the message:
+
+```
+⚠️ Page scroll had no effect - may already be at boundary
+```
+
+You need to diagnose **which of these two scenarios** applies:
+
+---
+
+### Scenario 1: Content is in a Scrollable Container
+
+The main page cannot scroll, but the content you need is inside a **scrollable container** (e.g., a modal dialog, a sidebar, a scrollable list, or any element with its own scroll context).
+
+**How to identify**:
+- You see a visible container (modal, sidebar, panel) that might contain more content
+- The page layout suggests a nested scrollable area
+
+**What to do**:
+
+1. **Identify scrollable containers**: Call the **highlight tool** with `element_type="scrollable"`:
+   ```json
+   { "element_type": "scrollable" }
+   ```
+
+2. **Scroll within the container**: Use `scroll` with the `element_id` of the specific container:
+   ```json
+   { "action": "scroll", "element_id": "abc123", "direction": "down", "tab_id": 123 }
+   // → This requires 2PC confirmation
+   ```
+
+**Common examples**:
+- **Modal dialogs**: Content inside a modal often has its own scroll area
+- **Sidebars**: Navigation sidebars or chat panels typically have independent scrolling
+- **Lists and tables**: Long lists or data tables often use container scrolling
+- **Overflow containers**: Any element with `overflow: auto` or `overflow: scroll` CSS
+
+---
+
+### Scenario 2: Page Uses Horizontal Scrolling
+
+Some modern pages (e.g., Xiaohongshu/小红书, Pinterest-style layouts) use **horizontal scrolling** instead of or in addition to vertical scrolling.
+
+**How to identify**:
+- Page layout shows cards/content arranged horizontally
+- Vertical scroll reaches boundary quickly or shows no effect
+- The page appears to be a "feed" or "carousel" style layout
+
+**What to do**:
+
+Try scrolling horizontally instead:
+```json
+{ "action": "scroll", "direction": "right", "scroll_amount": 1.0, "tab_id": 123 }
+{ "action": "scroll", "direction": "left", "scroll_amount": 1.0, "tab_id": 123 }
+```
+
+**Common examples**:
+- **Feed-style apps**: Xiaohongshu, Pinterest, Instagram explore
+- **Carousel layouts**: Product carousels, image galleries
+- **Tab-based navigation**: Horizontal tab strips that reveal more options
+
+---
+
+**Key distinction**:
+- **Scenario 1** → You need to find and target a *specific container element* (use `element_id`)
+- **Scenario 2** → You need to change *scroll direction* (use `direction: "left"/"right"` without `element_id`)
+
 ### keyboard_input
 Type text into an input element by its visual ID.
 

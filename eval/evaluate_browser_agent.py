@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 import subprocess
+import shutil
 import signal
 import atexit
 import logging
@@ -445,7 +446,10 @@ class Evaluator:
 
         # Create new conversation with current model
         conversation_id = self.openbrowser.create_conversation(model=self.current_model)
-        if not conversation_id:
+        if conversation_id:
+            logger.debug(f"Created conversation: {conversation_id}")
+        else:
+            logger.warning(f"Failed to create conversation for model {self.current_model}")
             return TestResult(
                 test_case=test_case,
                 passed=False,
@@ -1340,7 +1344,7 @@ class Evaluator:
                                 result.get("total_score", result["task_score"]), 2
                             ),
                             "duration": round(result["duration"], 2),
-                            "cost": round(result["cost"], 6),
+                            "cost": round(result["cost"], 6) if result["cost"] is not None else None,
                         }
 
                 report["evaluation"]["test_results"][test_id] = test_result
@@ -1355,15 +1359,15 @@ class Evaluator:
 
             logger.info(f"JSON report saved to: {report_path}")
 
-            # Also create a symbolic link in the eval directory for easy access
+            # Also create a copy in the eval directory for easy access and version control
             try:
-                link_path = EVAL_DIR / "evaluation_report.json"
-                if link_path.exists():
-                    link_path.unlink()
-                link_path.symlink_to(report_path)
-                logger.info(f"Symbolic link created at: {link_path}")
+                copy_path = EVAL_DIR / "evaluation_report.json"
+                if copy_path.exists():
+                    copy_path.unlink()  # Remove if exists (could be symlink or regular file)
+                shutil.copy2(report_path, copy_path)
+                logger.info(f"Evaluation report copied to: {copy_path}")
             except Exception as e:
-                logger.warning(f"Could not create symbolic link: {e}")
+                logger.warning(f"Could not copy evaluation report: {e}")
 
             return report_path
 
@@ -1420,7 +1424,7 @@ def main():
         return
 
     if args.test:
-        # Run single test with first model (or specified model)
+        # Run single test for all models (or specified models)
         test_cases = evaluator.load_test_cases()
         test_case = next((tc for tc in test_cases if tc.id == args.test), None)
         if not test_case:
@@ -1437,32 +1441,52 @@ def main():
         evaluator.output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output directory: {evaluator.output_dir}")
 
-        # Use first model for single test
-        model_for_test = models[0] if models else None
-        evaluator.current_model = model_for_test
-        logger.info(f"Using model: {model_for_test}")
+        all_results = []
+        for model in models:
+            logger.info(f"\n{'=' * 60}")
+            logger.info(f"Testing model: {model}")
+            logger.info(f"{'=' * 60}")
 
-        result = evaluator.run_test(test_case)
-        print(f"\nTest result for {test_case.name} (model: {model_for_test}):")
-        print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
-        print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
-        print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
-        print(f"  Usage score: {result.usage_score or 0:.2f}/1.0")
-        print(f"  Total score: {result.total_score or result.score:.1f}")
-        print(
-            f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)"
-        )
-        print(f"  Cost: {result.cost or 0:.6f} RMB (limit: {test_case.cost_limit}RMB)")
-        print(f"  Conversation ID: {result.conversation_id}")
-        print(f"  Track events: {len(result.track_events)}")
-        print(f"  SSE events: {len(result.sse_events)}")
-        print(f"  Images saved: {len(result.images)}")
-        if result.sse_events_file:
-            print(f"  SSE events file: {result.sse_events_file}")
-        if result.track_events_file:
-            print(f"  Track events file: {result.track_events_file}")
-        if result.model:
-            print(f"  Model: {result.model}")
+            # Set current model
+            evaluator.current_model = model
+
+            result = evaluator.run_test(test_case)
+            result.model = model  # Ensure model is set in result
+            all_results.append(result)
+
+            # Print result for this model
+            print(f"\nTest result for {test_case.name} (model: {model}):")
+            print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
+            print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
+            print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
+            print(f"  Usage score: {result.usage_score or 0:.2f}/1.0")
+            print(f"  Total score: {result.total_score or result.score:.1f}")
+            print(
+                f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)"
+            )
+            print(f"  Cost: {result.cost or 0:.6f} RMB (limit: {test_case.cost_limit}RMB)")
+            print(f"  Conversation ID: {result.conversation_id}")
+            print(f"  Track events: {len(result.track_events)}")
+            print(f"  SSE events: {len(result.sse_events)}")
+            print(f"  Images saved: {len(result.images)}")
+            if result.sse_events_file:
+                print(f"  SSE events file: {result.sse_events_file}")
+            if result.track_events_file:
+                print(f"  Track events file: {result.track_events_file}")
+
+        # Generate cross-model summary if we tested multiple models
+        if len(models) > 1 and all_results:
+            evaluator._generate_cross_model_summary(all_results, models)
+
+        # Print overall summary
+        print(f"\n{'=' * 60}")
+        print(f"Overall summary for test '{test_case.name}':")
+        for model in models:
+            model_results = [r for r in all_results if r.model == model]
+            if model_results:
+                result = model_results[0]
+                status = "PASS" if result.passed else "FAIL"
+                print(f"  {model}: {status} (score: {result.score:.1f}/{result.max_score:.1f})")
 
     else:
         # Run all tests for all models

@@ -30,6 +30,7 @@ from server.agent.visualizer import QueueVisualizer
 from server.agent.conversation import ConversationState
 from server.core.llm_config import llm_config_manager
 from server.core.session_manager import session_manager, SessionStatus
+from server.agent.tools.browser_executor import remove_browser_executor
 logger = get_logger(__name__)
 
 
@@ -283,6 +284,12 @@ class OpenBrowserAgentManager:
 
             command_processor.cleanup_conversation(conversation_id)
 
+            # Cleanup shared browser executor for this conversation
+            try:
+                remove_browser_executor(conversation_id)
+            except Exception as e:
+                logger.warning(f"Failed to remove browser executor for {conversation_id}: {e}")
+
             logger.info(f"Deleted conversation: {conversation_id}")
             return True
 
@@ -291,6 +298,11 @@ class OpenBrowserAgentManager:
         success = session_manager.delete_session(conversation_id)
         if success:
             logger.info(f"Deleted session from database: {conversation_id}")
+            # Cleanup shared browser executor for this conversation
+            try:
+                remove_browser_executor(conversation_id)
+            except Exception as e:
+                logger.warning(f"Failed to remove browser executor for {conversation_id}: {e}")
         return success
 
     def list_conversations(self, status: SessionStatus = None) -> List[Dict[str, Any]]:

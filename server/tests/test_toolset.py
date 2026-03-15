@@ -51,6 +51,7 @@ sys.modules['openhands.tools.preset'] = types.ModuleType('openhands.tools.preset
 
 # Now we can import normally
 from server.agent.tools.toolset import OpenBrowserToolSet
+from server.agent.tools.browser_executor import BrowserExecutor
 
 
 class TestOpenBrowserToolSet:
@@ -147,26 +148,11 @@ class TestOpenBrowserToolSet:
         """Test that create() works with None executor."""
         tools = OpenBrowserToolSet.create(None)
         assert len(tools) == 5
-        # All tools should have None executor when created with None
+        # All tools should have an executor when created with None
+        # (shared executor instance for the conversation)
         for tool in tools:
-            assert tool.executor is None
-
-    def test_create_with_custom_executor(self):
-        """Test that create() works with a custom executor."""
-        # Load OpenBrowserExecutor directly
-        executor_path = Path(__file__).parent.parent / "agent" / "tools" / "open_browser_tool.py"
-        spec = importlib.util.spec_from_file_location("open_browser_tool", executor_path)
-        executor_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(executor_module)
-        OpenBrowserExecutor = executor_module.OpenBrowserExecutor
-        
-        executor = OpenBrowserExecutor()
-        tools = OpenBrowserToolSet.create(executor)
-        assert len(tools) == 5
-        
-        # All tools should share the custom executor
-        for tool in tools:
-            assert tool.executor is executor
+            assert tool.executor is not None
+            assert isinstance(tool.executor, BrowserExecutor)
 
     def test_tool_order_is_consistent(self):
         """Test that tools are returned in a consistent order."""
