@@ -1185,6 +1185,13 @@ class Evaluator:
             avg_cost = sum(r.cost or 0 for r in results) / len(results)
             passed_count = sum(1 for r in results if r.passed)
 
+            # Calculate composite score (3:1:1 weighting of pass rate, efficiency, usage)
+            pass_rate = passed_count / len(results) * 100 if len(results) > 0 else 0
+            normalized_pass = pass_rate / 100.0
+            normalized_eff = efficiency_score / len(results) if len(results) > 0 else 0
+            normalized_usage = usage_score / len(results) if len(results) > 0 else 0
+            composite_score = (normalized_pass * 3 + normalized_eff * 1 + normalized_usage * 1) / 5.0
+            
             model_stats[model] = {
                 "task_score": task_score,
                 "task_max_score": task_max_score,
@@ -1195,9 +1202,8 @@ class Evaluator:
                 "avg_cost": avg_cost,
                 "passed_count": passed_count,
                 "total_tests": len(results),
-                "pass_rate": passed_count / len(results) * 100
-                if len(results) > 0
-                else 0,
+                "pass_rate": pass_rate,
+                "composite_score": composite_score,
             }
 
         # Group by test case
@@ -1209,6 +1215,12 @@ class Evaluator:
                     "test_name": result.test_case.name,
                     "results_by_model": {},
                 }
+            # Calculate test-level composite score (3:1:1 weighting of passed, efficiency, usage)
+            passed_float = 1.0 if result.passed else 0.0
+            eff_score = result.efficiency_score or 0.0
+            usage_score_val = result.usage_score or 0.0
+            test_composite_score = (passed_float * 3 + eff_score + usage_score_val) / 5.0
+            
             test_cases[test_id]["results_by_model"][result.model or "unknown"] = {
                 "passed": result.passed,
                 "task_score": result.score,
@@ -1218,6 +1230,7 @@ class Evaluator:
                 "total_score": result.total_score,
                 "duration": result.duration,
                 "cost": result.cost,
+                "composite_score": test_composite_score,
             }
 
         summary = {
@@ -1251,14 +1264,14 @@ class Evaluator:
                 logger.info(f"JSON report saved to: {json_path}")
 
             # Print summary table
-            print(f"\n{'=' * 80}")
+            print(f"\n{'=' * 90}")
             print("CROSS-MODEL COMPARISON SUMMARY")
-            print(f"{'=' * 80}")
+            print(f"{'=' * 90}")
             print(
-                f"{'Model':30} {'Pass Rate':10} {'Task Score':12} {'Eff Score':10} {'Usage Score':10} {'Avg Time':10} {'Avg Cost':10}"
+                f"{'Model':30} {'Pass Rate':10} {'Task Score':12} {'Eff Score':10} {'Usage Score':10} {'Avg Time':10} {'Avg Cost':10} {'Composite':10}"
             )
             print(
-                f"{'-' * 30} {'-' * 10} {'-' * 12} {'-' * 10} {'-' * 10} {'-' * 10} {'-' * 10}"
+                f"{'-' * 30} {'-' * 10} {'-' * 12} {'-' * 10} {'-' * 10} {'-' * 10} {'-' * 10} {'-' * 10}"
             )
 
             for model in models:
@@ -1267,10 +1280,11 @@ class Evaluator:
                     print(
                         f"{model:30} {stats['pass_rate']:9.1f}% {stats['task_score']:4.1f}/{stats['task_max_score']:4.1f} "
                         f"{stats['efficiency_score']:9.2f} {stats['usage_score']:9.2f} "
-                        f"{stats['avg_duration']:9.1f}s {stats['avg_cost']:9.4f}RMB"
+                        f"{stats['avg_duration']:9.1f}s {stats['avg_cost']:9.4f}RMB "
+                        f"{stats['composite_score']*100:8.1f}%"
                     )
 
-            print(f"{'=' * 80}")
+            print(f"{'=' * 90}")
 
         except Exception as e:
             logger.error(f"Failed to generate cross-model summary: {e}")
@@ -1318,6 +1332,7 @@ class Evaluator:
                         "task_max_score": round(stats["task_max_score"], 2),
                         "efficiency_score": round(stats["efficiency_score"], 4),
                         "usage_score": round(stats["usage_score"], 4),
+                        "composite_score": round(stats["composite_score"], 4),
                         "avg_duration": round(stats["avg_duration"], 2),
                         "avg_cost": round(stats["avg_cost"], 6),
                         "passed_count": stats["passed_count"],
@@ -1340,6 +1355,7 @@ class Evaluator:
                                 result.get("efficiency_score", 0), 4
                             ),
                             "usage_score": round(result.get("usage_score", 0), 4),
+                            "composite_score": round(result.get("composite_score", 0), 4),
                             "total_score": round(
                                 result.get("total_score", result["task_score"]), 2
                             ),
@@ -1460,6 +1476,12 @@ def main():
             print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
             print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
             print(f"  Usage score: {result.usage_score or 0:.2f}/1.0")
+            # Calculate composite score for this test
+            passed_float = 1.0 if result.passed else 0.0
+            eff_score = result.efficiency_score or 0.0
+            usage_score_val = result.usage_score or 0.0
+            test_composite = (passed_float * 3 + eff_score + usage_score_val) / 5.0
+            print(f"  Composite score: {test_composite:.2f}/1.0")
             print(f"  Total score: {result.total_score or result.score:.1f}")
             print(
                 f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)"
