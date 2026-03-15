@@ -39,7 +39,6 @@ OpenBrowser/
 | Dialog tool | `server/agent/tools/dialog_tool.py` | DialogTool for dialog handling |
 | JavaScript tool | `server/agent/tools/javascript_tool.py` | JavaScriptTool for fallback execution |
 | ToolSet aggregator | `server/agent/tools/toolset.py` | OpenBrowserToolSet aggregates all 5 tools |
-| Deprecated tool | `server/agent/tools/open_browser_tool.py` | OpenBrowserTool (monolithic, deprecated) |
 | Extension entry | `extension/src/background/index.ts` | Command handler, dialog processing |
 | Dialog manager | `extension/src/commands/dialog.ts` | CDP dialog events, cascading |
 | JavaScript execution | `extension/src/commands/javascript.ts` | CDP Runtime.evaluate, dialog race |

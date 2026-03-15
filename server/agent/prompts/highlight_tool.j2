@@ -67,11 +67,43 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 - More efficient than pagination when target is visually identifiable
 - No need for pagination - all matching elements are returned at once
 
-**Best practice for Keywords**:
-- Always provide multiple keywords for improving matching probability.
-- Provide Chinese and English keywords together.
-- DO NOT use keywords that's likely to match too many elements, like a simple "x".
-- For example, when searching for a close button, use ["关闭", "close", "closing"]. When searching for a search button, use ["search", "搜索", "query", "查询"]
+**Keyword Search Strategies (Two-Phase Approach)**:
+
+**Phase 1: Precise Search (Primary Strategy)**
+Use this when you can clearly identify the target element's unique characteristics:
+- You see the element's distinctive text clearly (e.g., a button with a unique label)
+- The element has a distinctive label or identifier
+- You know exactly what distinguishes this element from others
+
+For precise search:
+- Use **ONE UNIQUE keyword** that distinguishes the target from all other elements
+- Focus on what makes the element unique on this page
+- Avoid common words that might match multiple elements
+
+Examples of precise search:
+- **Like button with specific count**: Page has multiple "Like" buttons with different counts (e.g., "Like 42", "Like 128", "Like 5"). If you want the one with 128 likes, search `{"keywords": ["Like 128"]}` instead of just `["Like"]` to distinguish it from others.
+- **Specific user's comment**: Page shows multiple user comments. If targeting "John's reply", search `{"keywords": ["John's reply"]}` to narrow down to that specific comment.
+
+**Phase 2: Broad Search (Fallback Strategy)**
+Use this when Phase 1 fails or when the target is less clear:
+- Phase 1 returned no results
+- You're unsure of exact text or it might vary
+- The element might have multiple possible labels
+
+For broad search:
+- Provide **multiple related keywords** to increase matching probability
+- Include Chinese and English variants together
+- Include synonyms and related terms
+
+Examples of broad search:
+- Looking for a close button after precise search failed: `{"keywords": ["关闭", "close", "×", "dismiss", "cancel"]}`
+- Looking for a submit action: `{"keywords": ["submit", "提交", "confirm", "确认", "save", "保存"]}`
+- Looking for a search function: `{"keywords": ["search", "搜索", "query", "查询", "find", "查找"]}`
+
+**Anti-Patterns**:
+- DO NOT use overly broad keywords like ["x"] that match everything
+- DO NOT start with broad search when you can see exact text
+- DO NOT mix unrelated keywords in a single search
 
 ## Workflow Integration
 

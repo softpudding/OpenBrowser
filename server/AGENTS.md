@@ -24,7 +24,6 @@ FastAPI backend handling REST API, WebSocket communication with Chrome extension
 | Dialog tool | `agent/tools/dialog_tool.py` | `DialogTool`, `DialogHandleAction` |
 | JavaScript tool | `agent/tools/javascript_tool.py` | `JavaScriptTool`, `JavaScriptAction` |
 | ToolSet aggregator | `agent/tools/toolset.py` | `OpenBrowserToolSet` |
-| Deprecated (monolithic) | `agent/tools/open_browser_tool.py` | `OpenBrowserTool` (deprecated) |
 ## STRUCTURE
 
 ```
@@ -99,8 +98,6 @@ OpenBrowser detects dialogs and handles them gracefully.
 | Component | File | Role |
 |-----------|------|------|
 | `HandleDialogCommand` | models/commands.py | `action` (accept/dismiss), `prompt_text` |
-| `OpenBrowserAction` | tools/open_browser_tool.py | `dialog_action`, `prompt_text` fields |
-| `OpenBrowserObservation` | tools/open_browser_tool.py | `dialog_opened`, `dialog` fields |
 | `CommandProcessor` | core/processor.py | Routes handle_dialog to extension |
 
 ### Dialog Types
@@ -167,7 +164,6 @@ understand page structure and select elements.
 | Component | File | Role |
 |-----------|------|------|
 | `GetAccessibilityTreeCommand` | models/commands.py | `max_elements` parameter |
-| `a11y_elements` | tools/open_browser_tool.py | Observation field with elements list |
 | `_get_a11y_elements_for_conversation()` | core/processor.py | Fetch accessibility tree |
 
 ### Elements Format

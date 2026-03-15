@@ -80,12 +80,17 @@ class HighlightTool(ToolDefinition[HighlightAction, OpenBrowserObservation]):
         Returns:
             Sequence containing a single HighlightTool instance
         """
-        # Use provided executor or create new one
-        if terminal_executor is None:
-            from server.agent.tools.browser_executor import BrowserExecutor
-            executor = BrowserExecutor()
-        else:
+        # Use provided executor or get shared executor for conversation
+        if terminal_executor is not None:
             executor = terminal_executor
+        else:
+            # Try to get conversation ID from conv_state to share executor across tools
+            # conv_state: openhands-sdk ConversationState
+            conversation_id = conv_state.id
+            
+            # Get shared executor for this conversation (or create new if no conversation_id)
+            from server.agent.tools.browser_executor import get_browser_executor
+            executor = get_browser_executor(conversation_id)
         
         return [
             cls(
