@@ -7,7 +7,26 @@ description: This skill should be used when the user asks to "automate browser",
 
 Delegate browser automation to OpenBrowser Agent for visual browser control.
 
-> **⚠️ Important**: Browser automation tasks are typically long-running. Always use a subagent to execute these tasks in the background while keeping the main conversation responsive.
+## Execution Mode
+
+OpenBrowser runs tasks synchronously - it blocks until completion and returns the full output.
+
+```bash
+python3 scripts/send_task.py "Your task description"
+```
+
+- **Recommended timeout**: 600 seconds (10 minutes)
+- **For complex tasks**: Increase timeout as needed (e.g., 1200s for multi-step workflows)
+
+Example with OpenClaw exec:
+```bash
+exec: "python3 scripts/send_task.py 'Go to example.com and extract the title'"
+timeout: 600  # 10 minutes
+```
+
+**Background execution**: If you need to run a task in the background (non-blocking), spawn a subagent to execute it. The subagent will handle the long-running task independently.
+
+---
 
 ## Quick Start
 
@@ -29,29 +48,12 @@ If not ready, see [First-Time Setup](#first-time-setup) below.
 
 ### 2. Submit Task
 
-Use the task submission script:
-
 ```bash
-# Submit task with real-time output
+# Submit task (synchronous, waits for completion)
 python3 scripts/send_task.py "Go to example.com and extract the title"
-
-# For long-running tasks, run in background
-python3 scripts/send_task.py "Scrape news from HN" --background --output task.log
 
 # Check server status only
 python3 scripts/send_task.py --check
-```
-
-### 3. Monitor Progress
-
-For background tasks
-
-```bash
-# Monitor task output
-tail -f task.log
-
-# Check conversation status via API
-curl http://localhost:8765/agent/conversations/{conversation_id}
 ```
 
 ---
@@ -296,7 +298,7 @@ Would you like to keep the current model or switch to Flash for cost savings?
 
 ## Important Notes
 
-- **Long-running tasks can take minutes** - Always run in background
+- **Tasks take time**: Browser automation typically takes 1-5 minutes. Use exec with `timeout: 600` or longer for complex tasks.
 - **Extension must stay loaded in Chrome** - Browser automation won't work if extension is disabled
 - **Visual-based automation** - OpenBrowser sees pages via screenshots
 - **Uses your browser session** - Leverages existing logins/cookies
