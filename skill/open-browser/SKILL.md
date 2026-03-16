@@ -18,11 +18,29 @@ python3 scripts/send_task.py "Your task description"
 - **Recommended timeout**: 600 seconds (10 minutes)
 - **For complex tasks**: Increase timeout as needed (e.g., 1200s for multi-step workflows)
 
-Example with OpenClaw exec:
-```bash
-exec: "python3 scripts/send_task.py 'Go to example.com and extract the title'"
-timeout: 600  # 10 minutes
+### OpenClaw exec 调用方式
+
+**关键：必须设置 `yieldMs` 等于 `timeout`，否则会变成异步后台任务！**
+
+```yaml
+# ✅ 正确：同步阻塞调用
+exec:
+  command: "python3 scripts/send_task.py 'Go to example.com'"
+  timeout: 600
+  yieldMs: 600000  # 10分钟 = 600000毫秒，必须等于或大于 timeout
+
+# ❌ 错误：缺少 yieldMs，10秒后变成后台任务
+exec:
+  command: "python3 scripts/send_task.py 'Go to example.com'"
+  timeout: 600
+  # yieldMs 默认 10000ms，任务超过10秒就会变成后台任务
 ```
+
+**为什么需要 yieldMs：**
+- OpenClaw exec 默认 `yieldMs=10000`（10秒）
+- 如果任务超过 yieldMs，exec 返回 "Command still running"，需要 poll 等待
+- 设置 `yieldMs >= timeout` 可以确保同步阻塞，直接等待结果
+- 这样可以避免在自动化测试流程中因为异步导致的时序问题
 
 **Background execution**: If you need to run a task in the background (non-blocking), spawn a subagent to execute it. The subagent will handle the long-running task independently.
 

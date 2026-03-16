@@ -132,9 +132,19 @@ def format_event(event_type: str, data: dict):
         if token_usage:
             prompt_tokens = token_usage.get("prompt_tokens", 0)
             completion_tokens = token_usage.get("completion_tokens", 0)
+            reasoning_tokens = token_usage.get("reasoning_tokens", 0)
             total_tokens = token_usage.get("total_tokens", 0)
+            
+            # 如果 total_tokens 不存在或为0，则计算总数
+            if total_tokens == 0:
+                total_tokens = prompt_tokens + completion_tokens + reasoning_tokens
+            
             if total_tokens > 0:
-                print(f"   Tokens: {total_tokens:,} (prompt: {prompt_tokens:,}, completion: {completion_tokens:,})")
+                token_details = f"   Tokens: {total_tokens:,} (prompt: {prompt_tokens:,}, completion: {completion_tokens:,}"
+                if reasoning_tokens > 0:
+                    token_details += f", reasoning: {reasoning_tokens:,}"
+                token_details += ")"
+                print(token_details)
         return
 
     # Handle agent events (check data.type field)
