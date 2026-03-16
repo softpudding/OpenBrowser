@@ -1,10 +1,10 @@
 {
   "evaluation": {
-    "timestamp": "2026-03-15 14:03:01",
-    "unix_timestamp": 1773554581.353618,
+    "timestamp": "2026-03-15 22:20:23",
+    "unix_timestamp": 1773584423.3254452,
     "summary": {
-      "total_tests": 12,
-      "passed_tests": 12,
+      "total_tests": 2,
+      "passed_tests": 2,
       "pass_rate": 100.0,
       "models_tested": [
         "dashscope/qwen3.5-plus",
@@ -14,175 +14,54 @@
     "model_performance": {
       "dashscope/qwen3.5-plus": {
         "pass_rate": 100.0,
-        "task_score": 32.0,
-        "task_max_score": 33.5,
-        "efficiency_score": 4.5677,
-        "usage_score": 3.5544,
-        "avg_duration": 127.6,
-        "avg_cost": 0.479105,
-        "passed_count": 6,
-        "total_tests": 6
+        "task_score": 3,
+        "task_max_score": 3,
+        "efficiency_score": 0.5297,
+        "usage_score": 0.0939,
+        "composite_score": 0.7247,
+        "avg_duration": 141.1,
+        "avg_cost": 0.453053,
+        "passed_count": 1,
+        "total_tests": 1
       },
       "dashscope/qwen3.5-flash": {
         "pass_rate": 100.0,
-        "task_score": 31.0,
-        "task_max_score": 33.5,
-        "efficiency_score": 4.3929,
-        "usage_score": 5.3125,
-        "avg_duration": 140.7,
-        "avg_cost": 0.132629,
-        "passed_count": 6,
-        "total_tests": 6
+        "task_score": 3,
+        "task_max_score": 3,
+        "efficiency_score": 0.3181,
+        "usage_score": 0.586,
+        "composite_score": 0.7808,
+        "avg_duration": 204.56,
+        "avg_cost": 0.20699,
+        "passed_count": 1,
+        "total_tests": 1
       }
     },
     "test_results": {
-      "cloudstack_interactive": {
-        "name": "CloudStack DAS Interactive Test",
+      "dataflow": {
+        "name": "DataFlow Visual Challenge Test",
         "results_by_model": {
           "dashscope/qwen3.5-plus": {
             "passed": true,
-            "task_score": 9.0,
-            "task_max_score": 9.0,
-            "efficiency_score": 0.7561,
-            "usage_score": 0.7041,
-            "total_score": 10.46,
-            "duration": 170.74,
-            "cost": 0.591734
+            "task_score": 3,
+            "task_max_score": 3,
+            "efficiency_score": 0.5297,
+            "usage_score": 0.0939,
+            "composite_score": 0.7247,
+            "total_score": 3.62,
+            "duration": 141.1,
+            "cost": 0.453053
           },
           "dashscope/qwen3.5-flash": {
             "passed": true,
-            "task_score": 8.0,
-            "task_max_score": 9.0,
-            "efficiency_score": 0.7709,
-            "usage_score": 0.9297,
-            "total_score": 9.7,
-            "duration": 160.39,
-            "cost": 0.140554
-          }
-        }
-      },
-      "gbr": {
-        "name": "GBR Search Test",
-        "results_by_model": {
-          "dashscope/qwen3.5-plus": {
-            "passed": true,
-            "task_score": 2.5,
-            "task_max_score": 2.5,
-            "efficiency_score": 0.8642,
-            "usage_score": 0.7389,
-            "total_score": 4.1,
-            "duration": 54.34,
-            "cost": 0.208883
-          },
-          "dashscope/qwen3.5-flash": {
-            "passed": true,
-            "task_score": 2.5,
-            "task_max_score": 2.5,
-            "efficiency_score": 0.8055,
-            "usage_score": 0.9083,
-            "total_score": 4.21,
-            "duration": 77.78,
-            "cost": 0.073353
-          }
-        }
-      },
-      "techforum_reply": {
-        "name": "TechForum Comment Reply Test",
-        "results_by_model": {
-          "dashscope/qwen3.5-plus": {
-            "passed": true,
-            "task_score": 9.0,
-            "task_max_score": 9.5,
-            "efficiency_score": 0.5204,
-            "usage_score": 0.0624,
-            "total_score": 9.58,
-            "duration": 239.81,
-            "cost": 0.937622
-          },
-          "dashscope/qwen3.5-flash": {
-            "passed": true,
-            "task_score": 9.0,
-            "task_max_score": 9.5,
-            "efficiency_score": 0.5308,
-            "usage_score": 0.7572,
-            "total_score": 10.29,
-            "duration": 234.6,
-            "cost": 0.242836
-          }
-        }
-      },
-      "techforum": {
-        "name": "TechForum Upvote Test",
-        "results_by_model": {
-          "dashscope/qwen3.5-plus": {
-            "passed": true,
-            "task_score": 2,
-            "task_max_score": 2,
-            "efficiency_score": 0.919,
-            "usage_score": 0.789,
-            "total_score": 3.71,
-            "duration": 24.31,
-            "cost": 0.105488
-          },
-          "dashscope/qwen3.5-flash": {
-            "passed": true,
-            "task_score": 2,
-            "task_max_score": 2,
-            "efficiency_score": 0.9108,
-            "usage_score": 0.9469,
-            "total_score": 3.86,
-            "duration": 26.76,
-            "cost": 0.026536
-          }
-        }
-      },
-      "cloudstack": {
-        "name": "CloudStack DAS Agent Test",
-        "results_by_model": {
-          "dashscope/qwen3.5-plus": {
-            "passed": true,
-            "task_score": 3.5,
-            "task_max_score": 3.5,
-            "efficiency_score": 0.813,
-            "usage_score": 0.7362,
-            "total_score": 5.05,
-            "duration": 93.52,
-            "cost": 0.316608
-          },
-          "dashscope/qwen3.5-flash": {
-            "passed": true,
-            "task_score": 3.5,
-            "task_max_score": 3.5,
-            "efficiency_score": 0.6961,
-            "usage_score": 0.8934,
-            "total_score": 5.09,
-            "duration": 151.94,
-            "cost": 0.127975
-          }
-        }
-      },
-      "gbr_detailed": {
-        "name": "GBR Detailed Search & Read Test",
-        "results_by_model": {
-          "dashscope/qwen3.5-plus": {
-            "passed": true,
-            "task_score": 6.0,
-            "task_max_score": 7.0,
-            "efficiency_score": 0.6951,
-            "usage_score": 0.5238,
-            "total_score": 7.22,
-            "duration": 182.91,
-            "cost": 0.714294
-          },
-          "dashscope/qwen3.5-flash": {
-            "passed": true,
-            "task_score": 6.0,
-            "task_max_score": 7.0,
-            "efficiency_score": 0.6788,
-            "usage_score": 0.877,
-            "total_score": 7.56,
-            "duration": 192.72,
-            "cost": 0.184518
+            "task_score": 3,
+            "task_max_score": 3,
+            "efficiency_score": 0.3181,
+            "usage_score": 0.586,
+            "composite_score": 0.7808,
+            "total_score": 3.9,
+            "duration": 204.56,
+            "cost": 0.20699
           }
         }
       }

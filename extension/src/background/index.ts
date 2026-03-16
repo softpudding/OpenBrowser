@@ -1237,7 +1237,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               // Check input types
               if (tag === 'input') {
                 const type = el.type?.toLowerCase();
-                if (type === 'submit' || type === 'button' || type === 'image' || type === 'reset') {
+                // Include interactive input types: submit, button, image, reset, checkbox, radio
+                if (type === 'submit' || type === 'button' || type === 'image' || type === 'reset' || 
+                    type === 'checkbox' || type === 'radio') {
                   return true;
                 }
                 return false;
@@ -1300,7 +1302,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 // Check for input types that are clickable
                 if (parentTag === 'input') {
                   const type = parent.type?.toLowerCase();
-                  if (type === 'submit' || type === 'button' || type === 'image' || type === 'reset') {
+                  // Include interactive input types: submit, button, image, reset, checkbox, radio
+                  if (type === 'submit' || type === 'button' || type === 'image' || type === 'reset' ||
+                      type === 'checkbox' || type === 'radio') {
                     return true;
                   }
                 }
