@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataFlow - Analytics Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iIzYzNjZmMSIvPjxwYXRoIGQ9Ik04IDE2aDE2TTggMTJoMTJNOCAyMGgxNiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=">
+    <link rel="stylesheet" href="/css/dataflow.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <rect width="32" height="32" rx="6" fill="#6366f1"/>
+                    <path d="M8 16h16M8 12h12M8 20h16" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span class="logo-text">DataFlow</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Main</div>
+                <a href="#" class="nav-item active">
+                    <span class="nav-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">📈</span>
+                    <span>Analytics</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">📝</span>
+                    <span>Reports</span>
+                </a>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-title">Data</div>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">🔗</span>
+                    <span>Integrations</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">📁</span>
+                    <span>Data Sources</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">🔄</span>
+                    <span>Imports</span>
+                </a>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-title">Account</div>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">👤</span>
+                    <span>Profile</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    <span>Team</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">💳</span>
+                    <span>Billing</span>
+                </a>
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="usage-card">
+                <div class="usage-label">Storage Used</div>
+                <div class="usage-bar">
+                    <div class="usage-fill" style="width: 68%;"></div>
+                </div>
+                <div class="usage-text">6.8 GB of 10 GB</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <h1 class="page-title">Dashboard</h1>
+                <div class="breadcrumb">
+                    <span>Home</span>
+                    <span class="separator">/</span>
+                    <span>Dashboard</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-icon-btn" id="header-icon-1">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                </button>
+                <div class="search-box">
+                    <input type="text" placeholder="Search..." id="search-input">
+                    <button class="search-btn" id="search-btn">
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    </button>
+                </div>
+                <button class="header-icon-btn" id="header-icon-2">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+                <button class="header-icon-btn" id="header-icon-3">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                </button>
+                <button class="header-icon-btn" id="header-icon-4">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                </button>
+                <button class="header-icon-btn" id="header-icon-5">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    <span class="notification-badge">3</span>
+                </button>
+                <button class="header-icon-btn" id="header-icon-6">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </button>
+                <button class="header-icon-btn" id="header-icon-7">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                </button>
+                <div class="user-menu">
+                    <div class="user-avatar">JD</div>
+                    <div class="user-info">
+                        <span class="user-name">John Doe</span>
+                        <span class="user-role">Admin</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Stats Overview -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon revenue">💰</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Total Revenue</div>
+                        <div class="stat-value">$206,000</div>
+                        <div class="stat-change positive">+12.5% from last year</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon users">👥</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Active Users</div>
+                        <div class="stat-value">8,420</div>
+                        <div class="stat-change positive">+8.2% from last month</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon sessions">📊</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Sessions</div>
+                        <div class="stat-value">24,580</div>
+                        <div class="stat-change neutral">+0.3% from last week</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon conversion">✅</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Conversion Rate</div>
+                        <div class="stat-value">3.2%</div>
+                        <div class="stat-change positive">+0.8% from last month</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs Navigation -->
+            <div class="tabs-container">
+                <div class="tabs">
+                    <button class="tab" data-tab="overview" id="tab-overview">Overview</button>
+                    <button class="tab" data-tab="revenue" id="tab-revenue">Revenue</button>
+                    <button class="tab" data-tab="users" id="tab-users">Users</button>
+                    <button class="tab" data-tab="traffic" id="tab-traffic">Traffic</button>
+                    <button class="tab" data-tab="performance" id="tab-performance">Performance</button>
+                </div>
+                <div class="tabs-actions">
+                    <button class="btn-secondary" id="export-btn">📥 Export</button>
+                    <button class="btn-primary" id="add-widget-btn">➕ Add Widget</button>
+                </div>
+            </div>
+
+            <!-- Tab Content: Overview -->
+            <div class="tab-content" id="content-overview">
+                <!-- Revenue Chart Section -->
+                <div class="chart-section">
+                    <div class="section-header">
+                        <h2>Quarterly Revenue</h2>
+                        <div class="section-filters">
+                            <select class="filter-select" id="year-filter">
+                                <option value="2025">2025</option>
+                                <option value="2024">2024</option>
+                                <option value="2023">2023</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <div class="bar-chart" id="revenue-chart">
+                            <div class="chart-bars">
+                                <div class="bar" data-quarter="Q1" style="height: 56.25%;">
+                                    <div class="bar-inner"></div>
+                                    <span class="bar-label">Q1</span>
+                                </div>
+                                <div class="bar" data-quarter="Q2" style="height: 65%;">
+                                    <div class="bar-inner"></div>
+                                    <span class="bar-label">Q2</span>
+                                </div>
+                                <div class="bar" data-quarter="Q3" style="height: 47.5%;">
+                                    <div class="bar-inner"></div>
+                                    <span class="bar-label">Q3</span>
+                                </div>
+                                <div class="bar" data-quarter="Q4" style="height: 88.75%;">
+                                    <div class="bar-inner"></div>
+                                    <span class="bar-label">Q4</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-legend">
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #6366f1;"></span>
+                                <span>Revenue (USD)</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #10b981;"></span>
+                                <span>Target</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Two Column Layout -->
+                <div class="two-column-grid">
+                    <!-- Recent Activity -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Recent Activity</h3>
+                            <a href="#" class="card-link">View All</a>
+                        </div>
+                        <div class="activity-list">
+                            <div class="activity-item">
+                                <div class="activity-icon">🛒</div>
+                                <div class="activity-content">
+                                    <div class="activity-title">New order received</div>
+                                    <div class="activity-desc">Order #45231 - $1,250.00</div>
+                                </div>
+                                <div class="activity-time">2 min ago</div>
+                            </div>
+                            <div class="activity-item">
+                                <div class="activity-icon">👤</div>
+                                <div class="activity-content">
+                                    <div class="activity-title">New user registered</div>
+                                    <div class="activity-desc">sarah.chen@example.com</div>
+                                </div>
+                                <div class="activity-time">15 min ago</div>
+                            </div>
+                            <div class="activity-item">
+                                <div class="activity-icon">💳</div>
+                                <div class="activity-content">
+                                    <div class="activity-title">Payment processed</div>
+                                    <div class="activity-desc">Invoice #8891 - $3,400.00</div>
+                                </div>
+                                <div class="activity-time">1 hour ago</div>
+                            </div>
+                            <div class="activity-item">
+                                <div class="activity-icon">📊</div>
+                                <div class="activity-content">
+                                    <div class="activity-title">Report generated</div>
+                                    <div class="activity-desc">Monthly Analytics Report</div>
+                                </div>
+                                <div class="activity-time">3 hours ago</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Products -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Top Products</h3>
+                            <a href="#" class="card-link">View All</a>
+                        </div>
+                        <div class="product-list">
+                            <div class="product-item">
+                                <div class="product-rank">1</div>
+                                <div class="product-info">
+                                    <div class="product-name">Enterprise Plan</div>
+                                    <div class="product-sales">1,234 sales</div>
+                                </div>
+                                <div class="product-revenue">$98,720</div>
+                            </div>
+                            <div class="product-item">
+                                <div class="product-rank">2</div>
+                                <div class="product-info">
+                                    <div class="product-name">Professional Plan</div>
+                                    <div class="product-sales">856 sales</div>
+                                </div>
+                                <div class="product-revenue">$42,800</div>
+                            </div>
+                            <div class="product-item">
+                                <div class="product-rank">3</div>
+                                <div class="product-info">
+                                    <div class="product-name">Starter Plan</div>
+                                    <div class="product-sales">2,145 sales</div>
+                                </div>
+                                <div class="product-revenue">$21,450</div>
+                            </div>
+                            <div class="product-item">
+                                <div class="product-rank">4</div>
+                                <div class="product-info">
+                                    <div class="product-name">Add-on: Analytics</div>
+                                    <div class="product-sales">567 sales</div>
+                                </div>
+                                <div class="product-revenue">$11,340</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Revenue (Hidden by default) -->
+            <div class="tab-content" id="content-revenue">
+                <div class="placeholder-content">
+                    <h3>Revenue Analytics</h3>
+                    <p>Detailed revenue breakdown and forecasting tools.</p>
+                </div>
+            </div>
+
+            <!-- Tab Content: Users (Hidden by default) -->
+            <div class="tab-content" id="content-users">
+                <div class="placeholder-content">
+                    <h3>User Analytics</h3>
+                    <p>User behavior, demographics, and engagement metrics.</p>
+                </div>
+            </div>
+
+            <!-- Tab Content: Traffic (Hidden by default) -->
+            <div class="tab-content" id="content-traffic">
+                <div class="placeholder-content">
+                    <h3>Traffic Analytics</h3>
+                    <p>Traffic sources, page views, and visitor flow analysis.</p>
+                </div>
+            </div>
+
+            <!-- Tab Content: Performance (Hidden by default) -->
+            <div class="tab-content" id="content-performance">
+                <div class="placeholder-content">
+                    <h3>Performance Metrics</h3>
+                    <p>Site speed, uptime, and performance monitoring.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button class="modal-close" id="settings-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h4>Preferences</h4>
+                    <div class="setting-item">
+                        <label>Language</label>
+                        <select class="setting-select">
+                            <option>English</option>
+                            <option>中文</option>
+                            <option>日本語</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Timezone</label>
+                        <select class="setting-select">
+                            <option>UTC-8 (Pacific Time)</option>
+                            <option>UTC+8 (China Standard)</option>
+                            <option>UTC+0 (GMT)</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Date Format</label>
+                        <select class="setting-select">
+                            <option>MM/DD/YYYY</option>
+                            <option>DD/MM/YYYY</option>
+                            <option>YYYY-MM-DD</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h4>Notifications</h4>
+                    <div class="setting-item toggle">
+                        <label>Email Notifications</label>
+                        <input type="checkbox" checked class="toggle-switch" id="email-notif">
+                    </div>
+                    <div class="setting-item toggle">
+                        <label>Push Notifications</label>
+                        <input type="checkbox" checked class="toggle-switch" id="push-notif">
+                    </div>
+                    <div class="setting-item toggle">
+                        <label>Weekly Reports</label>
+                        <input type="checkbox" class="toggle-switch" id="weekly-reports">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="settings-cancel">Cancel</button>
+                <button class="btn-primary" id="settings-save">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quarter Detail Modal -->
+    <div class="modal-overlay" id="quarter-modal" style="display: none;">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3 id="quarter-modal-title">Q4 Revenue Report</h3>
+                <button class="modal-close" id="quarter-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="report-overview">
+                    <div class="report-stat">
+                        <span class="report-label">Total Revenue</span>
+                        <span class="report-value" id="quarter-revenue">$71,000</span>
+                        <span class="report-change positive" id="quarter-growth">+86.8% vs Q3</span>
+                    </div>
+                    <div class="report-stat">
+                        <span class="report-label">Total Orders</span>
+                        <span class="report-value" id="quarter-orders">1,234</span>
+                        <span class="report-change positive">+63.4% vs Q3</span>
+                    </div>
+                    <div class="report-stat">
+                        <span class="report-label">Avg Order Value</span>
+                        <span class="report-value" id="quarter-aov">$57.54</span>
+                        <span class="report-change positive">+14.3% vs Q3</span>
+                    </div>
+                    <div class="report-stat">
+                        <span class="report-label">Conversion Rate</span>
+                        <span class="report-value" id="quarter-conversion">4.2%</span>
+                        <span class="report-change positive">+1.1% vs Q3</span>
+                    </div>
+                </div>
+                
+                <div class="report-section">
+                    <h4>Monthly Breakdown</h4>
+                    <table class="report-table" id="quarter-monthly-table">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Revenue</th>
+                                <th>Orders</th>
+                                <th>Avg Value</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quarter-monthly-body">
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="report-section">
+                    <h4>Top Performing Products</h4>
+                    <div class="report-products" id="quarter-products">
+                    </div>
+                </div>
+                
+                <div class="report-section">
+                    <h4>Key Insights</h4>
+                    <ul class="report-insights" id="quarter-insights">
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="quarter-export">Export Report</button>
+                <button class="btn-primary" id="quarter-close">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved Items Modal -->
+    <div class="modal-overlay" id="saved-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Saved Items</h3>
+                <button class="modal-close" data-modal="saved-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="panel-empty">No saved items yet</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary modal-close-btn" data-modal="saved-modal">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Downloads Modal -->
+    <div class="modal-overlay" id="downloads-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Downloads</h3>
+                <button class="modal-close" data-modal="downloads-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="panel-item">
+                    <div class="panel-item-icon">📄</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Q4_Report.pdf</div>
+                        <div class="panel-item-desc">Downloaded 2 hours ago</div>
+                    </div>
+                </div>
+                <div class="panel-item">
+                    <div class="panel-item-icon">📊</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Analytics_Export.csv</div>
+                        <div class="panel-item-desc">Downloaded yesterday</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary modal-close-btn" data-modal="downloads-modal">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal-overlay" id="history-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Recent Activity</h3>
+                <button class="modal-close" data-modal="history-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="panel-item">
+                    <div class="panel-item-icon">📊</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Viewed Dashboard</div>
+                        <div class="panel-item-desc">2 minutes ago</div>
+                    </div>
+                </div>
+                <div class="panel-item">
+                    <div class="panel-item-icon">⚙️</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Changed Settings</div>
+                        <div class="panel-item-desc">1 hour ago</div>
+                    </div>
+                </div>
+                <div class="panel-item">
+                    <div class="panel-item-icon">📥</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Exported Report</div>
+                        <div class="panel-item-desc">3 hours ago</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary modal-close-btn" data-modal="history-modal">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Favorites Modal -->
+    <div class="modal-overlay" id="favorites-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Favorites</h3>
+                <button class="modal-close" data-modal="favorites-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="panel-item">
+                    <div class="panel-item-icon">📈</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Revenue Dashboard</div>
+                        <div class="panel-item-desc">Pinned 3 days ago</div>
+                    </div>
+                </div>
+                <div class="panel-item">
+                    <div class="panel-item-icon">👥</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">User Analytics</div>
+                        <div class="panel-item-desc">Pinned last week</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary modal-close-btn" data-modal="favorites-modal">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div class="modal-overlay" id="notifications-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Notifications</h3>
+                <button class="modal-close" data-modal="notifications-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="panel-item unread">
+                    <div class="panel-item-icon">📊</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Weekly Report Ready</div>
+                        <div class="panel-item-desc">Your weekly analytics report is ready for review.</div>
+                        <div class="panel-item-time">5 min ago</div>
+                    </div>
+                </div>
+                <div class="panel-item unread">
+                    <div class="panel-item-icon">🎯</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Goal Achieved!</div>
+                        <div class="panel-item-desc">You've reached your monthly revenue target.</div>
+                        <div class="panel-item-time">1 hour ago</div>
+                    </div>
+                </div>
+                <div class="panel-item unread">
+                    <div class="panel-item-icon">🔔</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">System Update</div>
+                        <div class="panel-item-desc">New features available in your dashboard.</div>
+                        <div class="panel-item-time">2 hours ago</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary modal-close-btn" data-modal="notifications-modal">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages Modal -->
+    <div class="modal-overlay" id="messages-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Messages</h3>
+                <button class="modal-close" data-modal="messages-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="panel-item unread">
+                    <div class="panel-item-avatar">AS</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Alice Smith</div>
+                        <div class="panel-item-desc">Can you review the Q4 report?</div>
+                        <div class="panel-item-time">10 min ago</div>
+                    </div>
+                </div>
+                <div class="panel-item unread">
+                    <div class="panel-item-avatar">BJ</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Bob Johnson</div>
+                        <div class="panel-item-desc">The analytics look great!</div>
+                        <div class="panel-item-time">1 hour ago</div>
+                    </div>
+                </div>
+                <div class="panel-item">
+                    <div class="panel-item-avatar">CW</div>
+                    <div class="panel-item-content">
+                        <div class="panel-item-title">Carol White</div>
+                        <div class="panel-item-desc">Meeting rescheduled to Friday</div>
+                        <div class="panel-item-time">Yesterday</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary modal-close-btn" data-modal="messages-modal">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/js/dataflow.js"></script>
+</body>
+</html>

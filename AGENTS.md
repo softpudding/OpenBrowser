@@ -6,7 +6,7 @@
 
 ## OVERVIEW
 
-Visual AI assistant powered by Qwen3.5-Plus for browser automation with visual feedback. Single-model closed loop: code generation → visual verification → browser control → terminal execution.
+Visual AI assistant for browser automation powered by Qwen3.5-Plus (primary) with Qwen3.5-Flash support as a cost-effective alternative. Provides AI-powered visual understanding and interaction for web automation, data extraction, and interactive workflows. Single-model automation loop: visual perception → decision making → browser interaction → verification.
 
 ## STRUCTURE
 
@@ -49,15 +49,17 @@ OpenBrowser/
 
 ```
 ┌─────────────────────────────────────────┐
-│     Qwen3.5-Plus (Multimodal LLM)       │
+│       Qwen3.5 Family (Multimodal LLM)   │
+│   Qwen3.5-Plus (primary) / Flash (cost-effective)
+│   Visual Perception │ Decision Making │ Browser Control
 └────────────────────┬────────────────────┘
                      │
 ┌────────────────────▼────────────────────┐
 │   OpenBrowser Agent Server (FastAPI)    │
 │   - REST API (port 8765)                │
 │   - WebSocket (port 8766)               │
-│   - OpenHands SDK integration           │
-│   - handle_dialog action                │
+│   - Session Management                   │
+│   - Tool Orchestration                   │
 └────────────────────┬────────────────────┘
                      │
 ┌────────────────────▼────────────────────┐
@@ -442,6 +444,38 @@ python eval/evaluate_browser_agent.py --no-services
 # Run with custom time/cost limits in test case YAML
 # Add to YAML: time_limit: 300 (5 minutes), cost_limit: 5.0 (5 RMB)
 ```
+
+### Manual Mode
+When using a single test (`--test`), add `--manual` option for human-in-the-loop testing. In manual mode:
+1. Test instructions are displayed on screen (exactly the same as given to OpenBrowser)
+2. Human tester performs the complete task based on the instruction (no step-by-step guidance)
+3. After completing the task, human enters "ok" to indicate completion
+4. Scoring is displayed (efficiency and task scores given normally, usage score skipped)
+5. Track events are saved from the moment instruction is displayed (same timing as automated test)
+
+```bash
+# Run manual test
+python eval/evaluate_browser_agent.py --test gbr --manual
+
+# Manual mode with no services (eval server must be running for tracking)
+python eval/evaluate_browser_agent.py --test techforum --manual --no-services
+
+# Run ALL tests in manual mode (no --test parameter)
+python eval/evaluate_browser_agent.py --manual
+
+# Manual mode all tests with no services
+python eval/evaluate_browser_agent.py --manual --no-services
+```
+
+#### Manual All-Tests Mode Features
+When running all tests in manual mode (`--manual` without `--test`):
+1. All available tests are executed sequentially
+2. Each test starts when tester confirms ready after seeing start URL
+3. Timing begins when instruction is displayed (after start URL confirmation)
+4. Comprehensive summary report generated at the end (manual_summary.json)
+5. Similar report format to automated tests but without usage scores
+6. Includes per-test details and overall statistics
+7. Track events saved for each test separately
 
 ### API Enhancements for Model Support
 

@@ -1,8 +1,8 @@
 # OpenBrowser
 
-**OpenBrowser** is a visual AI assistant powered by **Qwen3.5-Plus** that bridges the gap between frontend and backend development. By combining coding capabilities with visual browser perception, OpenBrowser enables seamless full-stack debugging and automation.
+**OpenBrowser** is a visual AI assistant powered by **Qwen3.5-Plus** (primary) with **Qwen3.5-Flash** support as a cost-effective alternative, designed for **browser automation** and **web interaction**. By combining AI-powered visual perception with direct browser control, OpenBrowser enables sophisticated web automation, data extraction, and interactive workflows.
 
-> **Note**: OpenBrowser currently supports **Chrome only** (via Chrome extension) and has been tested exclusively with **Qwen3.5-Plus**. Other models are not officially supported.
+> **Note**: OpenBrowser currently supports **Chrome only** (via Chrome extension) and has been tested primarily with **Qwen3.5-Plus**, with **Qwen3.5-Flash** as a supported cost-effective option. Other models are not officially supported.
 
 ## Demo
 
@@ -72,7 +72,7 @@ On first access, you'll be prompted to configure your LLM settings through the w
 1. Open `http://localhost:8765` in your browser
 2. You'll see the **Configuration Page**
 3. Fill in your API details:
-   - **Model**: Default is `dashscope/qwen3.5-plus`
+   - **Model**: Default is `dashscope/qwen3.5-plus` (also supports `dashscope/qwen3.5-flash` as a cost-effective alternative)
    - **Base URL**: Default is `https://dashscope.aliyuncs.com/compatible-mode/v1`
    - **API Key**: Your API key (required)
 4. Optionally configure the **Default Working Directory** (CWD)
@@ -141,6 +141,20 @@ We chose Qwen3.5-Plus as our foundation model because it offers exceptional mult
 - **Cost-Effective**: Priced at approximately $0.688-$3.44 per 1M tokens, roughly 1/18 the cost of Gemini 3 Pro
 - **Agentic Design**: Specifically optimized for autonomous agent workflows
 
+### Qwen3.5-Flash as a Cost-Effective Alternative
+
+For cost-sensitive use cases, OpenBrowser also supports **Qwen3.5-Flash**, a faster and more affordable model from the Qwen3.5 family. Our evaluation results (see `eval/evaluation_report.json`) show that Qwen3.5-Flash maintains good performance for browser automation tasks while significantly reducing costs. 
+
+**When to choose Flash:**
+- **Budget constraints**: Flash offers similar capabilities at lower cost
+- **Simpler tasks**: For straightforward browser interactions and automation
+- **Development/testing**: When iterating on automation scripts
+
+**When to stick with Plus:**
+- **Complex visual reasoning**: Tasks requiring detailed visual analysis
+- **Multi-step planning**: Complex workflows with many decision points
+- **Highest accuracy**: Mission-critical automation where precision is paramount
+
 Learn more about Qwen3.5:
 
 - [Qwen3.5: Towards Native Multimodal Agents (Official Blog)](https://qwen.ai/blog/qwen3.5)
@@ -151,24 +165,25 @@ Learn more about Qwen3.5:
 
 ## The Vision
 
-Modern development workflows often require switching between:
-- Writing code
-- Inspecting browser state visually
-- Interacting with web UIs
-- Running terminal commands
+Traditional browser automation tools require manual scripting and fragile selectors. OpenBrowser reimagines browser automation with **AI-powered visual understanding** and **natural interaction**:
 
-OpenBrowser unifies these tasks into a **single-model closed loop**. Qwen3.5-Plus handles everything—code generation, visual perception, browser control, and bash execution—enabling the AI assistant to truly understand and debug full-stack applications end-to-end.
+- **Visual Perception**: The AI sees web pages through screenshots, understanding UI elements visually
+- **Natural Interaction**: Click, type, scroll, and navigate using human-like visual recognition
+- **Adaptive Automation**: Handle dynamic websites, JavaScript-heavy applications, and complex workflows
+- **Cost-Effective**: Choose between Qwen3.5-Plus for maximum capability or Qwen3.5-Flash for budget-friendly automation
+
+OpenBrowser transforms browser automation from brittle scripts to intelligent, adaptive workflows that understand web pages the way humans do.
 
 ## Key Differentiators
 
-### 1. Single-Model Closed Loop
-Unlike other AI coding assistants that separate code generation from execution verification, OpenBrowser uses **one model (Qwen3.5-Plus) for the entire development cycle**:
-- **Code Generation**: Write and modify code
-- **Visual Verification**: Observe browser state through screenshots
-- **Browser Control**: Interact with web UIs using JavaScript execution and tab operations
-- **Terminal Execution**: Run bash commands for backend operations
+### 1. AI-Powered Visual Browser Automation
+Unlike traditional automation tools that rely on brittle CSS selectors, OpenBrowser uses **visual AI to understand and interact with web pages naturally**:
+- **Visual Understanding**: The AI sees pages through screenshots, recognizing buttons, forms, and content visually
+- **Natural Interaction**: Click, type, scroll, and navigate based on visual cues, not fragile selectors
+- **Adaptive Workflows**: Handle dynamic content, JavaScript applications, and complex multi-step processes
+- **Unified Control**: One AI model handles visual perception, decision-making, and browser interaction
 
-This closed-loop approach enables true end-to-end debugging and automation without context switching between different tools or models.
+This visual-first approach enables robust automation that works across websites without manual selector maintenance.
 
 ### 2. Chrome Extension Architecture
 OpenBrowser operates as a **Chrome extension that controls your local browser**, providing unique advantages:
@@ -177,32 +192,35 @@ OpenBrowser operates as a **Chrome extension that controls your local browser**,
 - **Access Restricted Content**: Interact with internal tools, private dashboards, and authenticated services that require your credentials
 - **Natural Browsing**: The AI operates within your existing browser environment, maintaining your bookmarks, extensions, and preferences
 
-### 3. Optimized for Qwen3.5-Plus
-OpenBrowser is specifically designed for **Qwen3.5-Plus**, leveraging its unique strengths:
-- **Native Multimodal Training**: Unlike models with bolted-on vision capabilities, Qwen3.5-Plus was trained from the ground up with multimodal understanding
-- **Cost-Effective at Scale**: At ~$0.688-$3.44 per 1M tokens (roughly 1/18 the cost of Gemini 3 Pro), extensive browser automation becomes economically viable
+### 3. Optimized for Qwen3.5 Family
+OpenBrowser is specifically designed for the **Qwen3.5 family**, primarily **Qwen3.5-Plus** with **Qwen3.5-Flash** as a cost-effective alternative, leveraging their unique strengths:
+- **Native Multimodal Training**: Unlike models with bolted-on vision capabilities, Qwen3.5-Plus was trained from the ground up with multimodal understanding (Flash inherits these capabilities)
+- **Cost-Effective at Scale**: At ~$0.688-$3.44 per 1M tokens for Plus (roughly 1/18 the cost of Gemini 3 Pro), and even lower costs for Flash, extensive browser automation becomes economically viable
 - **Agentic Architecture**: Purpose-built for autonomous agent workflows requiring tool use, visual reasoning, and multi-step planning
 
 ## Key Features
 
-- **Single-Model Automation**: One model for coding, visual observation, browser interaction, and terminal commands
-- **Visual Browser Control**: Real-time screenshots for verification and understanding page structure
-- **JavaScript-Based Automation**: Execute JavaScript for all page interactions (clicking, typing, scrolling, data extraction)
+- **Visual AI Automation**: See and interact with web pages using AI-powered visual recognition
+- **Browser Control**: Click, type, scroll, and navigate through visual understanding and JavaScript execution
 - **Tab Management**: Open, close, switch, and manage browser tabs with session isolation
-- **Terminal Integration**: Execute bash commands for backend operations
-- **Multiple Interfaces**: REST API and WebSocket
+- **Data Extraction**: Scrape and collect data from websites with AI understanding of page structure
+- **Form Filling & Submission**: Automatically fill forms, submit data, and handle multi-step workflows
+- **Session Persistence**: Maintain browser sessions, cookies, and login states across automation tasks
+- **Multi-Interface Access**: REST API, WebSocket, and CLI for programmatic control
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Qwen3.5-Plus (Multimodal LLM)            │
-│         Code │ Visual │ Tool Orchestration │ Bash          │
+│              Qwen3.5 Family (Multimodal LLM)                │
+│        Qwen3.5-Plus (primary) / Qwen3.5-Flash (cost-effective)
+│         Visual Perception │ Decision Making │ Browser Control │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              OpenBrowser Agent Server (FastAPI)             │
+│         REST API │ WebSocket │ Session Management │ Tool Orchestration
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼

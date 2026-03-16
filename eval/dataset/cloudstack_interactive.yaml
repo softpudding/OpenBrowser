@@ -48,6 +48,10 @@ criteria:
       event_type: click
       element_id: "send-btn"
       page: "/cloudstack/das.html"
+    alternative:
+      event_type: keydown_enter
+      element_id: "chat-input"
+      page: "/cloudstack/das.html"
     optional: true
   
   # New: Ask for system status
@@ -68,6 +72,10 @@ criteria:
     expected:
       event_type: click
       element_id: "send-btn"
+      page: "/cloudstack/das.html"
+    alternative:
+      event_type: keydown_enter
+      element_id: "chat-input"
       page: "/cloudstack/das.html"
     # check: "after_system_status_input"  # Not yet implemented
     optional: true
@@ -90,6 +98,10 @@ criteria:
     expected:
       event_type: click
       element_id: "send-btn"
+      page: "/cloudstack/das.html"
+    alternative:
+      event_type: keydown_enter
+      element_id: "chat-input"
       page: "/cloudstack/das.html"
     # check: "after_storage_input"  # Not yet implemented
     optional: true

@@ -1,0 +1,37 @@
+id: dataflow
+name: "DataFlow Visual Challenge Test"
+difficulty: medium
+description: "Test visual understanding capabilities through realistic dashboard tasks"
+start_url: "http://localhost:16605/dataflow/"
+instruction: "Please complete the following tasks: 1) Enable the weekly reports feature in settings. 2) View the detailed report for the quarter with the highest revenue. 3) Navigate to the Revenue tab."
+time_limit: 300.0
+cost_limit: 0.5
+
+criteria:
+  - type: enable_weekly_reports
+    description: "Enable weekly reports in settings"
+    points: 1
+    expected:
+      event_type: settings_save
+      weeklyReports: true
+      page: "/dataflow/"
+
+  - type: view_best_quarter_detail
+    description: "View detailed report for Q4 (highest revenue)"
+    points: 1
+    expected:
+      event_type: quarter_detail_open
+      quarter: "Q4"
+      page: "/dataflow/"
+    alternative:
+      event_type: chart_bar_click
+      quarter: "Q4"
+      page: "/dataflow/"
+
+  - type: navigate_revenue_tab
+    description: "Click the Revenue tab"
+    points: 1
+    expected:
+      event_type: tab_click
+      tab: "revenue"
+      page: "/dataflow/"

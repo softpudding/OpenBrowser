@@ -154,6 +154,17 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if hasattr(action, "conversation_id") and action.conversation_id:
                 self.conversation_id = action.conversation_id
 
+            # Clear pending confirmation if this action is not a confirmation action
+            # (AI may have abandoned the previous pending confirmation)
+            should_clear = True
+            if isinstance(action, ElementInteractionAction):
+                # Keep pending confirmation if this is a confirmation action
+                if action.action and action.action.startswith("confirm_"):
+                    should_clear = False
+            if should_clear:
+                logger.debug(f"DEBUG: Clearing pending confirmation before action {type(action).__name__}")
+                self._clear_pending_confirmation()
+
             # Route based on action type
             if isinstance(action, TabAction):
                 return self._execute_tab_action(action)
@@ -1082,7 +1093,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if scroll_warning and scroll_effective is False:
                 message = f"{message} ⚠️ {scroll_warning}"
 
-        # Get pending confirmation (do NOT auto-clear - original behavior)
+        # Get pending confirmation (may have been cleared if action wasn't a confirmation)
         pending_confirmation = self._get_pending_confirmation()
 
         # Build observation

@@ -178,6 +178,8 @@ URL_MAPPINGS = {
         "/gbr/articles/home-article5.html",
         "text/html",
     ),
+    "/dataflow/": ("/dataflow/index.html", "text/html"),
+    "/dataflow/index.html": ("/dataflow/index.html", "text/html"),
 }
 
 CSS_MIMETYPE = "text/css"
@@ -286,6 +288,12 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                         "url": "/cloudstack/",
                         "description": "Cloud console - test complex UI with spam popups",
                     },
+                    {
+                        "name": "dataflow.io",
+                        "difficulty": "medium",
+                        "url": "/dataflow/",
+                        "description": "Analytics dashboard - test visual understanding (spatial, charts, state)",
+                    },
                 ]
             }
             self.send_json_response(sites)
@@ -303,6 +311,7 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                     "/gbr/": "Global Business Review mock (easy)",
                     "/techforum/": "TechForum Q&A mock (medium)",
                     "/cloudstack/": "CloudStack console mock (hard)",
+                    "/dataflow/": "DataFlow analytics dashboard mock (medium)",
                 },
             }
             self.send_json_response(help_text)
@@ -315,12 +324,12 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
 
         # Redirect directory access without trailing slash to with slash
         # This ensures relative paths in HTML work correctly
-        if not path.endswith('/'):
-            fs_path = os.path.join(EVAL_DIR, path.lstrip('/'))
+        if not path.endswith("/"):
+            fs_path = os.path.join(EVAL_DIR, path.lstrip("/"))
             if os.path.isdir(fs_path):
                 # Send 301 redirect to add trailing slash
                 self.send_response(301)
-                self.send_header('Location', path + '/')
+                self.send_header("Location", path + "/")
                 self.end_headers()
                 return
 
@@ -345,13 +354,13 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Check for site-specific JS files (e.g., /techforum/js/, /gbr/js/, /cloudstack/js/)
-        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu"]:
+        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow"]:
             if path.startswith(f"/{site}/js/") and path.endswith(".js"):
                 self.send_file(path, JS_MIMETYPE)
                 return
 
         # Check for site-specific CSS files
-        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu"]:
+        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow"]:
             if path.startswith(f"/{site}/css/") and path.endswith(".css"):
                 self.send_file(path, CSS_MIMETYPE)
                 return
