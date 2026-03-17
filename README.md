@@ -163,6 +163,52 @@ Learn more about Qwen3.5:
 - [Alibaba unveils new Qwen3.5 model for 'agentic AI era' (Reuters)](https://www.reuters.com/technology/alibaba-unveils-qwen3.5-agentic-ai)
 - [QwenLM/Qwen3.5 (GitHub)](https://github.com/QwenLM/Qwen3.5)
 
+## Evaluation
+
+OpenBrowser has been extensively evaluated against real-world browser automation tasks. Our evaluation framework tests various scenarios from simple navigation to complex multi-step workflows.
+
+### Key Findings
+
+- **100% Pass Rate**: Both Qwen3.5-Plus and Qwen3.5-Flash achieved 100% pass rate across 7 test cases
+- **Cost Efficiency**: Qwen3.5-Flash offers similar performance at ~3x lower cost (¥0.19 vs ¥0.57 per task)
+- **Context Isolation**: Independent agent architecture uses only 12-21% of control window context vs 640% for monolithic approach
+
+### Evaluation Results
+
+| Metric | Qwen3.5-Plus | Qwen3.5-Flash |
+|--------|--------------|---------------|
+| Pass Rate | 100% (7/7) | 100% (7/7) |
+| Avg. Duration | 144s | 221s |
+| Avg. Cost | ¥0.57 | ¥0.19 |
+| Task Score | 34.5/36.5 | 34.5/36.5 |
+
+### Test Cases
+
+Our evaluation suite includes:
+- **Easy**: GBR Search, TechForum Upvote
+- **Medium**: CloudStack DAS Interactive, GBR Detailed Search
+- **Hard**: TechForum Comment Reply, CloudStack DAS Agent, DataFlow Visual Challenge
+
+### Reports & Data
+
+- **[Latest Evaluation Report](eval/evaluation_report.json)** - Full JSON report with per-test metrics
+- **[OpenClaw vs OpenBrowser Comparison](eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md)** - Architecture comparison and detailed analysis
+
+### Run Your Own Evaluation
+
+```bash
+# List available tests
+python eval/evaluate_browser_agent.py --list
+
+# Run all tests with both models
+python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
+
+# Run specific test
+python eval/evaluate_browser_agent.py --test techforum
+```
+
+See [AGENTS.md](AGENTS.md#evaluation-system) for evaluation framework documentation.
+
 ## The Vision
 
 Traditional browser automation tools require manual scripting and fragile selectors. OpenBrowser reimagines browser automation with **AI-powered visual understanding** and **natural interaction**:
