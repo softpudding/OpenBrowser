@@ -18,29 +18,29 @@ python3 scripts/send_task.py "Your task description"
 - **Recommended timeout**: 600 seconds (10 minutes)
 - **For complex tasks**: Increase timeout as needed (e.g., 1200s for multi-step workflows)
 
-### OpenClaw exec 调用方式
+### OpenClaw exec Usage
 
-**关键：必须设置 `yieldMs` 等于 `timeout`，否则会变成异步后台任务！**
+**Important: You must set `yieldMs` equal to `timeout`, otherwise it will become an asynchronous background task!**
 
 ```yaml
-# ✅ 正确：同步阻塞调用
+# ✅ Correct: Synchronous blocking call
 exec:
   command: "python3 scripts/send_task.py 'Go to example.com'"
   timeout: 600
-  yieldMs: 600000  # 10分钟 = 600000毫秒，必须等于或大于 timeout
+  yieldMs: 600000  # 10 minutes = 600000 milliseconds, must be equal to or greater than timeout
 
-# ❌ 错误：缺少 yieldMs，10秒后变成后台任务
+# ❌ Error: Missing yieldMs, becomes background task after 10 seconds
 exec:
   command: "python3 scripts/send_task.py 'Go to example.com'"
   timeout: 600
-  # yieldMs 默认 10000ms，任务超过10秒就会变成后台任务
+  # yieldMs defaults to 10000ms, tasks exceeding 10 seconds become background tasks
 ```
 
-**为什么需要 yieldMs：**
-- OpenClaw exec 默认 `yieldMs=10000`（10秒）
-- 如果任务超过 yieldMs，exec 返回 "Command still running"，需要 poll 等待
-- 设置 `yieldMs >= timeout` 可以确保同步阻塞，直接等待结果
-- 这样可以避免在自动化测试流程中因为异步导致的时序问题
+**Why yieldMs is needed:**
+- OpenClaw exec defaults to `yieldMs=10000` (10 seconds)
+- If a task exceeds yieldMs, exec returns "Command still running" and requires polling to wait
+- Setting `yieldMs >= timeout` ensures synchronous blocking, directly waiting for results
+- This avoids timing issues in automated testing workflows caused by asynchronicity
 
 **Background execution**: If you need to run a task in the background (non-blocking), spawn a subagent to execute it. The subagent will handle the long-running task independently.
 
@@ -111,7 +111,7 @@ OpenBrowser requires a DashScope API key from Alibaba Cloud.
 
 1. **Visit** https://dashscope.aliyun.com/
 2. **Sign in** with your Alibaba Cloud account (create one if needed)
-3. **Navigate** to API Key Management (API-KEY管理)
+3. **Navigate** to API Key Management
 4. **Create** a new API Key
 5. **Copy** the API Key (starts with `sk-`)
 
