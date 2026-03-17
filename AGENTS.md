@@ -1,6 +1,6 @@
 # OpenBrowser Project Knowledge Base
 
-**Generated:** 2026-02-27
+**Generated:** 2026-03-16
 **Commit:** 8836b0b (main)
 **Stack:** Python 3.12+ (FastAPI) + TypeScript (Chrome Extension MV3)
 
@@ -422,7 +422,13 @@ output/
 - **DashScope models**: Costs already in RMB, no conversion needed
 - **Cost extraction**: Handles both `model_name` and token usage model fields
 
-#### 5. SSE Event Recording
+#### 5. Context Window Tracking
+- **Context window size**: Included in `usage_metrics` events as top-level `context_window` field
+- **Source**: Extracted from LLM configuration (`max_input_tokens`) or accumulated token usage
+- **Value**: Represents the total context window size of the model (maximum input tokens), not current usage
+- **Availability**: Always present (defaults to 0 if not available)
+
+#### 6. SSE Event Recording
 - **Complete event log**: All SSE events saved to JSON files (excluding image data)
 - **Image data removed**: Base64 image data replaced with `[IMAGE_DATA_REMOVED]`
 - **Event structure**: Preserves event types, timestamps, and metadata
