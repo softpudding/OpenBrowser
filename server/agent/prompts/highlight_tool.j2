@@ -49,12 +49,13 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 { "element_type": "scrollable" } // Scrollable areas
 { "element_type": "hoverable" }  // Hoverable elements
 { "element_type": "selectable" } // Select dropdowns
+{ "element_type": "any" }        // All interactive elements combined
 { "page": 2 }                 // Next page of clickable elements
 { "keywords": ["Submit", "提交"] }      // Filter by keyword list (no pagination needed)
 ```
 
 **Parameters**:
-- `element_type`: Single type to highlight - "clickable" (default), "scrollable", "inputable", "hoverable", or "selectable"
+- `element_type`: Single type to highlight - "clickable" (default), "scrollable", "inputable", "hoverable", "selectable", or "any"
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
 - `keywords`: Keywords list to filter elements by HTML content. When provided, only matching elements are returned without pagination. Example: ["button", "submit", "login"]
 
@@ -135,6 +136,11 @@ Native `<select>` dropdown elements (look for ▼ arrow indicator). Use when you
 **clickable vs selectable**:
 - `clickable`: Intent is to **open/navigate/trigger** (e.g., "Submit", "Learn More")
 - `selectable`: Intent is to **choose a value** (e.g., country selector, quantity dropdown)
+
+### any
+Combines all element types with OR logic. Returns elements matching any of the types. Elements matching multiple types are deduplicated and assigned the first matched type (priority: clickable > scrollable > inputable > hoverable > selectable).
+
+When used with keywords, pagination is skipped and all matching elements are returned.
 
 ## Screenshot Behavior
 

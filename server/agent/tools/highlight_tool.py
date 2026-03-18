@@ -51,7 +51,7 @@ class HighlightAction(OpenBrowserAction):
 
     element_type: str = Field(
         default="clickable",
-        description="Single element type to highlight: clickable/scrollable/inputable/hoverable/selectable",
+        description="Single element type to highlight: clickable/scrollable/inputable/hoverable/selectable/any",
     )
     page: int = Field(
         default=1,
