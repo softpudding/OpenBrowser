@@ -18,9 +18,10 @@ class OpenBrowserAction(Action):
     This base class provides common fields needed by all browser automation
     actions, enabling proper type hierarchy and conversation isolation.
     """
+
     conversation_id: Optional[str] = Field(
         default=None,
-        description="Conversation ID for session isolation. Required for multi-session support."
+        description="Conversation ID for session isolation. Required for multi-session support.",
     )
 
 
@@ -90,6 +91,10 @@ class OpenBrowserObservation(Observation):
     )
     pending_confirmation: Optional[Dict[str, Any]] = Field(
         default=None, description="Pending confirmation information for 2PC flow"
+    )
+    element_type: Optional[str] = Field(
+        default=None,
+        description="Type of elements highlighted (clickable/scrollable/inputable/hoverable/selectable)",
     )
 
     @property
@@ -307,7 +312,8 @@ class OpenBrowserObservation(Observation):
             for el in self.highlighted_elements:
                 el_id = el.get("id", "unknown")
                 html = (el.get("html") or "").strip()
-                if len(html) > 200:
+                # Skip truncation for selectable elements (show full options)
+                if len(html) > 200 and self.element_type != "selectable":
                     html = html[:190] + "...(Truncated)"
                 if html:
                     element_descriptions.append(f"{el_id}: {html}")

@@ -127,6 +127,20 @@ class AgentTracker {
             }
         });
         
+        // Track select changes
+        document.addEventListener('change', (e) => {
+            if (e.target.tagName === 'SELECT') {
+                this.track('select', {
+                    element: e.target.tagName,
+                    elementId: e.target.id || null,
+                    elementClass: e.target.className || null,
+                    elementName: e.target.name || null,
+                    value: e.target.value || null,
+                    selectedText: e.target.options[e.target.selectedIndex]?.text || null
+                });
+            }
+        });
+        
         // Track keyboard events for Enter key (for message submission)
         document.addEventListener('keydown', (e) => {
             if ((e.key === 'Enter' || e.keyCode === 13) && 

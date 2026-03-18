@@ -48,12 +48,13 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 { "element_type": "inputable" }  // Input fields
 { "element_type": "scrollable" } // Scrollable areas
 { "element_type": "hoverable" }  // Hoverable elements
+{ "element_type": "selectable" } // Select dropdowns
 { "page": 2 }                 // Next page of clickable elements
 { "keywords": ["Submit", "提交"] }      // Filter by keyword list (no pagination needed)
 ```
 
 **Parameters**:
-- `element_type`: Single type to highlight - "clickable" (default), "scrollable", "inputable", or "hoverable"
+- `element_type`: Single type to highlight - "clickable" (default), "scrollable", "inputable", "hoverable", or "selectable"
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
 - `keywords`: Keywords list to filter elements by HTML content. When provided, only matching elements are returned without pagination. Example: ["button", "submit", "login"]
 
@@ -112,21 +113,28 @@ Examples of broad search:
    - **Visual Check**: Is the blue box where you expect?
    - **Semantic Check**: Does the HTML match your goal?
 3. **Select Element**: Note the `element_id` of your target.
-4. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, or keyboard_input) and the selected element_id.
+4. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, keyboard_input, or select) and the selected element_id.
 
 ## Element Types
 
 ### clickable (default)
-Buttons, links, and any element that responds to clicks.
+Buttons, links, and any element that responds to clicks. Use when your intent is to **open** or **trigger** something.
 
 ### inputable
-Text inputs, textareas, checkboxes, radio buttons, select dropdowns.
+Text inputs, textareas, checkboxes, radio buttons.
 
 ### scrollable
 Scrollable containers and the entire page.
 
 ### hoverable
 Elements that reveal tooltips, dropdowns, or change state on hover.
+
+### selectable
+Native `<select>` dropdown elements (look for ▼ arrow indicator). Use when your intent is to **pick a value** from options.
+
+**clickable vs selectable**:
+- `clickable`: Intent is to **open/navigate/trigger** (e.g., "Submit", "Learn More")
+- `selectable`: Intent is to **choose a value** (e.g., country selector, quantity dropdown)
 
 ## Screenshot Behavior
 

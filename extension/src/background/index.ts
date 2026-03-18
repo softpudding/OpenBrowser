@@ -21,7 +21,7 @@ import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
 import { elementCache } from '../commands/element-cache';
 import { generateElementId } from '../commands/hash-utils';
-import { performElementClick, performElementHover, performElementScroll, performKeyboardInput } from '../commands/element-actions';
+import { performElementClick, performElementHover, performElementScroll, performKeyboardInput, performElementSelect } from '../commands/element-actions';
 import type { Command, CommandResponse, InteractiveElement } from '../types';
 console.log('🚀 OpenBrowser extension starting (Strict Mode)...');
 
@@ -1392,7 +1392,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             
             function isInputable(el) {
               const tag = el.tagName.toLowerCase();
-              if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+              if (tag === 'input' || tag === 'textarea') return true;
               if (el.getAttribute('contenteditable') === 'true') return true;
               return false;
             }
@@ -1419,7 +1419,14 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               }
               return true;
             }
-            const counts = { clickable: 0, scrollable: 0, inputable: 0, hoverable: 0 };
+
+            function isSelectable(el) {
+              const tag = el.tagName.toLowerCase();
+              if (tag === 'select') return true;
+              return false;
+            }
+
+            const counts = { clickable: 0, scrollable: 0, inputable: 0, hoverable: 0, selectable: 0 };
             const elements = [];
             const allElements = Array.from(document.querySelectorAll('*'));
             
@@ -1432,6 +1439,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               else if (elementType === 'scrollable' && isScrollable(el)) type = 'scrollable';
               else if (elementType === 'inputable' && isInputable(el)) type = 'inputable';
               else if (elementType === 'hoverable' && isHoverable(el)) type = 'hoverable';
+              else if (elementType === 'selectable' && isSelectable(el)) type = 'selectable';
               
               if (type) {
                 const bbox = getBBox(el);
@@ -1727,6 +1735,31 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             ...(inputScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: inputScreenshotResult.dialog_auto_accepted_list } : {}),
           },
           error: inputResult.error,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'select_element': {
+        if (!command.conversation_id) throw new Error('conversation_id required');
+        const selectTabId = command.tab_id;
+        if (selectTabId === undefined || selectTabId === null) throw new Error('tab_id is required');
+
+        const selectResult = await performElementSelect(
+          command.conversation_id,
+          command.element_id,
+          selectTabId,
+          command.value
+        );
+        const selectScreenshotResult = await captureScreenshot(selectTabId, command.conversation_id, true, 90, false, 0);
+
+        return {
+          success: selectResult.success,
+          data: {
+            ...selectResult, screenshot: selectScreenshotResult?.imageData,
+            ...(selectScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: selectScreenshotResult.dialog_auto_accepted } : {}),
+            ...(selectScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: selectScreenshotResult.dialog_auto_accepted_list } : {}),
+          },
+          error: selectResult.error,
           timestamp: Date.now(),
         };
       }

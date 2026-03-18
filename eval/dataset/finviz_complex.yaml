@@ -1,0 +1,44 @@
+id: finviz_complex
+name: "Finviz Multi-Filter Screener Test"
+difficulty: medium
+description: "AI Agent should use the stock screener with multiple filters: market cap over 10 billion, P/E ratio under 15, and average volume over 1 million"
+start_url: "http://localhost:16605/finviz/"
+instruction: "Use the stock screener to find companies that meet ALL of the following criteria: (1) Market capitalization greater than 10 billion dollars, (2) P/E ratio less than 15, and (3) Average volume greater than 1 million. Apply all three filters and show me the results."
+time_limit: 400.0  # ~6.7 minutes
+cost_limit: 1.0    # 1.0 RMB
+
+criteria:
+  - type: select_market_cap_filter
+    description: "Select market cap filter for over 10 billion"
+    points: 1.5
+    expected:
+      event_type: select
+      element_id: "fs_cap"
+      value: "largeover"
+      page: "/finviz/"
+  
+  - type: select_pe_filter
+    description: "Select P/E ratio filter for under 15"
+    points: 1.5
+    expected:
+      event_type: select
+      element_id: "fs_fa_pe"
+      value: "u15"
+      page: "/finviz/"
+  
+  - type: select_avg_volume_filter
+    description: "Select average volume filter for over 1 million"
+    points: 1.5
+    expected:
+      event_type: select
+      element_id: "fs_sh_avgvol"
+      value: "o1m"
+      page: "/finviz/"
+  
+  - type: verify_filters_applied
+    description: "Verify the filters were applied (page view after selections)"
+    points: 0.5
+    expected:
+      event_type: page_view
+      page: "/finviz/"
+    optional: true

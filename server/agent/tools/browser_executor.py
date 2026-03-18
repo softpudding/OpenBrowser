@@ -36,6 +36,7 @@ from server.models.commands import (
     KeyboardInputCommand,
     GetElementHtmlCommand,
     HighlightSingleElementCommand,
+    SelectElementCommand,
 )
 
 # Import action types for type checking
@@ -54,26 +55,28 @@ logger = logging.getLogger(__name__)
 
 # Global registry for shared BrowserExecutor instances per conversation
 # Key: conversation_id (str), Value: BrowserExecutor instance
-_executor_registry: Dict[str, 'BrowserExecutor'] = {}
+_executor_registry: Dict[str, "BrowserExecutor"] = {}
 
-def get_browser_executor(conversation_id: Optional[str] = None) -> 'BrowserExecutor':
+
+def get_browser_executor(conversation_id: Optional[str] = None) -> "BrowserExecutor":
     """Get or create a BrowserExecutor instance for the given conversation ID.
-    
+
     If conversation_id is None or not provided, returns a new standalone executor.
     This ensures all tools in the same conversation share the same executor instance.
     """
     if conversation_id is None:
         # No conversation ID, create a new executor (for tests or standalone use)
         return BrowserExecutor()
-    
+
     if conversation_id not in _executor_registry:
         _executor_registry[conversation_id] = BrowserExecutor()
-    
+
     return _executor_registry[conversation_id]
+
 
 def remove_browser_executor(conversation_id: str) -> None:
     """Remove a BrowserExecutor instance from the registry.
-    
+
     Call this when a conversation ends to clean up resources.
     """
     if conversation_id in _executor_registry:
@@ -162,7 +165,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 if action.action and action.action.startswith("confirm_"):
                     should_clear = False
             if should_clear:
-                logger.debug(f"DEBUG: Clearing pending confirmation before action {type(action).__name__}")
+                logger.debug(
+                    f"DEBUG: Clearing pending confirmation before action {type(action).__name__}"
+                )
                 self._clear_pending_confirmation()
 
             # Route based on action type
@@ -327,6 +332,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             message,
             highlighted_elements=elements,
             total_elements=total_elements,
+            element_type=element_type,
         )
 
     def _execute_element_interaction_action(
@@ -623,6 +629,75 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 element_id=action.element_id,
             )
 
+        elif action_type == "select":
+            if not action.element_id:
+                raise ValueError("select requires element_id parameter")
+            if action.value is None:
+                raise ValueError("select requires value parameter")
+
+            # Check if element is already confirmed - if yes, execute directly
+            if self._is_element_confirmed(action.element_id):
+                logger.debug(
+                    f"DEBUG: Element {action.element_id} already confirmed, executing select directly"
+                )
+                command = SelectElementCommand(
+                    element_id=action.element_id,
+                    value=action.value,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                if not result_dict or not result_dict.get("success"):
+                    ext_error = (
+                        result_dict.get("error", "Unknown error")
+                        if result_dict
+                        else "No response"
+                    )
+                    raise RuntimeError(f"Failed to select option: {ext_error}")
+                message = f"Selected option in element (previously confirmed): {action.element_id}"
+                return self._build_observation_from_result(
+                    result_dict, message, element_id=action.element_id
+                )
+
+            # Check if element matches single element candidate - if yes, execute directly and add to confirmed cache
+            command_kwargs = {"value": action.value}
+            if action.tab_id is not None:
+                command_kwargs["tab_id"] = action.tab_id
+            result_dict = self._try_execute_via_single_element_candidate(
+                element_id=action.element_id,
+                command_class=SelectElementCommand,
+                command_kwargs=command_kwargs,
+                action_type="select",
+            )
+            if result_dict:
+                message = f"Selected option in element: {action.element_id}"
+                return self._build_observation_from_result(
+                    result_dict, message, element_id=action.element_id
+                )
+
+            # Otherwise proceed with 2PC confirmation flow
+            full_html, screenshot = self._get_element_full_html(action.element_id)
+            self._set_pending_confirmation(
+                element_id=action.element_id,
+                action_type="select",
+                full_html=full_html,
+                extra_data={
+                    "value": action.value,
+                    "tab_id": action.tab_id,
+                },
+                screenshot_data_url=screenshot,
+            )
+            result_dict = {"success": True, "data": {}}
+            message = (
+                f"Select action pending confirmation for element: {action.element_id}"
+            )
+            return self._build_observation_from_result(
+                result_dict,
+                message,
+                screenshot_data_url=screenshot,
+                element_id=action.element_id,
+            )
+
         # ========== 2PC Phase 2: Confirm Operations ==========
         elif action_type == "confirm_click":
             pending = self._get_pending_confirmation()
@@ -738,6 +813,35 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
                 raise RuntimeError(f"Failed to input text: {ext_error}")
             message = f"Confirmed and input text to element: {action.element_id}"
+            self._add_confirmed_element(action.element_id)
+            self._clear_pending_confirmation()
+            return self._build_observation_from_result(result_dict, message)
+
+        elif action_type == "confirm_select":
+            pending = self._get_pending_confirmation()
+            if not pending or pending["action_type"] != "select":
+                raise ValueError(
+                    "No pending select confirmation found. Please call select first."
+                )
+            if pending["element_id"] != action.element_id:
+                raise ValueError(
+                    f"Element ID mismatch. Expected {pending['element_id']}, got {action.element_id}"
+                )
+            command = SelectElementCommand(
+                element_id=action.element_id,
+                value=pending["extra_data"]["value"],
+                conversation_id=self.conversation_id,
+                tab_id=action.tab_id or pending["extra_data"].get("tab_id"),
+            )
+            result_dict = self._execute_command_sync(command)
+            if not result_dict or not result_dict.get("success"):
+                ext_error = (
+                    result_dict.get("error", "Unknown error")
+                    if result_dict
+                    else "No response"
+                )
+                raise RuntimeError(f"Failed to select option: {ext_error}")
+            message = f"Confirmed and selected option in element: {action.element_id}"
             self._add_confirmed_element(action.element_id)
             self._clear_pending_confirmation()
             return self._build_observation_from_result(result_dict, message)
@@ -903,7 +1007,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
 
             return result_dict
         else:
-            logger.debug(f"Skipped single element element {element_id} with candidate {candidate}")
+            logger.debug(
+                f"Skipped single element element {element_id} with candidate {candidate}"
+            )
         return None
 
     # ========== Helper Methods ==========
@@ -947,6 +1053,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         highlighted_elements: Optional[list] = None,
         total_elements: Optional[int] = None,
         element_id: Optional[str] = None,
+        element_type: Optional[str] = None,
     ) -> OpenBrowserObservation:
         """Build an OpenBrowserObservation from a result dictionary."""
         success = True  # Default to True
@@ -1111,6 +1218,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             total_elements=total_elements,
             new_tabs_created=new_tabs_created,
             element_id=element_id,
+            element_type=element_type,
             javascript_result=javascript_result,
             console_output=console_output,
             scroll_effective=scroll_effective,

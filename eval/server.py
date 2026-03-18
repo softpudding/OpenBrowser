@@ -180,6 +180,8 @@ URL_MAPPINGS = {
     ),
     "/dataflow/": ("/dataflow/index.html", "text/html"),
     "/dataflow/index.html": ("/dataflow/index.html", "text/html"),
+    "/finviz/": ("/finviz/index.html", "text/html"),
+    "/finviz/index.html": ("/finviz/index.html", "text/html"),
 }
 
 CSS_MIMETYPE = "text/css"
@@ -294,6 +296,12 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                         "url": "/dataflow/",
                         "description": "Analytics dashboard - test visual understanding (spatial, charts, state)",
                     },
+                    {
+                        "name": "finviz.com",
+                        "difficulty": "hard",
+                        "url": "/finviz/",
+                        "description": "Stock screener - test complex filters, selects, and data tables",
+                    },
                 ]
             }
             self.send_json_response(sites)
@@ -312,6 +320,7 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                     "/techforum/": "TechForum Q&A mock (medium)",
                     "/cloudstack/": "CloudStack console mock (hard)",
                     "/dataflow/": "DataFlow analytics dashboard mock (medium)",
+                    "/finviz/": "Finviz stock screener mock (hard)",
                 },
             }
             self.send_json_response(help_text)
@@ -354,13 +363,13 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Check for site-specific JS files (e.g., /techforum/js/, /gbr/js/, /cloudstack/js/)
-        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow"]:
+        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow", "finviz"]:
             if path.startswith(f"/{site}/js/") and path.endswith(".js"):
                 self.send_file(path, JS_MIMETYPE)
                 return
 
         # Check for site-specific CSS files
-        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow"]:
+        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow", "finviz"]:
             if path.startswith(f"/{site}/css/") and path.endswith(".css"):
                 self.send_file(path, CSS_MIMETYPE)
                 return
@@ -762,6 +771,7 @@ def print_startup_info(port):
     print(
         f"  - CloudStack (Hard):  http://localhost:{port}/cloudstack/  (legacy: /aliyun/, /zhihu/)"
     )
+    print(f"  - Finviz (Hard):  http://localhost:{port}/finviz/")
     print(f"\nAPI Endpoints:")
     print(f"  - GET  http://localhost:{port}/api/events       - Get all tracked events")
     print(f"  - GET  http://localhost:{port}/api/events/clear - Clear all events")

@@ -1,0 +1,26 @@
+id: finviz_simple
+name: "Finviz Simple Screener Test"
+difficulty: easy
+description: "AI Agent should use the stock screener to filter companies with market cap over 10 billion"
+start_url: "http://localhost:16605/finviz/"
+instruction: "Use the stock screener to filter companies with market capitalization greater than 10 billion dollars. Show me the filtered results."
+time_limit: 300.0  # 5 minutes
+cost_limit: 0.8    # 0.8 RMB
+
+criteria:
+  - type: select_market_cap_filter
+    description: "Select market cap filter for over 10 billion"
+    points: 2
+    expected:
+      event_type: select
+      element_id: "fs_cap"
+      value: "largeover"
+      page: "/finviz/"
+  
+  - type: verify_filter_applied
+    description: "Verify the filter was applied (page view after selection)"
+    points: 1
+    expected:
+      event_type: page_view
+      page: "/finviz/"
+    optional: true

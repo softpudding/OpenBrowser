@@ -188,6 +188,52 @@ Type text into an input element by its visual ID.
 
 Use this for text inputs, textareas, and search boxes.
 
+### select
+Select an option from a native `<select>` dropdown element by its visual ID.
+
+**Native `<select>` elements only** - This command works with standard HTML `<select>` dropdowns, not custom dropdown components built with `<div>`, `<ul>`, or other elements.
+
+**How to distinguish `selectable` from `clickable`**:
+
+| Aspect | `clickable` | `selectable` |
+|--------|-------------|--------------|
+| **Visual cue** | Buttons, links, icons | Dropdown with ▼ arrow indicator |
+| **Intent** | "Open" something (navigate, trigger action) | "Change" a value (pick an option) |
+| **HTML tag** | `<button>`, `<a>`, `<div onclick>` | `<select>` |
+| **Behavior** | Single action | Choose from multiple options |
+
+**Decision guide**:
+- If your goal is to **navigate** or **trigger an action** → use `click`
+- If your goal is to **pick a value** from a list of options → use `select`
+
+```json
+{ "action": "select", "element_id": "f3a8c2", "value": "option1", "tab_id": 123 }
+// → Screenshot with ORANGE box appears
+// → Review the orange highlight + HTML
+// → Confirm:
+{ "action": "confirm_select", "element_id": "f3a8c2", "tab_id": 123 }
+```
+
+**Parameters**:
+- `element_id`: (required) Element ID from highlight tool response
+- `value`: (required) Option value to select (matches `value` attribute of `<option>`)
+
+**Multi-select Support**:
+For `<select multiple>` elements, pass an array of values:
+
+```json
+{ "action": "select", "element_id": "f3a8c2", "value": ["opt1", "opt2"], "tab_id": 123 }
+```
+
+**Examples**:
+```json
+// Single select
+{ "action": "select", "element_id": "abc123", "value": "us", "tab_id": 123 }
+
+// Multi-select
+{ "action": "select", "element_id": "abc123", "value": ["red", "blue"], "tab_id": 123 }
+```
+
 ## Confirm Commands
 
 Each action has a corresponding confirm action (use the same `element_interaction` tool):
@@ -196,6 +242,7 @@ Each action has a corresponding confirm action (use the same `element_interactio
 - `confirm_hover` (for hover action)
 - `confirm_scroll` (for scroll action with element_id)
 - `confirm_keyboard_input` (for keyboard_input action)
+- `confirm_select` (for select action)
 
 **Parameters**: Same as the initiating action (`element_id`, `tab_id`), plus any additional parameters like `text` for keyboard_input.
 

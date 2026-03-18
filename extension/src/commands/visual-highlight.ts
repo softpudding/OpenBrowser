@@ -14,6 +14,7 @@ const COLORS: Record<ElementType, string> = {
   scrollable: '#00CC66',
   inputable: '#FF9900',
   hoverable: '#9966FF',
+  selectable: '#FF6B6B',
 };
 
 /**
@@ -24,6 +25,7 @@ const LABEL_BG_COLORS: Record<ElementType, string> = {
   scrollable: 'rgba(0, 204, 102, 0.7)',
   inputable: 'rgba(255, 153, 0, 0.7)',
   hoverable: 'rgba(153, 102, 255, 0.7)',
+  selectable: 'rgba(255, 107, 107, 0.7)',
 };
 
 /**

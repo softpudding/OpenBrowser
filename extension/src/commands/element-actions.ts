@@ -34,6 +34,18 @@ export interface HoverResult extends ElementActionResult {
 }
 
 /**
+ * Result type for element select operation
+ */
+export interface SelectResult extends ElementActionResult {
+  selected: boolean;
+  staleElement?: boolean;
+  error?: string;
+  selectedValues?: string[];
+  selectedLabels?: string[];
+  selectedIndices?: number[];
+}
+
+/**
  * Perform a click on an element identified by its cached element_id
  *
  * Flow:
@@ -992,6 +1004,261 @@ export async function performKeyboardInput(
 }
 
 /**
+ * Perform a select on a <select> element identified by its cached element_id
+ *
+ * Flow:
+ * 1. Look up element from cache
+ * 2. Build JavaScript to select option(s) by value
+ * 3. Execute with dialog detection
+ * 4. Return result with selected values/labels/indices
+ *
+ * @param conversationId Session ID for element cache lookup
+ * @param elementId Cached element ID (6-char hash)
+ * @param tabId Target tab ID
+ * @param value Option value(s) to select. Use string for single select, array for multi-select
+ * @param timeout Maximum execution time in milliseconds (default: 30000)
+ * @returns Select result with success status and selected values
+ */
+export async function performElementSelect(
+  conversationId: string,
+  elementId: string,
+  tabId: number,
+  value: string | string[],
+  timeout: number = 30000
+): Promise<SelectResult> {
+  console.log(
+    `📋 [ElementSelect] Selecting element ${elementId} in conversation ${conversationId} on tab ${tabId}`
+  );
+
+  // ============================================================
+  // STEP 1: Look up element from cache
+  // ============================================================
+  const element = elementCache.getElementById(conversationId, tabId, elementId);
+  if (!element) {
+    console.log(`❌ [ElementSelect] Element ${elementId} not found in cache`);
+    return {
+      success: false,
+      elementId,
+      selected: false,
+      staleElement: false,
+      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+    };
+  }
+
+  console.log(`✅ [ElementSelect] Found element: selector="${element.selector}"`);
+
+  // ============================================================
+  // STEP 2: Build JavaScript to select option(s)
+  // ============================================================
+  // Escape quotes and backslashes in selector for safe injection
+  const escapedSelector = element.selector.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+  // Serialize value for JavaScript injection
+  const valueJson = JSON.stringify(value);
+
+  const script = `
+    (function() {
+      const selector = "${escapedSelector}";
+      const value = ${valueJson};
+
+      const el = document.querySelector(selector);
+
+      if (!el) {
+        return { selected: false, error: "Element not found in DOM", stale: true };
+      }
+
+      // Verify it's a select element
+      if (el.tagName.toLowerCase() !== 'select') {
+        return { selected: false, error: "Element is not a <select> element" };
+      }
+
+      // Check if element is still visible
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return { selected: false, error: "Element is not visible", stale: false };
+      }
+
+      // Scroll element into view if needed
+      const rect = el.getBoundingClientRect();
+      if (rect.top < 0 || rect.bottom > window.innerHeight ||
+          rect.left < 0 || rect.right > window.innerWidth) {
+        el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+      }
+
+      try {
+        // Focus the element first
+        if (typeof el.focus === 'function') {
+          el.focus();
+        }
+
+        const options = Array.from(el.options);
+        let selectedOptions = [];
+
+        // Helper to find option by value
+        const findByValue = (v) => options.find(opt => opt.value === v);
+
+        // Select by value
+        if (Array.isArray(value)) {
+          // Multi-select: clear all first, then select multiple
+          el.selectedIndex = -1;
+          for (const v of value) {
+            const opt = findByValue(v);
+            if (opt) {
+              opt.selected = true;
+              selectedOptions.push(opt);
+            }
+          }
+        } else {
+          // Single select by value
+          const opt = findByValue(value);
+          if (opt) {
+            el.value = opt.value;
+            selectedOptions.push(opt);
+          }
+        }
+
+        // Check if any options were found
+        if (selectedOptions.length === 0) {
+          return {
+            selected: false,
+            error: \`Option not found for value: \${JSON.stringify(value)}\`
+          };
+        }
+
+        // Dispatch change event for React/Vue compatibility
+        const changeEvent = new Event('change', {
+          bubbles: true,
+          cancelable: true,
+        });
+        el.dispatchEvent(changeEvent);
+
+        // Also dispatch input event for good measure
+        const inputEvent = new Event('input', {
+          bubbles: true,
+          cancelable: true,
+        });
+        el.dispatchEvent(inputEvent);
+
+        // Return selected values, labels, and indices
+        return {
+          selected: true,
+          selectedValues: selectedOptions.map(opt => opt.value),
+          selectedLabels: selectedOptions.map(opt => opt.text || opt.textContent.trim()),
+          selectedIndices: selectedOptions.map(opt => opt.index),
+          isMultiple: el.multiple
+        };
+      } catch (e) {
+        return { selected: false, error: e.message || String(e) };
+      }
+    })();
+  `;
+
+  // ============================================================
+  // STEP 3: Execute JavaScript with dialog detection
+  // ============================================================
+  let jsResult: JavaScriptResult;
+
+  try {
+    jsResult = await executeJavaScript(tabId, conversationId, script, true, false, timeout);
+  } catch (error) {
+    console.error(`❌ [ElementSelect] JavaScript execution error:`, error);
+    return {
+      success: false,
+      elementId,
+      selected: false,
+      staleElement: false,
+    };
+  }
+
+  // ============================================================
+  // STEP 4: Process result
+  // ============================================================
+
+  // Check for execution errors
+  if (!jsResult.success) {
+    console.log(`❌ [ElementSelect] Select execution failed: ${jsResult.error}`);
+    return {
+      success: false,
+      elementId,
+      selected: false,
+      staleElement: false,
+    };
+  }
+
+  // Debug: Log JavaScript result for diagnosis
+  console.log(`🔍 [ElementSelect] JavaScript result.value:`, JSON.stringify(jsResult.result?.value, null, 2));
+  console.log(`🔍 [ElementSelect] Full JavaScript result:`, jsResult);
+
+  // If a dialog opened during execution, treat as success with dialog info
+  if (jsResult.dialog_opened) {
+    console.log(`💬 [ElementSelect] Dialog opened during select: ${jsResult.dialog?.type} - treating as successful select with dialog`);
+    const result: SelectResult = {
+      success: true,
+      elementId,
+      selected: true,
+      new_tabs_created: jsResult.new_tabs_created,
+    };
+    if (jsResult.dialog) {
+      result.dialogOpened = true;
+      result.dialog = {
+        type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+        message: jsResult.dialog.message,
+      };
+    }
+    return result;
+  }
+
+  // Check the result from the script (only if no dialog opened)
+  const selectResult = jsResult.result?.value as {
+    selected: boolean;
+    error?: string;
+    stale?: boolean;
+    selectedValues?: string[];
+    selectedLabels?: string[];
+    selectedIndices?: number[];
+    isMultiple?: boolean;
+  } | undefined;
+
+  if (!selectResult?.selected) {
+    const isStale = selectResult?.stale === true;
+    console.log(
+      `❌ [ElementSelect] Select failed: ${selectResult?.error || 'Unknown error'}, stale=${isStale}`
+    );
+
+    return {
+      success: false,
+      elementId,
+      selected: false,
+      staleElement: isStale,
+      error: selectResult?.error,
+    };
+  }
+
+  console.log(`✅ [ElementSelect] Select executed successfully, values=${JSON.stringify(selectResult.selectedValues)}`);
+
+  // Build result with selected values
+  const result: SelectResult = {
+    success: true,
+    elementId,
+    selected: true,
+    selectedValues: selectResult.selectedValues,
+    selectedLabels: selectResult.selectedLabels,
+    selectedIndices: selectResult.selectedIndices,
+  };
+
+  if (jsResult.dialog_opened && jsResult.dialog) {
+    result.dialogOpened = true;
+    result.dialog = {
+      type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+      message: jsResult.dialog.message,
+    };
+    console.log(`💬 [ElementSelect] Propagating dialog info to screenshot: ${jsResult.dialog.type}`);
+  }
+
+  return result;
+}
+
+/**
  * Export element actions module
  */
 export const elementActions = {
@@ -999,4 +1266,5 @@ export const elementActions = {
   performElementHover,
   performElementScroll,
   performKeyboardInput,
+  performElementSelect,
 };

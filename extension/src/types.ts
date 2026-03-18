@@ -168,6 +168,19 @@ export interface KeyboardInputCommand extends BaseCommand {
   tab_id?: number;
 }
 
+export interface SelectElementCommand extends BaseCommand {
+  type: 'select_element';
+  /** Element ID from highlight response (6-char hash) */
+  element_id: string;
+  /** Option value(s) to select. Use string for single select, array for multi-select (<select multiple>) */
+  value: string | string[];
+  /**
+   * Target tab ID (optional - auto-resolved from conversation if not provided)
+   * Note: Required in Python models, but optional here as extension auto-resolves it
+   */
+  tab_id?: number;
+}
+
 export interface GetElementHtmlCommand extends BaseCommand {
   type: 'get_element_html';
   element_id: string;
@@ -216,6 +229,7 @@ export type Command =
   | HoverElementCommand
   | ScrollElementCommand
   | KeyboardInputCommand
+  | SelectElementCommand
   | GetElementHtmlCommand
   | HighlightSingleElementCommand;
 
@@ -255,7 +269,7 @@ export interface WebSocketMessage {
 }
 
 // Visual interaction types
-export type ElementType = 'clickable' | 'scrollable' | 'inputable' | 'hoverable';
+export type ElementType = 'clickable' | 'scrollable' | 'inputable' | 'hoverable' | 'selectable';
 
 export interface InteractiveElement {
   id: string;                    // Element ID: 6-char hash from CSS path (e.g., "a3f2b1")
