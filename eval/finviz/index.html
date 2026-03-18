@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Screener - Financial Visualizations</title>
+    <link rel="stylesheet" href="/finviz/css/finviz.css">
+</head>
+<body class="dark-theme">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo-section">
+                <a href="/" class="logo">
+                    <span class="logo-text">finviz</span>
+                    <span class="logo-subtitle">FINANCIAL VISUALIZATIONS</span>
+                </a>
+                <div class="search-box">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    <input type="text" placeholder="Search ticker, company or profile">
+                </div>
+            </div>
+            <nav class="main-nav">
+                <a href="#" class="nav-link">Home</a>
+                <a href="#" class="nav-link">News</a>
+                <a href="#" class="nav-link active">Screener</a>
+                <a href="#" class="nav-link">Charts</a>
+                <a href="#" class="nav-link">Maps</a>
+                <a href="#" class="nav-link">Groups</a>
+                <a href="#" class="nav-link">Portfolio</a>
+                <a href="#" class="nav-link">Insider</a>
+                <a href="#" class="nav-link">Futures</a>
+                <a href="#" class="nav-link">Forex</a>
+                <a href="#" class="nav-link">Crypto</a>
+                <a href="#" class="nav-link">Calendar</a>
+                <a href="#" class="nav-link">Backtests</a>
+                <a href="#" class="nav-link">Pricing</a>
+            </nav>
+            <div class="header-actions">
+                <span class="datetime" id="headerDatetime">Wed MAR 18 2026 8:19 AM ET</span>
+                <button class="theme-toggle" id="themeToggle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    Theme
+                </button>
+                <a href="#" class="help-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <path d="M12 17h.01"></path>
+                    </svg>
+                    Help
+                </a>
+                <a href="#" class="login-link">Login</a>
+                <a href="#" class="register-link">Register</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Banner -->
+    <div class="banner">
+        <span>New Screener Features: See news and add color-coded flags</span>
+        <a href="#" class="learn-more">Learn More</a>
+        <button class="banner-close" onclick="this.parentElement.style.display='none'">×</button>
+    </div>
+
+    <!-- Main Content -->
+    <main class="screener-main">
+        <!-- Control Bar -->
+        <div class="control-bar">
+            <div class="control-group">
+                <select id="screenerPresetsSelect" class="fv-select">
+                    <option>My Presets</option>
+                    <option value="__save_screen">-Save Screen</option>
+                    <option value="__edit_screens">-Edit Screens</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Order by</label>
+                <select id="orderSelect" class="fv-select">
+                    <option value="ticker">Ticker</option>
+                    <option value="company">Company</option>
+                    <option value="sector">Sector</option>
+                    <option value="industry">Industry</option>
+                    <option value="country">Country</option>
+                    <option value="marketcap">Market Cap.</option>
+                    <option value="pe">Price/Earnings</option>
+                    <option value="price">Price</option>
+                    <option value="change">Change</option>
+                    <option value="volume">Volume</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <select id="orderDirSelect" class="fv-select">
+                    <option value="asc">Asc</option>
+                    <option value="desc">Desc</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Signal</label>
+                <select id="signalSelect" class="fv-select">
+                    <option value="">None (all stocks)</option>
+                    <option value="ta_topgainers">Top Gainers</option>
+                    <option value="ta_toplosers">Top Losers</option>
+                    <option value="ta_newhigh">New High</option>
+                    <option value="ta_newlow">New Low</option>
+                    <option value="ta_mostvolatile">Most Volatile</option>
+                    <option value="ta_mostactive">Most Active</option>
+                    <option value="ta_unusualvolume">Unusual Volume</option>
+                    <option value="ta_overbought">Overbought</option>
+                    <option value="ta_oversold">Oversold</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Tickers</label>
+                <input type="text" id="tickersInput" class="tickers-input" placeholder="">
+                <button class="tickers-submit" onclick="applyTickersFilter()">></button>
+            </div>
+            <div class="control-group">
+                <button class="filters-toggle" id="filtersToggle">
+                    Filters
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="m6 9 6 6 6-6"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="filter-tabs">
+            <button class="filter-tab active" data-filter-type="descriptive" data-url="v=111">Descriptive</button>
+            <button class="filter-tab" data-filter-type="fundamental" data-url="v=111&ft=2">Fundamental</button>
+            <button class="filter-tab" data-filter-type="technical" data-url="v=111&ft=3">Technical</button>
+            <button class="filter-tab" data-filter-type="news" data-url="v=111&ft=6">News</button>
+            <button class="filter-tab" data-filter-type="etf" data-url="v=111&ft=5">ETF</button>
+            <button class="filter-tab" data-filter-type="all" data-url="v=111&ft=4">All</button>
+        </div>
+
+        <!-- Filters Panel -->
+        <div class="filters-panel" id="filtersPanel">
+            <!-- Descriptive Filters -->
+            <div class="filter-section" id="descriptiveFilters">
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label class="filter-label">Exchange</label>
+                        <select id="fs_exch" class="fv-select screener-select" data-filter="exch">
+                            <option value="">Any</option>
+                            <option value="amex">AMEX</option>
+                            <option value="cboe">CBOE</option>
+                            <option value="nasd">NASDAQ</option>
+                            <option value="nyse">NYSE</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Index</label>
+                        <select id="fs_idx" class="fv-select screener-select" data-filter="idx">
+                            <option value="">Any</option>
+                            <option value="sp500">S&P 500</option>
+                            <option value="ndx">NASDAQ 100</option>
+                            <option value="dji">DJIA</option>
+                            <option value="rut">RUSSELL 2000</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Sector</label>
+                        <select id="fs_sec" class="fv-select screener-select" data-filter="sec">
+                            <option value="">Any</option>
+                            <option value="basicmaterials">Basic Materials</option>
+                            <option value="communicationservices">Communication Services</option>
+                            <option value="consumercyclical">Consumer Cyclical</option>
+                            <option value="consumerdefensive">Consumer Defensive</option>
+                            <option value="energy">Energy</option>
+                            <option value="financial">Financial</option>
+                            <option value="healthcare">Healthcare</option>
+                            <option value="industrials">Industrials</option>
+                            <option value="realestate">Real Estate</option>
+                            <option value="technology">Technology</option>
+                            <option value="utilities">Utilities</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Industry</label>
+                        <select id="fs_ind" class="fv-select screener-select" data-filter="ind">
+                            <option value="">Any</option>
+                            <option value="stocksonly">Stocks only (ex-Funds)</option>
+                            <option value="exchangetradedfund">Exchange Traded Fund</option>
+                            <option value="advertisingagencies">Advertising Agencies</option>
+                            <option value="aerospacedefense">Aerospace & Defense</option>
+                            <option value="agriculturalinputs">Agricultural Inputs</option>
+                            <option value="airlines">Airlines</option>
+                            <option value="assetmanagement">Asset Management</option>
+                            <option value="automanufacturers">Auto Manufacturers</option>
+                            <option value="banksdiversified">Banks - Diversified</option>
+                            <option value="banksregional">Banks - Regional</option>
+                            <option value="biotechnology">Biotechnology</option>
+                            <option value="capitalmarkets">Capital Markets</option>
+                            <option value="communicationequipment">Communication Equipment</option>
+                            <option value="computerhardware">Computer Hardware</option>
+                            <option value="diagnosticsresearch">Diagnostics & Research</option>
+                            <option value="drugmanufacturersgeneral">Drug Manufacturers - General</option>
+                            <option value="entertainment">Entertainment</option>
+                            <option value="financialdatastockexchanges">Financial Data & Stock Exchanges</option>
+                            <option value="gold">Gold</option>
+                            <option value="healthcareplans">Healthcare Plans</option>
+                            <option value="healthinformationservices">Health Information Services</option>
+                            <option value="insurancebrokers">Insurance Brokers</option>
+                            <option value="insurancediversified">Insurance - Diversified</option>
+                            <option value="insurancelife">Insurance - Life</option>
+                            <option value="insurancepropertycasualty">Insurance - Property & Casualty</option>
+                            <option value="internetcontentinformation">Internet Content & Information</option>
+                            <option value="internetretail">Internet Retail</option>
+                            <option value="medicaldevices">Medical Devices</option>
+                            <option value="oilgasep">Oil & Gas E&P</option>
+                            <option value="oilgasmidstream">Oil & Gas Midstream</option>
+                            <option value="pharmaceuticalretailers">Pharmaceutical Retailers</option>
+                            <option value="realestatedevelopment">Real Estate - Development</option>
+                            <option value="realestateservices">Real Estate Services</option>
+                            <option value="reitdiversified">REIT - Diversified</option>
+                            <option value="reithotelmotel">REIT - Hotel & Motel</option>
+                            <option value="reitindustrial">REIT - Industrial</option>
+                            <option value="reitresidential">REIT - Residential</option>
+                            <option value="reitretail">REIT - Retail</option>
+                            <option value="semiconductorequipmentmaterials">Semiconductor Equipment & Materials</option>
+                            <option value="semiconductors">Semiconductors</option>
+                            <option value="softwareapplication">Software - Application</option>
+                            <option value="softwareinfrastructure">Software - Infrastructure</option>
+                            <option value="solar">Solar</option>
+                            <option value="telecomservices">Telecom Services</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Country</label>
+                        <select id="fs_country" class="fv-select screener-select" data-filter="country">
+                            <option value="">Any</option>
+                            <option value="usa">USA</option>
+                            <option value="uk">UK</option>
+                            <option value="china">China</option>
+                            <option value="japan">Japan</option>
+                            <option value="germany">Germany</option>
+                            <option value="france">France</option>
+                            <option value="canada">Canada</option>
+                            <option value="australia">Australia</option>
+                            <option value="india">India</option>
+                            <option value="brazil">Brazil</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label class="filter-label">Market Cap.</label>
+                        <select id="fs_cap" class="fv-select screener-select" data-filter="cap">
+                            <option value="">Any</option>
+                            <option value="mega">Mega ($200bln and more)</option>
+                            <option value="large">Large ($10bln to $200bln)</option>
+                            <option value="mid">Mid ($2bln to $10bln)</option>
+                            <option value="small">Small ($300mln to $2bln)</option>
+                            <option value="micro">Micro ($50mln to $300mln)</option>
+                            <option value="nano">Nano (under $50mln)</option>
+                            <option value="largeover">+Large (over $10bln)</option>
+                            <option value="midover">+Mid (over $2bln)</option>
+                            <option value="smallover">+Small (over $300mln)</option>
+                            <option value="largeunder">-Large (under $200bln)</option>
+                            <option value="midunder">-Mid (under $10bln)</option>
+                            <option value="smallunder">-Small (under $2bln)</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Dividend Yield</label>
+                        <select id="fs_fa_div" class="fv-select screener-select" data-filter="fa_div">
+                            <option value="">Any</option>
+                            <option value="none">None (0%)</option>
+                            <option value="pos">Positive (>0%)</option>
+                            <option value="high">High (>5%)</option>
+                            <option value="veryhigh">Very High (>10%)</option>
+                            <option value="o1">Over 1%</option>
+                            <option value="o2">Over 2%</option>
+                            <option value="o3">Over 3%</option>
+                            <option value="o5">Over 5%</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Short Float</label>
+                        <select id="fs_sh_short" class="fv-select screener-select" data-filter="sh_short">
+                            <option value="">Any</option>
+                            <option value="low">Low (<5%)</option>
+                            <option value="high">High (>20%)</option>
+                            <option value="u5">Under 5%</option>
+                            <option value="u10">Under 10%</option>
+                            <option value="o5">Over 5%</option>
+                            <option value="o10">Over 10%</option>
+                            <option value="o20">Over 20%</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Analyst Recom.</label>
+                        <select id="fs_an_recom" class="fv-select screener-select" data-filter="an_recom">
+                            <option value="">Any</option>
+                            <option value="strongbuy">Strong Buy (1)</option>
+                            <option value="buybetter">Buy or better</option>
+                            <option value="buy">Buy</option>
+                            <option value="holdbetter">Hold or better</option>
+                            <option value="hold">Hold</option>
+                            <option value="holdworse">Hold or worse</option>
+                            <option value="sell">Sell</option>
+                            <option value="strongsell">Strong Sell (5)</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Option/Short</label>
+                        <select id="fs_sh_opt" class="fv-select screener-select" data-filter="sh_opt">
+                            <option value="">Any</option>
+                            <option value="option">Optionable</option>
+                            <option value="short">Shortable</option>
+                            <option value="notoption">Not optionable</option>
+                            <option value="notshort">Not shortable</option>
+                            <option value="optionshort">Optionable and shortable</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label class="filter-label">Earnings Date</label>
+                        <select id="fs_earningsdate" class="fv-select screener-select" data-filter="earningsdate">
+                            <option value="">Any</option>
+                            <option value="today">Today</option>
+                            <option value="yesterday">Yesterday</option>
+                            <option value="prevweek">In the last week</option>
+                            <option value="prevmonth">In the last month</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Average Volume</label>
+                        <select id="fs_sh_avgvol" class="fv-select screener-select" data-filter="sh_avgvol">
+                            <option value="">Any</option>
+                            <option value="u50k">Under 50K</option>
+                            <option value="u100k">Under 100K</option>
+                            <option value="u500k">Under 500K</option>
+                            <option value="u1m">Under 1M</option>
+                            <option value="o50k">Over 50K</option>
+                            <option value="o100k">Over 100K</option>
+                            <option value="o500k">Over 500K</option>
+                            <option value="o1m">Over 1M</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Relative Volume</label>
+                        <select id="fs_sh_relvol" class="fv-select screener-select" data-filter="sh_relvol">
+                            <option value="">Any</option>
+                            <option value="u0.5">Under 0.5</option>
+                            <option value="u1">Under 1</option>
+                            <option value="o1">Over 1</option>
+                            <option value="o1.5">Over 1.5</option>
+                            <option value="o2">Over 2</option>
+                            <option value="o3">Over 3</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Current Volume</label>
+                        <select id="fs_sh_curvol" class="fv-select screener-select" data-filter="sh_curvol">
+                            <option value="">Any</option>
+                            <option value="u50k">Under 50K</option>
+                            <option value="u100k">Under 100K</option>
+                            <option value="u500k">Under 500K</option>
+                            <option value="u1m">Under 1M</option>
+                            <option value="o50k">Over 50K</option>
+                            <option value="o100k">Over 100K</option>
+                            <option value="o500k">Over 500K</option>
+                            <option value="o1m">Over 1M</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Trades</label>
+                        <select id="fs_trades" class="fv-select screener-select" data-filter="trades">
+                            <option value="">Any</option>
+                            <option value="elite">Elite only</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label class="filter-label">Price $</label>
+                        <select id="fs_sh_price" class="fv-select screener-select" data-filter="sh_price">
+                            <option value="">Any</option>
+                            <option value="u1">Under $1</option>
+                            <option value="u2">Under $2</option>
+                            <option value="u5">Under $5</option>
+                            <option value="u10">Under $10</option>
+                            <option value="u20">Under $20</option>
+                            <option value="u50">Under $50</option>
+                            <option value="o1">Over $1</option>
+                            <option value="o2">Over $2</option>
+                            <option value="o5">Over $5</option>
+                            <option value="o10">Over $10</option>
+                            <option value="o20">Over $20</option>
+                            <option value="o50">Over $50</option>
+                            <option value="1to5">$1 to $5</option>
+                            <option value="5to10">$5 to $10</option>
+                            <option value="10to20">$10 to $20</option>
+                            <option value="20to50">$20 to $50</option>
+                            <option value="50to100">$50 to $100</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Target Price</label>
+                        <select id="fs_targetprice" class="fv-select screener-select" data-filter="targetprice">
+                            <option value="">Any</option>
+                            <option value="a50">50% Above Price</option>
+                            <option value="a30">30% Above Price</option>
+                            <option value="a20">20% Above Price</option>
+                            <option value="a10">10% Above Price</option>
+                            <option value="above">Above Price</option>
+                            <option value="below">Below Price</option>
+                            <option value="b10">10% Below Price</option>
+                            <option value="b20">20% Below Price</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">IPO Date</label>
+                        <select id="fs_ipodate" class="fv-select screener-select" data-filter="ipodate">
+                            <option value="">Any</option>
+                            <option value="today">Today</option>
+                            <option value="yesterday">Yesterday</option>
+                            <option value="prevweek">In the last week</option>
+                            <option value="prevmonth">In the last month</option>
+                            <option value="prevquarter">In the last quarter</option>
+                            <option value="prevyear">In the last year</option>
+                            <option value="more5">More than 5 years ago</option>
+                            <option value="more10">More than 10 years ago</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Shares Outstanding</label>
+                        <select id="fs_sh_outstanding" class="fv-select screener-select" data-filter="sh_outstanding">
+                            <option value="">Any</option>
+                            <option value="u1">Under 1M</option>
+                            <option value="u5">Under 5M</option>
+                            <option value="u10">Under 10M</option>
+                            <option value="u50">Under 50M</option>
+                            <option value="u100">Under 100M</option>
+                            <option value="o1">Over 1M</option>
+                            <option value="o5">Over 5M</option>
+                            <option value="o10">Over 10M</option>
+                            <option value="o50">Over 50M</option>
+                            <option value="o100">Over 100M</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Float</label>
+                        <select id="fs_sh_float" class="fv-select screener-select" data-filter="sh_float">
+                            <option value="">Any</option>
+                            <option value="u1">Under 1M</option>
+                            <option value="u5">Under 5M</option>
+                            <option value="u10">Under 10M</option>
+                            <option value="u50">Under 50M</option>
+                            <option value="u100">Under 100M</option>
+                            <option value="o1">Over 1M</option>
+                            <option value="o5">Over 5M</option>
+                            <option value="o10">Over 10M</option>
+                            <option value="o50">Over 50M</option>
+                            <option value="o100">Over 100M</option>
+                            <option value="u10p">Under 10%</option>
+                            <option value="u50p">Under 50%</option>
+                            <option value="o10p">Over 10%</option>
+                            <option value="o50p">Over 50%</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label class="filter-label">Theme</label>
+                        <select id="fs_theme" class="fv-select screener-select" data-filter="theme">
+                            <option value="">Any</option>
+                            <option value="ai">Artificial Intelligence</option>
+                            <option value="ev">Electric Vehicles</option>
+                            <option value="cloud">Cloud Computing</option>
+                            <option value="cybersecurity">Cybersecurity</option>
+                            <option value="iot">Internet of Things</option>
+                            <option value="5g">5G Technology</option>
+                            <option value="blockchain">Blockchain</option>
+                            <option value="robotics">Robotics</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Sub-theme</label>
+                        <select id="fs_subtheme" class="fv-select screener-select" data-filter="subtheme">
+                            <option value="">Any</option>
+                            <option value="ml">Machine Learning</option>
+                            <option value="nlp">Natural Language Processing</option>
+                            <option value="computervision">Computer Vision</option>
+                            <option value="autonomous">Autonomous Driving</option>
+                            <option value="battery">Battery Technology</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fundamental Filters (hidden by default) -->
+            <div class="filter-section" id="fundamentalFilters" style="display:none;">
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label class="filter-label">P/E Ratio</label>
+<select id="fs_fa_pe" class="fv-select screener-select" data-filter="fa_pe">
+                            <option value="">Any</option>
+                            <option value="u10">Under 10</option>
+                            <option value="u15">Under 15</option>
+                            <option value="u20">Under 20</option>
+                            <option value="u25">Under 25</option>
+                            <option value="o10">Over 10</option>
+                            <option value="o15">Over 15</option>
+                            <option value="o20">Over 20</option>
+                            <option value="o25">Over 25</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Forward P/E</label>
+                        <select id="fs_fa_fpe" class="fv-select screener-select" data-filter="fa_fpe">
+                            <option value="">Any</option>
+                            <option value="u10">Under 10</option>
+                            <option value="u15">Under 15</option>
+                            <option value="u20">Under 20</option>
+                            <option value="o10">Over 10</option>
+                            <option value="o15">Over 15</option>
+                            <option value="o20">Over 20</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">PEG Ratio</label>
+                        <select id="fs_fa_peg" class="fv-select screener-select" data-filter="fa_peg">
+                            <option value="">Any</option>
+                            <option value="low">Low (<1)</option>
+                            <option value="u1">Under 1</option>
+                            <option value="u2">Under 2</option>
+                            <option value="o1">Over 1</option>
+                            <option value="o2">Over 2</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">P/S Ratio</label>
+                        <select id="fs_fa_ps" class="fv-select screener-select" data-filter="fa_ps">
+                            <option value="">Any</option>
+                            <option value="u1">Under 1</option>
+                            <option value="u3">Under 3</option>
+                            <option value="u5">Under 5</option>
+                            <option value="o1">Over 1</option>
+                            <option value="o3">Over 3</option>
+                            <option value="o5">Over 5</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">P/B Ratio</label>
+                        <select id="fs_fa_pb" class="fv-select screener-select" data-filter="fa_pb">
+                            <option value="">Any</option>
+                            <option value="u1">Under 1</option>
+                            <option value="u2">Under 2</option>
+                            <option value="u3">Under 3</option>
+                            <option value="u5">Under 5</option>
+                            <option value="o1">Over 1</option>
+                            <option value="o3">Over 3</option>
+                            <option value="o5">Over 5</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label class="filter-label">EPS Growth</label>
+                        <select id="fs_fa_eps_growth" class="fv-select screener-select" data-filter="fa_eps_growth">
+                            <option value="">Any</option>
+                            <option value="positive">Positive (>0%)</option>
+                            <option value="high">High (>25%)</option>
+                            <option value="u10">Under 10%</option>
+                            <option value="u25">Under 25%</option>
+                            <option value="o10">Over 10%</option>
+                            <option value="o25">Over 25%</option>
+                            <option value="o50">Over 50%</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Sales Growth</label>
+                        <select id="fs_fa_sales_growth" class="fv-select screener-select" data-filter="fa_sales_growth">
+                            <option value="">Any</option>
+                            <option value="positive">Positive (>0%)</option>
+                            <option value="high">High (>25%)</option>
+                            <option value="u10">Under 10%</option>
+                            <option value="u25">Under 25%</option>
+                            <option value="o10">Over 10%</option>
+                            <option value="o25">Over 25%</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">ROE</label>
+                        <select id="fs_fa_roe" class="fv-select screener-select" data-filter="fa_roe">
+                            <option value="">Any</option>
+                            <option value="positive">Positive (>0%)</option>
+                            <option value="high">High (>15%)</option>
+                            <option value="u10">Under 10%</option>
+                            <option value="u15">Under 15%</option>
+                            <option value="o10">Over 10%</option>
+                            <option value="o15">Over 15%</option>
+                            <option value="o20">Over 20%</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">ROA</label>
+                        <select id="fs_fa_roa" class="fv-select screener-select" data-filter="fa_roa">
+                            <option value="">Any</option>
+                            <option value="positive">Positive (>0%)</option>
+                            <option value="u5">Under 5%</option>
+                            <option value="u10">Under 10%</option>
+                            <option value="o5">Over 5%</option>
+                            <option value="o10">Over 10%</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Debt/Equity</label>
+                        <select id="fs_fa_de" class="fv-select screener-select" data-filter="fa_de">
+                            <option value="">Any</option>
+                            <option value="low">Low (<0.5)</option>
+                            <option value="high">High (>1)</option>
+                            <option value="u0.5">Under 0.5</option>
+                            <option value="u1">Under 1</option>
+                            <option value="o0.5">Over 0.5</option>
+                            <option value="o1">Over 1</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Technical Filters (hidden by default) -->
+            <div class="filter-section" id="technicalFilters" style="display:none;">
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label class="filter-label">20-Day SMA</label>
+                        <select id="fs_te_sma20" class="fv-select screener-select" data-filter="te_sma20">
+                            <option value="">Any</option>
+                            <option value="above">Price above SMA20</option>
+                            <option value="below">Price below SMA20</option>
+                            <option value="above5">Price above SMA20 (5%)</option>
+                            <option value="below5">Price below SMA20 (5%)</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">50-Day SMA</label>
+                        <select id="fs_te_sma50" class="fv-select screener-select" data-filter="te_sma50">
+                            <option value="">Any</option>
+                            <option value="above">Price above SMA50</option>
+                            <option value="below">Price below SMA50</option>
+                            <option value="above5">Price above SMA50 (5%)</option>
+                            <option value="below5">Price below SMA50 (5%)</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">200-Day SMA</label>
+                        <select id="fs_te_sma200" class="fv-select screener-select" data-filter="te_sma200">
+                            <option value="">Any</option>
+                            <option value="above">Price above SMA200</option>
+                            <option value="below">Price below SMA200</option>
+                            <option value="above5">Price above SMA200 (5%)</option>
+                            <option value="below5">Price below SMA200 (5%)</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">52-Week High</label>
+                        <select id="fs_te_high52w" class="fv-select screener-select" data-filter="te_high52w">
+                            <option value="">Any</option>
+                            <option value="near">Near 52-Week High</option>
+                            <option value="above">Above 52-Week High</option>
+                            <option value="below10">Below 52-Week High (10%)</option>
+                            <option value="below20">Below 52-Week High (20%)</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">52-Week Low</label>
+                        <select id="fs_te_low52w" class="fv-select screener-select" data-filter="te_low52w">
+                            <option value="">Any</option>
+                            <option value="near">Near 52-Week Low</option>
+                            <option value="below">Below 52-Week Low</option>
+                            <option value="above10">Above 52-Week Low (10%)</option>
+                            <option value="above20">Above 52-Week Low (20%)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label class="filter-label">RSI (14)</label>
+                        <select id="fs_te_rsi" class="fv-select screener-select" data-filter="te_rsi">
+                            <option value="">Any</option>
+                            <option value="overbought">Overbought (>70)</option>
+                            <option value="oversold">Oversold (<30)</option>
+                            <option value="u30">Under 30</option>
+                            <option value="u40">Under 40</option>
+                            <option value="o60">Over 60</option>
+                            <option value="o70">Over 70</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Beta</label>
+                        <select id="fs_te_beta" class="fv-select screener-select" data-filter="te_beta">
+                            <option value="">Any</option>
+                            <option value="low">Low (<0.5)</option>
+                            <option value="high">High (>1.5)</option>
+                            <option value="u0.5">Under 0.5</option>
+                            <option value="u1">Under 1</option>
+                            <option value="o1">Over 1</option>
+                            <option value="o1.5">Over 1.5</option>
+                            <option value="o2">Over 2</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Volatility</label>
+                        <select id="fs_te_volatility" class="fv-select screener-select" data-filter="te_volatility">
+                            <option value="">Any</option>
+                            <option value="low">Low (<2%)</option>
+                            <option value="high">High (>5%)</option>
+                            <option value="u2">Under 2%</option>
+                            <option value="u5">Under 5%</option>
+                            <option value="o2">Over 2%</option>
+                            <option value="o5">Over 5%</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Performance (Week)</label>
+                        <select id="fs_te_perf1w" class="fv-select screener-select" data-filter="te_perf1w">
+                            <option value="">Any</option>
+                            <option value="positive">Positive (>0%)</option>
+                            <option value="negative">Negative (<0%)</option>
+                            <option value="u-5">Under -5%</option>
+                            <option value="u0">Under 0%</option>
+                            <option value="o0">Over 0%</option>
+                            <option value="o5">Over 5%</option>
+                            <option value="o10">Over 10%</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">Performance (Month)</label>
+                        <select id="fs_te_perf4w" class="fv-select screener-select" data-filter="te_perf4w">
+                            <option value="">Any</option>
+                            <option value="positive">Positive (>0%)</option>
+                            <option value="negative">Negative (<0%)</option>
+                            <option value="u-10">Under -10%</option>
+                            <option value="u0">Under 0%</option>
+                            <option value="o0">Over 0%</option>
+                            <option value="o10">Over 10%</option>
+                            <option value="o20">Over 20%</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View Tabs -->
+        <div class="view-tabs">
+            <a href="#" class="view-tab active" data-view="111">Overview</a>
+            <a href="#" class="view-tab" data-view="121">Valuation</a>
+            <a href="#" class="view-tab" data-view="161">Financial</a>
+            <a href="#" class="view-tab" data-view="131">Ownership</a>
+            <a href="#" class="view-tab" data-view="141">Performance</a>
+            <a href="#" class="view-tab" data-view="171">Technical</a>
+            <a href="#" class="view-tab" data-view="211">ETF</a>
+            <a href="#" class="view-tab" data-view="221">ETF Perf</a>
+            <a href="#" class="view-tab" data-view="231">Custom</a>
+            <a href="#" class="view-tab" data-view="311">Charts</a>
+            <a href="#" class="view-tab" data-view="411">Tickers</a>
+            <a href="#" class="view-tab" data-view="321">Basic</a>
+            <a href="#" class="view-tab" data-view="351">TA</a>
+            <a href="#" class="view-tab" data-view="341">News</a>
+            <a href="#" class="view-tab" data-view="331">Snapshot</a>
+            <a href="#" class="view-tab" data-view="711">Maps</a>
+            <a href="#" class="view-tab" data-view="811">Stats</a>
+        </div>
+
+        <!-- Results Info -->
+        <div class="results-info">
+            <span class="results-count" id="resultsCount">#1 / 0 Total</span>
+            <div class="results-actions">
+                <a href="#" class="action-link">save as portfolio</a>
+                <span class="action-separator">|</span>
+                <a href="#" class="action-link">create alert</a>
+                <span class="action-separator">|</span>
+                <span class="refresh-info">Refresh: </span>
+                <a href="#" class="action-link">3min</a>
+                <span class="action-separator">|</span>
+                <a href="#" class="action-link active">off</a>
+            </div>
+            <div class="pagination" id="paginationTop">
+                <button class="pagination-btn" id="prevPageTop" disabled>←</button>
+                <select id="pageSelect" class="page-select">
+                    <option value="1">Page 1 / 1</option>
+                </select>
+                <button class="pagination-btn" id="nextPageTop">→</button>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="table-container">
+            <table class="screener-table" id="screenerTable">
+                <thead>
+                    <tr id="tableHeader">
+                        <th class="table-header" data-sort="no">No.</th>
+                        <th class="table-header is-selected is-ascending" data-sort="ticker">Ticker</th>
+                        <th class="table-header" data-sort="company">Company</th>
+                        <th class="table-header" data-sort="sector">Sector</th>
+                        <th class="table-header" data-sort="industry">Industry</th>
+                        <th class="table-header" data-sort="country">Country</th>
+                        <th class="table-header" data-sort="marketcap">Market Cap</th>
+                        <th class="table-header" data-sort="pe">P/E</th>
+                        <th class="table-header" data-sort="price">Price</th>
+                        <th class="table-header" data-sort="change">Change</th>
+                        <th class="table-header" data-sort="volume">Volume</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Data will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Bottom Pagination -->
+        <div class="pagination-bottom" id="paginationBottom">
+            <button class="pagination-btn" id="prevPageBottom" disabled>←</button>
+            <select id="pageSelectBottom" class="page-select">
+                <option value="1">Page 1 / 1</option>
+            </select>
+            <button class="pagination-btn" id="nextPageBottom">→</button>
+            <a href="#" class="export-link" id="exportLink">export</a>
+        </div>
+    </main>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/finviz/js/finviz.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            window.tracker = new AgentTracker('finviz', 'hard');
+        });
+    </script>
+</body>
+</html>

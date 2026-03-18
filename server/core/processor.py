@@ -28,6 +28,7 @@ from server.models.commands import (
     KeyboardInputCommand,
     GetElementHtmlCommand,
     HighlightSingleElementCommand,
+    SelectElementCommand,
 )
 from server.websocket.manager import ws_manager
 from server.core.config import config
@@ -243,7 +244,8 @@ class CommandProcessor:
                 return await self._execute_get_element_html(command)
             elif isinstance(command, HighlightSingleElementCommand):
                 return await self._execute_highlight_single_element(command)
-                return await self._execute_get_element_html(command)
+            elif isinstance(command, SelectElementCommand):
+                return await self._execute_select_element(command)
             else:
                 raise ValueError(f"Unknown command type: {command.type}")
 
@@ -298,7 +300,7 @@ class CommandProcessor:
             conversation_id = command.conversation_id
             screenshot_command = ScreenshotCommand(conversation_id=conversation_id)
             return await self._execute_screenshot(screenshot_command)
-        
+
         response = await self._send_prepared_command(command)
 
         # Update current tab based on action (conversation-aware)
@@ -348,8 +350,6 @@ class CommandProcessor:
     ) -> CommandResponse:
         """Execute JavaScript code in browser tab and return result with screenshot"""
         response = await self._send_prepared_command(command)
-
-
 
         return response
 
@@ -414,6 +414,12 @@ class CommandProcessor:
         self, command: HighlightSingleElementCommand
     ) -> CommandResponse:
         """Highlight a single element for visual confirmation"""
+        return await self._send_prepared_command(command)
+
+    async def _execute_select_element(
+        self, command: SelectElementCommand
+    ) -> CommandResponse:
+        """Select an option in a <select> element by its ID"""
         return await self._send_prepared_command(command)
 
     def set_current_tab(self, tab_id: int, conversation_id: str = None):

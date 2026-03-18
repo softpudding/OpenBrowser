@@ -10,9 +10,14 @@ import os
 import jinja2
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Literal, Optional
+from typing import List, Literal, Optional, Union
 
-from openhands.sdk.tool import ToolDefinition, ToolAnnotations, ToolExecutor, register_tool
+from openhands.sdk.tool import (
+    ToolDefinition,
+    ToolAnnotations,
+    ToolExecutor,
+    register_tool,
+)
 from pydantic import Field
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
@@ -20,10 +25,10 @@ from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 
 # Setup Jinja2 template environment for prompts
 _TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / 'prompts'),
-    autoescape=jinja2.select_autoescape(['html', 'xml']),
+    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
+    autoescape=jinja2.select_autoescape(["html", "xml"]),
     trim_blocks=True,
-    lstrip_blocks=True
+    lstrip_blocks=True,
 )
 
 # Template cache
@@ -33,11 +38,13 @@ _ELEMENT_INTERACTION_TOOL_TEMPLATE = None
 def get_element_interaction_tool_description() -> str:
     """Get the ElementInteractionTool description, rendered from Jinja2 template."""
     global _ELEMENT_INTERACTION_TOOL_TEMPLATE
-    
+
     # Load template if not cached
     if _ELEMENT_INTERACTION_TOOL_TEMPLATE is None:
-        _ELEMENT_INTERACTION_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template('element_interaction_tool.j2')
-    
+        _ELEMENT_INTERACTION_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template(
+            "element_interaction_tool.j2"
+        )
+
     # Render template with context
     return _ELEMENT_INTERACTION_TOOL_TEMPLATE.render()
 
@@ -50,12 +57,14 @@ class ElementInteractionAction(OpenBrowserAction):
         "hover",
         "scroll",
         "keyboard_input",
+        "select",
         "confirm_click",
         "confirm_hover",
         "confirm_scroll",
         "confirm_keyboard_input",
+        "confirm_select",
     ] = Field(
-        description="Element interaction action (use 'click'/'hover'/'scroll'/'keyboard_input' for preview, 'confirm_*' to execute)"
+        description="Element interaction action (use 'click'/'hover'/'scroll'/'keyboard_input'/'select' for preview, 'confirm_*' to execute)"
     )
     element_id: Optional[str] = Field(
         default=None,
@@ -75,6 +84,10 @@ class ElementInteractionAction(OpenBrowserAction):
         default=None,
         description="Text to input for keyboard_input actions",
     )
+    value: Optional[Union[str, List[str]]] = Field(
+        default=None,
+        description="Option value(s) to select for select actions (string or list for multi-select)",
+    )
     tab_id: Optional[int] = Field(
         default=None,
         description="Tab ID (optional, uses active tab if not specified)",
@@ -89,7 +102,9 @@ class ElementInteractionTool(
     name = "element_interaction"
 
     @classmethod
-    def create(cls, conv_state, terminal_executor=None) -> Sequence["ElementInteractionTool"]:
+    def create(
+        cls, conv_state, terminal_executor=None
+    ) -> Sequence["ElementInteractionTool"]:
         """Create ElementInteractionTool instance.
 
         Args:
@@ -107,11 +122,12 @@ class ElementInteractionTool(
             # Try to get conversation ID from conv_state to share executor across tools
             # conv_state: openhands-sdk ConversationState
             conversation_id = conv_state.id
-            
+
             # Get shared executor for this conversation (or create new if no conversation_id)
             from server.agent.tools.browser_executor import get_browser_executor
+
             executor = get_browser_executor(conversation_id)
-        
+
         return [
             cls(
                 description=get_element_interaction_tool_description(),

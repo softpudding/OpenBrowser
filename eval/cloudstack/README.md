@@ -37,9 +37,9 @@ cloudstack/
 │   ├── products.js     # 产品页交互逻辑
 │   ├── pricing.js      # 定价页交互逻辑
 │   ├── cloudstack.js   # 通用组件逻辑
-│   ├── das-agent.js    # DAS 代理逻辑
-│   └── tracker.js      # 分析追踪逻辑
+│   └── das-agent.js    # DAS 代理逻辑
 └── images/             # 图片资源
+# Note: tracker.js is a shared library located at /js/tracker.js
 ```
 
 ## ✨ 核心功能

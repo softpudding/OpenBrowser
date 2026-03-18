@@ -543,8 +543,15 @@ Tests are defined in YAML format with:
 
 ### Event Tracking
 Mock websites include tracking JavaScript (`js/tracker.js`) that sends events to `/api/track`. Events include:
-- `page_view`, `click`, `input`, `scroll`, `hover`, `submit`
+- `page_view`, `click`, `input`, `scroll`, `hover`, `submit`, `select`
 - Custom event types for specific interactions (e.g., `answer_action` for upvotes)
+
+**IMPORTANT: Shared Tracker Requirement**
+- All evaluation websites MUST use the shared `eval/js/tracker.js` library
+- Each site initializes the tracker: `window.tracker = new AgentTracker('site_name', 'difficulty')`
+- Custom events are tracked via `window.tracker.track('event_type', { ...data })`
+- DO NOT create duplicate tracker files or custom tracker implementations
+- Standard events (click, input, select, etc.) are automatically tracked by the shared library
 
 ### Evaluation Criteria
 Criteria match tracked events using flexible pattern matching:
