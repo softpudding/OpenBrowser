@@ -32,6 +32,7 @@ from server.agent.tools.browser_executor import remove_browser_executor
 from server.core.ipc_router import IPCRouter
 from server.core.ipc_types import BrowserCommandMessage
 from server.core.llm_config import llm_config_manager
+from server.core.model_profiles import is_small_model
 from server.core.process_manager import ProcessManager
 from server.core.session_manager import session_manager, SessionStatus
 logger = get_logger(__name__)
@@ -70,24 +71,62 @@ class OpenBrowserAgentManager:
         else:
             logger.info("AgentManager initialized in single-process mode")
 
-        # Default tools - OpenBrowser suite now has 5 focused tools
-        self.default_tools = [
+        self.browser_tools = [
             Tool(name="tab"),  # Tab management
             Tool(name="highlight"),  # Element discovery with visual overlays
             Tool(name="element_interaction"),  # Click, hover, scroll, keyboard with 2PC
             Tool(name="dialog"),  # Browser dialog handling
             Tool(name="javascript"),  # JavaScript execution fallback
+        ]
+        self.general_tools = [
             Tool(name=TerminalTool.name),  # Terminal access
             Tool(name=FileEditorTool.name),  # File editing
             Tool(name=TaskTrackerTool.name),  # Task tracking
         ]
 
+    def _resolve_llm_settings(
+        self,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model_alias: Optional[str] = None,
+    ) -> tuple[str, Optional[str], Any]:
+        """Resolve effective LLM settings using overrides and persisted config."""
+        llm_config = llm_config_manager.reload_config()
+        selected_llm = llm_config_manager.get_llm_config(model_alias)
+        model_to_use = model if model is not None else selected_llm.model
+        base_url_to_use = base_url if base_url is not None else selected_llm.base_url
+        return model_to_use, base_url_to_use, selected_llm
+
+    def _get_tools_for_model(
+        self, model: Optional[str] = None, model_alias: Optional[str] = None
+    ) -> list[Tool]:
+        """Return the tool list for a model tier.
+
+        Small models keep the general agentic tools but use a narrower browser
+        toolset to reduce risky action branching.
+        """
+        resolved_model, _, _ = self._resolve_llm_settings(
+            model=model, model_alias=model_alias
+        )
+
+        browser_tools = list(self.browser_tools)
+        if is_small_model(resolved_model):
+            browser_tools = [
+                tool for tool in browser_tools if tool.name != "javascript"
+            ]
+
+        return browser_tools + list(self.general_tools)
+
     def _create_llm_from_config(
-        self, model: Optional[str] = None, base_url: Optional[str] = None
+        self,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model_alias: Optional[str] = None,
     ) -> LLM:
         """Create LLM configuration from config file with optional overrides."""
-        # Load LLM configuration from file (force reload from disk)
-        llm_config = llm_config_manager.reload_config().llm
+        model_to_use, base_url_to_use, llm_config = self._resolve_llm_settings(
+            model=model, base_url=base_url, model_alias=model_alias
+        )
 
         # Check if API key is configured
         if not llm_config.api_key:
@@ -96,10 +135,6 @@ class OpenBrowserAgentManager:
                 "Please configure it through the web interface at http://localhost:8000/ "
                 "Or use the API: POST /api/config/llm with {'api_key': 'your-key'}"
             )
-
-        # Use provided model/base_url or fall back to config
-        model_to_use = model if model is not None else llm_config.model
-        base_url_to_use = base_url if base_url is not None else llm_config.base_url
 
         logger.info(
             f"Loading LLM configuration: model={model_to_use}, base_url={base_url_to_use}"
@@ -112,6 +147,31 @@ class OpenBrowserAgentManager:
             api_key=SecretStr(llm_config.api_key),
         )
 
+    def _build_session_metadata(
+        self,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        browser_id: Optional[str] = None,
+        model_alias: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Build session metadata with resolved model settings."""
+        resolved_model, resolved_base_url, _ = self._resolve_llm_settings(
+            model=model, base_url=base_url, model_alias=model_alias
+        )
+
+        metadata: dict[str, Any] = {
+            "model": resolved_model,
+        }
+
+        if resolved_base_url:
+            metadata["base_url"] = resolved_base_url
+        if model_alias:
+            metadata["model_alias"] = model_alias
+        if browser_id:
+            metadata["browser_id"] = browser_id
+
+        return metadata
+
     def create_conversation(
         self,
         conversation_id: Optional[str] = None,
@@ -119,6 +179,7 @@ class OpenBrowserAgentManager:
         model: Optional[str] = None,
         base_url: Optional[str] = None,
         browser_id: Optional[str] = None,
+        model_alias: Optional[str] = None,
     ) -> str:
         """Create a new conversation with session management
 
@@ -143,14 +204,13 @@ class OpenBrowserAgentManager:
             raise ValueError(f"Conversation {conversation_id} already exists")
 
         # Create session in session manager with model metadata
-        metadata = {}
-        if model:
-            metadata["model"] = model
-        if base_url:
-            metadata["base_url"] = base_url
-        if browser_id:
-            metadata["browser_id"] = browser_id
-            
+        metadata = self._build_session_metadata(
+            model=model,
+            base_url=base_url,
+            browser_id=browser_id,
+            model_alias=model_alias,
+        )
+
         session_manager.create_session(
             conversation_id=conversation_id,
             working_directory=cwd,
@@ -160,12 +220,12 @@ class OpenBrowserAgentManager:
         # In multi-process mode, spawn a process for this conversation
         if self.multi_process_mode:
             return self._create_conversation_process(
-                conversation_id, cwd, model, base_url, browser_id
+                conversation_id, cwd, model, base_url, browser_id, model_alias
             )
 
         # Single-process mode: create conversation in main process
         return self._create_conversation_in_process(
-            conversation_id, cwd, model, base_url, browser_id
+            conversation_id, cwd, model, base_url, browser_id, model_alias
         )
 
     def _create_conversation_in_process(
@@ -175,6 +235,7 @@ class OpenBrowserAgentManager:
         model: Optional[str] = None,
         base_url: Optional[str] = None,
         browser_id: Optional[str] = None,
+        model_alias: Optional[str] = None,
     ) -> str:
         """Create a conversation in the current process (single-process mode).
 
@@ -187,10 +248,11 @@ class OpenBrowserAgentManager:
         """
         # Create agent with tools
         agent_context = AgentContext(current_datetime=datetime.now())
-        llm_instance = self._create_llm_from_config(model, base_url)
+        llm_instance = self._create_llm_from_config(model, base_url, model_alias)
+        tools = self._get_tools_for_model(model, model_alias)
         agent = Agent(
             llm=llm_instance,
-            tools=self.default_tools,
+            tools=tools,
             condenser=get_default_condenser(
                 llm=llm_instance.model_copy(update={"usage_id": "condenser"})
             ),
@@ -235,6 +297,7 @@ class OpenBrowserAgentManager:
         model: Optional[str] = None,
         base_url: Optional[str] = None,
         browser_id: Optional[str] = None,
+        model_alias: Optional[str] = None,
     ) -> str:
         """Create a conversation in a separate process (multi-process mode).
 
@@ -261,11 +324,13 @@ class OpenBrowserAgentManager:
         browser_id = browser_id or str(uuid.uuid4())
 
         # Get LLM config for the worker process
-        llm_config = llm_config_manager.get_llm_config()
+        model_to_use, base_url_to_use, llm_config = self._resolve_llm_settings(
+            model=model, base_url=base_url, model_alias=model_alias
+        )
         llm_config_dict = {
-            "model": model if model is not None else llm_config.model,
+            "model": model_to_use,
             "api_key": llm_config.api_key,
-            "base_url": base_url if base_url is not None else llm_config.base_url,
+            "base_url": base_url_to_use,
         }
 
         # Spawn process with configuration
@@ -314,7 +379,9 @@ class OpenBrowserAgentManager:
 
     def get_or_create_conversation(
         self, conversation_id: str, cwd: str = ".",
-        model: Optional[str] = None, base_url: Optional[str] = None
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model_alias: Optional[str] = None,
     ) -> ConversationState:
         """Get existing conversation or create a new one with the given ID
 
@@ -342,39 +409,52 @@ class OpenBrowserAgentManager:
             # Use model from existing session metadata if available
             session_model = existing_session.metadata.get("model")
             session_base_url = existing_session.metadata.get("base_url")
+            session_model_alias = existing_session.metadata.get("model_alias")
             
             # If model was not provided as parameter, use session model
             if model is None and session_model:
                 model = session_model
             if base_url is None and session_base_url:
                 base_url = session_base_url
-            
-            # Create metadata for session update if needed
+            if model_alias is None and session_model_alias:
+                model_alias = session_model_alias
+
             metadata = existing_session.metadata.copy()
-            if model and "model" not in metadata:
-                metadata["model"] = model
-            if base_url and "base_url" not in metadata:
-                metadata["base_url"] = base_url
+            resolved_metadata = self._build_session_metadata(
+                model=model,
+                base_url=base_url,
+                model_alias=model_alias,
+            )
+            for key, value in resolved_metadata.items():
+                metadata.setdefault(key, value)
+
+            if metadata != existing_session.metadata:
+                session_manager.update_session_metadata(conversation_id, metadata)
+
+            model = metadata.get("model", model)
+            base_url = metadata.get("base_url", base_url)
+            model_alias = metadata.get("model_alias", model_alias)
         else:
             # Create new session with model metadata
-            metadata = {}
-            if model:
-                metadata["model"] = model
-            if base_url:
-                metadata["base_url"] = base_url
-            
+            metadata = self._build_session_metadata(
+                model=model,
+                base_url=base_url,
+                model_alias=model_alias,
+            )
+
             session_manager.create_session(
-                conversation_id=conversation_id, 
+                conversation_id=conversation_id,
                 working_directory=cwd,
-                metadata=metadata
+                metadata=metadata,
             )
 
         # Create new conversation with the given ID
         # Create agent with tools
         agent_context = AgentContext(current_datetime=datetime.now())
-        llm_instance = self._create_llm_from_config(model, base_url)
+        llm_instance = self._create_llm_from_config(model, base_url, model_alias)
+        tools = self._get_tools_for_model(model, model_alias)
         agent = Agent(
-            llm=llm_instance, tools=self.default_tools, agent_context=agent_context
+            llm=llm_instance, tools=tools, agent_context=agent_context
         )
 
         # Create visualizer (queue will be set when processing messages)

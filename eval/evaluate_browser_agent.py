@@ -24,6 +24,7 @@ import signal
 import atexit
 import logging
 import datetime
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,16 @@ class TestResult:
     model: Optional[str] = None  # LLM model used for this test
 
 
+@dataclass
+class LLMTarget:
+    """One explicit LLM target passed from the CLI."""
+
+    name: str
+    model: str
+    base_url: str
+    api_key: str
+
+
 class OpenBrowserClient:
     """Client for OpenBrowser server API"""
 
@@ -101,6 +112,23 @@ class OpenBrowserClient:
             response = self.session.get(f"{self.base_url}/health", timeout=2)
             return response.status_code == 200
         except requests.exceptions.RequestException:
+            return False
+
+    def configure_llm(self, target: LLMTarget) -> bool:
+        """Configure the OpenBrowser server with the exact LLM triple for eval."""
+        try:
+            response = self.session.post(
+                f"{self.base_url}/api/config/llm",
+                json={
+                    "model": target.model,
+                    "base_url": target.base_url,
+                    "api_key": target.api_key,
+                },
+                timeout=5,
+            )
+            return response.status_code == 200
+        except Exception as e:
+            logger.error(f"Failed to configure LLM target {target.name}: {e}")
             return False
 
     def create_conversation(
@@ -375,6 +403,7 @@ class Evaluator:
         self.results: List[TestResult] = []
         self.output_dir: Optional[Path] = None  # Will be set per run
         self.current_model: Optional[str] = None  # Current model being tested
+        self.current_target: Optional[LLMTarget] = None  # Current CLI target
 
     def ensure_services(self, skip_services: bool = False, manual: bool = False) -> bool:
         """Ensure required services are running, or skip check if requested
@@ -463,7 +492,10 @@ class Evaluator:
         self.eval_server.clear_events()
 
         # Create new conversation with current model
-        conversation_id = self.openbrowser.create_conversation(model=self.current_model)
+        conversation_id = self.openbrowser.create_conversation(
+            model=self.current_target.model if self.current_target else None,
+            base_url=self.current_target.base_url if self.current_target else None,
+        )
         if conversation_id:
             logger.debug(f"Created conversation: {conversation_id}")
         else:
@@ -477,7 +509,7 @@ class Evaluator:
                 sse_events=[],
                 track_events=[],
                 images=[],
-                error="Failed to create conversation",
+                error=f"Failed to create conversation for target {self.current_model}",
             )
 
         # Initialize with start URL if provided
@@ -1234,12 +1266,16 @@ class Evaluator:
         
         return result
 
-    def run_all(self, models: Optional[List[str]] = None, skip_services: bool = False, manual: bool = False):
-        """Run all test cases for specified models
+    def run_all(
+        self,
+        targets: Optional[List[LLMTarget]] = None,
+        skip_services: bool = False,
+        manual: bool = False,
+    ):
+        """Run all test cases for specified LLM targets.
 
         Args:
-            models: List of model names to test. If None, uses default models.
-                   Default models: ["dashscope/qwen3.5-plus", "dashscope/qwen3.5-flash"]
+            targets: Explicit LLM targets to test.
             skip_services: If True, skip service availability checks
             manual: If True, only check eval server (manual mode doesn't need OpenBrowser)
         """
@@ -1247,9 +1283,9 @@ class Evaluator:
             logger.error("Cannot run tests: services unavailable")
             return False
 
-        # Determine models to test
-        if models is None or len(models) == 0:
-            models = ["dashscope/qwen3.5-plus", "dashscope/qwen3.5-flash"]
+        if targets is None or len(targets) == 0:
+            logger.error("No LLM targets provided")
+            return False
 
         # Create timestamped output directory
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -1265,13 +1301,19 @@ class Evaluator:
         # Store overall results for summary report
         all_results = []
 
-        for model in models:
+        target_names = [target.name for target in targets]
+
+        for target in targets:
             logger.info(f"\n{'=' * 60}")
-            logger.info(f"Testing model: {model}")
+            logger.info(f"Testing target: {target.name}")
             logger.info(f"{'=' * 60}")
 
-            # Set current model
-            self.current_model = model
+            if not self.openbrowser.configure_llm(target):
+                logger.error(f"Failed to configure LLM target: {target.name}")
+                return False
+
+            self.current_target = target
+            self.current_model = target.name
 
             # Clear results for this model
             self.results = []
@@ -1293,12 +1335,12 @@ class Evaluator:
 
                 # Add model information to results and store for summary
                 for result in self.results:
-                    result.model = model
+                    result.model = target.name
                 all_results.extend(self.results)
 
         # Generate cross-model summary report if we tested multiple models
-        if len(models) > 1 and all_results:
-            self._generate_cross_model_summary(all_results, models)
+        if len(targets) > 1 and all_results:
+            self._generate_cross_model_summary(all_results, target_names)
 
         # Restore results for backward compatibility
         self.results = all_results
@@ -1671,6 +1713,33 @@ class Evaluator:
             return None
 
 
+def _build_llm_targets(
+    llm_models: List[str], llm_base_urls: List[str], llm_api_keys: List[str]
+) -> List[LLMTarget]:
+    """Build explicit LLM targets from validated CLI lists."""
+    targets: List[LLMTarget] = []
+    seen_labels: dict[str, int] = {}
+
+    for model, base_url, api_key in zip(llm_models, llm_base_urls, llm_api_keys):
+        parsed = urlparse(base_url)
+        host = parsed.netloc or base_url
+        base_label = f"{model} @ {host}"
+        count = seen_labels.get(base_label, 0) + 1
+        seen_labels[base_label] = count
+        label = base_label if count == 1 else f"{base_label} #{count}"
+
+        targets.append(
+            LLMTarget(
+                name=label,
+                model=model,
+                base_url=base_url,
+                api_key=api_key,
+            )
+        )
+
+    return targets
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Evaluate OpenBrowser agent",
@@ -1679,17 +1748,30 @@ def main():
             "Examples:\n"
             "  python eval/evaluate_browser_agent.py --list\n"
             "  python eval/evaluate_browser_agent.py --manual --test techforum\n"
-            "  python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID\n"
-            "  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --test techforum"
+            "  python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID \\\n"
+            "    --llm-model dashscope/qwen3.5-plus --llm-base-url https://dashscope.aliyuncs.com/compatible-mode/v1 --llm-api-key YOUR_KEY\n"
+            "  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python eval/evaluate_browser_agent.py \\\n"
+            "    --llm-model dashscope/qwen3.5-plus --llm-base-url https://dashscope.aliyuncs.com/compatible-mode/v1 --llm-api-key PLUS_KEY \\\n"
+            "    --llm-model dashscope/qwen3.5-flash --llm-base-url https://dashscope.aliyuncs.com/compatible-mode/v1 --llm-api-key FLASH_KEY"
         ),
     )
     parser.add_argument("--test", help="Run specific test by ID")
     parser.add_argument("--manual", action="store_true", help="Manual mode: human performs the test steps")
     parser.add_argument("--list", action="store_true", help="List available tests")
     parser.add_argument(
-        "--model",
+        "--llm-model",
         action="append",
-        help="LLM model to test (can be specified multiple times, default: dashscope/qwen3.5-plus and dashscope/qwen3.5-flash)",
+        help="LLM model name. Must be passed together with matching --llm-base-url and --llm-api-key.",
+    )
+    parser.add_argument(
+        "--llm-base-url",
+        action="append",
+        help="LLM base URL. Must be passed together with matching --llm-model and --llm-api-key.",
+    )
+    parser.add_argument(
+        "--llm-api-key",
+        action="append",
+        help="LLM API key. Must be passed together with matching --llm-model and --llm-base-url.",
     )
     parser.add_argument(
         "--no-services", action="store_true", help="Don't start services"
@@ -1717,11 +1799,33 @@ def main():
         level=log_level, format="%(asctime)s - %(levelname)s - %(message)s"
     )
 
-    # Determine models to test
-    models = args.model
-    if not models:
-        models = ["dashscope/qwen3.5-plus", "dashscope/qwen3.5-flash"]
-    logger.info(f"Models to test: {models}")
+    llm_models = args.llm_model or []
+    llm_base_urls = args.llm_base_url or []
+    llm_api_keys = args.llm_api_key or []
+    llm_args_provided = any([llm_models, llm_base_urls, llm_api_keys])
+    llm_targets: List[LLMTarget] = []
+
+    if not args.manual and not args.list:
+        if not llm_args_provided:
+            parser.error(
+                "Automated evaluation requires at least one full LLM triple: "
+                "--llm-model, --llm-base-url, and --llm-api-key"
+            )
+
+        if not (llm_models and llm_base_urls and llm_api_keys):
+            parser.error(
+                "--llm-model, --llm-base-url, and --llm-api-key must all be provided together"
+            )
+
+        if not (
+            len(llm_models) == len(llm_base_urls) == len(llm_api_keys)
+        ):
+            parser.error(
+                "--llm-model, --llm-base-url, and --llm-api-key must have the same number of values"
+            )
+
+        llm_targets = _build_llm_targets(llm_models, llm_base_urls, llm_api_keys)
+        logger.info(f"LLM targets to test: {[target.name for target in llm_targets]}")
 
     if not args.manual and not args.list and not args.chrome_uuid:
         parser.error(
@@ -1797,20 +1901,24 @@ def main():
         # Normal (automated) mode
         else:
             all_results = []
-            for model in models:
+            target_names = [target.name for target in llm_targets]
+            for target in llm_targets:
                 logger.info(f"\n{'=' * 60}")
-                logger.info(f"Testing model: {model}")
+                logger.info(f"Testing target: {target.name}")
                 logger.info(f"{'=' * 60}")
 
-                # Set current model
-                evaluator.current_model = model
+                if not evaluator.openbrowser.configure_llm(target):
+                    logger.error(f"Failed to configure target: {target.name}")
+                    sys.exit(1)
+
+                evaluator.current_target = target
+                evaluator.current_model = target.name
 
                 result = evaluator.run_test(test_case)
-                result.model = model  # Ensure model is set in result
+                result.model = target.name
                 all_results.append(result)
 
-                # Print result for this model
-                print(f"\nTest result for {test_case.name} (model: {model}):")
+                print(f"\nTest result for {test_case.name} (target: {target.name}):")
                 print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
                 print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
                 print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
@@ -1836,18 +1944,18 @@ def main():
                     print(f"  Track events file: {result.track_events_file}")
 
             # Generate cross-model summary if we tested multiple models
-            if len(models) > 1 and all_results:
-                evaluator._generate_cross_model_summary(all_results, models)
+            if len(llm_targets) > 1 and all_results:
+                evaluator._generate_cross_model_summary(all_results, target_names)
 
             # Print overall summary
             print(f"\n{'=' * 60}")
             print(f"Overall summary for test '{test_case.name}':")
-            for model in models:
-                model_results = [r for r in all_results if r.model == model]
+            for target_name in target_names:
+                model_results = [r for r in all_results if r.model == target_name]
                 if model_results:
                     result = model_results[0]
                     status = "PASS" if result.passed else "FAIL"
-                    print(f"  {model}: {status} (score: {result.score:.1f}/{result.max_score:.1f})")
+                    print(f"  {target_name}: {status} (score: {result.score:.1f}/{result.max_score:.1f})")
 
     else:
         # Run all tests for all models (manual mode now supported)
@@ -1863,7 +1971,9 @@ def main():
                 sys.exit(1)
         else:
             # Normal automated mode
-            success = evaluator.run_all(models=models, skip_services=args.no_services, manual=False)
+            success = evaluator.run_all(
+                targets=llm_targets, skip_services=args.no_services, manual=False
+            )
             if not success:
                 sys.exit(1)
 

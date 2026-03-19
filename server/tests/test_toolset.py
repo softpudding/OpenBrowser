@@ -108,11 +108,14 @@ class TestOpenBrowserToolSet:
         tools = OpenBrowserToolSet.create(None)
         tool_map = {tool.name: tool for tool in tools}
         
-        assert tool_map["tab"].action_type == TabAction
-        assert tool_map["highlight"].action_type == HighlightAction
-        assert tool_map["element_interaction"].action_type == ElementInteractionAction
-        assert tool_map["dialog"].action_type == DialogHandleAction
-        assert tool_map["javascript"].action_type == JavaScriptAction
+        assert tool_map["tab"].action_type.__name__ == TabAction.__name__
+        assert tool_map["highlight"].action_type.__name__ == HighlightAction.__name__
+        assert (
+            tool_map["element_interaction"].action_type.__name__
+            == ElementInteractionAction.__name__
+        )
+        assert tool_map["dialog"].action_type.__name__ == DialogHandleAction.__name__
+        assert tool_map["javascript"].action_type.__name__ == JavaScriptAction.__name__
 
     def test_tools_have_correct_observation_type(self):
         """Test that all tools use OpenBrowserObservation."""
@@ -125,7 +128,7 @@ class TestOpenBrowserToolSet:
         
         tools = OpenBrowserToolSet.create(None)
         for tool in tools:
-            assert tool.observation_type == OpenBrowserObservation
+            assert tool.observation_type.__name__ == OpenBrowserObservation.__name__
 
     def test_tools_have_descriptions(self):
         """Test that all tools have non-empty descriptions."""

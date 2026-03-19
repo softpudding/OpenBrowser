@@ -106,7 +106,7 @@ class QueueVisualizer(ConversationVisualizerBase):
                 if hasattr(obs, "error"):
                     sse_data["error"] = obs.error
 
-                # Check for image content in observations (especially for open_browser tool)
+                # Check for image content in observations from browser-related tools
                 if hasattr(obs, "screenshot_data_url") and obs.screenshot_data_url:
                     sse_data["image"] = obs.screenshot_data_url
                 elif hasattr(obs, "image_url") and obs.image_url:

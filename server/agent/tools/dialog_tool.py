@@ -15,6 +15,7 @@ from pydantic import Field
 from openhands.sdk.tool import ToolDefinition, ToolAnnotations, ToolExecutor, register_tool
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
+from server.agent.tools.prompt_context import get_prompt_render_context
 
 
 # Setup Jinja2 template environment for prompts
@@ -29,7 +30,7 @@ _TEMPLATE_ENV = jinja2.Environment(
 _DIALOG_TOOL_TEMPLATE = None
 
 
-def get_dialog_tool_description() -> str:
+def get_dialog_tool_description(conv_state=None) -> str:
     """Get the DialogTool description, rendered from Jinja2 template."""
     global _DIALOG_TOOL_TEMPLATE
     
@@ -38,7 +39,7 @@ def get_dialog_tool_description() -> str:
         _DIALOG_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template('dialog_tool.j2')
     
     # Render template with context
-    return _DIALOG_TOOL_TEMPLATE.render()
+    return _DIALOG_TOOL_TEMPLATE.render(**get_prompt_render_context(conv_state))
 
 
 class DialogHandleAction(OpenBrowserAction):
@@ -76,7 +77,7 @@ class DialogTool(ToolDefinition[DialogHandleAction, OpenBrowserObservation]):
         else:
             # Try to get conversation ID from conv_state to share executor across tools
             # conv_state: openhands-sdk ConversationState
-            conversation_id = conv_state.id
+            conversation_id = getattr(conv_state, "id", None)
             
             # Get shared executor for this conversation (or create new if no conversation_id)
             from server.agent.tools.browser_executor import get_browser_executor
@@ -84,7 +85,7 @@ class DialogTool(ToolDefinition[DialogHandleAction, OpenBrowserObservation]):
         
         return [
             cls(
-                description=get_dialog_tool_description(),
+                description=get_dialog_tool_description(conv_state),
                 action_type=DialogHandleAction,
                 observation_type=OpenBrowserObservation,
                 annotations=ToolAnnotations(
