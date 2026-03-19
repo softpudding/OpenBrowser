@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from server.core.llm_config import llm_config_manager
 from server.core.model_profiles import get_model_profile, is_small_model
 from server.core.session_manager import session_manager
 
@@ -28,6 +29,16 @@ def get_prompt_render_context(conv_state: Any = None) -> dict[str, Any]:
             if isinstance(raw_model, str) and raw_model:
                 model_name = raw_model
 
+            if model_name is None:
+                raw_model_alias = session.metadata.get("model_alias")
+                if isinstance(raw_model_alias, str) and raw_model_alias:
+                    try:
+                        model_name = llm_config_manager.get_llm_config(
+                            raw_model_alias
+                        ).model
+                    except ValueError:
+                        model_name = None
+
     profile = get_model_profile(model_name)
 
     return {
@@ -35,4 +46,3 @@ def get_prompt_render_context(conv_state: Any = None) -> dict[str, Any]:
         "model_profile": profile,
         "small_model": is_small_model(model_name),
     }
-

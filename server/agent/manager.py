@@ -147,6 +147,31 @@ class OpenBrowserAgentManager:
             api_key=SecretStr(llm_config.api_key),
         )
 
+    def _build_session_metadata(
+        self,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        browser_id: Optional[str] = None,
+        model_alias: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Build session metadata with resolved model settings."""
+        resolved_model, resolved_base_url, _ = self._resolve_llm_settings(
+            model=model, base_url=base_url, model_alias=model_alias
+        )
+
+        metadata: dict[str, Any] = {
+            "model": resolved_model,
+        }
+
+        if resolved_base_url:
+            metadata["base_url"] = resolved_base_url
+        if model_alias:
+            metadata["model_alias"] = model_alias
+        if browser_id:
+            metadata["browser_id"] = browser_id
+
+        return metadata
+
     def create_conversation(
         self,
         conversation_id: Optional[str] = None,
@@ -179,16 +204,13 @@ class OpenBrowserAgentManager:
             raise ValueError(f"Conversation {conversation_id} already exists")
 
         # Create session in session manager with model metadata
-        metadata = {}
-        if model:
-            metadata["model"] = model
-        if base_url:
-            metadata["base_url"] = base_url
-        if model_alias:
-            metadata["model_alias"] = model_alias
-        if browser_id:
-            metadata["browser_id"] = browser_id
-            
+        metadata = self._build_session_metadata(
+            model=model,
+            base_url=base_url,
+            browser_id=browser_id,
+            model_alias=model_alias,
+        )
+
         session_manager.create_session(
             conversation_id=conversation_id,
             working_directory=cwd,
@@ -396,29 +418,34 @@ class OpenBrowserAgentManager:
                 base_url = session_base_url
             if model_alias is None and session_model_alias:
                 model_alias = session_model_alias
-            
-            # Create metadata for session update if needed
+
             metadata = existing_session.metadata.copy()
-            if model and "model" not in metadata:
-                metadata["model"] = model
-            if base_url and "base_url" not in metadata:
-                metadata["base_url"] = base_url
-            if model_alias and "model_alias" not in metadata:
-                metadata["model_alias"] = model_alias
+            resolved_metadata = self._build_session_metadata(
+                model=model,
+                base_url=base_url,
+                model_alias=model_alias,
+            )
+            for key, value in resolved_metadata.items():
+                metadata.setdefault(key, value)
+
+            if metadata != existing_session.metadata:
+                session_manager.update_session_metadata(conversation_id, metadata)
+
+            model = metadata.get("model", model)
+            base_url = metadata.get("base_url", base_url)
+            model_alias = metadata.get("model_alias", model_alias)
         else:
             # Create new session with model metadata
-            metadata = {}
-            if model:
-                metadata["model"] = model
-            if base_url:
-                metadata["base_url"] = base_url
-            if model_alias:
-                metadata["model_alias"] = model_alias
-            
+            metadata = self._build_session_metadata(
+                model=model,
+                base_url=base_url,
+                model_alias=model_alias,
+            )
+
             session_manager.create_session(
-                conversation_id=conversation_id, 
+                conversation_id=conversation_id,
                 working_directory=cwd,
-                metadata=metadata
+                metadata=metadata,
             )
 
         # Create new conversation with the given ID
