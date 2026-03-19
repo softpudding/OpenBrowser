@@ -118,6 +118,7 @@ class OpenBrowserAgentManager:
         cwd: str = ".",
         model: Optional[str] = None,
         base_url: Optional[str] = None,
+        browser_id: Optional[str] = None,
     ) -> str:
         """Create a new conversation with session management
 
@@ -147,6 +148,8 @@ class OpenBrowserAgentManager:
             metadata["model"] = model
         if base_url:
             metadata["base_url"] = base_url
+        if browser_id:
+            metadata["browser_id"] = browser_id
             
         session_manager.create_session(
             conversation_id=conversation_id,
@@ -157,12 +160,12 @@ class OpenBrowserAgentManager:
         # In multi-process mode, spawn a process for this conversation
         if self.multi_process_mode:
             return self._create_conversation_process(
-                conversation_id, cwd, model, base_url
+                conversation_id, cwd, model, base_url, browser_id
             )
 
         # Single-process mode: create conversation in main process
         return self._create_conversation_in_process(
-            conversation_id, cwd, model, base_url
+            conversation_id, cwd, model, base_url, browser_id
         )
 
     def _create_conversation_in_process(
@@ -171,6 +174,7 @@ class OpenBrowserAgentManager:
         cwd: str,
         model: Optional[str] = None,
         base_url: Optional[str] = None,
+        browser_id: Optional[str] = None,
     ) -> str:
         """Create a conversation in the current process (single-process mode).
 
@@ -230,6 +234,7 @@ class OpenBrowserAgentManager:
         cwd: str,
         model: Optional[str] = None,
         base_url: Optional[str] = None,
+        browser_id: Optional[str] = None,
     ) -> str:
         """Create a conversation in a separate process (multi-process mode).
 
@@ -252,8 +257,8 @@ class OpenBrowserAgentManager:
                 "Ensure multi_process_mode is enabled."
             )
 
-        # Generate browser ID for this conversation
-        browser_id = str(uuid.uuid4())
+        # Use the bound browser ID if provided; otherwise fall back for compatibility.
+        browser_id = browser_id or str(uuid.uuid4())
 
         # Get LLM config for the worker process
         llm_config = llm_config_manager.get_llm_config()

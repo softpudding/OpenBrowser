@@ -67,6 +67,9 @@ class UUIDManager:
         now = time.time()
         expires_at = now + (ttl_hours * 3600)
 
+        # A browser websocket should only have one active capability token.
+        self.unregister_websocket(websocket)
+
         self._browsers[uuid_str] = BrowserInfo(
             uuid=uuid_str, websocket=websocket, registered_at=now, expires_at=expires_at
         )
@@ -135,6 +138,19 @@ class UUIDManager:
             del self._browsers[uuid_str]
             return True
         return False
+
+    def unregister_websocket(self, websocket: Any) -> list[str]:
+        """Unregister all browsers associated with a websocket connection."""
+        removed_uuids = [
+            uuid_str
+            for uuid_str, info in self._browsers.items()
+            if info.websocket == websocket
+        ]
+
+        for uuid_str in removed_uuids:
+            del self._browsers[uuid_str]
+
+        return removed_uuids
 
     def get_browser_count(self) -> int:
         """Get the total number of registered browsers (including expired).

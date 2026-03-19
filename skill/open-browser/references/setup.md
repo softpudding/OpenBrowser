@@ -41,7 +41,13 @@ You must do these steps manually:
 4. Select `~/git/OpenBrowser/extension/dist`
 5. Verify extension appears in list
 
-### Step 2: Get DashScope API Key
+### Step 2: Copy Browser UUID
+
+1. After the extension loads, it opens the UUID page automatically
+2. Copy the UUID shown on that page
+3. Keep it secure; this UUID is the permission key for controlling this browser
+4. You can reopen the page later by clicking the extension icon
+### Step 3: Get DashScope API Key
 
 1. Go to https://dashscope.aliyun.com/
 2. Sign in with Alibaba Cloud (create account if needed)
@@ -49,7 +55,7 @@ You must do these steps manually:
 4. Click **Create API Key** (创建 API Key)
 5. Copy the key (starts with `sk-`)
 
-### Step 3: Configure API Key
+### Step 4: Configure API Key
 
 1. Open http://localhost:8765 in Chrome
 2. Click **⚙️ Settings**
@@ -62,7 +68,8 @@ You must do these steps manually:
 ## Verify
 
 ```bash
-python3 skill/open-browser/scripts/check_status.py
+export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
+python3 skill/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
 ```
 
 Expected:
@@ -70,6 +77,7 @@ Expected:
 ✅ Server: Running
 ✅ Extension: Connected
 ✅ LLM Config: dashscope/qwen3.5-flash
+✅ Browser UUID: Valid and registered
 🎉 OpenBrowser is ready to use!
 ```
 

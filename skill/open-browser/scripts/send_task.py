@@ -5,24 +5,29 @@ Creates a conversation and sends a task to the OpenBrowser Agent.
 Outputs SSE events in real-time.
 
 Usage:
-    python send_task.py "Go to example.com and extract the title"
-    python send_task.py "Fill the form at https://example.com/contact" --cwd /path/to/project
-    python send_task.py "Scrape news from HN" --background --output task.log
+    python send_task.py "Go to example.com and extract the title" --chrome-uuid <uuid>
+    python send_task.py "Fill the form at https://example.com/contact" --cwd /path/to/project --chrome-uuid <uuid>
+    OPENBROWSER_CHROME_UUID=<uuid> python send_task.py "Scrape news from HN" --background --output task.log
 """
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 
-def create_conversation(base_url: str, cwd: str) -> str:
+def create_conversation(base_url: str, cwd: str, chrome_uuid: str | None = None) -> str:
     """Create a new conversation and return its ID."""
+    request_body = {"cwd": cwd}
+    if chrome_uuid:
+        request_body["browser_id"] = chrome_uuid
+
     req = Request(
         f"{base_url}/agent/conversations",
-        data=json.dumps({"cwd": cwd}).encode("utf-8"),
+        data=json.dumps(request_body).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
@@ -51,12 +56,16 @@ def get_conversation_status(base_url: str, conversation_id: str) -> dict:
         return {}
 
 
-def stream_task(base_url: str, conversation_id: str, task: str, cwd: str):
+def stream_task(
+    base_url: str, conversation_id: str, task: str, cwd: str, chrome_uuid: str
+):
     """Stream task execution with SSE events. Only outputs last 10 events at completion."""
     url = f"{base_url}/agent/conversations/{conversation_id}/messages"
     req = Request(
         url,
-        data=json.dumps({"text": task, "cwd": cwd}).encode("utf-8"),
+        data=json.dumps(
+            {"text": task, "cwd": cwd, "browser_id": chrome_uuid}
+        ).encode("utf-8"),
         headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
         method="POST",
     )
@@ -182,7 +191,16 @@ def format_event(event_type: str, data: dict):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Submit automation task to OpenBrowser Agent"
+        description="Submit automation task to OpenBrowser Agent",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  python send_task.py \"Open example.com\" --chrome-uuid YOUR_BROWSER_UUID\n"
+            "  python send_task.py \"Fill out the form\" --cwd /path/to/workspace --chrome-uuid YOUR_BROWSER_UUID\n"
+            "  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python send_task.py \"Run in background\" --background --output /tmp/ob.log\n"
+            "  python send_task.py --check\n"
+            "  python send_task.py --status <conversation_id>"
+        ),
     )
     parser.add_argument(
         "task",
@@ -200,6 +218,14 @@ def main():
         help="Working directory for the agent (default: current directory)",
     )
     parser.add_argument(
+        "--chrome-uuid",
+        default=os.environ.get("OPENBROWSER_CHROME_UUID"),
+        help=(
+            "Browser UUID capability token for the Chrome instance to control. "
+            "Can also be set via OPENBROWSER_CHROME_UUID."
+        ),
+    )
+    parser.add_argument(
         "--background",
         action="store_true",
         help="Run in background (requires --output)",
@@ -215,6 +241,14 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if not args.check and not args.status and not args.chrome_uuid:
+        print(
+            "Error: --chrome-uuid is required for browser automation "
+            "(or set OPENBROWSER_CHROME_UUID)",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     # Status check only
     if args.check:
@@ -246,6 +280,8 @@ def main():
             "--cwd",
             args.cwd,
         ]
+        if args.chrome_uuid:
+            cmd.extend(["--chrome-uuid", args.chrome_uuid])
 
         with open(args.output, "a") as log_file:
             process = subprocess.Popen(
@@ -274,10 +310,10 @@ def main():
                 sys.exit(1)
 
         # Create conversation
-        conversation_id = create_conversation(args.url, args.cwd)
+        conversation_id = create_conversation(args.url, args.cwd, args.chrome_uuid)
 
         # Stream task execution
-        stream_task(args.url, conversation_id, args.task, args.cwd)
+        stream_task(args.url, conversation_id, args.task, args.cwd, args.chrome_uuid)
 
     except URLError as e:
         print(f"❌ Cannot connect to OpenBrowser server: {e}")

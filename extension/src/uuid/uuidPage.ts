@@ -19,6 +19,8 @@ const toast = document.getElementById('toast') as HTMLDivElement;
 const SERVER_URL = 'http://127.0.0.1:8765';
 let connectionCheckInterval: number | null = null;
 
+type BrowserStatus = 'server_unreachable' | 'not_registered' | 'ready';
+
 /**
  * Show a toast notification
  */
@@ -38,14 +40,46 @@ function showToast(message: string, type: 'success' | 'error' = 'success'): void
 /**
  * Update the connection status UI
  */
-function updateConnectionStatus(connected: boolean): void {
-  if (connected) {
+function updateConnectionStatus(status: BrowserStatus): void {
+  if (status === 'ready') {
     statusBadge.className = 'status-badge connected';
-    statusText.textContent = 'Connected';
-  } else {
-    statusBadge.className = 'status-badge disconnected';
-    statusText.textContent = 'Disconnected';
+    statusText.textContent = 'UUID Ready';
+    return;
   }
+
+  if (status === 'not_registered') {
+    statusBadge.className = 'status-badge connecting';
+    statusText.textContent = 'Connected, UUID Not Registered';
+    return;
+  }
+
+  statusBadge.className = 'status-badge disconnected';
+  statusText.textContent = 'Server Unreachable';
+}
+
+/**
+ * Ask the background worker to bind the current UUID to the active websocket
+ * connection so the server can route commands to this exact browser.
+ */
+async function requestBrowserRegistration(): Promise<boolean> {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'openbrowser:register-browser-identity',
+    }) as { success?: boolean; error?: string } | undefined;
+
+    if (response?.success) {
+      showToast('Browser UUID registered with server', 'success');
+      return true;
+    }
+
+    if (response?.error) {
+      console.warn('Browser registration skipped:', response.error);
+    }
+  } catch (error) {
+    console.warn('Failed to request browser registration:', error);
+  }
+
+  return false;
 }
 
 /**
@@ -69,16 +103,72 @@ async function checkServerConnection(): Promise<boolean> {
 }
 
 /**
+ * Check if the current UUID is registered and valid on the server.
+ */
+async function checkBrowserRegistration(uuid: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+    const response = await fetch(`${SERVER_URL}/browsers/${encodeURIComponent(uuid)}/valid`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json() as { valid?: boolean };
+    return data.valid === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Evaluate the full browser connectivity state:
+ * 1. Can the server be reached?
+ * 2. Is this UUID registered on that server?
+ */
+async function refreshBrowserStatus(options: { tryRegister?: boolean } = {}): Promise<void> {
+  const uuid = uuidDisplay.textContent?.trim();
+  const serverReachable = await checkServerConnection();
+
+  if (!serverReachable) {
+    updateConnectionStatus('server_unreachable');
+    return;
+  }
+
+  if (!uuid || uuid === 'Loading...' || uuid === 'Error loading UUID') {
+    updateConnectionStatus('not_registered');
+    return;
+  }
+
+  let isRegistered = await checkBrowserRegistration(uuid);
+
+  if (!isRegistered && options.tryRegister) {
+    const registeredNow = await requestBrowserRegistration();
+    if (registeredNow) {
+      isRegistered = await checkBrowserRegistration(uuid);
+    }
+  }
+
+  updateConnectionStatus(isRegistered ? 'ready' : 'not_registered');
+}
+
+/**
  * Start periodic connection checks
  */
 function startConnectionChecks(): void {
   // Check immediately
-  checkServerConnection().then(updateConnectionStatus);
+  refreshBrowserStatus({ tryRegister: true });
   
   // Then check every 5 seconds
   connectionCheckInterval = window.setInterval(async () => {
-    const connected = await checkServerConnection();
-    updateConnectionStatus(connected);
+    await refreshBrowserStatus();
   }, 5000);
 }
 
@@ -158,6 +248,7 @@ async function regenerateUUID(): Promise<void> {
     // Update display
     uuidDisplay.textContent = newUUID;
     
+    await refreshBrowserStatus({ tryRegister: true });
     showToast('UUID regenerated', 'success');
   } catch (error) {
     console.error('Failed to regenerate UUID:', error);

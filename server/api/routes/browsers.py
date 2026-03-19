@@ -1,7 +1,6 @@
 """Browser UUID management endpoints"""
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -17,6 +16,7 @@ class BrowserRegisterRequest(BaseModel):
     """Request model for browser registration"""
 
     uuid: str
+    connection_id: str
     ttl_hours: int = 24
 
 
@@ -58,23 +58,14 @@ async def register_browser(request: BrowserRegisterRequest):
                 status_code=400, detail="UUID must be at least 8 characters"
             )
 
-        # Check if WebSocket connection exists
-        if not ws_manager.is_connected():
-            raise HTTPException(
-                status_code=503, detail="No WebSocket connection available"
-            )
-
-        # Get any active WebSocket connection
-        # Note: In a real multi-browser scenario, we'd need to track which
-        # WebSocket belongs to which browser. For now, we use the first available.
-        websocket = None
-        for conn in ws_manager.connections:
-            websocket = conn
-            break
-
+        websocket = ws_manager.get_websocket_by_connection_id(request.connection_id)
         if websocket is None:
             raise HTTPException(
-                status_code=503, detail="No active WebSocket connection found"
+                status_code=400,
+                detail=(
+                    "Invalid or stale connection_id. "
+                    "Reconnect the extension and try again."
+                ),
             )
 
         # Register the browser with UUID
@@ -82,7 +73,10 @@ async def register_browser(request: BrowserRegisterRequest):
             uuid=request.uuid, websocket=websocket, ttl_hours=request.ttl_hours
         )
 
-        logger.info(f"Registered browser with UUID: {request.uuid}")
+        logger.info(
+            "Registered browser with UUID: "
+            f"{request.uuid} on connection {request.connection_id}"
+        )
 
         return BrowserRegisterResponse(
             success=True,

@@ -550,6 +550,47 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Failed to update session {conversation_id}: {e}")
             return False
+
+    def update_session_metadata(
+        self, conversation_id: str, metadata_updates: Dict[str, Any]
+    ) -> bool:
+        """Merge metadata updates into an existing session."""
+        try:
+            session = self.get_session(conversation_id)
+            if session is None:
+                logger.warning(
+                    f"Session {conversation_id} not found for metadata update"
+                )
+                return False
+
+            merged_metadata = session.metadata.copy()
+            merged_metadata.update(metadata_updates)
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                UPDATE sessions
+                SET metadata = ?, updated_at = ?
+                WHERE conversation_id = ?
+                """,
+                (
+                    json.dumps(merged_metadata),
+                    datetime.now().isoformat(),
+                    conversation_id,
+                ),
+            )
+
+            success = cursor.rowcount > 0
+            conn.commit()
+            conn.close()
+            return success
+        except Exception as e:
+            logger.error(
+                f"Failed to update session metadata for {conversation_id}: {e}"
+            )
+            return False
     
     def list_sessions(
         self,

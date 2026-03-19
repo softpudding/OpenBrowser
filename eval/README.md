@@ -97,6 +97,33 @@ The server will:
 2. Start serving the websites
 3. Print URLs for all sites and API endpoints
 
+## Running OpenBrowser Evaluation
+
+Automated evaluation now requires a browser UUID capability token copied from the Chrome extension UUID page.
+
+Quick start:
+
+```bash
+python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID
+```
+
+Recommended options:
+
+```bash
+export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
+python eval/evaluate_browser_agent.py --test techforum
+python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --test techforum
+python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
+python eval/evaluate_browser_agent.py --list
+python eval/evaluate_browser_agent.py --manual --test techforum
+```
+
+Notes:
+
+1. `--chrome-uuid` is required for automated runs that call the OpenBrowser browser-control APIs.
+2. `--manual` and `--list` do not require a browser UUID.
+3. `OPENBROWSER_CHROME_UUID` is the equivalent environment variable for scripting and CI-style usage.
+
 ## Evaluating AI Agent Behavior
 
 After an AI agent interacts with the websites, you can:

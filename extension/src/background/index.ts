@@ -23,12 +23,16 @@ import { elementCache } from '../commands/element-cache';
 import { generateElementId } from '../commands/hash-utils';
 import { performElementClick, performElementHover, performElementScroll, performKeyboardInput, performElementSelect } from '../commands/element-actions';
 import { LABEL_FONT_SIZE, LABEL_PADDING, LABEL_HEIGHT, MAX_LABEL_WIDTH } from '../commands/label-constants';
+import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import {
   selectCollisionFreePage,
   calculateTotalPages,
 } from '../utils/collision-detection';
 import type { Command, CommandResponse, InteractiveElement } from '../types';
 console.log('🚀 OpenBrowser extension starting (Strict Mode)...');
+
+const SERVER_HTTP_URL = 'http://127.0.0.1:8765';
+let currentConnectionId: string | null = null;
 
 // ============================================================================
 // Command Queue Management System
@@ -369,6 +373,7 @@ wsClient.connect().then(() => {
 // Listen for WebSocket disconnection
 wsClient.onDisconnect(() => {
   console.log('🌐 WebSocket disconnected, updating tab manager status');
+  currentConnectionId = null;
   tabManager.updateStatus('disconnected');
 });
 
@@ -378,6 +383,16 @@ wsClient.onMessage(async (data) => {
   if (data.type && !data.success && !data.error) {
     // Skip server messages that are not commands
     if (data.type === 'connected' || data.type === 'ping' || data.type === 'pong') {
+      if (data.type === 'connected') {
+        currentConnectionId =
+          typeof data.connection_id === 'string' ? data.connection_id : null;
+
+        if (currentConnectionId) {
+          registerBrowserIdentity(currentConnectionId).catch((error) => {
+            console.error('❌ Failed to register browser identity:', error);
+          });
+        }
+      }
       console.log(`📨 Received server message: ${data.type}`, data.message || '');
       return;
     }
@@ -406,6 +421,75 @@ wsClient.onMessage(async (data) => {
       }
     }
   }
+});
+
+async function openUuidPage(): Promise<void> {
+  const uuidPageUrl = chrome.runtime.getURL('uuid/uuidPage.html');
+  await chrome.tabs.create({ url: uuidPageUrl, active: true });
+}
+
+async function registerBrowserIdentity(connectionId: string): Promise<void> {
+  const browserUuid = await getOrCreateUUID();
+  const response = await fetch(`${SERVER_HTTP_URL}/browsers/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      uuid: browserUuid,
+      connection_id: connectionId,
+      ttl_hours: 24,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Browser registration failed (${response.status}): ${errorText || response.statusText}`
+    );
+  }
+
+  console.log(`🔐 Browser UUID registered successfully: ${browserUuid}`);
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  openUuidPage().catch((error) => {
+    console.error('❌ Failed to open UUID page on install:', error);
+  });
+});
+
+chrome.action.onClicked.addListener(() => {
+  openUuidPage().catch((error) => {
+    console.error('❌ Failed to open UUID page from action click:', error);
+  });
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== 'openbrowser:register-browser-identity') {
+    return false;
+  }
+
+  if (!currentConnectionId) {
+    sendResponse({
+      success: false,
+      error: 'Extension is not connected to the OpenBrowser server yet.',
+    });
+    return false;
+  }
+
+  registerBrowserIdentity(currentConnectionId)
+    .then(() => {
+      sendResponse({ success: true });
+    })
+    .catch((error) => {
+      sendResponse({
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'Unknown registration error',
+      });
+    });
+
+  return true;
 });
 
 /**
