@@ -121,7 +121,7 @@ class ElementInteractionTool(
         else:
             # Try to get conversation ID from conv_state to share executor across tools
             # conv_state: openhands-sdk ConversationState
-            conversation_id = conv_state.id
+            conversation_id = getattr(conv_state, "id", None)
 
             # Get shared executor for this conversation (or create new if no conversation_id)
             from server.agent.tools.browser_executor import get_browser_executor

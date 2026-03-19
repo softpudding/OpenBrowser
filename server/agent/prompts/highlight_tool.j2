@@ -44,20 +44,20 @@ Elements are paginated to ensure **no visual overlap** in each screenshot:
 Capture a screenshot with numbered visual markers on interactive elements of ONE type.
 
 ```json
-{}                           // Default: clickable elements, page 1
+{}                           // Default: any interactive elements, page 1
 { "element_type": "inputable" }  // Input fields
 { "element_type": "scrollable" } // Scrollable areas
 { "element_type": "hoverable" }  // Hoverable elements
 { "element_type": "selectable" } // Select dropdowns
 { "element_type": "any" }        // All interactive elements combined
-{ "page": 2 }                 // Next page of clickable elements
+{ "page": 2 }                 // Next page of any interactive elements
 { "keywords": ["Submit", "提交"] }      // Filter by keyword list (no pagination needed)
 ```
 
 **Parameters**:
-- `element_type`: Single type to highlight - "clickable" (default without keywords), "scrollable", "inputable", "hoverable", "selectable", or "any" (default when keywords provided)
+- `element_type`: Single type to highlight - "any" (default), "clickable", "scrollable", "inputable", "hoverable", or "selectable"
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
-- `keywords`: Keywords list to filter elements by HTML content. When provided, only matching elements are returned without pagination, and `element_type` defaults to "any". Example: ["button", "submit", "login"]
+- `keywords`: Keywords list to filter elements by HTML content. When provided, only matching elements are returned without pagination. Example: ["button", "submit", "login"]
 
 **When to Use Pagination**:
 - If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements
@@ -139,7 +139,7 @@ When used with keywords, pagination is skipped and all matching elements are ret
 
 **Decision flow**: Check `tagName` and attributes in the returned HTML to determine the correct action.
 
-### clickable (default without keywords)
+### clickable
 Buttons, links, and any element that responds to clicks. Use when your intent is to **open** or **trigger** something.
 
 ### inputable

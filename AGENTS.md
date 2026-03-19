@@ -161,7 +161,6 @@ OpenBrowser uses Jinja2 templates for agent prompts, enabling dynamic content in
   - `element_interaction_tool.j2` - 2PC flow with orange confirmations
   - `dialog_tool.j2` - Dialog handling
   - `javascript_tool.j2` - JavaScript fallback
-- **Legacy**: `open_browser_description.j2` - original monolithic tool description (retained for reference)
 
 ### Dynamic JavaScript Control
 The `javascript_execute` command can be disabled via environment variable:

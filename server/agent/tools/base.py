@@ -227,16 +227,16 @@ class OpenBrowserObservation(Observation):
 
             if needs_decision:
                 text_parts.append(
-                    "**Action Required**: Use `handle_dialog` to respond."
+                    "**Action Required**: Use the `dialog` tool to respond."
                 )
                 text_parts.append(
-                    '- To accept: `{"type": "handle_dialog", "dialog_action": "accept"}`'
+                    '- To accept: use `dialog` with `{"dialog_action": "accept"}`'
                 )
                 text_parts.append(
-                    '- To dismiss: `{"type": "handle_dialog", "dialog_action": "dismiss"}`'
+                    '- To dismiss: use `dialog` with `{"dialog_action": "dismiss"}`'
                 )
                 text_parts.append(
-                    '- For prompts: `{"type": "handle_dialog", "dialog_action": "accept", "prompt_text": "your text"}`'
+                    '- For prompts: use `dialog` with `{"dialog_action": "accept", "prompt_text": "your text"}`'
                 )
             else:
                 text_parts.append(

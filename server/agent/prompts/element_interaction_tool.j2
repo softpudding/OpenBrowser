@@ -1,14 +1,14 @@
 # Element Interaction Tool
 
-Safe element interaction with Two-Phase Commit (2PC) visual verification.
+Safe element interaction with visual verification and fast paths.
 
 ## Overview
 
-The Element Interaction Tool handles click, hover, scroll, and keyboard input operations with a **two-stage safety mechanism**. This is the **ORANGE stage** of the color system, ensuring you never interact with the wrong element by mistake.
+The Element Interaction Tool handles click, hover, scroll, keyboard input, and select operations. This is the **ORANGE stage** of the color system: the default flow is visual verification before execution, but the system may use safe fast paths when confidence is already high.
 
 ## Visual Color System - ORANGE Stage
 
-When you call any element action, you get an **ORANGE box** on ONE element:
+When an action enters confirmation mode, you get an **ORANGE box** on ONE element:
 
 **Purpose**: Verify you're about to act on the CORRECT element before execution.
 
@@ -22,24 +22,25 @@ When you call any element action, you get an **ORANGE box** on ONE element:
 2. **READ** - Does the HTML match your goal?
 3. **DECIDE** - Confirm or cancel
 
-**To CONFIRM**: Use element_interaction tool with confirm_{action} (e.g., confirm_click)
-**To CANCEL**: Simply call a different action or different element_id
+**To CONFIRM**: Use element_interaction tool with `confirm_{action}` (for example `confirm_click`)
+**To CANCEL**: Simply call a different action or different `element_id`
 
-## Two-Phase Commit (2PC) Flow
+## Interaction Modes
 
-All element interactions follow a strict 2PC pattern:
+Element interactions have 2 execution paths:
 
 ```
-Phase 1: Initiate Action
-└── You use element_interaction tool with action: click, hover, scroll, or keyboard_input
-└── Result: Screenshot with ORANGE highlight + HTML
+Default confirmation flow
+└── Use action: click / hover / scroll(with element_id) / keyboard_input / select
+└── Result: ORANGE preview screenshot + full HTML
+└── If correct: use `confirm_{action}`
 
-Phase 2: Confirm or Cancel
-└── If correct: use element_interaction tool with confirm_{action} → action executes
-└── If wrong: call any other action to cancel, or simply don't confirm
+Fast paths
+└── If the element is already in confirmed cache, the action executes immediately
+└── If the previous highlight call returned exactly one element and you explicitly choose that same `element_id`, the action may execute immediately
 ```
 
-**Safety**: The orange highlight gives you a final visual verification before the action executes. This prevents accidental clicks on wrong elements.
+**Practical rule**: Expect a confirmation step on first interaction, but be prepared for direct execution when the system already has strong evidence about the target.
 
 ## Commands
 
@@ -48,9 +49,9 @@ Initiate a click on an element by its visual ID.
 
 ```json
 { "action": "click", "element_id": "c8e4d2", "tab_id": 123 }
-// → Screenshot with ORANGE box appears
+// → Usually returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
-// → Confirm:
+// → Then confirm:
 { "action": "confirm_click", "element_id": "c8e4d2", "tab_id": 123 }
 ```
 
@@ -61,9 +62,9 @@ Initiate a hover over an element by its visual ID.
 
 ```json
 { "action": "hover", "element_id": "a3f2b1", "tab_id": 123 }
-// → Screenshot with ORANGE box appears
+// → Usually returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
-// → Confirm:
+// → Then confirm:
 { "action": "confirm_hover", "element_id": "a3f2b1", "tab_id": 123 }
 ```
 
@@ -76,12 +77,12 @@ Scroll within an element by its visual ID, or scroll the entire page if no eleme
 
 **Two scenarios**:
 
-1. **Scroll within specific element** (requires confirmation):
+1. **Scroll within specific element** (usually requires confirmation):
    ```json
    { "action": "scroll", "element_id": "d2f4a8", "direction": "down", "tab_id": 123 }
-   // → Screenshot with ORANGE box appears
+   // → Usually returns an ORANGE preview screenshot
    // → Review the orange highlight + HTML
-   // → Confirm:
+   // → Then confirm:
    { "action": "confirm_scroll", "element_id": "d2f4a8", "tab_id": 123 }
    ```
 
@@ -180,9 +181,9 @@ Type text into an input element by its visual ID.
 
 ```json
 { "action": "keyboard_input", "element_id": "b7c9e5", "text": "hello@example.com", "tab_id": 123 }
-// → Screenshot with ORANGE box appears
+// → Usually returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
-// → Confirm:
+// → Then confirm:
 { "action": "confirm_keyboard_input", "element_id": "b7c9e5", "tab_id": 123 }
 ```
 
@@ -208,9 +209,9 @@ Select an option from a native `<select>` dropdown element by its visual ID.
 
 ```json
 { "action": "select", "element_id": "f3a8c2", "value": "option1", "tab_id": 123 }
-// → Screenshot with ORANGE box appears
+// → Usually returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
-// → Confirm:
+// → Then confirm:
 { "action": "confirm_select", "element_id": "f3a8c2", "tab_id": 123 }
 ```
 
@@ -246,7 +247,7 @@ Each action has a corresponding confirm action (use the same `element_interactio
 
 **Parameters**: Same as the initiating action (`element_id`, `tab_id`), plus any additional parameters like `text` for keyboard_input.
 
-**Behavior**: Executes the action after visual verification.
+**Behavior**: Executes the action after visual verification when the action entered confirmation mode.
 
 ## Visual + Semantic Verification (ORANGE Stage)
 
@@ -275,7 +276,9 @@ Each action has a corresponding confirm action (use the same `element_interactio
 
 ## Screenshot Behavior
 
-All element interaction commands return screenshots with orange overlays.
+- Confirmation-mode calls return an ORANGE preview screenshot before execution.
+- Direct-execution calls return the post-action screenshot from the browser.
+- Whole-page scroll without `element_id` executes immediately and returns the resulting screenshot.
 
 ## tab_id Auto-Resolution
 

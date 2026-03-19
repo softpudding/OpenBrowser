@@ -274,7 +274,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         )
 
         # Single element type for stable collision-aware pagination
-        element_type = action.element_type or "clickable"
+        element_type = action.element_type or "any"
         page = action.page or 1
         keywords = action.keywords
 

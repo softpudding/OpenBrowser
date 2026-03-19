@@ -207,7 +207,7 @@ The screenshot logic is controlled by the Extension layer. The server layer rout
 
 After the screenshot refactor, the server layer no longer proactively triggers screenshots in tab and javascript_execute commands. All screenshot decisions are made by the Extension layer.
 
-**Best Practice:** Use explicit `screenshot` command when visual feedback is needed after navigation or JavaScript execution.
+**Best Practice:** Use `tab view` when you need a clean screenshot after navigation or JavaScript execution.
 
 ## 5-TOOL ARCHITECTURE
 
@@ -220,15 +220,15 @@ OpenBrowser now uses 5 focused tools instead of a single monolithic tool:
 
 ### 2. Highlight Tool (`highlight`)
 - **Purpose**: Element discovery with collision-free visual overlays
-- **Element types**: `clickable` (default), `inputable`, `scrollable`, `hoverable`
+- **Element types**: `any` (default), `clickable`, `inputable`, `scrollable`, `hoverable`, `selectable`
 - **Visual coding**: BLUE stage - safe identification before interaction
 - **Pagination**: Collision-aware pages for non-overlapping element display
 
 ### 3. Element Interaction Tool (`element_interaction`)
-- **Purpose**: Click, hover, scroll, keyboard input with Two-Phase Commit (2PC)
-- **Visual coding**: ORANGE stage - confirmation before execution
-- **2PC flow**: `click_element` → orange highlight → `confirm_click_element`
-- **Commands**: `click`, `hover`, `scroll`, `keyboard_input` with confirmation variants
+- **Purpose**: Click, hover, scroll, keyboard input, and select with confirmation-first flow plus safe fast paths
+- **Visual coding**: ORANGE stage - confirmation preview when needed
+- **Interaction flow**: usually preview then `confirm_*`, but confirmed-cache and single-candidate paths can execute directly
+- **Commands**: `click`, `hover`, `scroll`, `keyboard_input`, `select` with confirmation variants
 
 ### 4. Dialog Tool (`dialog`)
 - **Purpose**: Browser dialog (alert/confirm/prompt) handling
