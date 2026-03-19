@@ -30,7 +30,9 @@ OpenBrowser/
 | Browser commands | `server/core/processor.py` | Command routing, multi-session |
 | Dialog handling | `server/models/commands.py` | HandleDialogCommand, DialogAction |
 | REST API routes | `server/api/routes/` | FastAPI endpoints |
+| Browser UUID routing | `server/api/routes/browsers.py` | Browser UUID registration and validation |
 | WebSocket handling | `server/websocket/manager.py` | Extension communication |
+| Browser UUID registry | `server/core/uuid_manager.py` | `uuid -> websocket` capability mapping |
 | Command models | `server/models/commands.py` | Pydantic command/response types |
 | **Prompt templates** | `server/prompts/` | **Jinja2 templates for agent prompts** |
 | Tab tool | `server/agent/tools/tab_tool.py` | TabTool for tab management |
@@ -44,6 +46,8 @@ OpenBrowser/
 | JavaScript execution | `extension/src/commands/javascript.ts` | CDP Runtime.evaluate, dialog race |
 | Screenshot capture | `extension/src/commands/screenshot.ts` | CDP Page.captureScreenshot |
 | Tab management | `extension/src/commands/tab-manager.ts` | Session isolation, tab groups |
+| UUID page | `extension/src/uuid/uuidPage.ts` | Browser UUID display and registration status |
+| Frontend chat UI | `frontend/index.html` | Browser UUID input, conversation UI, Sisyphus |
 | CLI implementation | `cli/main.py` | Interactive mode, shortcuts |
 ## ARCHITECTURE
 
@@ -70,6 +74,29 @@ OpenBrowser/
 │   - Tab management with groups          │
 └─────────────────────────────────────────┘
 ```
+
+## BROWSER UUID AUTHORIZATION
+
+OpenBrowser now uses the browser UUID as a capability token, not just an internal identifier.
+
+### Permission Model
+
+1. Chrome extension connects to the server WebSocket
+2. Server assigns a `connection_id`
+3. Extension registers its current browser UUID with `POST /browsers/register`
+4. Server stores `browser_uuid -> websocket`
+5. Frontend or API client asks the user for the browser UUID
+6. Message/command requests include `browser_id`
+7. Server validates `browser_id` and routes browser commands only to that registered websocket
+
+### Key Invariants
+
+- The browser UUID is the secret required to control that browser
+- Possession of the UUID implies permission to operate that browser
+- `browser_id` is required on browser-control requests unless already stored in conversation metadata
+- Browser routing must be single-target by UUID, not broadcast to all websockets
+- Frontend flow lives in `frontend/index.html`
+- UUID registration and validation live in `server/api/routes/browsers.py`, `server/core/uuid_manager.py`, and `server/websocket/manager.py`
 
 ## DIALOG HANDLING
 
@@ -271,7 +298,7 @@ Automated looping mode for repetitive testing and monitoring.
 ### Behavior
 - When enabled, the command input field is replaced with START/STOP buttons
 - Click START to begin the Sisyphus loop:
-  1. Creates a new conversation session (fresh UUID)
+  1. Creates a new conversation session (fresh conversation ID)
   2. Sends prompts in configured order
   3. Waits for each conversation to complete before sending next prompt
   4. After all prompts, repeats from step 1 with a new session
@@ -285,6 +312,12 @@ Automated looping mode for repetitive testing and monitoring.
 
 ### Storage
 Configuration is saved to `localStorage` (key: `openbrowser_sisyphus_config`).
+
+### Browser Selection
+
+- Sisyphus still requires a browser UUID in the frontend before starting
+- The UUID is stored separately from the conversation ID
+- Changing browser UUID in the frontend clears the active conversation binding
 
 ## COMMANDS
 
@@ -438,11 +471,17 @@ output/
 # List available tests
 python eval/evaluate_browser_agent.py --list
 
+# Automated eval requires a browser UUID capability token
+export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
+
 # Run single test with default models
 python eval/evaluate_browser_agent.py --test techforum
 
 # Run all tests with specific models
 python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
+
+# Or pass the UUID explicitly
+python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID
 
 # Run without starting services
 python eval/evaluate_browser_agent.py --no-services
@@ -450,6 +489,11 @@ python eval/evaluate_browser_agent.py --no-services
 # Run with custom time/cost limits in test case YAML
 # Add to YAML: time_limit: 300 (5 minutes), cost_limit: 5.0 (5 RMB)
 ```
+
+Notes:
+- `--chrome-uuid` is required for automated runs that actually drive a browser
+- `--manual` and `--list` do not require a browser UUID
+- `OPENBROWSER_CHROME_UUID` is the equivalent environment variable for scripts and CI
 
 ### Manual Mode
 When using a single test (`--test`), add `--manual` option for human-in-the-loop testing. In manual mode:
@@ -492,7 +536,8 @@ agent_manager.create_conversation(
     conversation_id="...", 
     cwd=".", 
     model="dashscope/qwen3.5-plus",
-    base_url=None  # Optional override
+    base_url=None,  # Optional override
+    browser_id="copied-from-extension-uuid-page",  # Optional capability token
 )
 
 # REST API
@@ -500,9 +545,12 @@ POST /agent/conversations
 {
     "cwd": ".",
     "model": "dashscope/qwen3.5-plus",
-    "base_url": "https://api.example.com"
+    "base_url": "https://api.example.com",
+    "browser_id": "copied-from-extension-uuid-page"
 }
 ```
+
+For actual browser control, message POSTs to `/agent/conversations/{conversation_id}/messages` must include `browser_id` unless the conversation metadata is already bound to that UUID.
 
 #### Model Persistence
 - **Session metadata**: Model stored in `metadata["model"]` field

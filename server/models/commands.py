@@ -46,6 +46,10 @@ class BaseCommand(BaseModel):
         default=None,
         description="Conversation ID for session isolation (None = default session)",
     )
+    browser_id: Optional[str] = Field(
+        default=None,
+        description="Browser UUID capability token for targeted routing",
+    )
 
 
 class MouseMoveCommand(BaseCommand):

@@ -1,7 +1,7 @@
 """
 OpenBrowser Agent Manager
 
-Manages agent instances and conversations.
+Manages agent instances and conversations with optional multi-process support.
 """
 
 import uuid
@@ -28,42 +28,64 @@ from openhands.sdk.tool import Tool
 from server.api.sse import SSEEvent
 from server.agent.visualizer import QueueVisualizer
 from server.agent.conversation import ConversationState
-from server.core.llm_config import llm_config_manager
-from server.core.session_manager import session_manager, SessionStatus
 from server.agent.tools.browser_executor import remove_browser_executor
+from server.core.ipc_router import IPCRouter
+from server.core.ipc_types import BrowserCommandMessage
+from server.core.llm_config import llm_config_manager
+from server.core.process_manager import ProcessManager
+from server.core.session_manager import session_manager, SessionStatus
 logger = get_logger(__name__)
 
 
 class OpenBrowserAgentManager:
-    """Manages agent instances and conversations"""
+    """Manages agent instances and conversations with optional multi-process support.
 
-    def __init__(self):
+    In multi-process mode, each conversation runs in its own process for isolation.
+    In single-process mode (default), all conversations run in the main process.
+
+    Attributes:
+        multi_process_mode: If True, spawn processes for each conversation
+        process_manager: ProcessManager instance for process lifecycle
+        ipc_router: IPCRouter instance for command routing
+    """
+
+    def __init__(self, multi_process_mode: bool = False):
+        """Initialize the agent manager.
+
+        Args:
+            multi_process_mode: If True, spawn processes for each conversation.
+                               Default is False for backward compatibility.
+        """
         self.conversations: Dict[str, ConversationState] = {}
+        self.multi_process_mode = multi_process_mode
+
+        # Multi-process infrastructure
+        self._process_manager: Optional[ProcessManager] = None
+        self._ipc_router: Optional[IPCRouter] = None
+
+        if multi_process_mode:
+            self._process_manager = ProcessManager()
+            self._ipc_router = IPCRouter()
+            logger.info("AgentManager initialized in multi-process mode")
+        else:
+            logger.info("AgentManager initialized in single-process mode")
 
         # Default tools - OpenBrowser suite now has 5 focused tools
         self.default_tools = [
-            Tool(name="tab"),                # Tab management
-            Tool(name="highlight"),          # Element discovery with visual overlays
-            Tool(name="element_interaction"), # Click, hover, scroll, keyboard with 2PC
-            Tool(name="dialog"),             # Browser dialog handling
-            Tool(name="javascript"),         # JavaScript execution fallback
-            Tool(name=TerminalTool.name),    # Terminal access
+            Tool(name="tab"),  # Tab management
+            Tool(name="highlight"),  # Element discovery with visual overlays
+            Tool(name="element_interaction"),  # Click, hover, scroll, keyboard with 2PC
+            Tool(name="dialog"),  # Browser dialog handling
+            Tool(name="javascript"),  # JavaScript execution fallback
+            Tool(name=TerminalTool.name),  # Terminal access
             Tool(name=FileEditorTool.name),  # File editing
-            Tool(name=TaskTrackerTool.name), # Task tracking
+            Tool(name=TaskTrackerTool.name),  # Task tracking
         ]
 
-
-
-    def _create_llm_from_config(self, model: Optional[str] = None, base_url: Optional[str] = None) -> LLM:
-        """Create LLM configuration from config file with optional overrides
-        
-        Args:
-            model: Optional model name override (e.g., "dashscope/qwen3.5-plus")
-            base_url: Optional base URL override
-            
-        Returns:
-            Configured LLM instance
-        """
+    def _create_llm_from_config(
+        self, model: Optional[str] = None, base_url: Optional[str] = None
+    ) -> LLM:
+        """Create LLM configuration from config file with optional overrides."""
         # Load LLM configuration from file (force reload from disk)
         llm_config = llm_config_manager.reload_config().llm
 
@@ -91,8 +113,12 @@ class OpenBrowserAgentManager:
         )
 
     def create_conversation(
-        self, conversation_id: Optional[str] = None, cwd: str = ".",
-        model: Optional[str] = None, base_url: Optional[str] = None
+        self,
+        conversation_id: Optional[str] = None,
+        cwd: str = ".",
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        browser_id: Optional[str] = None,
     ) -> str:
         """Create a new conversation with session management
 
@@ -101,9 +127,12 @@ class OpenBrowserAgentManager:
             cwd: Working directory for the conversation (default: current directory)
             model: Optional model name override (e.g., "dashscope/qwen3.5-plus")
             base_url: Optional base URL override
-            
+
         Returns:
-            Conversation ID
+            The conversation ID
+
+        Raises:
+            ValueError: If conversation already exists
         """
         import uuid
 
@@ -119,13 +148,43 @@ class OpenBrowserAgentManager:
             metadata["model"] = model
         if base_url:
             metadata["base_url"] = base_url
+        if browser_id:
+            metadata["browser_id"] = browser_id
             
         session_manager.create_session(
-            conversation_id=conversation_id, 
+            conversation_id=conversation_id,
             working_directory=cwd,
-            metadata=metadata
+            metadata=metadata,
         )
 
+        # In multi-process mode, spawn a process for this conversation
+        if self.multi_process_mode:
+            return self._create_conversation_process(
+                conversation_id, cwd, model, base_url, browser_id
+            )
+
+        # Single-process mode: create conversation in main process
+        return self._create_conversation_in_process(
+            conversation_id, cwd, model, base_url, browser_id
+        )
+
+    def _create_conversation_in_process(
+        self,
+        conversation_id: str,
+        cwd: str,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        browser_id: Optional[str] = None,
+    ) -> str:
+        """Create a conversation in the current process (single-process mode).
+
+        Args:
+            conversation_id: Conversation ID
+            cwd: Working directory
+
+        Returns:
+            The conversation ID
+        """
         # Create agent with tools
         agent_context = AgentContext(current_datetime=datetime.now())
         llm_instance = self._create_llm_from_config(model, base_url)
@@ -143,7 +202,11 @@ class OpenBrowserAgentManager:
 
         # Create conversation with specified workspace and conversation_id
         # Note: SDK expects UUID object, not string
-        conv_uuid = uuid.UUID(conversation_id) if isinstance(conversation_id, str) else conversation_id
+        conv_uuid = (
+            uuid.UUID(conversation_id)
+            if isinstance(conversation_id, str)
+            else conversation_id
+        )
         conversation = Conversation(
             agent=agent,
             visualizer=visualizer,
@@ -162,7 +225,87 @@ class OpenBrowserAgentManager:
         # Set conversation_id on visualizer for event persistence
         visualizer.set_conversation_id(conversation_id)
 
-        logger.info(f"Created conversation: {conversation_id}")
+        logger.info(f"Created conversation in main process: {conversation_id}")
+        return conversation_id
+
+    def _create_conversation_process(
+        self,
+        conversation_id: str,
+        cwd: str,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        browser_id: Optional[str] = None,
+    ) -> str:
+        """Create a conversation in a separate process (multi-process mode).
+
+        This method spawns a new process for the conversation using ProcessManager
+        and registers the IPC queues with IPCRouter.
+
+        Args:
+            conversation_id: Conversation ID
+            cwd: Working directory
+
+        Returns:
+            The conversation ID
+
+        Raises:
+            RuntimeError: If ProcessManager or IPCRouter not initialized
+        """
+        if self._process_manager is None or self._ipc_router is None:
+            raise RuntimeError(
+                "ProcessManager or IPCRouter not initialized. "
+                "Ensure multi_process_mode is enabled."
+            )
+
+        # Use the bound browser ID if provided; otherwise fall back for compatibility.
+        browser_id = browser_id or str(uuid.uuid4())
+
+        # Get LLM config for the worker process
+        llm_config = llm_config_manager.get_llm_config()
+        llm_config_dict = {
+            "model": model if model is not None else llm_config.model,
+            "api_key": llm_config.api_key,
+            "base_url": base_url if base_url is not None else llm_config.base_url,
+        }
+
+        # Spawn process with configuration
+        self._process_manager.spawn_with_config(
+            conv_id=conversation_id,
+            browser_id=browser_id,
+            llm_config=llm_config_dict,
+            working_directory=cwd,
+        )
+
+        # Get process info for IPC queues
+        process_info = self._process_manager.get_process_info(conversation_id)
+        if process_info is None:
+            raise RuntimeError(
+                f"Failed to get process info for conversation {conversation_id}"
+            )
+
+        # Check that queues are available
+        if process_info.command_queue is None or process_info.response_queue is None:
+            raise RuntimeError(
+                f"IPC queues not available for conversation {conversation_id}"
+            )
+
+        # Register with IPC router
+        self._ipc_router.register_conversation(
+            conv_id=conversation_id,
+            command_queue=process_info.command_queue,
+            response_queue=process_info.response_queue,
+        )
+
+        # Store minimal conversation state (no Conversation object in main process)
+        self.conversations[conversation_id] = ConversationState(
+            conversation_id=conversation_id,
+            conversation=None,  # No Conversation object in main process
+            visualizer=None,  # No visualizer in main process
+        )
+
+        logger.info(
+            f"Created conversation process: {conversation_id}, browser_id={browser_id}"
+        )
         return conversation_id
 
     def get_conversation(self, conversation_id: str) -> Optional[ConversationState]:
@@ -239,7 +382,11 @@ class OpenBrowserAgentManager:
 
         # Create conversation with specified workspace and conversation_id
         # Note: SDK expects UUID object, not string
-        conv_uuid = uuid.UUID(conversation_id) if isinstance(conversation_id, str) else conversation_id
+        conv_uuid = (
+            uuid.UUID(conversation_id)
+            if isinstance(conversation_id, str)
+            else conversation_id
+        )
         conversation = Conversation(
             agent=agent,
             visualizer=visualizer,
@@ -262,48 +409,89 @@ class OpenBrowserAgentManager:
         return self.conversations[conversation_id]
 
     def delete_conversation(self, conversation_id: str) -> bool:
-        """Delete a conversation and cleanup resources"""
-        if conversation_id in self.conversations:
-            # Close conversation
-            conv_state = self.conversations[conversation_id]
+        """Delete a conversation and cleanup resources.
+
+        In multi-process mode, this will shutdown the conversation process.
+        In single-process mode, this will close the conversation in the main process.
+
+        Args:
+            conversation_id: Conversation ID to delete
+
+        Returns:
+            True if conversation was deleted, False otherwise
+        """
+        if conversation_id not in self.conversations:
+            # Also try to delete from session manager even if not in memory
+            success = session_manager.delete_session(conversation_id)
+            if success:
+                logger.info(f"Deleted session from database: {conversation_id}")
+            return success
+
+        conv_state = self.conversations[conversation_id]
+
+        # In multi-process mode, shutdown the process
+        if self.multi_process_mode:
+            self._delete_conversation_process(conversation_id)
+        else:
+            # Single-process mode: close conversation in main process
             try:
-                conv_state.conversation.close()
+                if conv_state.conversation is not None:
+                    conv_state.conversation.close()
             except Exception as e:
                 logger.warning(f"Error closing conversation {conversation_id}: {e}")
-
-            # Remove from memory
-            del self.conversations[conversation_id]
-
-            # Update session status to completed
-            session_manager.update_session_status(
-                conversation_id, SessionStatus.COMPLETED
-            )
 
             # Cleanup command processor state
             from server.core.processor import command_processor
 
             command_processor.cleanup_conversation(conversation_id)
 
-            # Cleanup shared browser executor for this conversation
-            try:
-                remove_browser_executor(conversation_id)
-            except Exception as e:
-                logger.warning(f"Failed to remove browser executor for {conversation_id}: {e}")
+        # Remove from memory
+        del self.conversations[conversation_id]
 
-            logger.info(f"Deleted conversation: {conversation_id}")
-            return True
+        # Update session status to completed
+        session_manager.update_session_status(conversation_id, SessionStatus.COMPLETED)
 
-        # Also try to delete from session manager even if not in memory
-        # Return the actual result of the deletion operation
-        success = session_manager.delete_session(conversation_id)
-        if success:
-            logger.info(f"Deleted session from database: {conversation_id}")
-            # Cleanup shared browser executor for this conversation
-            try:
-                remove_browser_executor(conversation_id)
-            except Exception as e:
-                logger.warning(f"Failed to remove browser executor for {conversation_id}: {e}")
-        return success
+        # Cleanup shared browser executor for this conversation
+        try:
+            remove_browser_executor(conversation_id)
+        except Exception as e:
+            logger.warning(
+                f"Failed to remove browser executor for {conversation_id}: {e}"
+            )
+
+        logger.info(f"Deleted conversation: {conversation_id}")
+        return True
+
+    def _delete_conversation_process(self, conversation_id: str) -> None:
+        """Shutdown a conversation process (multi-process mode).
+
+        This method shuts down the process via ProcessManager and unregisters
+        the IPC queues from IPCRouter.
+
+        Args:
+            conversation_id: Conversation ID to delete
+        """
+        if self._process_manager is None or self._ipc_router is None:
+            logger.warning(
+                f"Cannot delete process for {conversation_id}: "
+                "ProcessManager or IPCRouter not initialized"
+            )
+            return
+
+        # Unregister from IPC router first
+        self._ipc_router.unregister_conversation(conversation_id)
+
+        # Shutdown the process
+        try:
+            self._process_manager.shutdown_process(conversation_id)
+            logger.info(f"Shutdown process for conversation: {conversation_id}")
+        except KeyError:
+            logger.warning(
+                f"Process not found for conversation {conversation_id}, "
+                "may have already been terminated"
+            )
+        except Exception as e:
+            logger.error(f"Error shutting down process for {conversation_id}: {e}")
 
     def list_conversations(self, status: SessionStatus = None) -> List[Dict[str, Any]]:
         """List all conversations with enhanced session info
@@ -317,7 +505,11 @@ class OpenBrowserAgentManager:
             memory_conversations[conv.conversation_id] = {
                 "id": conv.conversation_id,
                 "created_at": conv.created_at,
-                "agent_id": id(conv.conversation.agent),
+                "agent_id": (
+                    id(conv.conversation.agent)
+                    if conv.conversation is not None
+                    else None
+                ),
                 "in_memory": True,
             }
 
@@ -415,7 +607,135 @@ class OpenBrowserAgentManager:
 
         finally:
             # Clear callback
-            conv_state.visualizer.event_callback = None
+            if conv_state.visualizer is not None:
+                conv_state.visualizer.event_callback = None
+
+    # ==================== Multi-Process IPC Methods ====================
+
+    def route_command(
+        self,
+        conversation_id: str,
+        command: dict[str, Any],
+        command_id: Optional[str] = None,
+    ) -> bool:
+        """Route a command to a conversation process via IPC.
+
+        This method is used in multi-process mode to send commands to
+        conversation worker processes.
+
+        Args:
+            conversation_id: Target conversation ID
+            command: Command dictionary to route
+            command_id: Optional command ID for tracking
+
+        Returns:
+            True if command was routed successfully, False otherwise
+
+        Raises:
+            RuntimeError: If not in multi-process mode
+        """
+        if not self.multi_process_mode or self._ipc_router is None:
+            raise RuntimeError(
+                "route_command() requires multi_process_mode to be enabled"
+            )
+
+        browser_id = self._get_browser_id(conversation_id)
+        if browser_id is None:
+            logger.warning(f"Cannot route command: no browser_id for {conversation_id}")
+            return False
+
+        message = BrowserCommandMessage(
+            conversation_id=conversation_id,
+            browser_id=browser_id,
+            command=command,
+            command_id=command_id,
+        )
+
+        return self._ipc_router.route_command(message)
+
+    def get_response_queue(self, conversation_id: str):
+        """Get the response queue for a conversation.
+
+        Args:
+            conversation_id: Conversation ID
+
+        Returns:
+            Response queue if found, None otherwise
+
+        Raises:
+            RuntimeError: If not in multi-process mode
+        """
+        if not self.multi_process_mode or self._ipc_router is None:
+            raise RuntimeError(
+                "get_response_queue() requires multi_process_mode to be enabled"
+            )
+
+        return self._ipc_router.get_response_queue(conversation_id)
+
+    def get_command_queue(self, conversation_id: str):
+        """Get the command queue for a conversation.
+
+        Args:
+            conversation_id: Conversation ID
+
+        Returns:
+            Command queue if found, None otherwise
+
+        Raises:
+            RuntimeError: If not in multi-process mode
+        """
+        if not self.multi_process_mode or self._ipc_router is None:
+            raise RuntimeError(
+                "get_command_queue() requires multi_process_mode to be enabled"
+            )
+
+        return self._ipc_router.get_command_queue(conversation_id)
+
+    def is_process_alive(self, conversation_id: str) -> bool:
+        """Check if a conversation process is alive.
+
+        Args:
+            conversation_id: Conversation ID
+
+        Returns:
+            True if process is alive, False otherwise
+        """
+        if not self.multi_process_mode or self._process_manager is None:
+            return False
+
+        return self._process_manager.is_process_alive(conversation_id)
+
+    def get_process_status(self, conversation_id: str) -> Optional[str]:
+        """Get the status of a conversation process.
+
+        Args:
+            conversation_id: Conversation ID
+
+        Returns:
+            Status string if process exists, None otherwise
+        """
+        if not self.multi_process_mode or self._process_manager is None:
+            return None
+
+        return self._process_manager.get_process_status(conversation_id)
+
+    def _get_browser_id(self, conversation_id: str) -> Optional[str]:
+        """Get the browser ID for a conversation.
+
+        Args:
+            conversation_id: Conversation ID
+
+        Returns:
+            Browser ID if found, None otherwise
+        """
+        if self._process_manager is None:
+            return None
+
+        process_info = self._process_manager.get_process_info(conversation_id)
+        if process_info is None:
+            return None
+
+        return process_info.browser_id
 
 
 # Global agent manager instance

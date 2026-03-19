@@ -7,10 +7,12 @@ is connected, and LLM API key is configured.
 Usage:
     python check_status.py
     python check_status.py --json
+    python check_status.py --chrome-uuid <uuid>
 """
 
 import argparse
 import json
+import os
 import sys
 from urllib.request import urlopen, Request
 from urllib.error import URLError
@@ -58,8 +60,32 @@ def check_llm_config(base_url: str) -> dict:
         return {"configured": False, "error": str(e)}
 
 
+def check_browser_uuid(base_url: str, chrome_uuid: str) -> dict:
+    """Check if a browser UUID is currently registered and valid."""
+    try:
+        req = Request(f"{base_url}/browsers/{chrome_uuid}/valid")
+        with urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            return {
+                "provided": True,
+                "valid": data.get("valid", False),
+                "message": data.get("message", ""),
+            }
+    except Exception as e:
+        return {"provided": True, "valid": False, "error": str(e)}
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Check OpenBrowser readiness")
+    parser = argparse.ArgumentParser(
+        description="Check OpenBrowser readiness",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  python check_status.py\n"
+            "  python check_status.py --chrome-uuid YOUR_BROWSER_UUID\n"
+            "  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python check_status.py --json"
+        ),
+    )
     parser.add_argument(
         "--url",
         default="http://127.0.0.1:8765",
@@ -70,6 +96,14 @@ def main():
         action="store_true",
         help="Output as JSON"
     )
+    parser.add_argument(
+        "--chrome-uuid",
+        default=os.environ.get("OPENBROWSER_CHROME_UUID"),
+        help=(
+            "Optional browser UUID capability token to validate. "
+            "Can also be set via OPENBROWSER_CHROME_UUID."
+        ),
+    )
     args = parser.parse_args()
 
     results = {
@@ -78,12 +112,17 @@ def main():
         "llm_config": check_llm_config(args.url)
     }
 
+    if args.chrome_uuid:
+        results["browser_uuid"] = check_browser_uuid(args.url, args.chrome_uuid)
+
     # Determine overall status
     all_ready = (
         results["server"].get("status") == "healthy" and
         results["extension"].get("connected", False) and
         results["llm_config"].get("configured", False)
     )
+    if args.chrome_uuid:
+        all_ready = all_ready and results["browser_uuid"].get("valid", False)
     results["ready"] = all_ready
 
     if args.json:
@@ -115,6 +154,13 @@ def main():
         else:
             error = results["llm_config"].get("error", "API key not configured")
             print(f"❌ LLM Config: {error}")
+
+        if args.chrome_uuid:
+            if results["browser_uuid"].get("valid"):
+                print(f"✅ Browser UUID: Valid and registered")
+            else:
+                error = results["browser_uuid"].get("error") or results["browser_uuid"].get("message") or "UUID not registered"
+                print(f"❌ Browser UUID: {error}")
 
         print("=" * 50)
         if all_ready:

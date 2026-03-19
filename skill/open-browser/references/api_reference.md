@@ -134,9 +134,12 @@ Create a new agent conversation.
 **Request Body:**
 ```json
 {
-  "cwd": "/path/to/working/directory"
+  "cwd": "/path/to/working/directory",
+  "browser_id": "copied-from-extension-uuid-page"
 }
 ```
+
+`browser_id` is optional when creating the conversation, but recommended if you already know which browser capability token the session should use.
 
 **Response:**
 ```json
@@ -205,9 +208,12 @@ Send message or connect to SSE stream.
 ```json
 {
   "text": "Go to example.com and extract the main heading",
-  "cwd": "."
+  "cwd": ".",
+  "browser_id": "copied-from-extension-uuid-page"
 }
 ```
+
+`browser_id` is required for actual browser control. It is the capability token copied from the Chrome extension UUID page, and the server uses it to resolve the registered extension websocket for that browser.
 
 **SSE Events:**
 
@@ -243,6 +249,37 @@ data: {"content": "I've navigated to example.com and found the heading is 'Examp
 
 event: complete
 data: {"conversation_id": "...", "status": "completed"}
+```
+
+---
+
+## Browser UUID Registration
+
+### POST /browsers/register
+
+Register a browser UUID against the extension websocket connection.
+
+**Request Body:**
+```json
+{
+  "uuid": "copied-from-extension-uuid-page",
+  "connection_id": "server-assigned-websocket-connection-id",
+  "ttl_hours": 24
+}
+```
+
+### GET /browsers/{uuid}/valid
+
+Check whether a browser UUID is currently registered and valid.
+
+**Response:**
+```json
+{
+  "success": true,
+  "uuid": "copied-from-extension-uuid-page",
+  "valid": true,
+  "message": "Browser UUID is valid"
+}
 ```
 
 ### GET /agent/conversations/{conversation_id}/events

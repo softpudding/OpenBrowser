@@ -88,9 +88,12 @@ class TestResult:
 class OpenBrowserClient:
     """Client for OpenBrowser server API"""
 
-    def __init__(self, base_url: str = OPENBROWSER_API_URL):
+    def __init__(
+        self, base_url: str = OPENBROWSER_API_URL, chrome_uuid: Optional[str] = None
+    ):
         self.base_url = base_url
         self.session = requests.Session()
+        self.chrome_uuid = chrome_uuid
 
     def health_check(self) -> bool:
         """Check if OpenBrowser server is running"""
@@ -115,6 +118,8 @@ class OpenBrowserClient:
                 request_json["model"] = model
             if base_url:
                 request_json["base_url"] = base_url
+            if self.chrome_uuid:
+                request_json["browser_id"] = self.chrome_uuid
 
             response = self.session.post(
                 f"{self.base_url}/agent/conversations", json=request_json, timeout=5
@@ -134,7 +139,11 @@ class OpenBrowserClient:
         try:
             response = self.session.post(
                 f"{self.base_url}/agent/conversations/{conversation_id}/messages",
-                json={"text": message, "cwd": cwd},
+                json={
+                    "text": message,
+                    "cwd": cwd,
+                    "browser_id": self.chrome_uuid,
+                },
                 stream=True,
                 headers={"Accept": "text/event-stream"},
                 timeout=90,  # Increased timeout for longer conversations
@@ -358,8 +367,9 @@ class ServiceManager:
 class Evaluator:
     """Main evaluator class"""
 
-    def __init__(self):
-        self.openbrowser = OpenBrowserClient()
+    def __init__(self, chrome_uuid: Optional[str] = None):
+        self.chrome_uuid = chrome_uuid
+        self.openbrowser = OpenBrowserClient(chrome_uuid=chrome_uuid)
         self.eval_server = EvalServerClient()
         self.service_manager = ServiceManager()
         self.results: List[TestResult] = []
@@ -1034,6 +1044,7 @@ class Evaluator:
 
         report = {
             "timestamp": time.time(),
+            "browser_uuid": self.chrome_uuid,
             "total_tests": len(self.results),
             "passed_tests": sum(1 for r in self.results if r.passed),
             "total_task_score": total_task_score,
@@ -1502,6 +1513,7 @@ class Evaluator:
 
         summary = {
             "timestamp": time.time(),
+            "browser_uuid": self.chrome_uuid,
             "models_tested": models,
             "model_stats": model_stats,
             "results_by_test": test_cases,
@@ -1660,7 +1672,17 @@ class Evaluator:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate OpenBrowser agent")
+    parser = argparse.ArgumentParser(
+        description="Evaluate OpenBrowser agent",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  python eval/evaluate_browser_agent.py --list\n"
+            "  python eval/evaluate_browser_agent.py --manual --test techforum\n"
+            "  python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID\n"
+            "  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --test techforum"
+        ),
+    )
     parser.add_argument("--test", help="Run specific test by ID")
     parser.add_argument("--manual", action="store_true", help="Manual mode: human performs the test steps")
     parser.add_argument("--list", action="store_true", help="List available tests")
@@ -1676,6 +1698,14 @@ def main():
         "--keep-alive",
         action="store_true",
         help="Keep services running after evaluation",
+    )
+    parser.add_argument(
+        "--chrome-uuid",
+        default=os.environ.get("OPENBROWSER_CHROME_UUID"),
+        help=(
+            "Browser UUID capability token for the Chrome instance to control. "
+            "Can also be set via OPENBROWSER_CHROME_UUID."
+        ),
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
@@ -1693,7 +1723,13 @@ def main():
         models = ["dashscope/qwen3.5-plus", "dashscope/qwen3.5-flash"]
     logger.info(f"Models to test: {models}")
 
-    evaluator = Evaluator()
+    if not args.manual and not args.list and not args.chrome_uuid:
+        parser.error(
+            "--chrome-uuid is required for automated browser evaluation "
+            "(or set OPENBROWSER_CHROME_UUID)"
+        )
+
+    evaluator = Evaluator(chrome_uuid=args.chrome_uuid)
 
     # Register cleanup
     if not args.keep_alive:

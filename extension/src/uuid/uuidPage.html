@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenBrowser - Browser UUID</title>
+  <style>
+    /* Design System Tokens */
+    :root {
+      /* Colors */
+      --color-bg: #0f0f0f;
+      --color-surface: #1a1a1a;
+      --color-surface-hover: #252525;
+      --color-border: #333;
+      --color-text: #e5e5e5;
+      --color-text-muted: #888;
+      --color-primary: #3b82f6;
+      --color-primary-hover: #2563eb;
+      --color-success: #22c55e;
+      --color-error: #ef4444;
+      --color-warning: #f59e0b;
+      
+      /* Typography */
+      --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      
+      /* Spacing */
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 32px;
+      
+      /* Border Radius */
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-bg);
+      color: var(--color-text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-lg);
+    }
+    
+    .container {
+      max-width: 480px;
+      width: 100%;
+    }
+    
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: var(--space-xl);
+    }
+    
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: var(--space-xs);
+    }
+    
+    .header p {
+      color: var(--color-text-muted);
+      font-size: 0.875rem;
+    }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 500;
+      margin-bottom: var(--space-lg);
+    }
+    
+    .status-badge.connected {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--color-success);
+    }
+    
+    .status-badge.disconnected {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--color-error);
+    }
+    
+    .status-badge.connecting {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--color-warning);
+    }
+    
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    
+    .uuid-section {
+      margin-bottom: var(--space-lg);
+    }
+    
+    .uuid-label {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-sm);
+    }
+    
+    .uuid-display {
+      font-family: var(--font-mono);
+      font-size: 1.125rem;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      word-break: break-all;
+      line-height: 1.5;
+      text-align: center;
+      color: var(--color-primary);
+    }
+    
+    .uuid-display.loading {
+      color: var(--color-text-muted);
+      font-style: italic;
+    }
+    
+    .actions {
+      display: flex;
+      gap: var(--space-sm);
+    }
+    
+    .btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-xs);
+      padding: var(--space-sm) var(--space-md);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    
+    .btn:hover {
+      background: var(--color-surface-hover);
+      border-color: var(--color-text-muted);
+    }
+    
+    .btn:active {
+      transform: scale(0.98);
+    }
+    
+    .btn.primary {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: white;
+    }
+    
+    .btn.primary:hover {
+      background: var(--color-primary-hover);
+      border-color: var(--color-primary-hover);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .btn-icon {
+      width: 16px;
+      height: 16px;
+    }
+    
+    .toast {
+      position: fixed;
+      bottom: var(--space-lg);
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-sm) var(--space-md);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: all 0.3s ease;
+      pointer-events: none;
+    }
+    
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    
+    .toast.success {
+      border-color: var(--color-success);
+      color: var(--color-success);
+    }
+    
+    .toast.error {
+      border-color: var(--color-error);
+      color: var(--color-error);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <h1>Browser UUID</h1>
+        <p>This UUID is the secret key required to control this browser remotely</p>
+      </div>
+      
+      <div id="status-badge" class="status-badge disconnected">
+        <span class="status-dot"></span>
+        <span id="status-text">Disconnected</span>
+      </div>
+      
+      <div class="uuid-section">
+        <div class="uuid-label">Browser Identifier</div>
+        <div id="uuid-display" class="uuid-display loading">Loading...</div>
+      </div>
+      
+      <div class="actions">
+        <button id="copy-btn" class="btn primary" disabled>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          Copy
+        </button>
+        <button id="refresh-btn" class="btn" disabled>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6"></path>
+            <path d="M1 20v-6h6"></path>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          Regenerate
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="toast" class="toast"></div>
+  
+  <script type="module" src="uuidPage.js"></script>
+</body>
+</html>

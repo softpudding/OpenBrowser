@@ -41,15 +41,16 @@ See `eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_op
 ### Check Status
 
 ```bash
-cd ~/git/OpenBrowser && python3 skill/open-browser/scripts/check_status.py
+cd ~/git/OpenBrowser && python3 skill/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
 ```
 
-Expected: `✅ Server: Running`, `✅ Extension: Connected`, `✅ LLM Config: ...`
+Expected: `✅ Server: Running`, `✅ Extension: Connected`, `✅ LLM Config: ...`, `✅ Browser UUID: Valid and registered`
 
 ### Submit Task
 
 ```bash
 cd ~/git/OpenBrowser
+export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
 
 # Background mode (RECOMMENDED for OpenClaw exec)
 nohup python3 skill/open-browser/scripts/send_task.py "task description" > /tmp/ob.log 2>&1 &
@@ -66,7 +67,7 @@ OpenBrowser uses SSE. If exec times out, the task pauses.
 **Always use this pattern:**
 
 ```bash
-cd ~/git/OpenBrowser && nohup python3 skill/open-browser/scripts/send_task.py 'TASK' > /tmp/ob.log 2>&1 & sleep 120 && cat /tmp/ob.log
+cd ~/git/OpenBrowser && OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID nohup python3 skill/open-browser/scripts/send_task.py 'TASK' > /tmp/ob.log 2>&1 & sleep 120 && cat /tmp/ob.log
 ```
 
 Adjust sleep time based on task complexity:
@@ -106,13 +107,16 @@ uv run local-chrome-server serve
 | Step | Action | Where |
 |------|--------|-------|
 | 1 | Load extension | `chrome://extensions/` → Developer mode → Load unpacked → `extension/dist` |
-| 2 | Get API key | https://dashscope.aliyun.com/ → API Key Management → Create |
-| 3 | Configure | http://localhost:8765 → Settings → Paste key |
+| 2 | Copy browser UUID | Extension auto-opens UUID page; copy the UUID shown there |
+| 3 | Get API key | https://dashscope.aliyun.com/ → API Key Management → Create |
+| 4 | Configure | http://localhost:8765 → Settings → Paste key |
+
+The browser UUID is a capability token. Anyone who has it can control that browser through OpenBrowser.
 
 ### Verify Setup
 
 ```bash
-python3 skill/open-browser/scripts/check_status.py
+python3 skill/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
 ```
 
 ### Test Installation
@@ -120,7 +124,7 @@ python3 skill/open-browser/scripts/check_status.py
 After setup, test with:
 
 ```bash
-cd ~/git/OpenBrowser && nohup python3 skill/open-browser/scripts/send_task.py "Go to https://github.com/softpudding/OpenBrowser and star the repository" > /tmp/ob_test.log 2>&1 & sleep 90 && cat /tmp/ob_test.log
+cd ~/git/OpenBrowser && OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID nohup python3 skill/open-browser/scripts/send_task.py "Go to https://github.com/softpudding/OpenBrowser and star the repository" > /tmp/ob_test.log 2>&1 & sleep 90 && cat /tmp/ob_test.log
 ```
 
 Expected: Browser opens GitHub, clicks Star, returns completion (~¥0.13-0.22).
@@ -130,6 +134,7 @@ Expected: Browser opens GitHub, clicks Star, returns completion (~¥0.13-0.22).
 | Issue | Check |
 |-------|-------|
 | Extension not connected | `chrome://extensions/` → refresh extension |
+| Browser UUID invalid | Reopen extension UUID page and copy the current UUID again |
 | API key error | http://localhost:8765 → Settings → verify key |
 | Task stuck | `tail -f ~/git/OpenBrowser/chrome_server.log` |
 | Pop-ups blocked | Address bar 🚫 → "Always allow" |

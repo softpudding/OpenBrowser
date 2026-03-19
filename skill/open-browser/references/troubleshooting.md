@@ -46,6 +46,20 @@ uv run local-chrome-server serve --force
    ```
 6. Then refresh the extension in Chrome
 
+### Browser UUID Invalid Or Not Registered
+
+**Symptom**: `Browser UUID: UUID not registered`, `Invalid or expired browser_id`, or tasks fail immediately
+
+**Solution**:
+1. Click the extension icon to reopen the UUID page
+2. Confirm the page status becomes `UUID Ready`
+3. Copy the current UUID again
+4. Re-run:
+   ```bash
+   python3 skill/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
+   ```
+5. If needed, refresh the extension and retry
+
 ### Extension Not Loading
 
 **Symptom**: "Manifest file is invalid" or similar error
@@ -99,7 +113,7 @@ uv run local-chrome-server serve --force
 
 **Solution**: Use `nohup` background mode:
 ```bash
-nohup python3 skill/open-browser/scripts/send_task.py "task" > /tmp/ob.log 2>&1 &
+OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID nohup python3 skill/open-browser/scripts/send_task.py "task" > /tmp/ob.log 2>&1 &
 sleep 120 && cat /tmp/ob.log
 ```
 

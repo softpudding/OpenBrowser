@@ -9,6 +9,7 @@ Main FastAPI application with modular routers for:
 - Frontend serving
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -23,9 +24,27 @@ from server.api.routes import (
     agent_router,
     config_router,
     frontend_router,
+    browsers_router,
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def uuid_cleanup_task():
+    """Background task to periodically clean up expired browser UUIDs.
+
+    Runs every hour to remove expired browser registrations and free resources.
+    """
+    while True:
+        await asyncio.sleep(3600)  # Every hour
+        try:
+            expired_uuids = ws_manager.cleanup_expired_browsers()
+            if expired_uuids:
+                logger.info(
+                    f"UUID cleanup: removed {len(expired_uuids)} expired browsers"
+                )
+        except Exception as e:
+            logger.error(f"Error during UUID cleanup: {e}")
 
 
 @asynccontextmanager
@@ -44,10 +63,22 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to start WebSocket server: {e}")
         logger.error("Extension connectivity will be limited")
 
+    # Start background cleanup task
+    cleanup_task = asyncio.create_task(uuid_cleanup_task())
+    logger.info("Started UUID cleanup background task")
+
     yield
 
     # Shutdown
     logger.info("Shutting down Local Chrome Server...")
+
+    # Cancel cleanup task
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+
     try:
         await ws_manager.stop()
     except Exception as e:
@@ -78,6 +109,7 @@ app.include_router(commands_router)
 app.include_router(agent_router)
 app.include_router(config_router)
 app.include_router(frontend_router)
+app.include_router(browsers_router)
 
 
 # WebSocket endpoint for real-time command execution

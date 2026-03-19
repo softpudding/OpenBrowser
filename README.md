@@ -98,6 +98,14 @@ npm run build
 3. Click **Load unpacked**
 4. Select the `extension/dist` directory
 
+After installation, OpenBrowser will open a browser-internal page that shows this browser's UUID.
+This UUID is the permission key for controlling that specific browser instance.
+
+Important:
+- Anyone who has this UUID can operate that browser through OpenBrowser
+- Do not share it casually
+- Clicking the extension icon will reopen the UUID page later
+
 #### 6. Configure Chrome Pop-up Settings (IMPORTANT)
 
 By default, Chrome blocks pop-up windows, which can prevent OpenBrowser from opening new tabs when clicking links. You need to configure Chrome to allow pop-ups:
@@ -125,6 +133,21 @@ http://localhost:8765
 ```
 
 You can now interact with the AI Agent through the web interface.
+
+Before sending commands:
+1. Copy the browser UUID from the extension page
+2. Paste it into the `BROWSER UUID` field in the frontend
+3. Start chatting
+
+The permission flow is:
+
+1. The Chrome extension connects to the server through WebSocket
+2. The server stores a `uuid -> websocket` mapping for that browser
+3. The frontend session asks the user for the UUID
+4. When the user sends a message, the frontend includes that UUID
+5. The server uses the UUID to route browser commands to the correct extension connection
+
+This means browser control is authorized by possession of the UUID capability token.
 
 ---
 
@@ -200,11 +223,14 @@ Our evaluation suite includes:
 # List available tests
 python eval/evaluate_browser_agent.py --list
 
+# Set the browser capability token once
+export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
+
 # Run all tests with both models
 python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
 
-# Run specific test
-python eval/evaluate_browser_agent.py --test techforum
+# Or pass the browser UUID explicitly per run
+python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID
 ```
 
 See [AGENTS.md](AGENTS.md#evaluation-system) for evaluation framework documentation.

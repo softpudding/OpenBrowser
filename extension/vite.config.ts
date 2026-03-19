@@ -32,6 +32,19 @@ const copyManifestPlugin = () => ({
       cpSync(publicSrc, publicDest, { recursive: true, force: true });
     }
     
+    // Copy UUID page HTML
+    const uuidPageSrc = resolve(__dirname, 'src/uuid/uuidPage.html');
+    const uuidPageDest = resolve(distDir, 'uuid/uuidPage.html');
+    if (existsSync(uuidPageSrc)) {
+      // Ensure uuid directory exists
+      const uuidDir = resolve(distDir, 'uuid');
+      if (!existsSync(uuidDir)) {
+        mkdirSync(uuidDir, { recursive: true });
+      }
+      cpSync(uuidPageSrc, uuidPageDest, { force: true });
+      console.log('✅ UUID page HTML copied to dist/uuid/');
+    }
+    
     console.log('✅ Manifest and assets copied to dist/');
   },
 });
@@ -50,6 +63,7 @@ export default defineConfig({
         background: resolve(__dirname, 'src/background/index.ts'),
         content: resolve(__dirname, 'src/content/index.ts'),
         'workers/image-processor.worker': resolve(__dirname, 'src/workers/image-processor.worker.ts'),
+        'uuid/uuidPage': resolve(__dirname, 'src/uuid/uuidPage.ts'),
       },
       output: {
         entryFileNames: '[name].js',

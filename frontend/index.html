@@ -101,6 +101,28 @@
             gap: 5px;
         }
 
+        #browser-id-input {
+            background: #222222;
+            border: 1px solid #444444;
+            color: #cccccc;
+            font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 2px 5px;
+            width: 260px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        #browser-id-input::placeholder {
+            color: #888888;
+            opacity: 0.8;
+        }
+
+        #browser-id-input:focus {
+            border-color: #666666;
+            box-shadow: 0 0 0 1px #444444;
+        }
+
         .container {
             display: flex;
             width: 100%;
@@ -1303,6 +1325,16 @@
                 SESSION: <span id="current-session-id" class="status-connected">New</span>
             </div>
             <div class="status-item" id="event-count">EVENTS: <span>0</span></div>
+            <div class="status-item">
+                <label for="browser-id-input">BROWSER UUID:</label>
+                <input
+                    type="text"
+                    id="browser-id-input"
+                    placeholder="Paste browser UUID from the extension"
+                    spellcheck="false"
+                    autocomplete="off"
+                >
+            </div>
             <div class="status-item" id="cwd-input-container">
                 <label for="cwd-input">CWD:</label>
                 <input type="text" id="cwd-input" placeholder="Enter working directory" value="/tmp">
@@ -1337,6 +1369,7 @@
                     </div>
                     <div class="event-content">
                         <div class="prompt-line">OpenBrowserAgent Terminal Interface v1.0</div>
+                        <div class="prompt-line">Paste your browser UUID before sending commands</div>
                         <div class="prompt-line">Type commands below to control the browser via AI</div>
                         <div class="prompt-line">System ready. Waiting for input...</div>
                     </div>
@@ -1381,6 +1414,10 @@
                         <div class="info-line">
                             <span class="info-label">Status:</span>
                             <span class="info-value" id="connection-status">Not connected</span>
+                        </div>
+                        <div class="info-line">
+                            <span class="info-label">Browser UUID:</span>
+                            <span class="info-value" id="browser-id-display">Required</span>
                         </div>
                         <div class="info-line">
                             <span class="info-label">Conversation:</span>
@@ -1616,6 +1653,7 @@
     <script>
         // Global variables
         let currentConversationId = null;
+        let currentBrowserId = null;
         let eventSource = null;
         let isProcessing = false;
         let isConversationRunning = false; // Track if conversation is actively running
@@ -1643,12 +1681,92 @@
         // Server URL configuration
         const isFileProtocol = window.location.protocol === 'file:';
         const serverBaseUrl = isFileProtocol ? 'http://127.0.0.1:8765' : '';
+        const BROWSER_ID_STORAGE_KEY = 'openbrowser_browser_id';
         
         // Helper function to build API URL
         function apiUrl(path) {
             // Remove leading slash if present to avoid double slashes
             const cleanPath = path.startsWith('/') ? path.substring(1) : path;
             return serverBaseUrl ? `${serverBaseUrl}/${cleanPath}` : `/${cleanPath}`;
+        }
+
+        function normalizeBrowserId(value) {
+            return (value || '').trim();
+        }
+
+        function updateBrowserIdDisplay() {
+            const display = document.getElementById('browser-id-display');
+            if (!display) {
+                return;
+            }
+
+            if (currentBrowserId) {
+                display.textContent = currentBrowserId;
+                display.title = currentBrowserId;
+            } else {
+                display.textContent = 'Required';
+                display.title = '';
+            }
+        }
+
+        function setBrowserId(browserId, options = {}) {
+            const normalized = normalizeBrowserId(browserId);
+            const previousBrowserId = currentBrowserId;
+            const browserInput = document.getElementById('browser-id-input');
+
+            currentBrowserId = normalized || null;
+
+            if (browserInput && browserInput.value !== normalized) {
+                browserInput.value = normalized;
+            }
+
+            if (currentBrowserId) {
+                localStorage.setItem(BROWSER_ID_STORAGE_KEY, currentBrowserId);
+            } else {
+                localStorage.removeItem(BROWSER_ID_STORAGE_KEY);
+            }
+
+            updateBrowserIdDisplay();
+
+            if (
+                previousBrowserId &&
+                currentBrowserId &&
+                previousBrowserId !== currentBrowserId &&
+                currentConversationId
+            ) {
+                const oldConversationId = currentConversationId;
+                currentConversationId = null;
+                sisyphusCurrentConversationId = null;
+                updateConversationIdDisplay();
+                updateSessionDisplay();
+                addEvent({
+                    type: 'SystemEvent',
+                    text: `Browser UUID changed. Cleared conversation ${oldConversationId.substring(0, 8)}... so the next command starts a fresh authorized session.`,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+
+        function requireBrowserId() {
+            const browserInput = document.getElementById('browser-id-input');
+            const browserId = normalizeBrowserId(
+                browserInput ? browserInput.value : currentBrowserId
+            );
+
+            if (!browserId) {
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: 'Please paste the browser UUID from the Chrome extension before sending commands.',
+                    timestamp: new Date().toISOString()
+                });
+                if (browserInput) {
+                    browserInput.focus();
+                }
+                return null;
+            }
+
+            setBrowserId(browserId);
+            return browserId;
         }
         
         // Sisyphus Mode Functions
@@ -1857,11 +1975,16 @@
             if (!sisyphusCurrentConversationId) {
                 try {
                     const cwd = document.getElementById('cwd-input').value.trim() || '/tmp';
+                    const browserId = requireBrowserId();
+                    if (!browserId) {
+                        stopSisyphus();
+                        return;
+                    }
                     console.log(`[Sisyphus] Creating new conversation with cwd: ${cwd}`);
                     const response = await fetch(apiUrl('agent/conversations'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ cwd: cwd })
+                        body: JSON.stringify({ cwd: cwd, browser_id: browserId })
                     });
                     const data = await response.json();
                     sisyphusCurrentConversationId = data.conversation_id;
@@ -2319,6 +2442,15 @@
             checkConfiguration();
             loadConfigToForm();
             initSisyphus();
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const browserIdFromUrl = urlParams.get('browser_id');
+            const savedBrowserId = browserIdFromUrl || localStorage.getItem(BROWSER_ID_STORAGE_KEY);
+            if (savedBrowserId) {
+                setBrowserId(savedBrowserId);
+            } else {
+                updateBrowserIdDisplay();
+            }
             
             // Check URL parameters for conversation_id (before localStorage)
             checkConversationId();
@@ -2360,6 +2492,10 @@
                 
                 // Reset CWD warning flag when CWD changes
                 cwdWarningShown = false;
+            });
+
+            document.getElementById('browser-id-input').addEventListener('change', function() {
+                setBrowserId(this.value);
             });
             
             // Initialize image click handlers
@@ -2465,6 +2601,15 @@
                 });
                 cwdWarningShown = true;
             }
+
+            const browserId = requireBrowserId();
+            if (!browserId) {
+                isProcessing = false;
+                document.getElementById('send-button').disabled = false;
+                document.getElementById('send-button').style.display = 'inline-block';
+                document.getElementById('pause-button').style.display = 'none';
+                return;
+            }
             
             // Create or use existing conversation
             let conversationId = currentConversationId;
@@ -2508,11 +2653,11 @@
             }
             
             // Setup SSE connection (cwd already validated)
-            setupEventSource(conversationId, command, cwd);
+            setupEventSource(conversationId, command, cwd, browserId);
         }
         
         // Setup SSE connection for receiving events
-        function setupEventSource(conversationId, command, cwd) {
+        function setupEventSource(conversationId, command, cwd, browserId) {
             const url = apiUrl(`agent/conversations/${conversationId}/messages`);
             console.log(`[Frontend] Setting up EventSource for URL: ${url}, cwd=${cwd}`);
             
@@ -2648,7 +2793,7 @@
             fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: command, cwd: cwd }),
+                body: JSON.stringify({ text: command, cwd: cwd, browser_id: browserId }),
                 signal: abortController.signal
             }).then(response => {
                 console.log(`[Frontend] POST response status: ${response.status}, ok: ${response.ok}, content-type: ${response.headers.get('content-type')}`);
@@ -3148,13 +3293,13 @@
             if (oldConversationId) {
                 addEvent({
                     type: 'SystemEvent',
-                    text: `Cleared conversation ID: ${oldConversationId}. A new UUID will be generated on next command.`,
+                    text: `Cleared conversation ID: ${oldConversationId}. A new conversation ID will be created on next command.`,
                     timestamp: new Date().toISOString()
                 });
             } else {
                 addEvent({
                     type: 'SystemEvent',
-                    text: 'No active conversation. A new UUID will be generated on next command.',
+                    text: 'No active conversation. A new conversation ID will be created on next command.',
                     timestamp: new Date().toISOString()
                 });
             }

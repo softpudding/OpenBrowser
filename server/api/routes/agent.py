@@ -15,6 +15,7 @@ from server.agent.agent import (
     list_conversations,
 )
 from server.core.session_manager import session_manager
+from server.websocket.manager import ws_manager
 from server.api.sse import (
     SSEEvent,
     create_sse_response_headers,
@@ -26,20 +27,59 @@ router = APIRouter(prefix="/agent/conversations", tags=["agent"])
 logger = logging.getLogger(__name__)
 
 
+def _require_valid_browser_id(browser_id: str | None) -> str:
+    """Require a valid, registered browser UUID."""
+    if not browser_id:
+        raise HTTPException(
+            status_code=400,
+            detail="browser_id is required. Open the extension UUID page and paste it here.",
+        )
+
+    if not ws_manager.is_browser_valid(browser_id):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid or expired browser_id: {browser_id}",
+        )
+
+    return browser_id
+
+
+def _authorize_conversation_browser_access(
+    conversation_id: str, _browser_id: str
+) -> None:
+    """Ensure the conversation exists before browser access is granted."""
+    session = session_manager.get_session(conversation_id)
+    if session is None:
+        raise HTTPException(
+            status_code=404, detail=f"Conversation {conversation_id} not found"
+        )
+
+
 @router.post("")
 async def create_conversation(request: Request):
-    """Create a new agent conversation"""
+    """Create a new agent conversation
+
+    Request body (JSON):
+        cwd: Working directory for the conversation (default: ".")
+        model: Optional model override
+        base_url: Optional base URL override
+        browser_id: Optional browser UUID capability token
+    """
     try:
-        # Parse request body for optional parameters
         body = await request.json() if request.body else {}
         cwd = body.get("cwd", ".")
         model = body.get("model")
         base_url = body.get("base_url")
+        browser_id = body.get("browser_id")
+
+        if browser_id is not None:
+            browser_id = _require_valid_browser_id(browser_id)
 
         conversation_id = await create_agent_conversation(
-            cwd=cwd, model=model, base_url=base_url
+            cwd=cwd, model=model, base_url=base_url, browser_id=browser_id
         )
-        return {
+
+        response = {
             "success": True,
             "conversation_id": conversation_id,
             "message": f"Conversation created: {conversation_id}",
@@ -47,6 +87,13 @@ async def create_conversation(request: Request):
             "model": model,
             "base_url": base_url,
         }
+
+        if browser_id is not None:
+            response["browser_id"] = browser_id
+
+        return response
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -132,6 +179,12 @@ async def agent_messages_stream(conversation_id: str, request: Request):
                 raise HTTPException(
                     status_code=400, detail="Message must contain 'text' field"
                 )
+
+            browser_id = _require_valid_browser_id(message_data.get("browser_id"))
+            _authorize_conversation_browser_access(conversation_id, browser_id)
+            session_manager.update_session_metadata(
+                conversation_id, {"browser_id": browser_id}
+            )
 
             # Extract cwd parameter with default value
             cwd = message_data.get("cwd", ".")
