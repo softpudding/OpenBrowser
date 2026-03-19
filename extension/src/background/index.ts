@@ -22,145 +22,13 @@ import { highlightSingleElement } from '../commands/single-highlight';
 import { elementCache } from '../commands/element-cache';
 import { generateElementId } from '../commands/hash-utils';
 import { performElementClick, performElementHover, performElementScroll, performKeyboardInput, performElementSelect } from '../commands/element-actions';
+import { LABEL_FONT_SIZE, LABEL_PADDING, LABEL_HEIGHT, MAX_LABEL_WIDTH } from '../commands/label-constants';
+import {
+  selectCollisionFreePage,
+  calculateTotalPages,
+} from '../utils/collision-detection';
 import type { Command, CommandResponse, InteractiveElement } from '../types';
 console.log('🚀 OpenBrowser extension starting (Strict Mode)...');
-
-// ============================================================================
-// Collision-Aware Pagination for Element Highlighting
-// ============================================================================
-
-/**
- * Label dimensions for collision detection (must match visual-highlight.ts)
- */
-const LABEL_FONT_SIZE = 16;
-const LABEL_PADDING = 5;
-const LABEL_HEIGHT = LABEL_FONT_SIZE + LABEL_PADDING * 2; // 26px total
-const MAX_LABEL_WIDTH = 120; // Maximum label width for collision detection (e.g., "clickable-999")
-
-interface BBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-
-/**
- * Check if two bounding boxes intersect
- */
-function bboxesIntersect(a: BBox, b: BBox): boolean {
-  return !(
-    a.x + a.width < b.x ||
-    b.x + b.width < a.x ||
-    a.y + a.height < b.y ||
-    b.y + b.height < a.y
-  );
-}
-
-/**
- * Expand bbox to include label area (label is drawn above the element)
- */
-function expandBBoxWithLabel(bbox: BBox): BBox {
-  // Label is drawn above the element, starting from element's left edge
-  // Label width may exceed element width, causing horizontal overlap
-  const labelWidth = Math.max(bbox.width, MAX_LABEL_WIDTH);
-  return {
-    x: bbox.x,
-    y: bbox.y - LABEL_HEIGHT, // Extend upward for label
-    width: labelWidth,          // Use max of element width and label width
-    height: bbox.height + LABEL_HEIGHT,
-  };
-}
-
-/**
- * Check if two elements collide (including their labels)
- */
-function elementsCollide(a: InteractiveElement, b: InteractiveElement): boolean {
-  const expandedA = expandBBoxWithLabel(a.bbox);
-  const expandedB = expandBBoxWithLabel(b.bbox);
-  return bboxesIntersect(expandedA, expandedB);
-}
-
-/**
- * Select a collision-free page of elements using greedy algorithm
- * 
- * @param elements - All elements sorted by priority
- * @param page - 1-indexed page number
- * @returns Elements for the requested page (collision-free)
- */
-function selectCollisionFreePage(
-  elements: InteractiveElement[],
-  page: number
-): InteractiveElement[] {
-  if (elements.length === 0 || page < 1) {
-    return [];
-  }
-
-  let remaining = [...elements];
-  let result: InteractiveElement[] = [];
-
-  for (let p = 1; p <= page; p++) {
-    const selected: InteractiveElement[] = [];
-
-    for (const elem of remaining) {
-      // Check if this element collides with any already selected in this page
-      const collides = selected.some(s => elementsCollide(elem, s));
-      if (!collides) {
-        selected.push(elem);
-      }
-    }
-
-    if (p === page) {
-      result = selected;
-      break;
-    }
-
-    // Remove selected elements from remaining for next page
-    const selectedIds = new Set(selected.map(e => e.id));
-    remaining = remaining.filter(e => !selectedIds.has(e.id));
-  }
-
-  return result;
-}
-
-/**
- * Calculate total number of collision-free pages
- * This pre-computes the pagination to determine how many pages exist
- * 
- * @param elements - All elements sorted by priority
- * @returns Total number of pages
- */
-function calculateTotalPages(elements: InteractiveElement[]): number {
-  if (elements.length === 0) {
-    return 0;
-  }
-
-  let remaining = [...elements];
-  let totalPages = 0;
-
-  while (remaining.length > 0) {
-    const selected: InteractiveElement[] = [];
-
-    for (const elem of remaining) {
-      const collides = selected.some(s => elementsCollide(elem, s));
-      if (!collides) {
-        selected.push(elem);
-      }
-    }
-
-    // Safety check: if no elements were selected, break to prevent infinite loop
-    if (selected.length === 0) {
-      break;
-    }
-
-    totalPages++;
-    const selectedIds = new Set(selected.map(e => e.id));
-    remaining = remaining.filter(e => !selectedIds.has(e.id));
-  }
-
-  return totalPages;
-}
-
 
 // ============================================================================
 // Command Queue Management System
@@ -1124,9 +992,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           throw new Error(`No active tab for conversation ${conversationId}`);
         }
         
-        const elementType = command.element_type || 'clickable';
-        const page = command.page || 1;  // 1-indexed page for collision-aware pagination
         const keywords = command.keywords;
+        const elementType = command.element_type || (keywords ? 'any' : 'clickable');
+        const page = command.page || 1;
         
         // Build script to detect elements IN PAGE CONTEXT
         const detectionScript = `
@@ -1230,7 +1098,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             
             function isClickable(el) {
               const tag = el.tagName.toLowerCase();
-              
+
+              // Exclude <select> elements - they should be detected as 'selectable' type
+              // <select>'s intent is to "choose a value", not "trigger/click"
+              if (tag === 'select') return false;
+
               // Check tag names
               if (tag === 'a' || tag === 'button') return true;
               
@@ -1435,7 +1307,15 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               if (!isInViewport(el)) continue;
               
               let type = null;
-              if (elementType === 'clickable' && isClickable(el)) type = 'clickable';
+              if (elementType === 'any') {
+                // Check all types in priority order, assign first match
+                // Priority: clickable > scrollable > inputable > hoverable > selectable
+                if (isClickable(el)) type = 'clickable';
+                else if (isScrollable(el)) type = 'scrollable';
+                else if (isInputable(el)) type = 'inputable';
+                else if (isHoverable(el)) type = 'hoverable';
+                else if (isSelectable(el)) type = 'selectable';
+              } else if (elementType === 'clickable' && isClickable(el)) type = 'clickable';
               else if (elementType === 'scrollable' && isScrollable(el)) type = 'scrollable';
               else if (elementType === 'inputable' && isInputable(el)) type = 'inputable';
               else if (elementType === 'hoverable' && isHoverable(el)) type = 'hoverable';
@@ -2013,3 +1893,17 @@ tabManager.addTabSwitchedListener((conversationId: string, tabId: number) => {
 });
 
 console.log('✅ OpenBrowser extension loaded (Strict Mode)');
+
+// Export constants and functions for testing
+export { LABEL_FONT_SIZE, LABEL_PADDING, LABEL_HEIGHT, MAX_LABEL_WIDTH };
+export {
+  expandBBoxWithLabel,
+  elementsCollide,
+  selectCollisionFreePage,
+  getLabelBBox,
+  bboxesIntersect,
+  isLabelWithinViewport,
+  calculateTotalPages,
+  type LabelPosition,
+} from '../utils/collision-detection';
+export type { BBox } from '../utils/collision-detection';

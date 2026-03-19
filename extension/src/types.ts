@@ -269,7 +269,7 @@ export interface WebSocketMessage {
 }
 
 // Visual interaction types
-export type ElementType = 'clickable' | 'scrollable' | 'inputable' | 'hoverable' | 'selectable';
+export type ElementType = 'clickable' | 'scrollable' | 'inputable' | 'hoverable' | 'selectable' | 'any';
 
 export interface InteractiveElement {
   id: string;                    // Element ID: 6-char hash from CSS path (e.g., "a3f2b1")
@@ -286,6 +286,7 @@ export interface InteractiveElement {
   };
   isVisible: boolean;            // Is element visible
   isInViewport: boolean;         // Is element in viewport
+  labelPosition?: 'above' | 'below' | 'left' | 'right';  // Position of element label
 }
 
 export interface HighlightOptions {

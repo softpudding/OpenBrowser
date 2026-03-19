@@ -5,6 +5,7 @@
  */
 
 import type { InteractiveElement, ElementType, HighlightOptions } from '../types';
+import { LABEL_FONT_SIZE, LABEL_PADDING } from './label-constants';
 
 /**
  * Color mapping for different element types (with transparency for label backgrounds)
@@ -15,6 +16,7 @@ const COLORS: Record<ElementType, string> = {
   inputable: '#FF9900',
   hoverable: '#9966FF',
   selectable: '#FF6B6B',
+  any: '#00CCCC',
 };
 
 /**
@@ -26,6 +28,7 @@ const LABEL_BG_COLORS: Record<ElementType, string> = {
   inputable: 'rgba(255, 153, 0, 0.7)',
   hoverable: 'rgba(153, 102, 255, 0.7)',
   selectable: 'rgba(255, 107, 107, 0.7)',
+  any: 'rgba(0, 204, 204, 0.7)',
 };
 
 /**
@@ -34,11 +37,8 @@ const LABEL_BG_COLORS: Record<ElementType, string> = {
 const MAX_ELEMENTS = 50;
 
 /**
-/**
  * Base sizes in CSS pixels (will be multiplied by scale for device pixels)
  */
-const BASE_FONT_SIZE = 16; // Font size at scale=1
-const BASE_LABEL_PADDING = 4; // Label padding at scale=1 (reduced for less coverage)
 const BASE_BOX_PADDING = 1; // Box padding at scale=1 (minimal to avoid covering content)
 const BASE_LINE_WIDTH = 1.5; // Box border width at scale=1 (thinner to reduce overlap)
 
@@ -373,7 +373,7 @@ function drawBoundingBox(ctx: OffscreenCanvasRenderingContext2D, element: Intera
 
   // Draw element ID label with transparent background
   const bgColor = LABEL_BG_COLORS[element.type] || 'rgba(200, 200, 200, 0.7)';
-  drawLabel(ctx, element.id, boxX, boxY, bgColor, scale);
+  drawLabel(ctx, element.id, boxX, boxY, boxWidth, boxHeight, bgColor, scale, element.labelPosition || 'above');
 }
 
 /**
@@ -391,12 +391,15 @@ function drawLabel(
   text: string,
   x: number,
   y: number,
+  width: number,
+  height: number,
   bgColor: string,
   scale: number,
+  position: 'above' | 'below' | 'left' | 'right' = 'above',
 ): void {
   // Calculate device-pixel values from base CSS sizes
-  const fontSize = Math.round(BASE_FONT_SIZE * scale);
-  const labelPadding = Math.round(BASE_LABEL_PADDING * scale);
+  const fontSize = Math.round(LABEL_FONT_SIZE * scale);
+  const labelPadding = Math.round(LABEL_PADDING * scale);
 
   // Set font before measuring text
   ctx.font = `bold ${fontSize}px Arial`;
@@ -410,13 +413,36 @@ function drawLabel(
   const labelWidth = textWidth + labelPadding * 2;
   const labelHeight = textHeight + labelPadding * 2;
 
-  // Position label above the box (or inside if at top edge)
-  let labelX = x;
-  let labelY = y - labelHeight;
+  let labelX: number;
+  let labelY: number;
 
-  // If label would go above canvas, position it inside the box
-  if (labelY < 0) {
-    labelY = y;
+  switch (position) {
+    case 'above':
+      labelX = x;
+      labelY = y - labelHeight;
+      // If label would go above canvas, position it inside the box
+      if (labelY < 0) {
+        labelY = y;
+      }
+      break;
+    case 'below':
+      labelX = x;
+      labelY = y + height;
+      break;
+    case 'left':
+      labelX = x - labelWidth;
+      labelY = y;
+      break;
+    case 'right':
+      labelX = x + width;
+      labelY = y;
+      break;
+    default:
+      labelX = x;
+      labelY = y - labelHeight;
+      if (labelY < 0) {
+        labelY = y;
+      }
   }
 
   // Draw label background
@@ -438,3 +464,6 @@ function drawLabel(
 export function getElementColor(type: ElementType): string {
   return COLORS[type] || '#CCCCCC';
 }
+
+// Re-export constants for testing
+export { LABEL_FONT_SIZE as BASE_FONT_SIZE, LABEL_PADDING as BASE_LABEL_PADDING };

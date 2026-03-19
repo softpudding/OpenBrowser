@@ -50,8 +50,8 @@ class HighlightAction(OpenBrowserAction):
     """Action for highlighting interactive elements on a web page."""
 
     element_type: str = Field(
-        default="clickable",
-        description="Single element type to highlight: clickable/scrollable/inputable/hoverable/selectable",
+        default="any",
+        description="Single element type to highlight: clickable/scrollable/inputable/hoverable/selectable/any. Defaults to 'clickable' without keywords, 'any' when keywords provided.",
     )
     page: int = Field(
         default=1,
