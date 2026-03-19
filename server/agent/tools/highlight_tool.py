@@ -20,6 +20,7 @@ from openhands.sdk.tool import (
 )
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
+from server.agent.tools.prompt_context import get_prompt_render_context
 
 
 # Setup Jinja2 template environment for prompts
@@ -34,7 +35,7 @@ _TEMPLATE_ENV = jinja2.Environment(
 _HIGHLIGHT_TOOL_TEMPLATE = None
 
 
-def get_highlight_tool_description() -> str:
+def get_highlight_tool_description(conv_state=None) -> str:
     """Get the HighlightTool description, rendered from Jinja2 template."""
     global _HIGHLIGHT_TOOL_TEMPLATE
 
@@ -43,7 +44,7 @@ def get_highlight_tool_description() -> str:
         _HIGHLIGHT_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template("highlight_tool.j2")
 
     # Render template with context
-    return _HIGHLIGHT_TOOL_TEMPLATE.render()
+    return _HIGHLIGHT_TOOL_TEMPLATE.render(**get_prompt_render_context(conv_state))
 
 
 class HighlightAction(OpenBrowserAction):
@@ -96,7 +97,7 @@ class HighlightTool(ToolDefinition[HighlightAction, OpenBrowserObservation]):
 
         return [
             cls(
-                description=get_highlight_tool_description(),
+                description=get_highlight_tool_description(conv_state),
                 action_type=HighlightAction,
                 observation_type=OpenBrowserObservation,
                 annotations=ToolAnnotations(

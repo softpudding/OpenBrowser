@@ -1,3 +1,39 @@
+{% if small_model %}
+# Highlight Tool
+
+Find elements before interacting.
+
+## Core Rules
+
+1. Prefer `element_type: "any"` first.
+2. Use the screenshot and returned HTML together.
+3. If the target is not visible, change `page` or use `keywords`.
+4. Do not guess an `element_id` without a highlight result.
+
+## Command
+
+```json
+{}                              
+{ "element_type": "any" }
+{ "element_type": "inputable" }
+{ "element_type": "scrollable" }
+{ "element_type": "selectable" }
+{ "page": 2 }
+{ "keywords": ["Submit", "提交"] }
+```
+
+## Selection Strategy
+
+- If you know the target text, try `keywords` first
+- If you do not know the exact text, use `element_type: "any"`
+- If many elements overlap across pages, stay on the same `element_type` and increment `page`
+
+## After Highlight
+
+- Pick one `element_id`
+- Use the matching action in `element_interaction`
+- If the chosen element is wrong, highlight again instead of guessing
+{% else %}
 # Highlight Tool
 
 Element discovery with collision-free visual overlays.
@@ -167,3 +203,4 @@ The highlight tool always returns a screenshot with blue overlays.
 - **No elements found**: Returns empty element list but still provides screenshot.
 - **Invalid element_type**: Returns error.
 - **Page out of range**: Returns empty element list for that page.
+{% endif %}

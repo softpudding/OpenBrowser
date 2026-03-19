@@ -867,8 +867,23 @@
             font-size: 14px;
             font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
         }
+
+        .form-group select {
+            background: #1a1a1a;
+            border: 1px solid #444444;
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+        }
         
         .form-group input:focus {
+            outline: none;
+            border-color: #666666;
+        }
+
+        .form-group select:focus {
             outline: none;
             border-color: #666666;
         }
@@ -908,6 +923,22 @@
         .btn-primary:hover {
             background: #444444;
             border-color: #777777;
+        }
+
+        .btn-secondary {
+            background: #1f1f1f;
+            color: #cccccc;
+            padding: 10px 20px;
+            border: 1px solid #444444;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #2c2c2c;
+            border-color: #666666;
         }
         
         .btn-success {
@@ -956,6 +987,82 @@
         .settings-btn:hover {
             background: #666666;
             transform: rotate(90deg);
+        }
+
+        .model-select {
+            background: #222222;
+            border: 1px solid #444444;
+            color: #cccccc;
+            font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 2px 5px;
+            width: 260px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .model-select:focus {
+            border-color: #666666;
+            box-shadow: 0 0 0 1px #444444;
+        }
+
+        .model-config-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .model-config-card {
+            border: 1px solid #444444;
+            border-radius: 6px;
+            background: #1a1a1a;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .model-config-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .model-config-title {
+            color: #cccccc;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .model-config-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .model-config-default {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #aaaaaa;
+            font-size: 12px;
+        }
+
+        .model-config-remove {
+            background: #2d1515;
+            border: 1px solid #5f2b2b;
+            color: #cccccc;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .model-config-remove:hover {
+            background: #4a1d1d;
+            border-color: #7f3d3d;
         }
         
         /* Main Interface Container */
@@ -1340,6 +1447,12 @@
                 <input type="text" id="cwd-input" placeholder="Enter working directory" value="/tmp">
             </div>
             <div class="status-item">
+                <label for="model-select">MODEL:</label>
+                <select id="model-select" class="model-select" onchange="handleSelectedModelChange()">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="status-item">
                 <button onclick="openSessionManager()" style="background: #333333; border: 1px solid #555555; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;" title="Session Manager">
                     🗂️ Sessions
                 </button>
@@ -1546,30 +1659,14 @@
             <div id="config-llm-tab" class="config-tab-content active">
                 <form onsubmit="saveLLMConfig(event)" class="config-form">
                     <div class="form-group">
-                        <label for="config-model">Model:</label>
-                        <input type="text" id="config-model" 
-                               placeholder="dashscope/qwen3.5-plus" 
-                               value="dashscope/qwen3.5-plus">
-                        <small class="help-text">Default: dashscope/qwen3.5-plus</small>
+                        <label>Configured Models:</label>
+                        <div id="config-llm-list" class="model-config-list"></div>
+                        <small class="help-text">Each model config includes alias, model name, base URL, and API key. One alias must be marked as default.</small>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="config-base-url">Base URL:</label>
-                        <input type="text" id="config-base-url" 
-                               placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
-                               value="https://dashscope.aliyuncs.com/compatible-mode/v1">
-                        <small class="help-text">Default: https://dashscope.aliyuncs.com/compatible-mode/v1</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="config-api-key">API Key <span class="required">*</span>:</label>
-                        <input type="password" id="config-api-key" 
-                               placeholder="Enter your API key">
-                        <small class="help-text">Your API key is required and will be stored locally</small>
-                    </div>
-                    
+
                     <div class="form-actions">
-                        <button type="submit" class="btn-primary">Save LLM Config</button>
+                        <button type="button" class="btn-secondary" onclick="addModelConfigCard()">+ Add Model</button>
+                        <button type="submit" class="btn-primary">Save Model Configs</button>
                     </div>
                 </form>
             </div>
@@ -1668,6 +1765,7 @@
         let events = []; // Store all events for filtering
         let currentImageUrl = null; // Track current displayed image URL
         let cwdWarningShown = false; // Track if CWD warning has been shown
+        let selectedModelAlias = null;
         
         // Sisyphus mode variables
         let sisyphusEnabled = false;
@@ -1682,6 +1780,7 @@
         const isFileProtocol = window.location.protocol === 'file:';
         const serverBaseUrl = isFileProtocol ? 'http://127.0.0.1:8765' : '';
         const BROWSER_ID_STORAGE_KEY = 'openbrowser_browser_id';
+        const MODEL_ALIAS_STORAGE_KEY = 'openbrowser_model_alias';
         
         // Helper function to build API URL
         function apiUrl(path) {
@@ -1767,6 +1866,217 @@
 
             setBrowserId(browserId);
             return browserId;
+        }
+
+        function formatModelOptionLabel(config) {
+            const alias = config.alias || 'default';
+            return `${config.model}(${alias})`;
+        }
+
+        function getConfiguredModels() {
+            return Array.isArray(appConfig?.llm_configs) ? appConfig.llm_configs : [];
+        }
+
+        function getSelectedModelAlias() {
+            const models = getConfiguredModels();
+            if (selectedModelAlias && models.some(config => config.alias === selectedModelAlias)) {
+                return selectedModelAlias;
+            }
+            if (appConfig?.default_llm_alias && models.some(config => config.alias === appConfig.default_llm_alias)) {
+                return appConfig.default_llm_alias;
+            }
+            return models[0]?.alias || null;
+        }
+
+        function updateContinueButtonVisibility() {
+            const continueBtn = document.getElementById('config-continue-btn');
+            if (!continueBtn) {
+                return;
+            }
+            continueBtn.style.display = appConfig?.is_configured ? 'inline-block' : 'none';
+        }
+
+        function populateModelSelect() {
+            const select = document.getElementById('model-select');
+            if (!select) {
+                return;
+            }
+
+            const models = getConfiguredModels();
+            select.innerHTML = '';
+
+            if (models.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No configured models';
+                select.appendChild(option);
+                select.disabled = true;
+                selectedModelAlias = null;
+                localStorage.removeItem(MODEL_ALIAS_STORAGE_KEY);
+                return;
+            }
+
+            const normalizedSelectedAlias = getSelectedModelAlias();
+            selectedModelAlias = normalizedSelectedAlias;
+
+            models.forEach(config => {
+                const option = document.createElement('option');
+                option.value = config.alias;
+                option.textContent = formatModelOptionLabel(config);
+                option.selected = config.alias === normalizedSelectedAlias;
+                select.appendChild(option);
+            });
+
+            select.disabled = false;
+            if (normalizedSelectedAlias) {
+                localStorage.setItem(MODEL_ALIAS_STORAGE_KEY, normalizedSelectedAlias);
+            }
+        }
+
+        function clearConversationForModelChange(alias) {
+            if (!currentConversationId) {
+                return;
+            }
+
+            const oldConversationId = currentConversationId;
+            currentConversationId = null;
+            sisyphusCurrentConversationId = null;
+            updateConversationIdDisplay();
+            updateSessionDisplay();
+            addEvent({
+                type: 'SystemEvent',
+                text: `Model changed to "${alias}". Cleared conversation ${oldConversationId.substring(0, 8)}... so the next command starts a fresh session with the selected model.`,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function handleSelectedModelChange() {
+            const select = document.getElementById('model-select');
+            if (!select) {
+                return;
+            }
+
+            const nextAlias = select.value || null;
+            const previousAlias = selectedModelAlias;
+            selectedModelAlias = nextAlias;
+
+            if (selectedModelAlias) {
+                localStorage.setItem(MODEL_ALIAS_STORAGE_KEY, selectedModelAlias);
+            } else {
+                localStorage.removeItem(MODEL_ALIAS_STORAGE_KEY);
+            }
+
+            if (previousAlias && nextAlias && previousAlias !== nextAlias) {
+                clearConversationForModelChange(nextAlias);
+            }
+        }
+
+        function createModelConfigCard(config = {}, isDefault = false) {
+            const card = document.createElement('div');
+            card.className = 'model-config-card';
+            card.innerHTML = `
+                <div class="model-config-card-header">
+                    <div class="model-config-title">Model Config</div>
+                    <div class="model-config-actions">
+                        <label class="model-config-default">
+                            <input type="radio" name="default-llm-config" class="config-default-radio" ${isDefault ? 'checked' : ''}>
+                            Default
+                        </label>
+                        <button type="button" class="model-config-remove" onclick="removeModelConfigCard(this)">Remove</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Alias:</label>
+                    <input type="text" class="config-model-alias" placeholder="default" value="${config.alias || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Model:</label>
+                    <input type="text" class="config-model-name" placeholder="dashscope/qwen3.5-plus" value="${config.model || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Base URL:</label>
+                    <input type="text" class="config-model-base-url" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" value="${config.base_url || ''}">
+                </div>
+                <div class="form-group">
+                    <label>API Key <span class="required">*</span>:</label>
+                    <input type="password" class="config-model-api-key" placeholder="${config.has_api_key ? 'API key configured (hidden)' : 'Enter your API key'}" value="${config.api_key || ''}">
+                    <small class="help-text">Use alias to identify this config in the model dropdown.</small>
+                </div>
+            `;
+            return card;
+        }
+
+        function addModelConfigCard(config = null) {
+            const list = document.getElementById('config-llm-list');
+            if (!list) {
+                return;
+            }
+
+            const existingCards = list.querySelectorAll('.model-config-card');
+            const shouldBeDefault = existingCards.length === 0;
+            const card = createModelConfigCard(
+                config || {
+                    alias: '',
+                    model: 'dashscope/qwen3.5-plus',
+                    base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+                    api_key: '',
+                    has_api_key: false
+                },
+                config ? !!config.is_default : shouldBeDefault
+            );
+            list.appendChild(card);
+        }
+
+        function removeModelConfigCard(button) {
+            const card = button.closest('.model-config-card');
+            const list = document.getElementById('config-llm-list');
+            if (!card || !list) {
+                return;
+            }
+
+            card.remove();
+
+            const radios = list.querySelectorAll('.config-default-radio');
+            if (radios.length > 0 && !Array.from(radios).some(radio => radio.checked)) {
+                radios[0].checked = true;
+            }
+        }
+
+        function renderModelConfigCards() {
+            const list = document.getElementById('config-llm-list');
+            if (!list) {
+                return;
+            }
+
+            list.innerHTML = '';
+            const models = getConfiguredModels();
+
+            if (models.length === 0) {
+                addModelConfigCard();
+                return;
+            }
+
+            models.forEach(config => {
+                addModelConfigCard(config);
+            });
+        }
+
+        function collectModelConfigsFromForm() {
+            const cards = Array.from(document.querySelectorAll('#config-llm-list .model-config-card'));
+            const configs = cards.map(card => {
+                return {
+                    alias: card.querySelector('.config-model-alias').value.trim(),
+                    model: card.querySelector('.config-model-name').value.trim(),
+                    base_url: card.querySelector('.config-model-base-url').value.trim(),
+                    api_key: card.querySelector('.config-model-api-key').value.trim()
+                };
+            });
+
+            const defaultIndex = cards.findIndex(card => card.querySelector('.config-default-radio').checked);
+            return {
+                configs,
+                defaultAlias: defaultIndex >= 0 ? configs[defaultIndex].alias : null
+            };
         }
         
         // Sisyphus Mode Functions
@@ -1984,7 +2294,11 @@
                     const response = await fetch(apiUrl('agent/conversations'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ cwd: cwd, browser_id: browserId })
+                        body: JSON.stringify({
+                            cwd: cwd,
+                            browser_id: browserId,
+                            model_alias: getSelectedModelAlias()
+                        })
                     });
                     const data = await response.json();
                     sisyphusCurrentConversationId = data.conversation_id;
@@ -2186,7 +2500,10 @@
                 const response = await fetch(apiUrl('/agent/conversations'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ cwd: cwd })
+                    body: JSON.stringify({
+                        cwd: cwd,
+                        model_alias: getSelectedModelAlias()
+                    })
                 });
                 
                 const data = await response.json();
@@ -2620,7 +2937,10 @@
                     const response = await fetch(apiUrl('agent/conversations'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ cwd: cwd })
+                        body: JSON.stringify({
+                            cwd: cwd,
+                            model_alias: getSelectedModelAlias()
+                        })
                     });
                     const data = await response.json();
                     conversationId = data.conversation_id;
@@ -3381,6 +3701,14 @@
                 }
                 const data = await response.json();
                 appConfig = data.config;
+                const savedModelAlias = localStorage.getItem(MODEL_ALIAS_STORAGE_KEY);
+                if (savedModelAlias && getConfiguredModels().some(config => config.alias === savedModelAlias)) {
+                    selectedModelAlias = savedModelAlias;
+                } else {
+                    selectedModelAlias = appConfig.default_llm_alias || null;
+                }
+                populateModelSelect();
+                updateContinueButtonVisibility();
                 
                 if (!appConfig.is_configured) {
                     showConfigPage();
@@ -3425,12 +3753,16 @@
                 }
                 const data = await response.json();
                 appConfig = data.config;
+                const savedModelAlias = localStorage.getItem(MODEL_ALIAS_STORAGE_KEY);
+                if (savedModelAlias && getConfiguredModels().some(config => config.alias === savedModelAlias)) {
+                    selectedModelAlias = savedModelAlias;
+                } else {
+                    selectedModelAlias = appConfig.default_llm_alias || null;
+                }
                 
-                // Populate LLM config form
-                document.getElementById('config-model').value = appConfig.llm.model || 'dashscope/qwen3.5-plus';
-                document.getElementById('config-base-url').value = appConfig.llm.base_url || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-                document.getElementById('config-api-key').value = appConfig.llm.api_key || '';
-                document.getElementById('config-api-key').placeholder = appConfig.llm.has_api_key ? 'API key configured (hidden)' : 'Enter your API key';
+                renderModelConfigCards();
+                populateModelSelect();
+                updateContinueButtonVisibility();
                 
                 // Populate CWD config form
                 document.getElementById('config-default-cwd').value = appConfig.default_cwd || '/tmp';
@@ -3447,13 +3779,47 @@
         // Save LLM configuration
         async function saveLLMConfig(event) {
             event.preventDefault();
-            
-            const model = document.getElementById('config-model').value || 'dashscope/qwen3.5-plus';
-            const baseUrl = document.getElementById('config-base-url').value || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-            const apiKey = document.getElementById('config-api-key').value;
-            
-            if (!apiKey && !appConfig?.llm?.has_api_key) {
-                alert('API key is required');
+
+            const { configs, defaultAlias } = collectModelConfigsFromForm();
+            if (configs.length === 0) {
+                alert('At least one model config is required');
+                return;
+            }
+
+            const aliasSet = new Set();
+            for (const config of configs) {
+                if (!config.alias) {
+                    alert('Alias is required for every model config');
+                    return;
+                }
+                if (aliasSet.has(config.alias)) {
+                    alert(`Duplicate alias found: ${config.alias}`);
+                    return;
+                }
+                aliasSet.add(config.alias);
+
+                if (!config.model) {
+                    alert(`Model is required for alias "${config.alias}"`);
+                    return;
+                }
+                if (!config.base_url) {
+                    alert(`Base URL is required for alias "${config.alias}"`);
+                    return;
+                }
+
+                const existingConfig = getConfiguredModels().find(item => item.alias === config.alias);
+                const hasExistingKey = existingConfig?.has_api_key;
+                if (!config.api_key && !hasExistingKey) {
+                    alert(`API key is required for alias "${config.alias}"`);
+                    return;
+                }
+                if (!config.api_key && hasExistingKey) {
+                    config.api_key = '********';
+                }
+            }
+
+            if (!defaultAlias || !aliasSet.has(defaultAlias)) {
+                alert('Please mark one model config as default');
                 return;
             }
             
@@ -3464,9 +3830,8 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model: model,
-                        base_url: baseUrl,
-                        api_key: apiKey || '********'  // Send masked value to keep existing
+                        configs: configs,
+                        default_alias: defaultAlias
                     })
                 });
                 
@@ -3477,24 +3842,33 @@
                 
                 const data = await response.json();
                 console.log('LLM configuration saved:', data);
-                
-                // Update appConfig
-                if (!appConfig) appConfig = { llm: {}, default_cwd: '/tmp' };
-                appConfig.llm.model = data.config.model;
-                appConfig.llm.base_url = data.config.base_url;
-                appConfig.llm.has_api_key = data.config.has_api_key;
-                
+
+                if (!appConfig) appConfig = { default_cwd: '/tmp' };
+                appConfig.llm = data.config;
+                appConfig.llm_configs = data.configs;
+                appConfig.default_llm_alias = data.default_alias;
+                appConfig.is_configured = data.configs.some(config => config.has_api_key);
+                if (!selectedModelAlias || !data.configs.some(config => config.alias === selectedModelAlias)) {
+                    selectedModelAlias = data.default_alias;
+                }
+                renderModelConfigCards();
+                populateModelSelect();
+                updateContinueButtonVisibility();
+
+                if (currentConversationId) {
+                    const oldConversationId = currentConversationId;
+                    currentConversationId = null;
+                    sisyphusCurrentConversationId = null;
+                    updateConversationIdDisplay();
+                    updateSessionDisplay();
+                    addEvent({
+                        type: 'SystemEvent',
+                        text: `Model settings updated. Cleared conversation ${oldConversationId.substring(0, 8)}... so the next command uses the latest selected model configuration.`,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
                 alert('LLM configuration saved successfully!');
-                
-                // Check if fully configured
-                if (appConfig.is_configured !== undefined) {
-                    appConfig.is_configured = appConfig.llm.has_api_key;
-                }
-                
-                // If configured, allow to continue
-                if (appConfig.llm.has_api_key) {
-                    document.getElementById('config-continue-btn').style.display = 'inline-block';
-                }
             } catch (error) {
                 console.error('Error saving LLM configuration:', error);
                 alert(`Error saving configuration: ${error.message}`);
@@ -3532,7 +3906,7 @@
                 console.log('CWD configuration saved:', data);
                 
                 // Update appConfig
-                if (!appConfig) appConfig = { llm: {}, default_cwd: '/tmp' };
+                if (!appConfig) appConfig = { llm: {}, llm_configs: [], default_cwd: '/tmp' };
                 appConfig.default_cwd = data.default_cwd;
                 
                 // Update main interface CWD input
@@ -3547,12 +3921,12 @@
         
         // Continue to main interface
         function continueToMain() {
-            if (appConfig && appConfig.llm && appConfig.llm.has_api_key) {
+            if (appConfig && appConfig.is_configured) {
                 hideConfigPage();
                 // Reload configuration to ensure CWD is updated
                 checkConfiguration();
             } else {
-                alert('Please configure your API key first');
+                alert('Please configure at least one model with an API key first');
             }
         }
         
@@ -3565,13 +3939,13 @@
         // Switch configuration tabs
         function switchConfigTab(tabName) {
             // Update tab buttons
-            document.querySelectorAll('.config-tab').forEach(tab => {
+            document.querySelectorAll('#config-page .config-tab').forEach(tab => {
                 tab.classList.remove('active');
             });
             event.target.classList.add('active');
             
             // Update tab content
-            document.querySelectorAll('.config-tab-content').forEach(content => {
+            document.querySelectorAll('#config-page .config-tab-content').forEach(content => {
                 content.style.display = 'none';
                 content.classList.remove('active');
             });

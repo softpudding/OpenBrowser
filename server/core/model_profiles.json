@@ -1,0 +1,15 @@
+{
+  "default_profile": "large",
+  "profiles": {
+    "large": {
+      "models": [
+        "dashscope/qwen3.5-plus"
+      ]
+    },
+    "small": {
+      "models": [
+        "dashscope/qwen3.5-flash"
+      ]
+    }
+  }
+}

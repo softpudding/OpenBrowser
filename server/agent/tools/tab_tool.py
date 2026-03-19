@@ -15,6 +15,7 @@ from openhands.sdk.tool import ToolDefinition, ToolAnnotations, ToolExecutor, re
 from pydantic import Field
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
+from server.agent.tools.prompt_context import get_prompt_render_context
 
 
 # Setup Jinja2 template environment for prompts
@@ -29,7 +30,7 @@ _TEMPLATE_ENV = jinja2.Environment(
 _TAB_TOOL_TEMPLATE = None
 
 
-def get_tab_tool_description() -> str:
+def get_tab_tool_description(conv_state=None) -> str:
     """Get the TabTool description, rendered from Jinja2 template."""
     global _TAB_TOOL_TEMPLATE
     
@@ -38,7 +39,7 @@ def get_tab_tool_description() -> str:
         _TAB_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template('tab_tool.j2')
     
     # Render template with context
-    return _TAB_TOOL_TEMPLATE.render()
+    return _TAB_TOOL_TEMPLATE.render(**get_prompt_render_context(conv_state))
 
 
 class TabAction(OpenBrowserAction):
@@ -88,7 +89,7 @@ class TabTool(ToolDefinition[TabAction, OpenBrowserObservation]):
         
         return [
             cls(
-                description=get_tab_tool_description(),
+                description=get_tab_tool_description(conv_state),
                 action_type=TabAction,
                 observation_type=OpenBrowserObservation,
                 annotations=ToolAnnotations(

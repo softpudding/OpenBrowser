@@ -1,9 +1,42 @@
 """Unit tests for AgentManager ProcessManager integration."""
 
 import uuid
+import sys
+import types
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
+
+# Mock openhands.tools imports used by server.agent.manager in test environments
+class MockTerminalTool:
+    name = "terminal"
+
+
+class MockFileEditorTool:
+    name = "file_editor"
+
+
+class MockTaskTrackerTool:
+    name = "task_tracker"
+
+
+terminal_module = types.ModuleType("openhands.tools.terminal")
+terminal_module.TerminalTool = MockTerminalTool
+sys.modules["openhands.tools.terminal"] = terminal_module
+
+file_editor_module = types.ModuleType("openhands.tools.file_editor")
+file_editor_module.FileEditorTool = MockFileEditorTool
+sys.modules["openhands.tools.file_editor"] = file_editor_module
+
+task_tracker_module = types.ModuleType("openhands.tools.task_tracker")
+task_tracker_module.TaskTrackerTool = MockTaskTrackerTool
+sys.modules["openhands.tools.task_tracker"] = task_tracker_module
+
+preset_default_module = types.ModuleType("openhands.tools.preset.default")
+preset_default_module.get_default_condenser = MagicMock(return_value=None)
+sys.modules["openhands.tools.preset.default"] = preset_default_module
+sys.modules["openhands.tools"] = types.ModuleType("openhands.tools")
+sys.modules["openhands.tools.preset"] = types.ModuleType("openhands.tools.preset")
 
 from server.agent.manager import OpenBrowserAgentManager
 from server.core.ipc_types import BrowserCommandMessage
@@ -27,6 +60,53 @@ class TestAgentManagerMultiProcessMode:
         assert manager.multi_process_mode is True
         assert manager._process_manager is not None
         assert manager._ipc_router is not None
+
+    def test_large_models_keep_full_browser_toolset(self) -> None:
+        """Large models should keep javascript plus general tools."""
+        manager = OpenBrowserAgentManager()
+
+        tool_names = [tool.name for tool in manager._get_tools_for_model(
+            "dashscope/qwen3.5-plus"
+        )]
+
+        assert tool_names == [
+            "tab",
+            "highlight",
+            "element_interaction",
+            "dialog",
+            "javascript",
+            "terminal",
+            "file_editor",
+            "task_tracker",
+        ]
+
+    def test_small_models_drop_javascript_only(self) -> None:
+        """Small models keep general tools but lose javascript."""
+        manager = OpenBrowserAgentManager()
+
+        tool_names = [tool.name for tool in manager._get_tools_for_model(
+            "dashscope/qwen3.5-flash"
+        )]
+
+        assert tool_names == [
+            "tab",
+            "highlight",
+            "element_interaction",
+            "dialog",
+            "terminal",
+            "file_editor",
+            "task_tracker",
+        ]
+
+    def test_unknown_models_default_to_large_profile(self) -> None:
+        """Unconfigured models should keep the large-model toolset."""
+        manager = OpenBrowserAgentManager()
+
+        tool_names = [tool.name for tool in manager._get_tools_for_model(
+            "some/new-model"
+        )]
+
+        assert "javascript" in tool_names
 
 
 class TestConversationCreationMultiProcess:

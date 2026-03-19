@@ -25,6 +25,7 @@ async def create_agent_conversation(
     conversation_id: Optional[str] = None, cwd: str = ".",
     model: Optional[str] = None, base_url: Optional[str] = None,
     browser_id: Optional[str] = None,
+    model_alias: Optional[str] = None,
 ) -> str:
     """Create a new agent conversation
 
@@ -35,7 +36,7 @@ async def create_agent_conversation(
         base_url: Optional base URL override
     """
     return agent_manager.create_conversation(
-        conversation_id, cwd, model, base_url, browser_id
+        conversation_id, cwd, model, base_url, browser_id, model_alias
     )
 
 

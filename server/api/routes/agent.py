@@ -63,6 +63,7 @@ async def create_conversation(request: Request):
         cwd: Working directory for the conversation (default: ".")
         model: Optional model override
         base_url: Optional base URL override
+        model_alias: Optional configured model alias
         browser_id: Optional browser UUID capability token
     """
     try:
@@ -70,13 +71,18 @@ async def create_conversation(request: Request):
         cwd = body.get("cwd", ".")
         model = body.get("model")
         base_url = body.get("base_url")
+        model_alias = body.get("model_alias")
         browser_id = body.get("browser_id")
 
         if browser_id is not None:
             browser_id = _require_valid_browser_id(browser_id)
 
         conversation_id = await create_agent_conversation(
-            cwd=cwd, model=model, base_url=base_url, browser_id=browser_id
+            cwd=cwd,
+            model=model,
+            base_url=base_url,
+            browser_id=browser_id,
+            model_alias=model_alias,
         )
 
         response = {
@@ -86,12 +92,15 @@ async def create_conversation(request: Request):
             "cwd": cwd,
             "model": model,
             "base_url": base_url,
+            "model_alias": model_alias,
         }
 
         if browser_id is not None:
             response["browser_id"] = browser_id
 
         return response
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:

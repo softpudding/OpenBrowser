@@ -1,3 +1,81 @@
+{% if small_model %}
+# Element Interaction Tool
+
+Interact with one highlighted element at a time.
+
+## Primary Workflow
+
+1. Use `highlight` first.
+2. Choose one `element_id`.
+3. Call the action.
+4. If you get an ORANGE preview, verify it and then call the matching `confirm_*`.
+5. If the target is wrong, stop and highlight again.
+
+## Core Rule
+
+Never skip from intent directly to action without a matching `element_id` from highlight.
+
+## Commands
+
+### click
+
+```json
+{ "action": "click", "element_id": "c8e4d2", "tab_id": 123 }
+{ "action": "confirm_click", "element_id": "c8e4d2", "tab_id": 123 }
+```
+
+### keyboard_input
+
+```json
+{ "action": "keyboard_input", "element_id": "b7c9e5", "text": "hello@example.com", "tab_id": 123 }
+{ "action": "confirm_keyboard_input", "element_id": "b7c9e5", "tab_id": 123 }
+```
+
+### hover
+
+```json
+{ "action": "hover", "element_id": "a3f2b1", "tab_id": 123 }
+{ "action": "confirm_hover", "element_id": "a3f2b1", "tab_id": 123 }
+```
+
+### select
+
+```json
+{ "action": "select", "element_id": "f3a8c2", "value": "option1", "tab_id": 123 }
+{ "action": "confirm_select", "element_id": "f3a8c2", "tab_id": 123 }
+```
+
+### scroll
+
+Whole page:
+```json
+{ "action": "scroll", "direction": "down", "scroll_amount": 1.0, "tab_id": 123 }
+```
+
+Inside one container:
+```json
+{ "action": "scroll", "element_id": "d2f4a8", "direction": "down", "tab_id": 123 }
+{ "action": "confirm_scroll", "element_id": "d2f4a8", "tab_id": 123 }
+```
+
+## Decision Rules
+
+- For buttons and links, use `click`
+- For text boxes, use `keyboard_input`
+- For native `<select>`, use `select`
+- For hidden menus or tooltips, use `hover`
+- For more content, use `scroll`
+
+## Confirmation Rules
+
+- If ORANGE preview appears, confirm only when the box position and HTML both match your target
+- If they do not match, do not confirm; highlight again
+
+## Retry Rule
+
+- If one action fails, retry once with a better target
+- If it fails twice, change strategy instead of repeating the same action
+{% else %}
 # Element Interaction Tool
 
 Safe element interaction with visual verification and fast paths.
@@ -290,3 +368,4 @@ If `tab_id` is not provided, the system automatically uses the conversation's ac
 - **Invalid element_id**: Returns error.
 - **No active tab**: Returns error if tab_id not provided and no active tab exists.
 - **Action failed**: Returns error with details.
+{% endif %}

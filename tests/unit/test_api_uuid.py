@@ -27,14 +27,17 @@ class TestBrowserRegistrationEndpoint:
         self, client: TestClient, mock_ws_manager
     ) -> None:
         """Test successful browser registration."""
-        mock_ws_manager.is_connected.return_value = True
-        mock_ws_manager.connections = [MagicMock()]
+        mock_ws_manager.get_websocket_by_connection_id.return_value = MagicMock()
         mock_ws_manager.register_browser.return_value = None
         mock_ws_manager.is_browser_valid.return_value = True
 
         response = client.post(
             "/browsers/register",
-            json={"uuid": "test-browser-uuid-123", "ttl_hours": 24},
+            json={
+                "uuid": "test-browser-uuid-123",
+                "connection_id": "conn-123",
+                "ttl_hours": 24,
+            },
         )
 
         assert response.status_code == 200
@@ -47,23 +50,28 @@ class TestBrowserRegistrationEndpoint:
         self, client: TestClient, mock_ws_manager
     ) -> None:
         """Test registration fails when no WebSocket connection."""
-        mock_ws_manager.is_connected.return_value = False
+        mock_ws_manager.get_websocket_by_connection_id.return_value = None
 
         response = client.post(
             "/browsers/register",
-            json={"uuid": "test-browser-uuid-456", "ttl_hours": 24},
+            json={
+                "uuid": "test-browser-uuid-456",
+                "connection_id": "stale-conn",
+                "ttl_hours": 24,
+            },
         )
 
-        assert response.status_code == 503
+        assert response.status_code == 400
 
     def test_register_browser_invalid_uuid(
         self, client: TestClient, mock_ws_manager
     ) -> None:
         """Test registration fails with invalid UUID format."""
-        mock_ws_manager.is_connected.return_value = True
+        mock_ws_manager.get_websocket_by_connection_id.return_value = MagicMock()
 
         response = client.post(
-            "/browsers/register", json={"uuid": "short", "ttl_hours": 24}
+            "/browsers/register",
+            json={"uuid": "short", "connection_id": "conn-123", "ttl_hours": 24},
         )
 
         assert response.status_code == 400
@@ -149,6 +157,30 @@ class TestConversationCreationWithBrowserId:
         assert data["browser_id"] == "valid-browser-uuid"
         mock_ws_manager.is_browser_valid.assert_called_once_with("valid-browser-uuid")
 
+    def test_create_conversation_passes_model_alias(
+        self, client: TestClient, mock_ws_manager, mock_agent_manager
+    ) -> None:
+        """Selected model alias should be forwarded to conversation creation."""
+        mock_ws_manager.is_browser_valid.return_value = True
+
+        response = client.post(
+            "/agent/conversations",
+            json={
+                "cwd": ".",
+                "browser_id": "valid-browser-uuid",
+                "model_alias": "flash",
+            },
+        )
+
+        assert response.status_code == 200
+        mock_agent_manager.assert_called_once_with(
+            cwd=".",
+            model=None,
+            base_url=None,
+            browser_id="valid-browser-uuid",
+            model_alias="flash",
+        )
+
     def test_create_conversation_with_invalid_browser_id(
         self, client: TestClient, mock_ws_manager, mock_agent_manager
     ) -> None:
@@ -229,8 +261,8 @@ class TestCommandExecutionWithBrowserId:
     def test_execute_command_without_browser_id(
         self, client: TestClient, mock_ws_manager, mock_processor
     ) -> None:
-        """Test command execution without browser_id (backward compatibility)."""
+        """Test command execution without browser_id is rejected."""
         response = client.post("/command", json={"type": "screenshot"})
 
-        assert response.status_code == 200
+        assert response.status_code == 400
         mock_ws_manager.is_browser_valid.assert_not_called()
