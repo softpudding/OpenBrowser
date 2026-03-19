@@ -55,9 +55,9 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 ```
 
 **Parameters**:
-- `element_type`: Single type to highlight - "clickable" (default), "scrollable", "inputable", "hoverable", "selectable", or "any"
+- `element_type`: Single type to highlight - "clickable" (default without keywords), "scrollable", "inputable", "hoverable", "selectable", or "any" (default when keywords provided)
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
-- `keywords`: Keywords list to filter elements by HTML content. When provided, only matching elements are returned without pagination. Example: ["button", "submit", "login"]
+- `keywords`: Keywords list to filter elements by HTML content. When provided, only matching elements are returned without pagination, and `element_type` defaults to "any". Example: ["button", "submit", "login"]
 
 **When to Use Pagination**:
 - If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements
@@ -118,7 +118,28 @@ Examples of broad search:
 
 ## Element Types
 
-### clickable (default)
+**Recommendation**: Prefer `element_type: "any"` unless you are 100% certain about the target element's type. The `any` type searches all element categories in one call, reducing the need for multiple highlight requests.
+
+### any
+Combines all element types with OR logic. Returns elements matching any of the types. Elements matching multiple types are deduplicated and assigned the first matched type (priority: clickable > scrollable > inputable > hoverable > selectable).
+
+When used with keywords, pagination is skipped and all matching elements are returned.
+
+**HTML-to-Action Mapping**: When using `any` type, determine the appropriate action based on the element's HTML:
+
+| Element Type | Action | Intent | Display Color |
+|--------------|--------|--------|---------------|
+| `<button>`, `<a>`, `[role="button"]` | `click` | Trigger action, navigate, submit | Blue (#0066FF) |
+| `<input type="text/email/password/number/search">`, `<textarea>` | `keyboard_input` | Enter text | Orange (#FF9900) |
+| `<input type="checkbox">`, `<input type="radio">` | `click` | Toggle selection | Blue (#0066FF) |
+| `<input type="submit">`, `<input type="button">` | `click` | Submit form, trigger action | Blue (#0066FF) |
+| `<select>` | `select` | Choose from dropdown options | Red (#FF6B6B) |
+| Scrollable containers | `scroll` | Scroll content | Green (#00CC66) |
+| Elements with `cursor: pointer` | `hover` then `click` | Reveal menus, custom buttons | Purple (#9966FF) |
+
+**Decision flow**: Check `tagName` and attributes in the returned HTML to determine the correct action.
+
+### clickable (default without keywords)
 Buttons, links, and any element that responds to clicks. Use when your intent is to **open** or **trigger** something.
 
 ### inputable
@@ -136,11 +157,6 @@ Native `<select>` dropdown elements (look for ▼ arrow indicator). Use when you
 **clickable vs selectable**:
 - `clickable`: Intent is to **open/navigate/trigger** (e.g., "Submit", "Learn More")
 - `selectable`: Intent is to **choose a value** (e.g., country selector, quantity dropdown)
-
-### any
-Combines all element types with OR logic. Returns elements matching any of the types. Elements matching multiple types are deduplicated and assigned the first matched type (priority: clickable > scrollable > inputable > hoverable > selectable).
-
-When used with keywords, pagination is skipped and all matching elements are returned.
 
 ## Screenshot Behavior
 

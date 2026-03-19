@@ -992,9 +992,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           throw new Error(`No active tab for conversation ${conversationId}`);
         }
         
-        const elementType = command.element_type || 'clickable';
-        const page = command.page || 1;  // 1-indexed page for collision-aware pagination
         const keywords = command.keywords;
+        const elementType = command.element_type || (keywords ? 'any' : 'clickable');
+        const page = command.page || 1;
         
         // Build script to detect elements IN PAGE CONTEXT
         const detectionScript = `
@@ -1098,7 +1098,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             
             function isClickable(el) {
               const tag = el.tagName.toLowerCase();
-              
+
+              // Exclude <select> elements - they should be detected as 'selectable' type
+              // <select>'s intent is to "choose a value", not "trigger/click"
+              if (tag === 'select') return false;
+
               // Check tag names
               if (tag === 'a' || tag === 'button') return true;
               
