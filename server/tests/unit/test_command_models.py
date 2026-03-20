@@ -1,0 +1,119 @@
+"""Behavior-focused tests for command model contracts."""
+
+import pytest
+from pydantic import ValidationError
+
+from server.models.commands import (
+    ClickElementCommand,
+    HighlightElementsCommand,
+    KeyboardInputCommand,
+    ScrollElementCommand,
+    TabAction,
+    TabCommand,
+    parse_command,
+)
+
+
+class TestTabCommandContracts:
+    @pytest.mark.parametrize("action", [TabAction.INIT, TabAction.OPEN])
+    def test_navigation_actions_normalize_urls(self, action: TabAction) -> None:
+        command = TabCommand(action=action, url="example.com")
+
+        assert command.url == "https://example.com"
+
+    @pytest.mark.parametrize("action", [TabAction.INIT, TabAction.OPEN])
+    def test_navigation_actions_require_url(self, action: TabAction) -> None:
+        with pytest.raises(ValidationError, match="URL is required"):
+            TabCommand(action=action)
+
+
+class TestHighlightCommandContracts:
+    def test_highlight_defaults_match_visual_workflow(self) -> None:
+        command = HighlightElementsCommand()
+
+        assert command.element_type == "any"
+        assert command.page == 1
+        assert command.keywords is None
+
+    @pytest.mark.parametrize("page", [0, -1])
+    def test_highlight_rejects_invalid_page_numbers(self, page: int) -> None:
+        with pytest.raises(ValidationError):
+            HighlightElementsCommand(page=page)
+
+
+class TestVisualInteractionContracts:
+    def test_scroll_supports_page_level_scrolling_without_element_id(self) -> None:
+        command = ScrollElementCommand(direction="up", scroll_amount=1.0)
+
+        assert command.element_id is None
+        assert command.direction == "up"
+        assert command.scroll_amount == 1.0
+
+    @pytest.mark.parametrize("amount", [0.1, 3.0])
+    def test_scroll_accepts_documented_amount_boundaries(self, amount: float) -> None:
+        command = ScrollElementCommand(scroll_amount=amount)
+
+        assert command.scroll_amount == amount
+
+    @pytest.mark.parametrize("amount", [0.09, 3.01])
+    def test_scroll_rejects_out_of_range_amounts(self, amount: float) -> None:
+        with pytest.raises(ValidationError):
+            ScrollElementCommand(scroll_amount=amount)
+
+    def test_keyboard_input_allows_empty_text_for_clear_style_interactions(self) -> None:
+        command = KeyboardInputCommand(element_id="field123", text="")
+
+        assert command.text == ""
+
+
+class TestParseCommandContracts:
+    @pytest.mark.parametrize(
+        ("payload", "expected_type"),
+        [
+            (
+                {
+                    "type": "click_element",
+                    "element_id": "abc123",
+                    "conversation_id": "conv-1",
+                    "browser_id": "browser-1",
+                },
+                ClickElementCommand,
+            ),
+            (
+                {
+                    "type": "keyboard_input",
+                    "element_id": "field123",
+                    "text": "hello",
+                    "tab_id": 7,
+                    "conversation_id": "conv-2",
+                    "browser_id": "browser-2",
+                },
+                KeyboardInputCommand,
+            ),
+            (
+                {
+                    "type": "highlight_elements",
+                    "keywords": ["Submit", "提交"],
+                    "conversation_id": "conv-3",
+                    "browser_id": "browser-3",
+                },
+                HighlightElementsCommand,
+            ),
+        ],
+    )
+    def test_parse_command_preserves_routing_metadata(
+        self, payload: dict[str, object], expected_type: type
+    ) -> None:
+        command = parse_command(payload)
+
+        assert isinstance(command, expected_type)
+        assert command.conversation_id == payload["conversation_id"]
+        assert command.browser_id == payload["browser_id"]
+
+    def test_parse_command_rejects_missing_type(self) -> None:
+        with pytest.raises(ValueError, match="must have 'type' field"):
+            parse_command({})
+
+    def test_parse_command_rejects_unknown_type(self) -> None:
+        with pytest.raises(ValueError, match="Unknown command type"):
+            parse_command({"type": "does_not_exist"})

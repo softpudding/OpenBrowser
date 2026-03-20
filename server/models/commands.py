@@ -157,12 +157,16 @@ class TabCommand(BaseCommand):
     def validate_url(cls, v, values):
         action = values.get("action")
         if action in [TabAction.OPEN, TabAction.INIT]:
-            if not v:
-                raise ValueError(f"URL is required for {action} action")
             # Ensure URL has protocol
-            if not re.match(r"^https?://", v):
+            if v and not re.match(r"^https?://", v):
                 v = f"https://{v}"
         return v
+
+    @model_validator(mode="after")
+    def validate_navigation_action_requirements(self):
+        if self.action in [TabAction.OPEN, TabAction.INIT] and not self.url:
+            raise ValueError(f"URL is required for {self.action} action")
+        return self
 
 
 class GetTabsCommand(BaseCommand):

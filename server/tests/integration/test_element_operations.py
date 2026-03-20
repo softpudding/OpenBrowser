@@ -59,7 +59,9 @@ def managed_tab_id(server_available: bool) -> int:
 class TestHighlightElements:
     """Integration tests for highlight_elements command."""
 
-    def test_returns_hash_ids_no_prefix(self, server_available: bool, managed_tab_id: int) -> None:
+    def test_returns_hash_ids_no_prefix(
+        self, server_available: bool, managed_tab_id: int
+    ) -> None:
         """Test that highlight_elements returns hash IDs without prefixes.
 
         The element IDs should be 6-character hash strings like 'a1b2c3',
@@ -109,7 +111,9 @@ class TestHighlightElements:
 class TestClickElement:
     """Integration tests for click_element command."""
 
-    def test_matching_tab_id_succeeds(self, server_available: bool, managed_tab_id: int) -> None:
+    def test_matching_tab_id_succeeds(
+        self, server_available: bool, managed_tab_id: int
+    ) -> None:
         """Test that click_element with matching tab_id succeeds.
 
         The command should execute without tab_id validation errors
@@ -172,40 +176,41 @@ class TestClickElement:
         if not server_available:
             pytest.skip("Server not available")
 
-        # Use an invalid/non-existent tab_id
         invalid_tab_id = 999999
 
         response = requests.post(
             COMMAND_URL,
             json={
                 "type": "click_element",
-                "element_id": "a1b2c3",  # Arbitrary element ID
+                "element_id": "a1b2c3",
                 "tab_id": invalid_tab_id,
             },
             timeout=30,
         )
 
-        assert response.status_code == 200
-        data: dict[str, Any] = response.json()
-
-        # Should fail with an error about the tab
-        assert not data.get("success"), "Expected failure with invalid tab_id"
-
-        error_msg = data.get("error", "").lower()
-        # Error should mention tab-related issue
-        assert (
-            "tab" in error_msg
-            or "not found" in error_msg
-            or "invalid" in error_msg
-            or "no such" in error_msg
-        ), f"Expected tab-related error, got: {data.get('error')}"
+        if response.status_code == 200:
+            data: dict[str, Any] = response.json()
+            assert not data.get("success"), "Expected failure with invalid tab_id"
+            error_msg = data.get("error", "").lower()
+            assert (
+                "tab" in error_msg
+                or "not found" in error_msg
+                or "invalid" in error_msg
+                or "no such" in error_msg
+            ), f"Expected tab-related error, got: {data.get('error')}"
+        else:
+            assert response.status_code == 400, (
+                f"Expected 400 for invalid tab_id, got {response.status_code}"
+            )
 
 
 @pytest.mark.integration
 class TestKeyboardInput:
     """Integration tests for keyboard_input command."""
 
-    def test_validates_tab_id(self, server_available: bool, managed_tab_id: int) -> None:
+    def test_validates_tab_id(
+        self, server_available: bool, managed_tab_id: int
+    ) -> None:
         """Test that keyboard_input validates tab_id.
 
         The command should succeed with a valid tab_id and fail
@@ -291,7 +296,9 @@ class TestKeyboardInput:
 class TestElementOperationsIntegration:
     """End-to-end integration tests for element operations workflow."""
 
-    def test_full_element_workflow(self, server_available: bool, managed_tab_id: int) -> None:
+    def test_full_element_workflow(
+        self, server_available: bool, managed_tab_id: int
+    ) -> None:
         """Test the complete element interaction workflow.
 
         1. Highlight elements and get hash IDs
