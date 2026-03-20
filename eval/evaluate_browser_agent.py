@@ -24,7 +24,6 @@ import signal
 import atexit
 import logging
 import datetime
-from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -88,12 +87,11 @@ class TestResult:
 
 @dataclass
 class LLMTarget:
-    """One explicit LLM target passed from the CLI."""
+    """One configured LLM alias passed from the CLI."""
 
     name: str
-    model: str
-    base_url: str
-    api_key: str
+    alias: str
+    model_name: str | None = None
 
 
 class OpenBrowserClient:
@@ -114,31 +112,32 @@ class OpenBrowserClient:
         except requests.exceptions.RequestException:
             return False
 
-    def configure_llm(self, target: LLMTarget) -> bool:
-        """Configure the OpenBrowser server with the exact LLM triple for eval."""
+    def get_llm_configs(self) -> List[Dict[str, Any]]:
+        """Fetch configured LLM entries from the server."""
         try:
-            response = self.session.post(
-                f"{self.base_url}/api/config/llm",
-                json={
-                    "model": target.model,
-                    "base_url": target.base_url,
-                    "api_key": target.api_key,
-                },
-                timeout=5,
-            )
-            return response.status_code == 200
+            response = self.session.get(f"{self.base_url}/api/config", timeout=5)
+            if response.status_code != 200:
+                return []
+            data = response.json()
+            config = data.get("config", {})
+            llm_configs = config.get("llm_configs", [])
+            return llm_configs if isinstance(llm_configs, list) else []
         except Exception as e:
-            logger.error(f"Failed to configure LLM target {target.name}: {e}")
-            return False
+            logger.error(f"Failed to fetch LLM configs: {e}")
+            return []
 
     def create_conversation(
-        self, model: Optional[str] = None, base_url: Optional[str] = None
+        self,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model_alias: Optional[str] = None,
     ) -> Optional[str]:
         """Create a new conversation and return its ID
 
         Args:
             model: Optional model name (e.g., "dashscope/qwen3.5-plus")
             base_url: Optional base URL override
+            model_alias: Optional configured model alias
         """
         try:
             request_json = {}
@@ -146,6 +145,8 @@ class OpenBrowserClient:
                 request_json["model"] = model
             if base_url:
                 request_json["base_url"] = base_url
+            if model_alias:
+                request_json["model_alias"] = model_alias
             if self.chrome_uuid:
                 request_json["browser_id"] = self.chrome_uuid
 
@@ -405,6 +406,40 @@ class Evaluator:
         self.current_model: Optional[str] = None  # Current model being tested
         self.current_target: Optional[LLMTarget] = None  # Current CLI target
 
+    def resolve_targets(self, targets: List[LLMTarget]) -> List[LLMTarget]:
+        """Resolve configured aliases to raw model names."""
+        llm_configs = self.openbrowser.get_llm_configs()
+        alias_to_model = {
+            config.get("alias"): config.get("model")
+            for config in llm_configs
+            if isinstance(config, dict) and config.get("alias") and config.get("model")
+        }
+
+        resolved_targets: List[LLMTarget] = []
+        missing_aliases: List[str] = []
+
+        for target in targets:
+            model_name = alias_to_model.get(target.alias)
+            if not isinstance(model_name, str) or not model_name:
+                missing_aliases.append(target.alias)
+                continue
+            resolved_targets.append(
+                LLMTarget(
+                    name=model_name,
+                    alias=target.alias,
+                    model_name=model_name,
+                )
+            )
+
+        if missing_aliases:
+            raise ValueError(
+                "Unknown model alias(es): "
+                + ", ".join(missing_aliases)
+                + ". Configure them first in the OpenBrowser frontend."
+            )
+
+        return resolved_targets
+
     def ensure_services(
         self, skip_services: bool = False, manual: bool = False
     ) -> bool:
@@ -495,8 +530,7 @@ class Evaluator:
 
         # Create new conversation with current model
         conversation_id = self.openbrowser.create_conversation(
-            model=self.current_target.model if self.current_target else None,
-            base_url=self.current_target.base_url if self.current_target else None,
+            model_alias=self.current_target.alias if self.current_target else None,
         )
         if conversation_id:
             logger.debug(f"Created conversation: {conversation_id}")
@@ -1302,7 +1336,7 @@ class Evaluator:
             return False
 
         if targets is None or len(targets) == 0:
-            logger.error("No LLM targets provided")
+            logger.error("No model aliases provided")
             return False
 
         # Create timestamped output directory
@@ -1323,15 +1357,13 @@ class Evaluator:
 
         for target in targets:
             logger.info(f"\n{'=' * 60}")
-            logger.info(f"Testing target: {target.name}")
+            logger.info(
+                f"Testing target alias: {target.alias} -> model: {target.model_name}"
+            )
             logger.info(f"{'=' * 60}")
 
-            if not self.openbrowser.configure_llm(target):
-                logger.error(f"Failed to configure LLM target: {target.name}")
-                return False
-
             self.current_target = target
-            self.current_model = target.name
+            self.current_model = target.model_name or target.name
 
             # Clear results for this model
             self.results = []
@@ -1353,7 +1385,7 @@ class Evaluator:
 
                 # Add model information to results and store for summary
                 for result in self.results:
-                    result.model = target.name
+                    result.model = target.model_name or target.name
                 all_results.extend(self.results)
 
         # Generate cross-model summary report if we tested multiple models
@@ -1751,27 +1783,21 @@ class Evaluator:
             return None
 
 
-def _build_llm_targets(
-    llm_models: List[str], llm_base_urls: List[str], llm_api_keys: List[str]
-) -> List[LLMTarget]:
-    """Build explicit LLM targets from validated CLI lists."""
+def _build_llm_targets(model_aliases: List[str]) -> List[LLMTarget]:
+    """Build explicit LLM targets from validated alias list."""
     targets: List[LLMTarget] = []
     seen_labels: dict[str, int] = {}
 
-    for model, base_url, api_key in zip(llm_models, llm_base_urls, llm_api_keys):
-        parsed = urlparse(base_url)
-        host = parsed.netloc or base_url
-        base_label = f"{model} @ {host}"
-        count = seen_labels.get(base_label, 0) + 1
-        seen_labels[base_label] = count
-        label = base_label if count == 1 else f"{base_label} #{count}"
+    for alias in model_aliases:
+        normalized_alias = alias.strip()
+        count = seen_labels.get(normalized_alias, 0) + 1
+        seen_labels[normalized_alias] = count
+        label = normalized_alias if count == 1 else f"{normalized_alias} #{count}"
 
         targets.append(
             LLMTarget(
                 name=label,
-                model=model,
-                base_url=base_url,
-                api_key=api_key,
+                alias=normalized_alias,
             )
         )
 
@@ -1787,10 +1813,10 @@ def main():
             "  python eval/evaluate_browser_agent.py --list\n"
             "  python eval/evaluate_browser_agent.py --manual --test techforum\n"
             "  python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID \\\n"
-            "    --llm-model dashscope/qwen3.5-plus --llm-base-url https://dashscope.aliyuncs.com/compatible-mode/v1 --llm-api-key YOUR_KEY\n"
+            "    --model-alias default\n"
             "  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python eval/evaluate_browser_agent.py \\\n"
-            "    --llm-model dashscope/qwen3.5-plus --llm-base-url https://dashscope.aliyuncs.com/compatible-mode/v1 --llm-api-key PLUS_KEY \\\n"
-            "    --llm-model dashscope/qwen3.5-flash --llm-base-url https://dashscope.aliyuncs.com/compatible-mode/v1 --llm-api-key FLASH_KEY"
+            "    --model-alias plus \\\n"
+            "    --model-alias flash"
         ),
     )
     parser.add_argument("--test", help="Run specific test by ID")
@@ -1801,19 +1827,9 @@ def main():
     )
     parser.add_argument("--list", action="store_true", help="List available tests")
     parser.add_argument(
-        "--llm-model",
+        "--model-alias",
         action="append",
-        help="LLM model name. Must be passed together with matching --llm-base-url and --llm-api-key.",
-    )
-    parser.add_argument(
-        "--llm-base-url",
-        action="append",
-        help="LLM base URL. Must be passed together with matching --llm-model and --llm-api-key.",
-    )
-    parser.add_argument(
-        "--llm-api-key",
-        action="append",
-        help="LLM API key. Must be passed together with matching --llm-model and --llm-base-url.",
+        help="Configured LLM alias to evaluate. Can be passed multiple times.",
     )
     parser.add_argument(
         "--no-services", action="store_true", help="Don't start services"
@@ -1841,31 +1857,20 @@ def main():
         level=log_level, format="%(asctime)s - %(levelname)s - %(message)s"
     )
 
-    llm_models = args.llm_model or []
-    llm_base_urls = args.llm_base_url or []
-    llm_api_keys = args.llm_api_key or []
-    llm_args_provided = any([llm_models, llm_base_urls, llm_api_keys])
+    model_aliases = args.model_alias or []
     llm_targets: List[LLMTarget] = []
 
     if not args.manual and not args.list:
-        if not llm_args_provided:
+        if not model_aliases:
             parser.error(
-                "Automated evaluation requires at least one full LLM triple: "
-                "--llm-model, --llm-base-url, and --llm-api-key"
+                "Automated evaluation requires at least one configured model alias: "
+                "--model-alias"
             )
 
-        if not (llm_models and llm_base_urls and llm_api_keys):
-            parser.error(
-                "--llm-model, --llm-base-url, and --llm-api-key must all be provided together"
-            )
-
-        if not (len(llm_models) == len(llm_base_urls) == len(llm_api_keys)):
-            parser.error(
-                "--llm-model, --llm-base-url, and --llm-api-key must have the same number of values"
-            )
-
-        llm_targets = _build_llm_targets(llm_models, llm_base_urls, llm_api_keys)
-        logger.info(f"LLM targets to test: {[target.name for target in llm_targets]}")
+        llm_targets = _build_llm_targets(model_aliases)
+        logger.info(
+            f"Model aliases to test: {[target.alias for target in llm_targets]}"
+        )
 
     if not args.manual and not args.list and not args.chrome_uuid:
         parser.error(
@@ -1900,6 +1905,13 @@ def main():
         ):
             logger.error("Services unavailable")
             return
+
+        if not args.manual:
+            try:
+                llm_targets = evaluator.resolve_targets(llm_targets)
+            except ValueError as e:
+                logger.error(str(e))
+                sys.exit(1)
 
         # Create output directory for single test
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -1945,24 +1957,25 @@ def main():
         # Normal (automated) mode
         else:
             all_results = []
-            target_names = [target.name for target in llm_targets]
+            target_names = [target.model_name or target.name for target in llm_targets]
             for target in llm_targets:
                 logger.info(f"\n{'=' * 60}")
-                logger.info(f"Testing target: {target.name}")
+                logger.info(
+                    f"Testing target alias: {target.alias} -> model: {target.model_name}"
+                )
                 logger.info(f"{'=' * 60}")
 
-                if not evaluator.openbrowser.configure_llm(target):
-                    logger.error(f"Failed to configure target: {target.name}")
-                    sys.exit(1)
-
                 evaluator.current_target = target
-                evaluator.current_model = target.name
+                evaluator.current_model = target.model_name or target.name
 
                 result = evaluator.run_test(test_case)
-                result.model = target.name
+                result.model = target.model_name or target.name
                 all_results.append(result)
 
-                print(f"\nTest result for {test_case.name} (target: {target.name}):")
+                print(
+                    f"\nTest result for {test_case.name} "
+                    f"(alias: {target.alias}, model: {target.model_name}):"
+                )
                 print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
                 print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
                 print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
@@ -2019,6 +2032,12 @@ def main():
                 sys.exit(1)
         else:
             # Normal automated mode
+            try:
+                llm_targets = evaluator.resolve_targets(llm_targets)
+            except ValueError as e:
+                logger.error(str(e))
+                sys.exit(1)
+
             success = evaluator.run_all(
                 targets=llm_targets, skip_services=args.no_services, manual=False
             )
