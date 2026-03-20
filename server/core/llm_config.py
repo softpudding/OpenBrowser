@@ -32,7 +32,6 @@ class LLMConfig(BaseModel):
 class AppConfig(BaseModel):
     """Application configuration model."""
 
-    llm: LLMConfig = Field(default_factory=LLMConfig)
     llm_configs: list[LLMConfig] = Field(default_factory=list)
     default_llm_alias: str = DEFAULT_ALIAS
     default_cwd: str = "/tmp"
@@ -58,20 +57,15 @@ class LLMConfigManager:
             alias = (llm_config.alias or "").strip() or DEFAULT_ALIAS
             configs_by_alias[alias] = llm_config.model_copy(update={"alias": alias})
 
-        legacy_alias = (config.llm.alias or "").strip() or DEFAULT_ALIAS
-        configs_by_alias.setdefault(
-            legacy_alias,
-            config.llm.model_copy(update={"alias": legacy_alias}),
-        )
-
         config.llm_configs = list(configs_by_alias.values())
 
-        normalized_default_alias = (config.default_llm_alias or "").strip() or DEFAULT_ALIAS
+        normalized_default_alias = (
+            config.default_llm_alias or ""
+        ).strip() or DEFAULT_ALIAS
         if normalized_default_alias not in configs_by_alias:
             normalized_default_alias = config.llm_configs[0].alias
 
         config.default_llm_alias = normalized_default_alias
-        config.llm = configs_by_alias[normalized_default_alias].model_copy()
         return config
 
     def _load_config(self) -> AppConfig:
@@ -79,7 +73,7 @@ class LLMConfigManager:
         if self._config is not None:
             return self._config
 
-        config = self._normalize_config(AppConfig())
+        config = AppConfig()
 
         if self.config_file.exists():
             try:
@@ -93,24 +87,13 @@ class LLMConfigManager:
                         if isinstance(raw_config, dict):
                             parsed_configs.append(LLMConfig(**raw_config))
 
-                legacy_llm = data.get("llm")
-                if isinstance(legacy_llm, dict):
-                    legacy_alias = legacy_llm.get("alias") or DEFAULT_ALIAS
-                    config.llm = LLMConfig(alias=legacy_alias, **{
-                        "model": legacy_llm.get("model", DEFAULT_MODEL),
-                        "base_url": legacy_llm.get("base_url", DEFAULT_BASE_URL),
-                        "api_key": legacy_llm.get("api_key"),
-                    })
-
                 if parsed_configs:
                     config.llm_configs = parsed_configs
-                elif isinstance(legacy_llm, dict):
-                    config.llm_configs = [config.llm.model_copy()]
 
                 if "default_llm_alias" in data:
-                    config.default_llm_alias = data["default_llm_alias"] or DEFAULT_ALIAS
-                elif isinstance(legacy_llm, dict):
-                    config.default_llm_alias = config.llm.alias
+                    config.default_llm_alias = (
+                        data["default_llm_alias"] or DEFAULT_ALIAS
+                    )
 
                 if "default_cwd" in data:
                     config.default_cwd = data["default_cwd"]
@@ -141,7 +124,14 @@ class LLMConfigManager:
         """Get one LLM configuration by alias or the default configuration."""
         config = self._load_config()
         if alias is None:
-            return config.llm
+            # Return the config pointed to by default_llm_alias
+            for llm_config in config.llm_configs:
+                if llm_config.alias == config.default_llm_alias:
+                    return llm_config
+            # Fallback to first config if default_alias not found
+            if config.llm_configs:
+                return config.llm_configs[0]
+            raise ValueError("No LLM configs configured")
 
         normalized_alias = alias.strip()
         for llm_config in config.llm_configs:
@@ -154,40 +144,6 @@ class LLMConfigManager:
         """Get all configured LLM entries."""
         config = self._load_config()
         return [llm_config.model_copy() for llm_config in config.llm_configs]
-
-    def set_llm_config(self, llm_config: LLMConfig) -> LLMConfig:
-        """Backward-compatible single-config setter.
-
-        This updates or creates the config under its alias and makes it the default.
-        """
-        return self.upsert_llm_config(llm_config, make_default=True)
-
-    def upsert_llm_config(
-        self, llm_config: LLMConfig, make_default: bool = False
-    ) -> LLMConfig:
-        """Create or update a single LLM config entry."""
-        config = self._load_config()
-        alias = (llm_config.alias or "").strip() or DEFAULT_ALIAS
-        updated_entry = llm_config.model_copy(update={"alias": alias})
-
-        updated = False
-        new_configs: list[LLMConfig] = []
-        for existing in config.llm_configs:
-            if existing.alias == alias:
-                new_configs.append(updated_entry)
-                updated = True
-            else:
-                new_configs.append(existing)
-
-        if not updated:
-            new_configs.append(updated_entry)
-
-        config.llm_configs = new_configs
-        if make_default:
-            config.default_llm_alias = alias
-
-        self._save_config(config)
-        return self.get_llm_config(alias)
 
     def set_llm_configs(
         self, llm_configs: list[LLMConfig], default_alias: Optional[str] = None

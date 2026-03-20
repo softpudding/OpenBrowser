@@ -13,9 +13,10 @@ Visual AI assistant for browser automation powered by Qwen3.5-Plus (primary) wit
 ```
 OpenBrowser/
 ├── server/           # FastAPI backend + agent logic + WebSocket
-│   ├── prompts/      # Jinja2 templates for agent prompts (new)
 │   ├── agent/        # Agent orchestration and tool definitions
-│   └── ...
+│   ├── api/          # REST endpoints
+│   ├── core/         # Core processing logic
+│   └── websocket/    # WebSocket server
 ├── extension/        # Chrome extension (MV3) for browser control
 ├── cli/              # Command-line tool (chrome-cli)
 ├── frontend/         # Static web UI (HTML)
@@ -34,7 +35,7 @@ OpenBrowser/
 | WebSocket handling | `server/websocket/manager.py` | Extension communication |
 | Browser UUID registry | `server/core/uuid_manager.py` | `uuid -> websocket` capability mapping |
 | Command models | `server/models/commands.py` | Pydantic command/response types |
-| **Prompt templates** | `server/prompts/` | **Jinja2 templates for agent prompts** |
+| **Prompt templates** | `server/agent/prompts/` | **Jinja2 templates for agent prompts** |
 | Tab tool | `server/agent/tools/tab_tool.py` | TabTool for tab management |
 | Highlight tool | `server/agent/tools/highlight_tool.py` | HighlightTool for element discovery |
 | Element interaction | `server/agent/tools/element_interaction_tool.py` | ElementInteractionTool with 2PC flow |
@@ -153,7 +154,7 @@ When JavaScript execution triggers a dialog during element actions (click, hover
 OpenBrowser uses Jinja2 templates for agent prompts, enabling dynamic content injection based on configuration.
 
 ### Template Structure
-- **Location**: `server/prompts/` directory
+- **Location**: `server/agent/prompts/` directory
 - **Format**: `.j2` extension with Jinja2 syntax
 - **5 Tool Templates**: Each of the 5 focused tools has its own template:
   - `tab_tool.j2` - Tab management documentation
@@ -215,6 +216,7 @@ highlight_elements(page=2)             → Page 2 of clickable elements
 highlight_elements(element_type="inputable")   → Input fields
 highlight_elements(element_type="scrollable")  → Scrollable areas
 highlight_elements(element_type="hoverable")   → Hoverable elements
+highlight_elements(element_type="selectable")  → Native select dropdowns
 ```
 
 ### Element ID Format
@@ -232,9 +234,9 @@ The visual interaction workflow is implemented across 5 focused tools:
 
 | Tool | Commands | Purpose |
 |------|----------|---------|
-| `tab` | `tab init`, `tab open`, `tab close`, `tab switch`, `tab list`, `tab refresh`, `tab view` | Session and tab management |
+| `tab` | `tab init`, `tab open`, `tab close`, `tab switch`, `tab list`, `tab refresh`, `tab view`, `tab back`, `tab forward` | Session and tab management |
 | `highlight` | `highlight_elements` | Element discovery with blue overlays |
-| `element_interaction` | `click_element`, `confirm_click_element`, `hover_element`, `confirm_hover_element`, `scroll_element`, `confirm_scroll_element`, `keyboard_input`, `confirm_keyboard_input` | Element interaction with orange 2PC confirmations |
+| `element_interaction` | `click_element`, `confirm_click_element`, `hover_element`, `confirm_hover_element`, `scroll_element`, `confirm_scroll_element`, `keyboard_input`, `confirm_keyboard_input`, `select_element`, `confirm_select_element` | Element interaction with orange 2PC confirmations |
 | `dialog` | `handle_dialog` | Dialog handling (accept/dismiss) |
 | `javascript` | `javascript_execute` | JavaScript fallback execution |
 
@@ -396,13 +398,19 @@ Automated testing framework for evaluating AI agent performance on browser autom
 ```
 OpenBrowser/eval/
 ├── evaluate_browser_agent.py    # Main evaluation entry point
-├── dataset/                     # YAML test case definitions
-│   ├── techforum.yaml          # TechForum upvote test
+├── dataset/                     # YAML test case definitions (9 tests)
 │   ├── gbr.yaml                # GBR search test
-│   └── cloudstack.yaml         # CloudStack DAS agent test
+│   ├── gbr_detailed.yaml       # GBR detailed search test
+│   ├── techforum.yaml          # TechForum upvote test
+│   ├── techforum_reply.yaml    # TechForum comment reply test
+│   ├── cloudstack.yaml         # CloudStack DAS agent test
+│   ├── cloudstack_interactive.yaml  # CloudStack DAS interactive test
+│   ├── finviz_simple.yaml      # Finviz simple screener test
+│   ├── finviz_complex.yaml     # Finviz multi-filter test
+│   └── dataflow.yaml           # DataFlow visual challenge test
 ├── output/                      # Generated results and images
 ├── server.py                    # Mock websites server with tracking API
-└── (existing mock websites directories)
+└── (mock websites: gbr/, techforum/, cloudstack/, dataflow/, finviz/)
 ```
 
 ### Key Features
@@ -570,16 +578,19 @@ Tests are defined in YAML format with:
 #### Core Tests
 | ID | Name | Difficulty | Time Limit | Cost Limit | Description |
 |----|------|------------|------------|------------|-------------|
-| `techforum` | TechForum Upvote Test | medium | 300s (5min) | 0.5 RMB | Upvote the first AI-related post |
 | `gbr` | GBR Search Test | easy | 400s (~6.7min) | 0.8 RMB | Search for "fed" related news |
-| `cloudstack` | CloudStack DAS Agent Test | hard | 500s (~8.3min) | 1.2 RMB | Find DAS console and greet DAS agent |
+| `finviz_simple` | Finviz Simple Screener Test | easy | 300s (5min) | 0.8 RMB | Filter stocks by market cap over 10 billion |
+| `techforum` | TechForum Upvote Test | medium | 300s (5min) | 0.5 RMB | Upvote the first AI-related post |
+| `gbr_detailed` | GBR Detailed Search & Read Test | medium | 600s (10min) | 1.5 RMB | Search for "fed", click into each article (3 articles), and summarize content |
+| `finviz_complex` | Finviz Multi-Filter Screener Test | medium | 400s (~6.7min) | 1.0 RMB | Multi-filter stock screener: market cap, P/E, volume |
+| `dataflow` | DataFlow Visual Challenge Test | medium | 300s (5min) | 0.5 RMB | Dashboard interactions: settings, reports, navigation |
 
-#### Advanced Tests (New)
+#### Advanced Tests
 | ID | Name | Difficulty | Time Limit | Cost Limit | Description |
 |----|------|------------|------------|------------|-------------|
-| `gbr_detailed` | GBR Detailed Search & Read Test | medium | 600s (10min) | 1.5 RMB | Search for "fed", click into each article (3 articles), and summarize content |
-| `techforum_reply` | TechForum Comment Reply Test | hard | 500s (~8.3min) | 1.0 RMB | Open comments, find "Graduate Student" comment, reply with paper name (complex UI navigation) |
-| `cloudstack_interactive` | CloudStack DAS Interactive Test | very hard | 700s (~11.7min) | 2.0 RMB | Multi-turn conversation with DAS agent: greeting, system status, storage check (counts chat interactions) |
+| `cloudstack` | CloudStack DAS Agent Test | hard | 500s (~8.3min) | 1.2 RMB | Find DAS console and greet DAS agent |
+| `techforum_reply` | TechForum Comment Reply Test | hard | 500s (~8.3min) | 1.0 RMB | Open comments, find "Graduate Student" comment, reply with paper name |
+| `cloudstack_interactive` | CloudStack DAS Interactive Test | very hard | 700s (~11.7min) | 2.0 RMB | Multi-turn conversation with DAS agent: greeting, system status, storage check |
 
 #### Event Matching Notes
 - **Standard events**: `page_view`, `click`, `input`, `submit`, `hover`, `scroll`, `answer_action`

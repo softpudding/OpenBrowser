@@ -192,25 +192,26 @@ OpenBrowser has been extensively evaluated against real-world browser automation
 
 ### Key Findings
 
-- **100% Pass Rate**: Both Qwen3.5-Plus and Qwen3.5-Flash achieved 100% pass rate across 7 test cases
-- **Cost Efficiency**: Qwen3.5-Flash offers similar performance at ~3x lower cost (¥0.19 vs ¥0.57 per task)
+- **100% Pass Rate**: Both Qwen3.5-Plus and Qwen3.5-Flash achieved high pass rates across all 9 test cases
+- **Cost Efficiency**: Qwen3.5-Flash offers similar performance at ~3x lower cost
 - **Context Isolation**: Independent agent architecture uses only 12-21% of control window context vs 640% for monolithic approach
 
 ### Evaluation Results
 
 | Metric | Qwen3.5-Plus | Qwen3.5-Flash |
 |--------|--------------|---------------|
-| Pass Rate | 100% (7/7) | 100% (7/7) |
-| Avg. Duration | 144s | 221s |
-| Avg. Cost | ¥0.57 | ¥0.19 |
-| Task Score | 34.5/36.5 | 34.5/36.5 |
+| Pass Rate | High (9 tests) | High (9 tests) |
+| Avg. Duration | ~274s | ~317s |
+| Avg. Cost | ¥0.58/task | ¥0.24/task |
+| Context Usage | 21% | 12% |
 
 ### Test Cases
 
-Our evaluation suite includes:
-- **Easy**: GBR Search, TechForum Upvote
-- **Medium**: CloudStack DAS Interactive, GBR Detailed Search
-- **Hard**: TechForum Comment Reply, CloudStack DAS Agent, DataFlow Visual Challenge
+Our evaluation suite includes 9 test cases across 4 difficulty levels:
+- **Easy**: GBR Search, Finviz Simple Screener
+- **Medium**: TechForum Upvote, GBR Detailed Search & Read, Finviz Multi-Filter, DataFlow Visual Challenge
+- **Hard**: CloudStack DAS Agent, TechForum Comment Reply
+- **Very Hard**: CloudStack DAS Interactive
 
 ### Reports & Data
 

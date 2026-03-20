@@ -1,6 +1,6 @@
 # Mock Websites for AI Agent Evaluation
 
-This directory contains 3 mocked frontend websites designed to test browser-operating AI agents' capabilities.
+This directory contains 5 mocked frontend websites designed to test browser-operating AI agents' capabilities.
 
 ## Websites
 
@@ -39,6 +39,27 @@ This directory contains 3 mocked frontend websites designed to test browser-oper
   - **Spam popups** that appear at intervals (promotions, security alerts, notifications)
   - Notification panel
   - Multiple action buttons per row
+
+### 4. DataFlow Dashboard (Medium)
+- **URL**: `/dataflow/`
+- **Difficulty**: Medium
+- **Purpose**: Test visual understanding through dashboard interactions
+- **Features**:
+  - Settings panel with toggle switches
+  - Revenue chart with interactive elements
+  - Tab navigation (Revenue, Settings, Reports)
+  - Quarterly data visualization
+
+### 5. Finviz Stock Screener (Medium)
+- **URL**: `/finviz/`
+- **Difficulty**: Medium
+- **Purpose**: Test complex filter interactions with financial data
+- **Features**:
+  - 27 dropdown filter options
+  - Sortable data table (40 stocks)
+  - Pagination controls
+  - Multiple view modes (Overview, Valuation, Financial, etc.)
+  - Dark theme matching original finviz.com
 
 ## Event Tracking
 
@@ -157,24 +178,39 @@ After an AI agent interacts with the websites, you can:
 ```
 eval/
 ├── server.py              # Python server with tracking API
+├── evaluate_browser_agent.py  # Evaluation runner
+├── dataset/               # YAML test case definitions
+│   ├── gbr.yaml
+│   ├── gbr_detailed.yaml
+│   ├── techforum.yaml
+│   ├── techforum_reply.yaml
+│   ├── cloudstack.yaml
+│   ├── cloudstack_interactive.yaml
+│   ├── finviz_simple.yaml
+│   ├── finviz_complex.yaml
+│   └── dataflow.yaml
 ├── css/
 │   ├── gbr.css           # GBR styles
 │   ├── techforum.css     # TechForum styles
-│   └── aliyun.css        # Aliyun styles
+│   ├── aliyun.css        # Aliyun styles
+│   └── finviz.css        # Finviz styles
 ├── js/
 │   ├── tracker.js        # Shared tracking library
 │   ├── gbr.js            # GBR interactions
 │   ├── techforum.js      # TechForum interactions
-│   └── aliyun.js         # Aliyun interactions
-├── gbr/
-│   ├── index.html        # GBR homepage
-│   ├── world.html        # World news page
-│   └── business.html     # Business news page
-├── techforum/
-│   ├── index.html        # TechForum homepage
-│   └── questions.html    # Question detail page
-└── cloudstack/
-    └── index.html        # CloudStack console
+│   ├── aliyun.js         # Aliyun interactions
+│   └── finviz.js         # Finviz interactions
+├── gbr/                   # News website
+│   ├── index.html
+│   └── articles/
+├── techforum/            # Q&A forum
+│   └── index.html
+├── cloudstack/           # Enterprise console (aliyun clone)
+│   └── *.html
+├── dataflow/             # Dashboard visualization
+│   └── index.html
+└── finviz/               # Stock screener
+    └── index.html
 ```
 
 ## Testing
@@ -207,6 +243,16 @@ After an AI agent interacts with a website, you can analyze the tracked events t
 - **Complex UI interaction**: Did the agent interact with the instance table, filters, and pagination?
 - **Multi-step process**: Did the agent initiate and progress through the "Create Instance" modal?
 - **Action selection**: Did the agent perform appropriate instance actions (start, restart, connect, etc.)?
+
+### DataFlow (Medium Level)
+- **Settings interaction**: Did the agent enable the weekly reports feature?
+- **Chart interaction**: Did the agent click on the quarter with highest revenue?
+- **Tab navigation**: Did the agent navigate to the Revenue tab?
+
+### Finviz (Medium Level)
+- **Filter application**: Did the agent apply the correct market cap filter?
+- **Multi-filter combination**: Did the agent apply multiple filters correctly?
+- **Data interpretation**: Did the agent understand the filter results?
 
 ### General Metrics
 - **Event completeness**: Did the agent trigger expected event types (clicks, scrolls, inputs)?

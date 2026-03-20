@@ -3844,7 +3844,6 @@
                 console.log('LLM configuration saved:', data);
 
                 if (!appConfig) appConfig = { default_cwd: '/tmp' };
-                appConfig.llm = data.config;
                 appConfig.llm_configs = data.configs;
                 appConfig.default_llm_alias = data.default_alias;
                 appConfig.is_configured = data.configs.some(config => config.has_api_key);
