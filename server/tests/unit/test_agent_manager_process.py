@@ -66,9 +66,18 @@ class TestAgentManagerMultiProcessMode:
         """Large models should keep javascript plus general tools."""
         manager = OpenBrowserAgentManager()
 
-        tool_names = [
-            tool.name for tool in manager._get_tools_for_model("dashscope/qwen3.5-plus")
-        ]
+        with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
+            mock_llm_config.reload_config.return_value = MagicMock()
+            mock_llm_config.get_llm_config.return_value = MagicMock(
+                model="dashscope/qwen3.5-plus",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+
+            tool_names = [
+                tool.name
+                for tool in manager._get_tools_for_model("dashscope/qwen3.5-plus")
+            ]
 
         assert tool_names == [
             "tab",
@@ -85,10 +94,18 @@ class TestAgentManagerMultiProcessMode:
         """Small models keep general tools but lose javascript."""
         manager = OpenBrowserAgentManager()
 
-        tool_names = [
-            tool.name
-            for tool in manager._get_tools_for_model("dashscope/qwen3.5-flash")
-        ]
+        with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
+            mock_llm_config.reload_config.return_value = MagicMock()
+            mock_llm_config.get_llm_config.return_value = MagicMock(
+                model="dashscope/qwen3.5-flash",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+
+            tool_names = [
+                tool.name
+                for tool in manager._get_tools_for_model("dashscope/qwen3.5-flash")
+            ]
 
         assert tool_names == [
             "tab",
@@ -104,9 +121,17 @@ class TestAgentManagerMultiProcessMode:
         """Unconfigured models should keep the large-model toolset."""
         manager = OpenBrowserAgentManager()
 
-        tool_names = [
-            tool.name for tool in manager._get_tools_for_model("some/new-model")
-        ]
+        with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
+            mock_llm_config.reload_config.return_value = MagicMock()
+            mock_llm_config.get_llm_config.return_value = MagicMock(
+                model="dashscope/qwen3.5-plus",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+
+            tool_names = [
+                tool.name for tool in manager._get_tools_for_model("some/new-model")
+            ]
 
         assert "javascript" in tool_names
 
