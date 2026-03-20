@@ -17,8 +17,8 @@ dependencies = [
     "pillow>=10.0.0",
     "numpy>=1.24.0",
     "requests>=2.31.0",
-    "openhands-sdk @ git+https://github.com/softpudding/agent-sdk.git@open-browser#subdirectory=openhands-sdk",
-    "openhands-tools @ git+https://github.com/softpudding/agent-sdk.git@open-browser#subdirectory=openhands-tools",
+    "openhands-sdk @ git+https://github.com/softpudding/agent-sdk.git@9d339756239d42fa2458d34fe6d81b4f4e335429#subdirectory=openhands-sdk",
+    "openhands-tools @ git+https://github.com/softpudding/agent-sdk.git@9d339756239d42fa2458d34fe6d81b4f4e335429#subdirectory=openhands-tools",
     "litellm @ git+https://github.com/softpudding/litellm.git@bfba5e3889829067baeab3b12d38008360913771",
 ]
 

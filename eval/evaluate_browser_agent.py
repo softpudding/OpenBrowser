@@ -24,6 +24,9 @@ import signal
 import atexit
 import logging
 import datetime
+import threading
+import fcntl
+from contextlib import AbstractContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +41,12 @@ OPENBROWSER_PORT = 8765
 EVAL_DIR = Path(__file__).parent
 DATASET_DIR = EVAL_DIR / "dataset"
 OUTPUT_BASE_DIR = EVAL_DIR / "output"
+LOCK_DIR = EVAL_DIR / ".locks"
 
 # Ensure base directory exists
 OUTPUT_BASE_DIR.mkdir(exist_ok=True)
 DATASET_DIR.mkdir(exist_ok=True)
+LOCK_DIR.mkdir(exist_ok=True)
 
 
 @dataclass
@@ -94,6 +99,15 @@ class LLMTarget:
     model_name: str | None = None
 
 
+@dataclass
+class MessageRunResult:
+    """Result of sending a message to the agent."""
+
+    events: List[Dict[str, Any]]
+    timed_out: bool = False
+    error: Optional[str] = None
+
+
 class OpenBrowserClient:
     """Client for OpenBrowser server API"""
 
@@ -102,6 +116,7 @@ class OpenBrowserClient:
     ):
         self.base_url = base_url
         self.session = requests.Session()
+        self.session.trust_env = False
         self.chrome_uuid = chrome_uuid
 
     def health_check(self) -> bool:
@@ -126,6 +141,67 @@ class OpenBrowserClient:
             logger.error(f"Failed to fetch LLM configs: {e}")
             return []
 
+    def is_browser_valid(self) -> Optional[bool]:
+        """Check whether the configured browser UUID is currently registered."""
+        if not self.chrome_uuid:
+            return None
+
+        try:
+            response = self.session.get(
+                f"{self.base_url}/browsers/{self.chrome_uuid}/valid", timeout=3
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "Browser validity check failed: status=%s body=%s",
+                    response.status_code,
+                    response.text,
+                )
+                return None
+
+            data = response.json()
+            valid = data.get("valid")
+            return bool(valid) if isinstance(valid, bool) else None
+        except Exception as e:
+            logger.warning(f"Browser validity check failed: {e}")
+            return None
+
+    def wait_for_browser_validity(
+        self,
+        timeout_seconds: float = 60.0,
+        poll_interval_seconds: float = 3.0,
+    ) -> bool:
+        """Wait for the configured browser UUID to become valid."""
+        if not self.chrome_uuid:
+            return True
+
+        deadline = time.time() + timeout_seconds
+        logged_wait = False
+
+        while time.time() < deadline:
+            is_valid = self.is_browser_valid()
+            if is_valid:
+                if logged_wait:
+                    logger.info("Browser UUID %s is valid again", self.chrome_uuid)
+                return True
+
+            if not logged_wait:
+                logger.warning(
+                    "Browser UUID %s is not currently valid; waiting up to %.0fs "
+                    "for the extension to reconnect",
+                    self.chrome_uuid,
+                    timeout_seconds,
+                )
+                logged_wait = True
+
+            time.sleep(poll_interval_seconds)
+
+        logger.error(
+            "Browser UUID %s did not become valid within %.0fs",
+            self.chrome_uuid,
+            timeout_seconds,
+        )
+        return False
+
     def create_conversation(
         self,
         model: Optional[str] = None,
@@ -139,60 +215,140 @@ class OpenBrowserClient:
             base_url: Optional base URL override
             model_alias: Optional configured model alias
         """
-        try:
-            request_json = {}
-            if model:
-                request_json["model"] = model
-            if base_url:
-                request_json["base_url"] = base_url
-            if model_alias:
-                request_json["model_alias"] = model_alias
-            if self.chrome_uuid:
-                request_json["browser_id"] = self.chrome_uuid
+        if self.chrome_uuid and not self.wait_for_browser_validity(timeout_seconds=30.0):
+            return None
 
-            response = self.session.post(
-                f"{self.base_url}/agent/conversations", json=request_json, timeout=5
-            )
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("conversation_id")
-        except Exception as e:
-            logger.error(f"Failed to create conversation: {e}")
+        request_json: Dict[str, Any] = {}
+        if model:
+            request_json["model"] = model
+        if base_url:
+            request_json["base_url"] = base_url
+        if model_alias:
+            request_json["model_alias"] = model_alias
+        if self.chrome_uuid:
+            request_json["browser_id"] = self.chrome_uuid
+
+        max_attempts = 4
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = self.session.post(
+                    f"{self.base_url}/agent/conversations",
+                    json=request_json,
+                    timeout=5,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data.get("conversation_id")
+
+                response_text = response.text
+                logger.error(
+                    "Failed to create conversation (attempt %s/%s): status=%s body=%s",
+                    attempt,
+                    max_attempts,
+                    response.status_code,
+                    response_text,
+                )
+
+                should_wait_for_browser = (
+                    self.chrome_uuid is not None
+                    and response.status_code == 400
+                    and "Invalid or expired browser_id" in response_text
+                )
+                if should_wait_for_browser and attempt < max_attempts:
+                    if self.wait_for_browser_validity(timeout_seconds=90.0):
+                        continue
+                    return None
+
+            except Exception as e:
+                logger.error(
+                    "Failed to create conversation (attempt %s/%s): %s",
+                    attempt,
+                    max_attempts,
+                    e,
+                )
+                if attempt < max_attempts:
+                    time.sleep(3.0)
         return None
 
     def send_message(
-        self, conversation_id: str, message: str, cwd: str = "."
-    ) -> List[Dict[str, Any]]:
-        """Send a message to the agent and collect SSE events"""
-        events = []
-        try:
-            response = self.session.post(
-                f"{self.base_url}/agent/conversations/{conversation_id}/messages",
-                json={
-                    "text": message,
-                    "cwd": cwd,
-                    "browser_id": self.chrome_uuid,
-                },
-                stream=True,
-                headers={"Accept": "text/event-stream"},
-                timeout=90,  # Increased timeout for longer conversations
-            )
-            response.raise_for_status()
+        self,
+        conversation_id: str,
+        message: str,
+        cwd: str = ".",
+        timeout_seconds: Optional[float] = None,
+    ) -> MessageRunResult:
+        """Send a message to the agent and collect SSE events."""
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            return MessageRunResult(events=[], timed_out=True)
 
-            # Parse SSE events manually
-            buffer = ""
+        events: List[Dict[str, Any]] = []
+        error: Optional[str] = None
+        timed_out = False
+        response_holder: Dict[str, Any] = {"response": None, "aborted": False}
 
-            # Simply iterate until iter_content returns empty (connection closed)
-            for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
-                if not chunk:
-                    # Empty chunk means end of stream
-                    break
+        def _collect_events() -> None:
+            nonlocal error
+            response = None
+            local_session = requests.Session()
+            local_session.trust_env = False
+            try:
+                response = local_session.post(
+                    f"{self.base_url}/agent/conversations/{conversation_id}/messages",
+                    json={
+                        "text": message,
+                        "cwd": cwd,
+                        "browser_id": self.chrome_uuid,
+                    },
+                    stream=True,
+                    headers={"Accept": "text/event-stream"},
+                    timeout=90,  # Per-read timeout; test-level timeout is handled outside.
+                )
+                response_holder["response"] = response
+                response.raise_for_status()
 
-                buffer += chunk
-                # Split on double newlines
-                while "\n\n" in buffer:
-                    event_str, buffer = buffer.split("\n\n", 1)
-                    event_lines = event_str.strip().split("\n")
+                # Parse SSE events manually
+                buffer = ""
+
+                # Simply iterate until iter_content returns empty (connection closed)
+                for chunk in response.iter_content(
+                    chunk_size=1024, decode_unicode=True
+                ):
+                    if not chunk:
+                        # Empty chunk means end of stream
+                        break
+
+                    buffer += chunk
+                    # Split on double newlines
+                    while "\n\n" in buffer:
+                        event_str, buffer = buffer.split("\n\n", 1)
+                        event_lines = event_str.strip().split("\n")
+                        event_type = None
+                        data = {}
+                        for line in event_lines:
+                            line = line.strip()
+                            if line.startswith("event:"):
+                                event_type = line[6:].strip()
+                            elif line.startswith("data:"):
+                                data_str = line[5:].strip()
+                                try:
+                                    data = json.loads(data_str)
+                                except json.JSONDecodeError:
+                                    data = data_str
+                        if event_type:
+                            events.append(
+                                {
+                                    "type": event_type,
+                                    "data": data,
+                                    "timestamp": time.time(),
+                                }
+                            )
+                            logger.debug(f"SSE event: {event_type}")
+
+                # Process any remaining buffer (incomplete event)
+                if buffer.strip():
+                    logger.debug(f"Processing trailing buffer: {buffer[:200]}")
+                    # Try to parse as event even without \n\n delimiter
+                    event_lines = buffer.strip().split("\n")
                     event_type = None
                     data = {}
                     for line in event_lines:
@@ -207,54 +363,65 @@ class OpenBrowserClient:
                                 data = data_str
                     if event_type:
                         events.append(
-                            {"type": event_type, "data": data, "timestamp": time.time()}
+                            {
+                                "type": event_type,
+                                "data": data,
+                                "timestamp": time.time(),
+                            }
                         )
-                        logger.debug(f"SSE event: {event_type}")
+                        logger.debug(f"Processed trailing SSE event: {event_type}")
 
-            # Process any remaining buffer (incomplete event)
-            if buffer.strip():
-                logger.debug(f"Processing trailing buffer: {buffer[:200]}")
-                # Try to parse as event even without \n\n delimiter
-                event_lines = buffer.strip().split("\n")
-                event_type = None
-                data = {}
-                for line in event_lines:
-                    line = line.strip()
-                    if line.startswith("event:"):
-                        event_type = line[6:].strip()
-                    elif line.startswith("data:"):
-                        data_str = line[5:].strip()
-                        try:
-                            data = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            data = data_str
-                if event_type:
-                    events.append(
-                        {"type": event_type, "data": data, "timestamp": time.time()}
-                    )
-                    logger.debug(f"Processed trailing SSE event: {event_type}")
+                # Check if we have complete and usage_metrics events
+                has_complete = any(e["type"] == "complete" for e in events)
+                has_usage_metrics = any(e["type"] == "usage_metrics" for e in events)
 
-            # Check if we have complete and usage_metrics events
-            has_complete = any(e["type"] == "complete" for e in events)
-            has_usage_metrics = any(e["type"] == "usage_metrics" for e in events)
-
-            logger.debug(
-                f"Event summary - Complete: {has_complete}, Usage Metrics: {has_usage_metrics}"
-            )
-
-            if has_complete and not has_usage_metrics:
-                logger.warning(
-                    f"Conversation completed but no usage_metrics event received"
+                logger.debug(
+                    f"Event summary - Complete: {has_complete}, Usage Metrics: {has_usage_metrics}"
                 )
 
-        except Exception as e:
-            logger.error(f"Failed to send message: {e}")
+                if has_complete and not has_usage_metrics:
+                    logger.warning(
+                        "Conversation completed but no usage_metrics event received"
+                    )
+
+            except Exception as e:
+                if response_holder["aborted"]:
+                    logger.info(
+                        "Stopped SSE collection after hitting the test time limit"
+                    )
+                else:
+                    error = f"Failed to send message: {e}"
+                    logger.error(error)
+            finally:
+                if response is not None:
+                    response.close()
+                local_session.close()
+
+        worker = threading.Thread(target=_collect_events, daemon=True)
+        worker.start()
+        worker.join(timeout=timeout_seconds)
+
+        if worker.is_alive():
+            timed_out = True
+            response_holder["aborted"] = True
+            response = response_holder.get("response")
+            if response is not None:
+                response.close()
+            worker.join(timeout=5)
+            if worker.is_alive():
+                logger.warning(
+                    "SSE collector thread did not exit promptly after timeout"
+                )
 
         # Log all event types for debugging
         event_types = [e["type"] for e in events]
         logger.debug(f"Total SSE events collected: {len(events)}, types: {event_types}")
 
-        return events
+        return MessageRunResult(
+            events=list(events),
+            timed_out=timed_out,
+            error=error,
+        )
 
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete a conversation"""
@@ -272,11 +439,13 @@ class EvalServerClient:
 
     def __init__(self, base_url: str = EVAL_SERVER_URL):
         self.base_url = base_url
+        self.session = requests.Session()
+        self.session.trust_env = False
 
     def health_check(self) -> bool:
         """Check if eval server is running"""
         try:
-            response = requests.get(f"{self.base_url}/api/events", timeout=2)
+            response = self.session.get(f"{self.base_url}/api/events", timeout=2)
             return response.status_code == 200
         except requests.exceptions.RequestException:
             return False
@@ -284,7 +453,7 @@ class EvalServerClient:
     def clear_events(self) -> bool:
         """Clear all tracked events"""
         try:
-            response = requests.get(f"{self.base_url}/api/events/clear", timeout=2)
+            response = self.session.get(f"{self.base_url}/api/events/clear", timeout=2)
             return response.status_code == 200
         except Exception:
             return False
@@ -292,7 +461,7 @@ class EvalServerClient:
     def get_events(self) -> List[Dict[str, Any]]:
         """Get all tracked events"""
         try:
-            response = requests.get(f"{self.base_url}/api/events", timeout=5)
+            response = self.session.get(f"{self.base_url}/api/events", timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 return data.get("events", [])
@@ -303,7 +472,7 @@ class EvalServerClient:
     def get_sites(self) -> List[str]:
         """Get available sites"""
         try:
-            response = requests.get(f"{self.base_url}/api/sites", timeout=2)
+            response = self.session.get(f"{self.base_url}/api/sites", timeout=2)
             if response.status_code == 200:
                 data = response.json()
                 return data.get("sites", [])
@@ -391,6 +560,62 @@ class ServiceManager:
             except Exception as e:
                 logger.error(f"Error stopping eval server: {e}")
             self.eval_server_proc = None
+
+
+class EvaluationRunLock(AbstractContextManager["EvaluationRunLock"]):
+    """Prevent concurrent evaluation runs from reusing the same browser UUID."""
+
+    def __init__(self, browser_uuid: str):
+        safe_uuid = browser_uuid.replace("/", "_")
+        self.browser_uuid = browser_uuid
+        self.path = LOCK_DIR / f"evaluation_{safe_uuid}.lock"
+        self._handle: Optional[Any] = None
+
+    def acquire(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(self.path, "a+")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            handle.seek(0)
+            existing = handle.read().strip()
+            handle.close()
+            detail = f" Existing lock info: {existing}" if existing else ""
+            raise RuntimeError(
+                "Another evaluation run is already using browser UUID "
+                f"{self.browser_uuid}.{detail}"
+            )
+
+        handle.seek(0)
+        handle.truncate()
+        payload = {
+            "pid": os.getpid(),
+            "browser_uuid": self.browser_uuid,
+            "started_at": datetime.datetime.now().isoformat(),
+        }
+        handle.write(json.dumps(payload))
+        handle.flush()
+        self._handle = handle
+
+    def release(self) -> None:
+        if self._handle is None:
+            return
+
+        try:
+            self._handle.seek(0)
+            self._handle.truncate()
+            fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            self._handle.close()
+            self._handle = None
+
+    def __enter__(self) -> "EvaluationRunLock":
+        self.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.release()
+        return None
 
 
 class Evaluator:
@@ -538,92 +763,154 @@ class Evaluator:
             logger.warning(
                 f"Failed to create conversation for model {self.current_model}"
             )
+            max_score = sum(
+                criterion.get("points", 1) for criterion in test_case.criteria
+            )
             return TestResult(
                 test_case=test_case,
                 passed=False,
                 score=0,
-                max_score=len(test_case.criteria),
+                max_score=max_score,
                 events=[],
                 sse_events=[],
                 track_events=[],
                 images=[],
-                error=f"Failed to create conversation for target {self.current_model}",
+                error=(
+                    f"Failed to create conversation for target {self.current_model}. "
+                    "See logs for server response details."
+                ),
+                duration=0.0,
+                cost=0.0,
+                efficiency_score=0.0,
+                usage_score=0.0,
+                total_score=0.0,
+                model=self.current_model,
             )
 
-        # Initialize with start URL if provided
-        if test_case.start_url:
-            init_message = f"Open {test_case.start_url}"
-            self.openbrowser.send_message(conversation_id, init_message)
-            time.sleep(2)  # Wait for page load
-
-        # Send the main instruction with timing
         start_time = time.time()
-        sse_events = self.openbrowser.send_message(
-            conversation_id, test_case.instruction
-        )
-        end_time = time.time()
-        duration = end_time - start_time
+        deadline = start_time + test_case.time_limit
+        sse_events: List[Dict[str, Any]] = []
+        track_events: List[Dict[str, Any]] = []
+        timed_out = False
+        error: Optional[str] = None
 
-        # Wait a bit for any pending actions
-        time.sleep(3)
+        try:
+            # Initialize with start URL if provided
+            if test_case.start_url:
+                init_message = f"Open {test_case.start_url}"
+                init_result = self.openbrowser.send_message(
+                    conversation_id,
+                    init_message,
+                    timeout_seconds=max(0.0, deadline - time.time()),
+                )
+                sse_events.extend(init_result.events)
+                if init_result.error:
+                    error = init_result.error
+                if init_result.timed_out:
+                    timed_out = True
+                    error = (
+                        f"Test exceeded time limit ({test_case.time_limit:.1f}s) "
+                        "while opening the start URL"
+                    )
+                else:
+                    remaining_time = deadline - time.time()
+                    if remaining_time <= 0:
+                        timed_out = True
+                        error = (
+                            f"Test exceeded time limit ({test_case.time_limit:.1f}s) "
+                            "before running the main instruction"
+                        )
+                    else:
+                        time.sleep(min(2.0, remaining_time))  # Wait for page load
 
-        # Get tracking events
-        track_events = self.eval_server.get_events()
+            # Send the main instruction with the remaining test budget
+            if not timed_out:
+                instruction_result = self.openbrowser.send_message(
+                    conversation_id,
+                    test_case.instruction,
+                    timeout_seconds=max(0.0, deadline - time.time()),
+                )
+                sse_events.extend(instruction_result.events)
+                if instruction_result.error:
+                    error = instruction_result.error
+                if instruction_result.timed_out:
+                    timed_out = True
+                    error = (
+                        f"Test exceeded time limit ({test_case.time_limit:.1f}s); "
+                        "stopped early and scored current progress"
+                    )
 
-        # Save track events to file
-        track_events_file = self._save_track_events(
-            track_events, test_case.id, conversation_id, model_output_dir
-        )
+            end_time = time.time()
+            duration = (
+                test_case.time_limit if timed_out else max(0.0, end_time - start_time)
+            )
 
-        # Extract and save images from SSE events
-        images = self._extract_images(
-            sse_events, test_case.id, conversation_id, model_output_dir
-        )
+            if timed_out and error:
+                logger.warning(error)
 
-        # Extract and save SSE events (excluding images) to file
-        sse_events_file = self._save_sse_events(
-            sse_events, test_case.id, conversation_id, model_output_dir
-        )
+            # Give the tracker a short moment to flush any in-flight events.
+            pending_event_wait = 1.0 if timed_out else 3.0
+            time.sleep(min(pending_event_wait, max(0.0, deadline - time.time())))
 
-        # Extract usage metrics from SSE events
-        cost = self._extract_cost_from_sse_events(sse_events)
+            # Get tracking events
+            track_events = self.eval_server.get_events()
 
-        # Evaluate against criteria
-        passed, score, max_score = self._evaluate_criteria(
-            test_case, track_events, sse_events
-        )
+            # Save track events to file
+            track_events_file = self._save_track_events(
+                track_events, test_case.id, conversation_id, model_output_dir
+            )
 
-        # Calculate efficiency and usage scores
-        efficiency_score = self._calculate_efficiency_score(
-            duration, test_case.time_limit
-        )
-        usage_score = self._calculate_usage_score(cost, test_case.cost_limit)
-        total_score = score + efficiency_score + usage_score
+            # Extract and save images from SSE events
+            images = self._extract_images(
+                sse_events, test_case.id, conversation_id, model_output_dir
+            )
 
-        # Clean up conversation
-        self.openbrowser.delete_conversation(conversation_id)
+            # Extract and save SSE events (excluding images) to file
+            sse_events_file = self._save_sse_events(
+                sse_events, test_case.id, conversation_id, model_output_dir
+            )
 
-        return TestResult(
-            test_case=test_case,
-            passed=passed,
-            score=score,
-            max_score=max_score,
-            events=[],  # Combined events if needed
-            sse_events=sse_events,
-            track_events=track_events,
-            images=images,
-            conversation_id=conversation_id,
-            start_time=start_time,
-            end_time=end_time,
-            duration=duration,
-            cost=cost,
-            efficiency_score=efficiency_score,
-            usage_score=usage_score,
-            total_score=total_score,
-            sse_events_file=sse_events_file,
-            track_events_file=track_events_file,
-            model=self.current_model,
-        )
+            # Extract usage metrics from SSE events
+            cost = self._extract_cost_from_sse_events(sse_events)
+
+            # Evaluate against criteria using current events, even on timeout.
+            passed, score, max_score = self._evaluate_criteria(
+                test_case, track_events, sse_events
+            )
+
+            # Calculate efficiency and usage scores
+            efficiency_score = (
+                0.0
+                if timed_out
+                else self._calculate_efficiency_score(duration, test_case.time_limit)
+            )
+            usage_score = self._calculate_usage_score(cost, test_case.cost_limit)
+            total_score = score + efficiency_score + usage_score
+
+            return TestResult(
+                test_case=test_case,
+                passed=passed,
+                score=score,
+                max_score=max_score,
+                events=[],  # Combined events if needed
+                sse_events=sse_events,
+                track_events=track_events,
+                images=images,
+                error=error,
+                conversation_id=conversation_id,
+                start_time=start_time,
+                end_time=end_time,
+                duration=duration,
+                cost=cost,
+                efficiency_score=efficiency_score,
+                usage_score=usage_score,
+                total_score=total_score,
+                sse_events_file=sse_events_file,
+                track_events_file=track_events_file,
+                model=self.current_model,
+            )
+        finally:
+            self.openbrowser.delete_conversation(conversation_id)
 
     def _extract_images(
         self,
@@ -1737,16 +2024,19 @@ class Evaluator:
                             "task_score": round(result["task_score"], 2),
                             "task_max_score": round(result["task_max_score"], 2),
                             "efficiency_score": round(
-                                result.get("efficiency_score", 0), 4
+                                result.get("efficiency_score") or 0, 4
                             ),
-                            "usage_score": round(result.get("usage_score", 0), 4),
+                            "usage_score": round(result.get("usage_score") or 0, 4),
                             "composite_score": round(
-                                result.get("composite_score", 0), 4
+                                result.get("composite_score") or 0, 4
                             ),
                             "total_score": round(
-                                result.get("total_score", result["task_score"]), 2
+                                result.get("total_score")
+                                if result.get("total_score") is not None
+                                else result["task_score"],
+                                2,
                             ),
-                            "duration": round(result["duration"], 2),
+                            "duration": round(result.get("duration") or 0, 2),
                             "cost": (
                                 round(result["cost"], 6)
                                 if result["cost"] is not None
@@ -1892,157 +2182,178 @@ def main():
             print(f"    {tc.description[:80]}...")
         return
 
-    if args.test:
-        # Run single test for all models (or specified models)
-        test_cases = evaluator.load_test_cases()
-        test_case = next((tc for tc in test_cases if tc.id == args.test), None)
-        if not test_case:
-            logger.error(f"Test not found: {args.test}")
-            return
+    run_lock: Optional[EvaluationRunLock] = None
+    if not args.manual and args.chrome_uuid:
+        try:
+            run_lock = EvaluationRunLock(args.chrome_uuid)
+            run_lock.acquire()
+        except RuntimeError as e:
+            logger.error(str(e))
+            sys.exit(1)
 
-        if not evaluator.ensure_services(
-            skip_services=args.no_services, manual=args.manual
-        ):
-            logger.error("Services unavailable")
-            return
+    try:
+        if args.test:
+            # Run single test for all models (or specified models)
+            test_cases = evaluator.load_test_cases()
+            test_case = next((tc for tc in test_cases if tc.id == args.test), None)
+            if not test_case:
+                logger.error(f"Test not found: {args.test}")
+                return
 
-        if not args.manual:
-            try:
-                llm_targets = evaluator.resolve_targets(llm_targets)
-            except ValueError as e:
-                logger.error(str(e))
-                sys.exit(1)
+            if not evaluator.ensure_services(
+                skip_services=args.no_services, manual=args.manual
+            ):
+                logger.error("Services unavailable")
+                return
 
-        # Create output directory for single test
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        evaluator.output_dir = OUTPUT_BASE_DIR / timestamp
-        evaluator.output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Output directory: {evaluator.output_dir}")
+            if not args.manual:
+                try:
+                    llm_targets = evaluator.resolve_targets(llm_targets)
+                except ValueError as e:
+                    logger.error(str(e))
+                    sys.exit(1)
 
-        # Manual mode
-        if args.manual:
-            logger.info(f"Running manual test: {test_case.name}")
-            print(f"\n{'=' * 60}")
-            print(f"MANUAL MODE ENABLED")
-            print(f"Test: {test_case.name}")
-            print(f"Model selection ignored (manual human test)")
-            print(f"{'=' * 60}")
+            # Create output directory for single test
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            evaluator.output_dir = OUTPUT_BASE_DIR / timestamp
+            evaluator.output_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Output directory: {evaluator.output_dir}")
 
-            result = evaluator.run_manual_test(test_case)
-            all_results = [result]
+            # Manual mode
+            if args.manual:
+                logger.info(f"Running manual test: {test_case.name}")
+                print(f"\n{'=' * 60}")
+                print(f"MANUAL MODE ENABLED")
+                print(f"Test: {test_case.name}")
+                print(f"Model selection ignored (manual human test)")
+                print(f"{'=' * 60}")
 
-            # Print result for manual test
-            print(f"\nTest result for {test_case.name} (manual):")
-            print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
-            print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
-            print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
-            print(f"  Usage score: {result.usage_score or 0:.2f}/1.0 (manual)")
-            # Calculate composite score for this test
-            passed_float = 1.0 if result.passed else 0.0
-            eff_score = result.efficiency_score or 0.0
-            usage_score_val = result.usage_score or 0.0
-            test_composite = (passed_float * 3 + eff_score + usage_score_val) / 5.0
-            print(f"  Composite score: {test_composite:.2f}/1.0")
-            print(f"  Total score: {result.total_score or result.score:.1f}")
-            print(
-                f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)"
-            )
-            print(
-                f"  Cost: {result.cost or 'N/A'} RMB (limit: {test_case.cost_limit}RMB)"
-            )
-            print(f"  Track events: {len(result.track_events)}")
-            if result.track_events_file:
-                print(f"  Track events file: {result.track_events_file}")
+                result = evaluator.run_manual_test(test_case)
+                all_results = [result]
 
-        # Normal (automated) mode
-        else:
-            all_results = []
-            target_names = [target.model_name or target.name for target in llm_targets]
-            for target in llm_targets:
-                logger.info(f"\n{'=' * 60}")
-                logger.info(
-                    f"Testing target alias: {target.alias} -> model: {target.model_name}"
-                )
-                logger.info(f"{'=' * 60}")
-
-                evaluator.current_target = target
-                evaluator.current_model = target.model_name or target.name
-
-                result = evaluator.run_test(test_case)
-                result.model = target.model_name or target.name
-                all_results.append(result)
-
-                print(
-                    f"\nTest result for {test_case.name} "
-                    f"(alias: {target.alias}, model: {target.model_name}):"
-                )
+                # Print result for manual test
+                print(f"\nTest result for {test_case.name} (manual):")
                 print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
                 print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
                 print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
-                print(f"  Usage score: {result.usage_score or 0:.2f}/1.0")
+                print(f"  Usage score: {result.usage_score or 0:.2f}/1.0 (manual)")
                 # Calculate composite score for this test
                 passed_float = 1.0 if result.passed else 0.0
                 eff_score = result.efficiency_score or 0.0
                 usage_score_val = result.usage_score or 0.0
-                test_composite = (passed_float * 3 + eff_score + usage_score_val) / 5.0
+                test_composite = (
+                    passed_float * 3 + eff_score + usage_score_val
+                ) / 5.0
                 print(f"  Composite score: {test_composite:.2f}/1.0")
                 print(f"  Total score: {result.total_score or result.score:.1f}")
                 print(
                     f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)"
                 )
                 print(
-                    f"  Cost: {result.cost or 0:.6f} RMB (limit: {test_case.cost_limit}RMB)"
+                    f"  Cost: {result.cost or 'N/A'} RMB (limit: {test_case.cost_limit}RMB)"
                 )
-                print(f"  Conversation ID: {result.conversation_id}")
                 print(f"  Track events: {len(result.track_events)}")
-                print(f"  SSE events: {len(result.sse_events)}")
-                print(f"  Images saved: {len(result.images)}")
-                if result.sse_events_file:
-                    print(f"  SSE events file: {result.sse_events_file}")
                 if result.track_events_file:
                     print(f"  Track events file: {result.track_events_file}")
 
-            # Generate cross-model summary if we tested multiple models
-            if len(llm_targets) > 1 and all_results:
-                evaluator._generate_cross_model_summary(all_results, target_names)
-
-            # Print overall summary
-            print(f"\n{'=' * 60}")
-            print(f"Overall summary for test '{test_case.name}':")
-            for target_name in target_names:
-                model_results = [r for r in all_results if r.model == target_name]
-                if model_results:
-                    result = model_results[0]
-                    status = "PASS" if result.passed else "FAIL"
-                    print(
-                        f"  {target_name}: {status} (score: {result.score:.1f}/{result.max_score:.1f})"
+            # Normal (automated) mode
+            else:
+                all_results = []
+                target_names = [
+                    target.model_name or target.name for target in llm_targets
+                ]
+                for target in llm_targets:
+                    logger.info(f"\n{'=' * 60}")
+                    logger.info(
+                        f"Testing target alias: {target.alias} -> model: {target.model_name}"
                     )
+                    logger.info(f"{'=' * 60}")
 
-    else:
-        # Run all tests for all models (manual mode now supported)
-        if args.manual:
-            logger.info(f"Running all tests in MANUAL mode")
-            print(f"\n{'=' * 60}")
-            print(f"ALL TESTS MANUAL MODE")
-            print(f"Model selection ignored (manual human test)")
-            print(f"{'=' * 60}")
+                    evaluator.current_target = target
+                    evaluator.current_model = target.model_name or target.name
 
-            success = evaluator.run_all_manual(skip_services=args.no_services)
-            if not success:
-                sys.exit(1)
+                    result = evaluator.run_test(test_case)
+                    result.model = target.model_name or target.name
+                    all_results.append(result)
+
+                    print(
+                        f"\nTest result for {test_case.name} "
+                        f"(alias: {target.alias}, model: {target.model_name}):"
+                    )
+                    print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
+                    print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
+                    print(
+                        f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0"
+                    )
+                    print(f"  Usage score: {result.usage_score or 0:.2f}/1.0")
+                    # Calculate composite score for this test
+                    passed_float = 1.0 if result.passed else 0.0
+                    eff_score = result.efficiency_score or 0.0
+                    usage_score_val = result.usage_score or 0.0
+                    test_composite = (
+                        passed_float * 3 + eff_score + usage_score_val
+                    ) / 5.0
+                    print(f"  Composite score: {test_composite:.2f}/1.0")
+                    print(f"  Total score: {result.total_score or result.score:.1f}")
+                    print(
+                        f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)"
+                    )
+                    print(
+                        f"  Cost: {result.cost or 0:.6f} RMB (limit: {test_case.cost_limit}RMB)"
+                    )
+                    print(f"  Conversation ID: {result.conversation_id}")
+                    print(f"  Track events: {len(result.track_events)}")
+                    print(f"  SSE events: {len(result.sse_events)}")
+                    print(f"  Images saved: {len(result.images)}")
+                    if result.sse_events_file:
+                        print(f"  SSE events file: {result.sse_events_file}")
+                    if result.track_events_file:
+                        print(f"  Track events file: {result.track_events_file}")
+
+                # Generate cross-model summary if we tested multiple models
+                if len(llm_targets) > 1 and all_results:
+                    evaluator._generate_cross_model_summary(all_results, target_names)
+
+                # Print overall summary
+                print(f"\n{'=' * 60}")
+                print(f"Overall summary for test '{test_case.name}':")
+                for target_name in target_names:
+                    model_results = [r for r in all_results if r.model == target_name]
+                    if model_results:
+                        result = model_results[0]
+                        status = "PASS" if result.passed else "FAIL"
+                        print(
+                            f"  {target_name}: {status} (score: {result.score:.1f}/{result.max_score:.1f})"
+                        )
+
         else:
-            # Normal automated mode
-            try:
-                llm_targets = evaluator.resolve_targets(llm_targets)
-            except ValueError as e:
-                logger.error(str(e))
-                sys.exit(1)
+            # Run all tests for all models (manual mode now supported)
+            if args.manual:
+                logger.info(f"Running all tests in MANUAL mode")
+                print(f"\n{'=' * 60}")
+                print(f"ALL TESTS MANUAL MODE")
+                print(f"Model selection ignored (manual human test)")
+                print(f"{'=' * 60}")
 
-            success = evaluator.run_all(
-                targets=llm_targets, skip_services=args.no_services, manual=False
-            )
-            if not success:
-                sys.exit(1)
+                success = evaluator.run_all_manual(skip_services=args.no_services)
+                if not success:
+                    sys.exit(1)
+            else:
+                # Normal automated mode
+                try:
+                    llm_targets = evaluator.resolve_targets(llm_targets)
+                except ValueError as e:
+                    logger.error(str(e))
+                    sys.exit(1)
+
+                success = evaluator.run_all(
+                    targets=llm_targets, skip_services=args.no_services, manual=False
+                )
+                if not success:
+                    sys.exit(1)
+    finally:
+        if run_lock is not None:
+            run_lock.release()
 
 
 if __name__ == "__main__":

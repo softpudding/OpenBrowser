@@ -135,6 +135,46 @@ class TestAgentManagerMultiProcessMode:
 
         assert "javascript" in tool_names
 
+    def test_system_prompt_kwargs_follow_large_model_profile(self) -> None:
+        """Large models should advertise full browser freedom in system prompt."""
+        manager = OpenBrowserAgentManager()
+
+        with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
+            mock_llm_config.reload_config.return_value = MagicMock()
+            mock_llm_config.get_llm_config.return_value = MagicMock(
+                model="dashscope/qwen3.5-plus",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+
+            kwargs = manager._get_system_prompt_kwargs("dashscope/qwen3.5-plus")
+
+        assert kwargs == {
+            "model_profile": "large",
+            "small_model": False,
+            "javascript_available": True,
+        }
+
+    def test_system_prompt_kwargs_follow_small_model_profile(self) -> None:
+        """Small models should get the constrained system prompt variant."""
+        manager = OpenBrowserAgentManager()
+
+        with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
+            mock_llm_config.reload_config.return_value = MagicMock()
+            mock_llm_config.get_llm_config.return_value = MagicMock(
+                model="dashscope/qwen3.5-flash",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+
+            kwargs = manager._get_system_prompt_kwargs("dashscope/qwen3.5-flash")
+
+        assert kwargs == {
+            "model_profile": "small",
+            "small_model": True,
+            "javascript_available": False,
+        }
+
 
 class TestConversationCreationMultiProcess:
     """Tests for conversation creation in multi-process mode."""

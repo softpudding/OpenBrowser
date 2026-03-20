@@ -41,7 +41,7 @@ See `eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_op
 ### Check Status
 
 ```bash
-cd ~/git/OpenBrowser && python3 skill/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
+cd ~/git/OpenBrowser && python3 skill/openclaw/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
 ```
 
 Expected: `✅ Server: Running`, `✅ Extension: Connected`, `✅ LLM Config: ...`, `✅ Browser UUID: Valid and registered`
@@ -53,11 +53,11 @@ cd ~/git/OpenBrowser
 export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
 
 # Background mode (RECOMMENDED for OpenClaw exec)
-nohup python3 skill/open-browser/scripts/send_task.py "task description" > /tmp/ob.log 2>&1 &
+nohup python3 skill/openclaw/open-browser/scripts/send_task.py "task description" > /tmp/ob.log 2>&1 &
 sleep 120 && cat /tmp/ob.log
 
 # Foreground mode (for simple tasks)
-python3 skill/open-browser/scripts/send_task.py "Open example.com"
+python3 skill/openclaw/open-browser/scripts/send_task.py "Open example.com"
 ```
 
 ## ⚠️ Critical: Always Use Background Mode
@@ -67,7 +67,7 @@ OpenBrowser uses SSE. If exec times out, the task pauses.
 **Always use this pattern:**
 
 ```bash
-cd ~/git/OpenBrowser && OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID nohup python3 skill/open-browser/scripts/send_task.py 'TASK' > /tmp/ob.log 2>&1 & sleep 120 && cat /tmp/ob.log
+cd ~/git/OpenBrowser && OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID nohup python3 skill/openclaw/open-browser/scripts/send_task.py 'TASK' > /tmp/ob.log 2>&1 & sleep 120 && cat /tmp/ob.log
 ```
 
 Adjust sleep time based on task complexity:
@@ -116,7 +116,7 @@ The browser UUID is a capability token. Anyone who has it can control that brows
 ### Verify Setup
 
 ```bash
-python3 skill/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
+python3 skill/openclaw/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
 ```
 
 ### Test Installation
@@ -124,7 +124,7 @@ python3 skill/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UU
 After setup, test with:
 
 ```bash
-cd ~/git/OpenBrowser && OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID nohup python3 skill/open-browser/scripts/send_task.py "Go to https://github.com/softpudding/OpenBrowser and star the repository" > /tmp/ob_test.log 2>&1 & sleep 90 && cat /tmp/ob_test.log
+cd ~/git/OpenBrowser && OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID nohup python3 skill/openclaw/open-browser/scripts/send_task.py "Go to https://github.com/softpudding/OpenBrowser and star the repository" > /tmp/ob_test.log 2>&1 & sleep 90 && cat /tmp/ob_test.log
 ```
 
 Expected: Browser opens GitHub, clicks Star, returns completion (~¥0.13-0.22).

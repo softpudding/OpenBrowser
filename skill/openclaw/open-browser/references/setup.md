@@ -17,7 +17,7 @@ OpenClaw can execute these steps for you:
 
 ```bash
 # Clone and install
-git clone https://github.com/your-org/OpenBrowser.git ~/git/OpenBrowser
+git clone https://github.com/softpudding/OpenBrowser.git ~/git/OpenBrowser
 cd ~/git/OpenBrowser && uv sync
 
 # Build extension
@@ -69,7 +69,7 @@ You must do these steps manually:
 
 ```bash
 export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
-python3 skill/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
+python3 skill/openclaw/open-browser/scripts/check_status.py --chrome-uuid YOUR_BROWSER_UUID
 ```
 
 Expected:

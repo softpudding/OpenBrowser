@@ -4,7 +4,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from eval.evaluate_browser_agent import Evaluator, LLMTarget, OpenBrowserClient
+from eval import evaluate_browser_agent as eval_module
+from eval.evaluate_browser_agent import (
+    EvaluationRunLock,
+    Evaluator,
+    LLMTarget,
+    OpenBrowserClient,
+)
 
 
 def test_create_conversation_uses_model_alias_payload() -> None:
@@ -13,6 +19,7 @@ def test_create_conversation_uses_model_alias_payload() -> None:
         base_url="http://example.test", chrome_uuid="browser-uuid-123"
     )
     client.session = MagicMock()
+    client.wait_for_browser_validity = MagicMock(return_value=True)
     client.session.post.return_value.status_code = 200
     client.session.post.return_value.json.return_value = {"conversation_id": "conv-123"}
 
@@ -26,6 +33,45 @@ def test_create_conversation_uses_model_alias_payload() -> None:
         },
         timeout=5,
     )
+
+
+def test_create_conversation_retries_when_browser_uuid_reconnects() -> None:
+    """Eval client should retry after a transient invalid browser UUID error."""
+    client = OpenBrowserClient(
+        base_url="http://example.test", chrome_uuid="browser-uuid-123"
+    )
+    client.session = MagicMock()
+    client.wait_for_browser_validity = MagicMock(side_effect=[True, True])
+
+    invalid_response = MagicMock()
+    invalid_response.status_code = 400
+    invalid_response.text = "Invalid or expired browser_id: browser-uuid-123"
+
+    success_response = MagicMock()
+    success_response.status_code = 200
+    success_response.json.return_value = {"conversation_id": "conv-456"}
+
+    client.session.post.side_effect = [invalid_response, success_response]
+
+    assert client.create_conversation(model_alias="flash") == "conv-456"
+    assert client.session.post.call_count == 2
+
+
+def test_evaluation_run_lock_rejects_second_holder(tmp_path) -> None:
+    """A second evaluation should fail fast when the same browser UUID is locked."""
+    original_lock_dir = eval_module.LOCK_DIR
+    eval_module.LOCK_DIR = tmp_path
+
+    try:
+        first = EvaluationRunLock("browser-uuid-123")
+        second = EvaluationRunLock("browser-uuid-123")
+
+        first.acquire()
+        with pytest.raises(RuntimeError, match="already using browser UUID"):
+            second.acquire()
+    finally:
+        first.release()
+        eval_module.LOCK_DIR = original_lock_dir
 
 
 def test_get_llm_configs_returns_configured_models() -> None:

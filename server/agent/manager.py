@@ -32,7 +32,7 @@ from server.agent.tools.browser_executor import remove_browser_executor
 from server.core.ipc_router import IPCRouter
 from server.core.ipc_types import BrowserCommandMessage
 from server.core.llm_config import llm_config_manager
-from server.core.model_profiles import is_small_model
+from server.core.model_profiles import get_model_profile, is_small_model
 from server.core.process_manager import ProcessManager
 from server.core.session_manager import session_manager, SessionStatus
 
@@ -148,6 +148,23 @@ class OpenBrowserAgentManager:
             api_key=SecretStr(llm_config.api_key),
         )
 
+    def _get_system_prompt_kwargs(
+        self,
+        model: Optional[str] = None,
+        model_alias: Optional[str] = None,
+    ) -> dict[str, object]:
+        """Build model-aware kwargs for the SDK system prompt template."""
+        resolved_model, _, _ = self._resolve_llm_settings(
+            model=model, model_alias=model_alias
+        )
+        small_model = is_small_model(resolved_model)
+
+        return {
+            "model_profile": get_model_profile(resolved_model),
+            "small_model": small_model,
+            "javascript_available": not small_model,
+        }
+
     def _build_session_metadata(
         self,
         model: Optional[str] = None,
@@ -258,6 +275,9 @@ class OpenBrowserAgentManager:
                 llm=llm_instance.model_copy(update={"usage_id": "condenser"})
             ),
             agent_context=agent_context,
+            system_prompt_kwargs=self._get_system_prompt_kwargs(
+                model=model, model_alias=model_alias
+            ),
         )
 
         # Create visualizer (queue will be set when processing messages)
@@ -456,7 +476,14 @@ class OpenBrowserAgentManager:
         agent_context = AgentContext(current_datetime=datetime.now())
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
-        agent = Agent(llm=llm_instance, tools=tools, agent_context=agent_context)
+        agent = Agent(
+            llm=llm_instance,
+            tools=tools,
+            agent_context=agent_context,
+            system_prompt_kwargs=self._get_system_prompt_kwargs(
+                model=model, model_alias=model_alias
+            ),
+        )
 
         # Create visualizer (queue will be set when processing messages)
         visualizer = QueueVisualizer()
