@@ -172,6 +172,13 @@ describe('Highlight Integration', () => {
   });
 
   describe('Collision detection', () => {
+    test('treats edge-touching label boxes as non-overlapping', () => {
+      const left = { x: 0, y: 0, width: 100, height: 20 };
+      const right = { x: 100, y: 0, width: 80, height: 20 };
+
+      expect(bboxesIntersect(left, right)).toBe(false);
+    });
+
     test('should detect label collisions correctly with different positions', () => {
       // Two elements at same position
       const elemA = createElement('a', 'clickable', 100, 100, 80, 30, { labelPosition: 'above' });

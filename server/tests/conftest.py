@@ -1,4 +1,4 @@
-"""Pytest fixtures for OpenBrowser server tests."""
+"""Pytest shims for OpenBrowser server tests."""
 
 import sys
 import types
@@ -54,17 +54,3 @@ sys.modules["openhands.tools.preset.default"] = preset_default_module
 # Parent modules (empty)
 sys.modules["openhands.tools"] = types.ModuleType("openhands.tools")
 sys.modules["openhands.tools.preset"] = types.ModuleType("openhands.tools.preset")
-
-import pytest
-
-
-@pytest.fixture
-def sample_fixture():
-    """A sample fixture for testing the test framework setup."""
-    return {"status": "ok"}
-
-
-@pytest.fixture
-def mock_conversation_id():
-    """Sample conversation ID for testing."""
-    return "test-conversation-123"

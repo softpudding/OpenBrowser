@@ -1,26 +1,38 @@
-"""Tests for model profile resolution."""
+"""Tests for model profile resolution and fallback behavior."""
 
-from server.core.model_profiles import (
-    PROFILE_LARGE,
-    PROFILE_SMALL,
-    get_model_profile,
-    is_small_model,
-)
+from server.core import model_profiles
 
 
-def test_known_large_model_uses_large_profile() -> None:
-    """Configured large models should resolve to the large profile."""
-    assert get_model_profile("dashscope/qwen3.5-plus") == PROFILE_LARGE
+def test_known_models_resolve_to_configured_profiles() -> None:
+    model_profiles._load_profile_config.cache_clear()
+
+    assert model_profiles.get_model_profile("dashscope/qwen3.5-plus") == "large"
+    assert model_profiles.get_model_profile("dashscope/qwen3.5-flash") == "small"
+    assert model_profiles.is_small_model("dashscope/qwen3.5-flash") is True
 
 
-def test_known_small_model_uses_small_profile() -> None:
-    """Configured small models should resolve to the small profile."""
-    assert get_model_profile("dashscope/qwen3.5-flash") == PROFILE_SMALL
-    assert is_small_model("dashscope/qwen3.5-flash") is True
+def test_unknown_or_missing_model_falls_back_to_config_default(monkeypatch) -> None:
+    model_profiles._load_profile_config.cache_clear()
+    monkeypatch.setattr(
+        model_profiles,
+        "_load_profile_config",
+        lambda: {"default_profile": "small", "profiles": {}},
+    )
+
+    assert model_profiles.get_model_profile("unknown/model") == "small"
+    assert model_profiles.get_model_profile(None) == "small"
 
 
-def test_unknown_model_defaults_to_large_profile() -> None:
-    """Unlisted models should keep the large-model behavior."""
-    assert get_model_profile("unknown/model") == PROFILE_LARGE
-    assert is_small_model("unknown/model") is False
+def test_malformed_profile_config_does_not_crash_and_uses_default(monkeypatch) -> None:
+    model_profiles._load_profile_config.cache_clear()
+    monkeypatch.setattr(
+        model_profiles,
+        "_load_profile_config",
+        lambda: {
+            "default_profile": "large",
+            "profiles": {"small": ["dashscope/qwen3.5-flash"]},
+        },
+    )
 
+    assert model_profiles.get_model_profile("dashscope/qwen3.5-flash") == "large"
+    assert model_profiles.is_small_model("dashscope/qwen3.5-flash") is False

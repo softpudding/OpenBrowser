@@ -1,119 +1,149 @@
-import sys
+"""Contract tests for OpenBrowser tool base models."""
+
 import importlib.util
+import sys
 from pathlib import Path
 
-import pytest
-from openhands.sdk import TextContent, ImageContent
+from openhands.sdk import ImageContent, TextContent
 
-BASE_MODULE_PATH = Path(__file__).parent.parent.parent / "agent" / "tools" / "base.py"
 
-spec = importlib.util.spec_from_file_location("base", BASE_MODULE_PATH)
-assert spec is not None and spec.loader is not None
-base_module = importlib.util.module_from_spec(spec)
-sys.modules["server.agent.tools.base"] = base_module
-spec.loader.exec_module(base_module)
+TOOLS_DIR = Path(__file__).resolve().parents[2] / "agent" / "tools"
 
+
+def _load_module(module_name: str, filename: str):
+    module_path = TOOLS_DIR / filename
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+base_module = _load_module("server.agent.tools.base", "base.py")
 OpenBrowserAction = base_module.OpenBrowserAction
 OpenBrowserObservation = base_module.OpenBrowserObservation
 
 
+def _text_content(observation: OpenBrowserObservation) -> str:
+    llm_content = observation.to_llm_content
+    assert isinstance(llm_content[0], TextContent)
+    return llm_content[0].text
+
+
 class TestOpenBrowserAction:
-    def test_action_has_conversation_id(self) -> None:
-        action = OpenBrowserAction()
-        assert hasattr(action, "conversation_id")
-        assert action.conversation_id is None
-
-    def test_action_with_conversation_id(self) -> None:
-        action = OpenBrowserAction(conversation_id="test-conv-123")
-        assert action.conversation_id == "test-conv-123"
-
-    def test_action_is_serializable(self) -> None:
+    def test_model_dump_preserves_conversation_id(self) -> None:
         action = OpenBrowserAction(conversation_id="conv-456")
-        data = action.model_dump()
-        assert data["conversation_id"] == "conv-456"
+
+        dumped = action.model_dump()
+
+        assert dumped["conversation_id"] == "conv-456"
+        assert dumped["kind"] == "OpenBrowserAction"
 
 
 class TestOpenBrowserObservation:
-    def test_observation_has_required_fields(self) -> None:
-        obs = OpenBrowserObservation(success=True)
-        assert obs.success is True
-        assert obs.screenshot_data_url is None
-        assert obs.message is None
-        assert obs.error is None
-        assert obs.tabs == []
-
-    def test_observation_with_all_fields(self) -> None:
-        obs = OpenBrowserObservation(
+    def test_javascript_result_truncates_large_payload_and_hides_script_source(self) -> None:
+        observation = OpenBrowserObservation(
             success=True,
+            message="Executed JavaScript: (() => window.secretToken)()",
+            javascript_result="x" * 50010,
+        )
+
+        text = _text_content(observation)
+
+        assert "**Action**: JavaScript code executed successfully" in text
+        assert "window.secretToken" not in text
+        assert "... (truncated)" in text
+
+    def test_browser_state_prefers_tab_id_field_and_attaches_screenshot(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            tabs=[
+                {
+                    "id": 1,
+                    "tabId": 99,
+                    "title": "Example",
+                    "url": "https://example.com",
+                    "active": True,
+                }
+            ],
             screenshot_data_url="data:image/png;base64,abc123",
-            message="Operation completed",
-            error=None,
-            tabs=[{"id": 1, "url": "https://example.com"}],
         )
-        assert obs.success is True
-        assert obs.screenshot_data_url == "data:image/png;base64,abc123"
-        assert obs.message == "Operation completed"
-        assert obs.error is None
-        assert len(obs.tabs) == 1
 
-    def test_observation_failed_state(self) -> None:
-        obs = OpenBrowserObservation(
-            success=False,
-            error="Connection refused",
-        )
-        assert obs.success is False
-        assert obs.error == "Connection refused"
+        llm_content = observation.to_llm_content
 
-    def test_to_llm_content_success(self) -> None:
-        obs = OpenBrowserObservation(success=True, message="Tab opened")
-        content = obs.to_llm_content
+        assert len(llm_content) == 2
+        assert isinstance(llm_content[0], TextContent)
+        assert isinstance(llm_content[1], ImageContent)
+        assert "**[99]** Example" in llm_content[0].text
+        assert llm_content[1].image_urls == ["data:image/png;base64,abc123"]
 
-        assert len(content) == 1
-        assert isinstance(content[0], TextContent)
-        assert "**Status**: SUCCESS" in content[0].text
-        assert "**Action**: Tab opened" in content[0].text
-
-    def test_to_llm_content_failure(self) -> None:
-        obs = OpenBrowserObservation(success=False, error="Tab not found")
-        content = obs.to_llm_content
-
-        assert len(content) == 1
-        assert isinstance(content[0], TextContent)
-        assert "**Status**: FAILED" in content[0].text
-        assert "**Error**: Tab not found" in content[0].text
-
-    def test_to_llm_content_with_screenshot(self) -> None:
-        obs = OpenBrowserObservation(
+    def test_highlighted_elements_truncate_long_html_for_non_selectable_results(self) -> None:
+        long_html = "<button>" + ("x" * 220) + "</button>"
+        observation = OpenBrowserObservation(
             success=True,
-            screenshot_data_url="data:image/png;base64,testimg",
+            element_type="clickable",
+            highlighted_elements=[{"id": "abc123", "html": long_html}],
+            total_elements=1,
         )
-        content = obs.to_llm_content
 
-        assert len(content) == 2
-        assert isinstance(content[0], TextContent)
-        assert isinstance(content[1], ImageContent)
-        assert content[1].image_urls == ["data:image/png;base64,testimg"]
+        text = _text_content(observation)
 
-    def test_to_llm_content_markdown_format(self) -> None:
-        obs = OpenBrowserObservation(
+        assert "abc123:" in text
+        assert "...(Truncated)" in text
+
+    def test_selectable_elements_keep_full_html_so_options_remain_visible(self) -> None:
+        select_html = "<select>" + "".join(
+            f"<option value='{i}'>Option {i}</option>" for i in range(12)
+        ) + "</select>"
+        observation = OpenBrowserObservation(
             success=True,
-            message="Element clicked",
-            tabs=[{"id": 1, "url": "https://example.com"}],
+            element_type="selectable",
+            highlighted_elements=[{"id": "sel999", "html": select_html}],
+            total_elements=1,
         )
-        content = obs.to_llm_content
-        text = content[0].text
 
-        assert "## Operation Status" in text
-        assert "**Status**: SUCCESS" in text
-        assert "**Action**: Element clicked" in text
+        text = _text_content(observation)
 
-    def test_observation_is_serializable(self) -> None:
-        obs = OpenBrowserObservation(
+        assert select_html in text
+        assert "...(Truncated)" not in text
+
+    def test_pending_confirmation_includes_follow_up_command(self) -> None:
+        observation = OpenBrowserObservation(
             success=True,
-            message="Done",
-            tabs=[{"id": 1}],
+            pending_confirmation={
+                "element_id": "a1b2c3",
+                "action_type": "click",
+                "full_html": "<button>Delete</button>",
+            },
         )
-        data = obs.model_dump()
-        assert data["success"] is True
-        assert data["message"] == "Done"
-        assert data["tabs"] == [{"id": 1}]
+
+        text = _text_content(observation)
+
+        assert "## ⚠️ Action Pending Confirmation" in text
+        assert '"type": "confirm_click_element"' in text
+        assert '"element_id": "a1b2c3"' in text
+
+    def test_auto_accepted_dialogs_render_history_and_note(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            auto_accepted_dialogs=[
+                {
+                    "type": "alert",
+                    "message": "Saved successfully",
+                    "url": "https://example.com/settings",
+                },
+                {
+                    "type": "alert",
+                    "message": "Background sync complete",
+                },
+            ],
+        )
+
+        text = _text_content(observation)
+
+        assert "## ✅ Auto-Accepted Dialogs" in text
+        assert "**Total Auto-Accepted**: 2" in text
+        assert '1. **ALERT**: "Saved successfully"' in text
+        assert "URL: https://example.com/settings" in text
+        assert "Alert dialogs are auto-accepted by the system." in text
