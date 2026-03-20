@@ -19,6 +19,23 @@ from server.core.ipc_types import (
 )
 
 
+def _placeholder_conversation_worker(
+    conv_id: str,
+    browser_id: str,
+    command_queue: Queue,
+    response_queue: Queue,
+    llm_config: dict,
+    working_directory: str = ".",
+) -> None:
+    """Test helper matching the real worker signature."""
+    _placeholder_worker(
+        conv_id=conv_id,
+        browser_id=browser_id,
+        command_queue=command_queue,
+        response_queue=response_queue,
+    )
+
+
 class TestConversationWorker:
     """Tests for _conversation_worker function."""
 
@@ -175,7 +192,8 @@ class TestProcessSpawnerIntegration:
         }
 
         with patch(
-            "server.core.process_manager._conversation_worker", _placeholder_worker
+            "server.core.process_manager._conversation_worker",
+            _placeholder_conversation_worker,
         ):
             for i in range(3):
                 manager.spawn_with_config(
@@ -210,7 +228,8 @@ class TestProcessSpawnerIntegration:
         }
 
         with patch(
-            "server.core.process_manager._conversation_worker", _placeholder_worker
+            "server.core.process_manager._conversation_worker",
+            _placeholder_conversation_worker,
         ):
             manager.spawn_with_config(
                 conv_id="conv-1",
