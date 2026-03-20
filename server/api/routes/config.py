@@ -30,7 +30,16 @@ def _mask_llm_config(config: LLMConfig, default_alias: str) -> dict[str, object]
 def _build_full_config_response() -> dict[str, object]:
     """Build the normalized config response used by GET endpoints."""
     config = llm_config_manager.get_full_config()
-    masked_default = _mask_llm_config(config.llm, config.default_llm_alias)
+    default_config = None
+    for llm_config in config.llm_configs:
+        if llm_config.alias == config.default_llm_alias:
+            default_config = llm_config
+            break
+    if default_config is None and config.llm_configs:
+        default_config = config.llm_configs[0]
+    if default_config is None:
+        raise ValueError("No LLM configs available")
+    masked_default = _mask_llm_config(default_config, config.default_llm_alias)
     masked_configs = [
         _mask_llm_config(llm_config, config.default_llm_alias)
         for llm_config in config.llm_configs
@@ -123,8 +132,10 @@ async def update_llm_config(request: Request):
 
             llm_config_manager.set_llm_configs(llm_configs, selected_default_alias)
         else:
-            llm_config = _parse_llm_payload(data, existing_configs)
-            llm_config_manager.set_llm_config(llm_config)
+            raise HTTPException(
+                status_code=400,
+                detail="configs field is required and must be a list",
+            )
 
         full_config = _build_full_config_response()
         return {
