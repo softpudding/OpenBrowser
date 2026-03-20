@@ -23,7 +23,6 @@ from pydantic import Field
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.agent.tools.prompt_context import get_prompt_render_context
 
-
 # Setup Jinja2 template environment for prompts
 _TEMPLATE_ENV = jinja2.Environment(
     loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),

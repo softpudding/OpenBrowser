@@ -11,19 +11,23 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional
 
-from openhands.sdk.tool import ToolDefinition, ToolAnnotations, ToolExecutor, register_tool
+from openhands.sdk.tool import (
+    ToolDefinition,
+    ToolAnnotations,
+    ToolExecutor,
+    register_tool,
+)
 from pydantic import Field
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.agent.tools.prompt_context import get_prompt_render_context
 
-
 # Setup Jinja2 template environment for prompts
 _TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / 'prompts'),
-    autoescape=jinja2.select_autoescape(['html', 'xml']),
+    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
+    autoescape=jinja2.select_autoescape(["html", "xml"]),
     trim_blocks=True,
-    lstrip_blocks=True
+    lstrip_blocks=True,
 )
 
 # Template cache
@@ -33,11 +37,11 @@ _TAB_TOOL_TEMPLATE = None
 def get_tab_tool_description(conv_state=None) -> str:
     """Get the TabTool description, rendered from Jinja2 template."""
     global _TAB_TOOL_TEMPLATE
-    
+
     # Load template if not cached
     if _TAB_TOOL_TEMPLATE is None:
-        _TAB_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template('tab_tool.j2')
-    
+        _TAB_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template("tab_tool.j2")
+
     # Render template with context
     return _TAB_TOOL_TEMPLATE.render(**get_prompt_render_context(conv_state))
 
@@ -45,9 +49,9 @@ def get_tab_tool_description(conv_state=None) -> str:
 class TabAction(OpenBrowserAction):
     """Action for tab management operations."""
 
-    action: Literal["init", "open", "close", "switch", "list", "refresh", "view", "back", "forward"] = (
-        Field(description="Tab action to perform")
-    )
+    action: Literal[
+        "init", "open", "close", "switch", "list", "refresh", "view", "back", "forward"
+    ] = Field(description="Tab action to perform")
     url: Optional[str] = Field(
         default=None,
         description="URL for init/open actions",
@@ -82,11 +86,12 @@ class TabTool(ToolDefinition[TabAction, OpenBrowserObservation]):
             # Try to get conversation ID from conv_state to share executor across tools
             # conv_state: openhands-sdk ConversationState
             conversation_id = getattr(conv_state, "id", None)
-            
+
             # Get shared executor for this conversation (or create new if no conversation_id)
             from server.agent.tools.browser_executor import get_browser_executor
+
             executor = get_browser_executor(conversation_id)
-        
+
         return [
             cls(
                 description=get_tab_tool_description(conv_state),

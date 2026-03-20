@@ -33,7 +33,6 @@ from server.models.commands import (
 from server.websocket.manager import ws_manager
 from server.core.config import config
 
-
 SCREENSHOT_DELAY_MS = 500  # Delay before taking screenshot (in milliseconds)
 
 

@@ -69,11 +69,11 @@ class OpenBrowserToolSet(ToolDefinition):
         """
         # Each tool.create() returns a Sequence[Self], so we flatten the results
         tools: list[ToolDefinition] = []
-        
+
         # Create shared executor if not provided
         if executor is None:
             executor = BrowserExecutor()
-        
+
         # Create tools in a consistent order with shared executor
         for tool_class in [
             TabTool,
@@ -83,5 +83,5 @@ class OpenBrowserToolSet(ToolDefinition):
             JavaScriptTool,
         ]:
             tools.extend(tool_class.create(conv_state, executor))
-        
+
         return tools

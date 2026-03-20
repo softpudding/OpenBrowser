@@ -10,6 +10,47 @@ from server.models.commands import parse_command, CommandResponse
 router = APIRouter(tags=["commands"])
 
 
+def _resolve_and_validate_browser_id(command_data: dict) -> str:
+    """Resolve effective browser_id from request or bound conversation metadata."""
+    requested_browser_id = command_data.get("browser_id")
+    conversation_id = command_data.get("conversation_id")
+
+    session = (
+        session_manager.get_session(conversation_id) if conversation_id is not None else None
+    )
+    bound_browser_id = None
+    if session is not None:
+        maybe_browser_id = session.metadata.get("browser_id")
+        if isinstance(maybe_browser_id, str) and maybe_browser_id:
+            bound_browser_id = maybe_browser_id
+
+    if requested_browser_id:
+        if bound_browser_id and bound_browser_id != requested_browser_id:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Conversation {conversation_id} is already bound to browser_id "
+                    f"{bound_browser_id}"
+                ),
+            )
+        browser_id = requested_browser_id
+    elif bound_browser_id:
+        browser_id = bound_browser_id
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="browser_id is required to execute browser commands",
+        )
+
+    if not ws_manager.is_browser_valid(browser_id):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid or expired browser_id: {browser_id}",
+        )
+
+    return browser_id
+
+
 @router.post("/command", response_model=CommandResponse)
 async def execute_command(command_data: dict):
     """
@@ -29,26 +70,7 @@ async def execute_command(command_data: dict):
     - browser_id: Browser UUID to route command to specific browser instance
     """
     try:
-        browser_id = command_data.get("browser_id")
-        conversation_id = command_data.get("conversation_id")
-
-        if browser_id is None and conversation_id is not None:
-            session = session_manager.get_session(conversation_id)
-            if session is not None:
-                browser_id = session.metadata.get("browser_id")
-
-        if not browser_id:
-            raise HTTPException(
-                status_code=400,
-                detail="browser_id is required to execute browser commands",
-            )
-
-        if not ws_manager.is_browser_valid(browser_id):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid or expired browser_id: {browser_id}",
-            )
-
+        browser_id = _resolve_and_validate_browser_id(command_data)
         command = parse_command({**command_data, "browser_id": browser_id})
 
         response = await command_processor.execute(command)
@@ -132,14 +154,21 @@ async def keyboard_press(key: str, browser_id: str, modifiers: list = None):
 @router.post("/screenshot")
 async def screenshot(
     browser_id: str,
+    conversation_id: str | None = None,
     tab_id: int = None,
     include_cursor: bool = True,
     include_visual_mouse: bool = True,
     quality: int = 90,
 ):
     """Capture screenshot"""
+    if not conversation_id:
+        raise HTTPException(
+            status_code=400,
+            detail="conversation_id is required for screenshot in strict mode",
+        )
     command = {
         "type": "screenshot",
+        "conversation_id": conversation_id,
         "tab_id": tab_id,
         "include_cursor": include_cursor,
         "include_visual_mouse": include_visual_mouse,
@@ -151,12 +180,22 @@ async def screenshot(
 
 @router.post("/tabs")
 async def tab_action(
-    action: str, browser_id: str, url: str = None, tab_id: int = None
+    action: str,
+    browser_id: str,
+    conversation_id: str | None = None,
+    url: str = None,
+    tab_id: int = None,
 ):
     """Tab management"""
+    if not conversation_id:
+        raise HTTPException(
+            status_code=400,
+            detail="conversation_id is required for tab commands in strict mode",
+        )
     command = {
         "type": "tab",
         "action": action,
+        "conversation_id": conversation_id,
         "url": url,
         "tab_id": tab_id,
         "browser_id": browser_id,
@@ -165,11 +204,21 @@ async def tab_action(
 
 
 @router.get("/tabs")
-async def get_tabs(browser_id: str, managed_only: bool = True):
+async def get_tabs(
+    browser_id: str,
+    managed_only: bool = True,
+    conversation_id: str | None = None,
+):
     """Get list of all tabs"""
+    if managed_only and not conversation_id:
+        raise HTTPException(
+            status_code=400,
+            detail="conversation_id is required for managed tab listing in strict mode",
+        )
     command = {
         "type": "get_tabs",
         "managed_only": managed_only,
+        "conversation_id": conversation_id,
         "browser_id": browser_id,
     }
     return await execute_command(command)

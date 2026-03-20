@@ -11,7 +11,6 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-
 PROFILE_LARGE = "large"
 PROFILE_SMALL = "small"
 
@@ -54,4 +53,3 @@ def get_model_profile(model_name: str | None) -> str:
 def is_small_model(model_name: str | None) -> bool:
     """Whether a model is configured as a small model."""
     return get_model_profile(model_name) == PROFILE_SMALL
-

@@ -57,9 +57,9 @@ class TestServerLayerScreenshotBehavior:
             # Verify the response does NOT contain screenshot
             assert response.success
             assert response.data is not None
-            assert "screenshot" not in response.data, (
-                "Tab init should not auto-add screenshot"
-            )
+            assert (
+                "screenshot" not in response.data
+            ), "Tab init should not auto-add screenshot"
 
     @pytest.mark.asyncio
     async def test_javascript_execute_no_auto_screenshot(self, processor):
@@ -80,9 +80,9 @@ class TestServerLayerScreenshotBehavior:
 
             # Verify the response does NOT contain screenshot
             assert response.success
-            assert "screenshot" not in response.data, (
-                "JS execute should not auto-add screenshot"
-            )
+            assert (
+                "screenshot" not in response.data
+            ), "JS execute should not auto-add screenshot"
 
     @pytest.mark.asyncio
     async def test_screenshot_command_still_works(self, processor):
@@ -141,9 +141,9 @@ class TestExtensionLayerScreenshotBehavior:
 
             # Verify extension-provided screenshot is passed through
             assert response.success
-            assert "screenshot" in response.data, (
-                "highlight_elements should return screenshot"
-            )
+            assert (
+                "screenshot" in response.data
+            ), "highlight_elements should return screenshot"
 
     @pytest.mark.asyncio
     async def test_click_element_returns_screenshot(self, processor):

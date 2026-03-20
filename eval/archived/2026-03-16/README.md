@@ -11,7 +11,7 @@ This evaluation compares OpenClaw Browser Relay vs OpenBrowser Agent on human-li
 ## Prerequisites
 
 1. OpenClaw running with Browser Relay available
-2. OpenBrowser installed and configured (see `skill/open-browser/references/setup.md`)
+2. OpenBrowser installed and configured (see `skill/openclaw/open-browser/references/setup.md`)
 3. Eval server running: `cd OpenBrowser && uv run eval/server.py`
 4. Clean OpenClaw session (use `/new` before each test round)
 
@@ -65,7 +65,7 @@ Now we will evaluate OpenClaw Browser Relay and OpenBrowser alternately. You nee
 
 Evaluation method: Run `cd /placeholder/OpenBrowser && uv run eval/evaluate_browser_agent.py --manual` and follow the instructions.
 
-Current test round 2: Use OpenBrowser skill (/placeholder/OpenBrowser/skill/open-browser) only.
+Current test round 2: Use OpenBrowser skill (/placeholder/OpenBrowser/skill/openclaw/open-browser) only.
 
 Test requirements:
 

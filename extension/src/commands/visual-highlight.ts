@@ -4,7 +4,11 @@
  * Uses OffscreenCanvas for Service Worker compatibility (Manifest V3).
  */
 
-import type { InteractiveElement, ElementType, HighlightOptions } from '../types';
+import type {
+  InteractiveElement,
+  ElementType,
+  HighlightOptions,
+} from '../types';
 import { LABEL_FONT_SIZE, LABEL_PADDING } from './label-constants';
 
 /**
@@ -44,7 +48,7 @@ const BASE_LINE_WIDTH = 1.5; // Box border width at scale=1 (thinner to reduce o
 
 /**
  * Draw highlights (bounding boxes with labels) on a screenshot
- * 
+ *
  * @param screenshotDataUrl - Base64 data URL of the screenshot
  * @param elements - Array of interactive elements to highlight
  * @param options - Highlight options (limit, offset, elementTypes filter, scale)
@@ -53,9 +57,15 @@ const BASE_LINE_WIDTH = 1.5; // Box border width at scale=1 (thinner to reduce o
 export async function drawHighlights(
   screenshotDataUrl: string,
   elements: InteractiveElement[],
-  options?: HighlightOptions & { scale?: number; viewportWidth?: number; viewportHeight?: number },
+  options?: HighlightOptions & {
+    scale?: number;
+    viewportWidth?: number;
+    viewportHeight?: number;
+  },
 ): Promise<string> {
-  console.log(`🎨 [VisualHighlight] Drawing highlights for ${elements.length} elements...`);
+  console.log(
+    `🎨 [VisualHighlight] Drawing highlights for ${elements.length} elements...`,
+  );
 
   // Check OffscreenCanvas availability
   if (typeof OffscreenCanvas === 'undefined') {
@@ -80,7 +90,11 @@ export async function drawHighlights(
     if (!screenshotDataUrl || typeof screenshotDataUrl !== 'string') {
       throw new Error(
         '[VisualHighlight] Invalid screenshot data: expected a data URL string, got ' +
-          (screenshotDataUrl === null ? 'null' : screenshotDataUrl === undefined ? 'undefined' : typeof screenshotDataUrl),
+          (screenshotDataUrl === null
+            ? 'null'
+            : screenshotDataUrl === undefined
+              ? 'undefined'
+              : typeof screenshotDataUrl),
       );
     }
 
@@ -117,7 +131,9 @@ export async function drawHighlights(
     const base64Data = dataUrlParts[1];
 
     if (!base64Data || base64Data.length === 0) {
-      throw new Error('[VisualHighlight] Screenshot data URL contains no image data after header');
+      throw new Error(
+        '[VisualHighlight] Screenshot data URL contains no image data after header',
+      );
     }
 
     // ========================================
@@ -138,30 +154,43 @@ export async function drawHighlights(
     // Extract options before using them
     const viewportWidth = options?.viewportWidth ?? 0;
     const viewportHeight = options?.viewportHeight ?? 0;
-    
-    console.log(`🖼️ [VisualHighlight] Screenshot dimensions: ${imageBitmap.width}x${imageBitmap.height}`);
-    
+
+    console.log(
+      `🖼️ [VisualHighlight] Screenshot dimensions: ${imageBitmap.width}x${imageBitmap.height}`,
+    );
+
     // Calculate actual scale from screenshot dimensions (more reliable than trusting DPR)
-    const actualScaleX = viewportWidth > 0 ? imageBitmap.width / viewportWidth : 1;
-    const actualScaleY = viewportHeight > 0 ? imageBitmap.height / viewportHeight : 1;
+    const actualScaleX =
+      viewportWidth > 0 ? imageBitmap.width / viewportWidth : 1;
+    const actualScaleY =
+      viewportHeight > 0 ? imageBitmap.height / viewportHeight : 1;
     const actualScale = (actualScaleX + actualScaleY) / 2; // Average in case of rounding
-    
-    console.log(`📐 [VisualHighlight] Calculated scale: ${actualScale.toFixed(3)} (from ${viewportWidth}x${viewportHeight} → ${imageBitmap.width}x${imageBitmap.height})`);
-    
+
+    console.log(
+      `📐 [VisualHighlight] Calculated scale: ${actualScale.toFixed(3)} (from ${viewportWidth}x${viewportHeight} → ${imageBitmap.width}x${imageBitmap.height})`,
+    );
+
     // Prefer calculated scale if it differs significantly from provided scale
     const providedScale = options?.scale ?? 1;
-    const scale = Math.abs(actualScale - providedScale) > 0.1 ? actualScale : providedScale;
-    console.log(`📐 [VisualHighlight] Using scale: ${scale.toFixed(3)} (provided: ${providedScale}, calculated: ${actualScale})`);
+    const scale =
+      Math.abs(actualScale - providedScale) > 0.1 ? actualScale : providedScale;
+    console.log(
+      `📐 [VisualHighlight] Using scale: ${scale.toFixed(3)} (provided: ${providedScale}, calculated: ${actualScale})`,
+    );
 
     // Create OffscreenCanvas with same dimensions as screenshot
-    console.log(`🖼️ [VisualHighlight] Screenshot dimensions: ${imageBitmap.width}x${imageBitmap.height}`);
+    console.log(
+      `🖼️ [VisualHighlight] Screenshot dimensions: ${imageBitmap.width}x${imageBitmap.height}`,
+    );
 
     // Create OffscreenCanvas with same dimensions as screenshot
     const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
     const ctx = canvas.getContext('2d');
 
     if (!ctx) {
-      throw new Error('[VisualHighlight] Failed to get 2d context from OffscreenCanvas');
+      throw new Error(
+        '[VisualHighlight] Failed to get 2d context from OffscreenCanvas',
+      );
     }
 
     // Draw original screenshot onto canvas
@@ -190,15 +219,20 @@ export async function drawHighlights(
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error('[VisualHighlight] Failed to convert result to data URL'));
+      reader.onerror = () =>
+        reject(
+          new Error('[VisualHighlight] Failed to convert result to data URL'),
+        );
       reader.readAsDataURL(resultBlob);
     });
 
     // Compress if too large (>10MB)
     const MAX_SIZE = 10 * 1024 * 1024; // 10MB limit
     const compressedDataUrl = await compressDataUrl(dataUrl, MAX_SIZE);
-    
-    console.log(`✅ [VisualHighlight] Highlights drawn successfully, size: ${compressedDataUrl.length} bytes`);
+
+    console.log(
+      `✅ [VisualHighlight] Highlights drawn successfully, size: ${compressedDataUrl.length} bytes`,
+    );
     return compressedDataUrl;
   } catch (error) {
     const errorMsg = `[VisualHighlight] Error drawing highlights: ${error instanceof Error ? error.message : error}`;
@@ -210,22 +244,34 @@ export async function drawHighlights(
 /**
  * Compress a data URL if it exceeds the maximum size
  * Uses JPEG encoding with quality reduction
- * 
+ *
  * @param dataUrl - Original data URL (PNG or JPEG)
  * @param maxSize - Maximum allowed size in bytes
  * @returns Compressed data URL (JPEG if compression was needed)
  */
-async function compressDataUrl(dataUrl: string, maxSize: number): Promise<string> {
+async function compressDataUrl(
+  dataUrl: string,
+  maxSize: number,
+): Promise<string> {
   if (dataUrl.length <= maxSize) {
-    console.log(`🖼️ [Compress] Image size ${dataUrl.length} bytes is within limit ${maxSize} bytes`);
+    console.log(
+      `🖼️ [Compress] Image size ${dataUrl.length} bytes is within limit ${maxSize} bytes`,
+    );
     return dataUrl;
   }
 
-  console.log(`⚠️ [Compress] Image size ${dataUrl.length} bytes exceeds limit ${maxSize} bytes, compressing...`);
+  console.log(
+    `⚠️ [Compress] Image size ${dataUrl.length} bytes exceeds limit ${maxSize} bytes, compressing...`,
+  );
 
   // Check if OffscreenCanvas is available
-  if (typeof OffscreenCanvas === 'undefined' || typeof createImageBitmap === 'undefined') {
-    console.warn('[Compress] OffscreenCanvas not available, returning original image');
+  if (
+    typeof OffscreenCanvas === 'undefined' ||
+    typeof createImageBitmap === 'undefined'
+  ) {
+    console.warn(
+      '[Compress] OffscreenCanvas not available, returning original image',
+    );
     return dataUrl;
   }
 
@@ -242,11 +288,11 @@ async function compressDataUrl(dataUrl: string, maxSize: number): Promise<string
 
     // Try different JPEG qualities
     const qualities = [0.8, 0.7, 0.6, 0.5, 0.4];
-    
+
     for (const quality of qualities) {
       const canvas = new OffscreenCanvas(width, height);
       const ctx = canvas.getContext('2d');
-      
+
       if (!ctx) {
         throw new Error('[Compress] Failed to get 2d context');
       }
@@ -256,38 +302,45 @@ async function compressDataUrl(dataUrl: string, maxSize: number): Promise<string
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(imageBitmap, 0, 0);
 
-      const compressedBlob = await canvas.convertToBlob({ 
-        type: 'image/jpeg', 
-        quality: quality 
+      const compressedBlob = await canvas.convertToBlob({
+        type: 'image/jpeg',
+        quality: quality,
       });
 
       // Convert to data URL
       const compressedDataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('[Compress] Failed to read compressed blob'));
+        reader.onerror = () =>
+          reject(new Error('[Compress] Failed to read compressed blob'));
         reader.readAsDataURL(compressedBlob);
       });
 
-      console.log(`🖼️ [Compress] JPEG quality=${quality}: ${compressedDataUrl.length} bytes`);
+      console.log(
+        `🖼️ [Compress] JPEG quality=${quality}: ${compressedDataUrl.length} bytes`,
+      );
 
       if (compressedDataUrl.length <= maxSize) {
-        console.log(`✅ [Compress] Compressed to ${compressedDataUrl.length} bytes with quality=${quality}`);
+        console.log(
+          `✅ [Compress] Compressed to ${compressedDataUrl.length} bytes with quality=${quality}`,
+        );
         return compressedDataUrl;
       }
     }
 
     // If still too large, try reducing dimensions
-    console.log(`⚠️ [Compress] Quality reduction not enough, trying to reduce dimensions...`);
-    
+    console.log(
+      `⚠️ [Compress] Quality reduction not enough, trying to reduce dimensions...`,
+    );
+
     const scales = [0.75, 0.5, 0.4];
     for (const scale of scales) {
       const newWidth = Math.round(width * scale);
       const newHeight = Math.round(height * scale);
-      
+
       const canvas = new OffscreenCanvas(newWidth, newHeight);
       const ctx = canvas.getContext('2d');
-      
+
       if (!ctx) {
         throw new Error('[Compress] Failed to get 2d context');
       }
@@ -296,60 +349,86 @@ async function compressDataUrl(dataUrl: string, maxSize: number): Promise<string
       ctx.fillRect(0, 0, newWidth, newHeight);
       ctx.drawImage(imageBitmap, 0, 0, newWidth, newHeight);
 
-      const compressedBlob = await canvas.convertToBlob({ 
-        type: 'image/jpeg', 
-        quality: 0.6 
+      const compressedBlob = await canvas.convertToBlob({
+        type: 'image/jpeg',
+        quality: 0.6,
       });
 
       const compressedDataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('[Compress] Failed to read compressed blob'));
+        reader.onerror = () =>
+          reject(new Error('[Compress] Failed to read compressed blob'));
         reader.readAsDataURL(compressedBlob);
       });
 
-      console.log(`🖼️ [Compress] Scale=${scale} (${newWidth}x${newHeight}): ${compressedDataUrl.length} bytes`);
+      console.log(
+        `🖼️ [Compress] Scale=${scale} (${newWidth}x${newHeight}): ${compressedDataUrl.length} bytes`,
+      );
 
       if (compressedDataUrl.length <= maxSize) {
-        console.log(`✅ [Compress] Compressed to ${compressedDataUrl.length} bytes with scale=${scale}`);
+        console.log(
+          `✅ [Compress] Compressed to ${compressedDataUrl.length} bytes with scale=${scale}`,
+        );
         return compressedDataUrl;
       }
     }
 
     // Return the smallest version even if still over limit
-    console.warn(`⚠️ [Compress] Could not compress below ${maxSize} bytes, returning smallest version`);
-    
+    console.warn(
+      `⚠️ [Compress] Could not compress below ${maxSize} bytes, returning smallest version`,
+    );
+
     // Return 50% scale JPEG with 0.4 quality as final fallback
-    const finalCanvas = new OffscreenCanvas(Math.round(width * 0.5), Math.round(height * 0.5));
+    const finalCanvas = new OffscreenCanvas(
+      Math.round(width * 0.5),
+      Math.round(height * 0.5),
+    );
     const finalCtx = finalCanvas.getContext('2d');
     if (finalCtx) {
       finalCtx.fillStyle = '#FFFFFF';
       finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-      finalCtx.drawImage(imageBitmap, 0, 0, finalCanvas.width, finalCanvas.height);
-      const finalBlob = await finalCanvas.convertToBlob({ type: 'image/jpeg', quality: 0.4 });
+      finalCtx.drawImage(
+        imageBitmap,
+        0,
+        0,
+        finalCanvas.width,
+        finalCanvas.height,
+      );
+      const finalBlob = await finalCanvas.convertToBlob({
+        type: 'image/jpeg',
+        quality: 0.4,
+      });
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('[Compress] Failed to read final blob'));
+        reader.onerror = () =>
+          reject(new Error('[Compress] Failed to read final blob'));
         reader.readAsDataURL(finalBlob);
       });
     }
 
     return dataUrl;
   } catch (error) {
-    console.error(`❌ [Compress] Compression failed: ${error instanceof Error ? error.message : error}`);
+    console.error(
+      `❌ [Compress] Compression failed: ${error instanceof Error ? error.message : error}`,
+    );
     return dataUrl;
   }
 }
 
 /**
  * Draw a bounding box with label for an interactive element
- * 
+ *
  * @param ctx - Canvas 2D rendering context
  * @param element - Interactive element to draw
  * @param scale - Scale factor to convert CSS pixels to device pixels (default: 1)
  */
-function drawBoundingBox(ctx: OffscreenCanvasRenderingContext2D, element: InteractiveElement, scale: number = 1): void {
+function drawBoundingBox(
+  ctx: OffscreenCanvasRenderingContext2D,
+  element: InteractiveElement,
+  scale: number = 1,
+): void {
   const color = COLORS[element.type] || '#CCCCCC';
   const { x, y, width, height } = element.bbox;
 
@@ -364,7 +443,9 @@ function drawBoundingBox(ctx: OffscreenCanvasRenderingContext2D, element: Intera
   const boxWidth = Math.round(width * scale) + boxPadding * 2;
   const boxHeight = Math.round(height * scale) + boxPadding * 2;
 
-  console.log(`[VisualHighlight] Drawing bbox for ${element.id}: CSS(${x}, ${y}, ${width}, ${height}) → Device(${boxX}, ${boxY}, ${boxWidth}, ${boxHeight}) scale=${scale}`);
+  console.log(
+    `[VisualHighlight] Drawing bbox for ${element.id}: CSS(${x}, ${y}, ${width}, ${height}) → Device(${boxX}, ${boxY}, ${boxWidth}, ${boxHeight}) scale=${scale}`,
+  );
 
   // Draw bounding box
   ctx.strokeStyle = color;
@@ -373,12 +454,22 @@ function drawBoundingBox(ctx: OffscreenCanvasRenderingContext2D, element: Intera
 
   // Draw element ID label with transparent background
   const bgColor = LABEL_BG_COLORS[element.type] || 'rgba(200, 200, 200, 0.7)';
-  drawLabel(ctx, element.id, boxX, boxY, boxWidth, boxHeight, bgColor, scale, element.labelPosition || 'above');
+  drawLabel(
+    ctx,
+    element.id,
+    boxX,
+    boxY,
+    boxWidth,
+    boxHeight,
+    bgColor,
+    scale,
+    element.labelPosition || 'above',
+  );
 }
 
 /**
  * Draw a label with background at the specified position
- * 
+ *
  * @param ctx - Canvas 2D rendering context
  * @param text - Label text (element ID)
  * @param x - X position (top-left of bounding box)
@@ -457,7 +548,7 @@ function drawLabel(
 
 /**
  * Get the color for a specific element type
- * 
+ *
  * @param type - Element type
  * @returns Hex color string
  */
@@ -466,4 +557,7 @@ export function getElementColor(type: ElementType): string {
 }
 
 // Re-export constants for testing
-export { LABEL_FONT_SIZE as BASE_FONT_SIZE, LABEL_PADDING as BASE_LABEL_PADDING };
+export {
+  LABEL_FONT_SIZE as BASE_FONT_SIZE,
+  LABEL_PADDING as BASE_LABEL_PADDING,
+};

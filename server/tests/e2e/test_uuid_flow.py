@@ -18,7 +18,6 @@ from pydantic import BaseModel
 
 from server.core.uuid_manager import BrowserInfo, UUIDManager
 
-
 # ============================================================================
 # Mock Extension Client
 # ============================================================================
@@ -174,9 +173,11 @@ def test_app(uuid_manager: UUIDManager) -> FastAPI:
             success=True,
             uuid=uuid,
             valid=is_valid,
-            message="Browser UUID is valid"
-            if is_valid
-            else "Browser UUID is invalid or expired",
+            message=(
+                "Browser UUID is valid"
+                if is_valid
+                else "Browser UUID is invalid or expired"
+            ),
         )
 
     @app.delete("/browsers/{uuid}")

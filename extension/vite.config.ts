@@ -10,28 +10,28 @@ const copyManifestPlugin = () => ({
     if (!existsSync(distDir)) {
       mkdirSync(distDir, { recursive: true });
     }
-    
+
     // Copy manifest.json
     cpSync(
       resolve(__dirname, 'manifest.json'),
       resolve(distDir, 'manifest.json'),
-      { force: true }
+      { force: true },
     );
-    
+
     // Copy assets directory
     const assetsSrc = resolve(__dirname, 'assets');
     const assetsDest = resolve(distDir, 'assets');
     if (existsSync(assetsSrc)) {
       cpSync(assetsSrc, assetsDest, { recursive: true, force: true });
     }
-    
+
     // Copy public directory
     const publicSrc = resolve(__dirname, 'public');
     const publicDest = resolve(distDir, 'public');
     if (existsSync(publicSrc)) {
       cpSync(publicSrc, publicDest, { recursive: true, force: true });
     }
-    
+
     // Copy UUID page HTML
     const uuidPageSrc = resolve(__dirname, 'src/uuid/uuidPage.html');
     const uuidPageDest = resolve(distDir, 'uuid/uuidPage.html');
@@ -44,7 +44,7 @@ const copyManifestPlugin = () => ({
       cpSync(uuidPageSrc, uuidPageDest, { force: true });
       console.log('✅ UUID page HTML copied to dist/uuid/');
     }
-    
+
     console.log('✅ Manifest and assets copied to dist/');
   },
 });
@@ -62,7 +62,10 @@ export default defineConfig({
       input: {
         background: resolve(__dirname, 'src/background/index.ts'),
         content: resolve(__dirname, 'src/content/index.ts'),
-        'workers/image-processor.worker': resolve(__dirname, 'src/workers/image-processor.worker.ts'),
+        'workers/image-processor.worker': resolve(
+          __dirname,
+          'src/workers/image-processor.worker.ts',
+        ),
         'uuid/uuidPage': resolve(__dirname, 'src/uuid/uuidPage.ts'),
       },
       output: {

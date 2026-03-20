@@ -12,7 +12,6 @@ from server.core.config import config
 from server.core.uuid_manager import UUIDManager
 from server.core.session_manager import session_manager
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -298,6 +297,10 @@ class WebSocketManager:
         browser_id = self._resolve_browser_id(command)
 
         if browser_id is None:
+            if len(self.connections) > 1:
+                raise ConnectionError(
+                    "browser_id is required when multiple browser connections are active"
+                )
             return list(self.connections)
 
         websocket = self.get_browser_websocket(browser_id)

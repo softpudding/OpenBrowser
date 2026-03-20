@@ -2,6 +2,7 @@
 
 import time
 from multiprocessing import Queue
+from unittest.mock import patch
 
 import pytest
 
@@ -16,6 +17,23 @@ from server.core.ipc_types import (
     BrowserResponseMessage,
     ProcessShutdownMessage,
 )
+
+
+def _placeholder_conversation_worker(
+    conv_id: str,
+    browser_id: str,
+    command_queue: Queue,
+    response_queue: Queue,
+    llm_config: dict,
+    working_directory: str = ".",
+) -> None:
+    """Test helper matching the real worker signature."""
+    _placeholder_worker(
+        conv_id=conv_id,
+        browser_id=browser_id,
+        command_queue=command_queue,
+        response_queue=response_queue,
+    )
 
 
 class TestConversationWorker:
@@ -173,22 +191,32 @@ class TestProcessSpawnerIntegration:
             "api_key": "test-key",
         }
 
-        for i in range(3):
-            manager.spawn_with_config(
-                conv_id=f"conv-{i}",
-                browser_id=f"browser-{i}",
-                llm_config=llm_config,
-            )
+        with patch(
+            "server.core.process_manager._conversation_worker",
+            _placeholder_conversation_worker,
+        ):
+            for i in range(3):
+                manager.spawn_with_config(
+                    conv_id=f"conv-{i}",
+                    browser_id=f"browser-{i}",
+                    llm_config=llm_config,
+                )
 
-        assert manager.get_process_count() == 3
+            assert manager.get_process_count() == 3
 
-        for i in range(3):
-            assert manager.is_process_alive(f"conv-{i}")
+            deadline = time.time() + 2.0
+            while time.time() < deadline:
+                if all(manager.is_process_alive(f"conv-{i}") for i in range(3)):
+                    break
+                time.sleep(0.05)
 
-        for i in range(3):
-            manager.shutdown_process(f"conv-{i}")
+            for i in range(3):
+                assert manager.is_process_alive(f"conv-{i}")
 
-        assert manager.get_process_count() == 0
+            for i in range(3):
+                manager.shutdown_process(f"conv-{i}")
+
+            assert manager.get_process_count() == 0
 
     def test_process_queues_are_isolated(self) -> None:
         """Test that each process has isolated queues."""
@@ -199,22 +227,26 @@ class TestProcessSpawnerIntegration:
             "api_key": "test-key",
         }
 
-        manager.spawn_with_config(
-            conv_id="conv-1",
-            browser_id="browser-1",
-            llm_config=llm_config,
-        )
-        manager.spawn_with_config(
-            conv_id="conv-2",
-            browser_id="browser-2",
-            llm_config=llm_config,
-        )
+        with patch(
+            "server.core.process_manager._conversation_worker",
+            _placeholder_conversation_worker,
+        ):
+            manager.spawn_with_config(
+                conv_id="conv-1",
+                browser_id="browser-1",
+                llm_config=llm_config,
+            )
+            manager.spawn_with_config(
+                conv_id="conv-2",
+                browser_id="browser-2",
+                llm_config=llm_config,
+            )
 
-        info1 = manager.get_process_info("conv-1")
-        info2 = manager.get_process_info("conv-2")
+            info1 = manager.get_process_info("conv-1")
+            info2 = manager.get_process_info("conv-2")
 
-        assert info1.command_queue is not info2.command_queue
-        assert info1.response_queue is not info2.response_queue
+            assert info1.command_queue is not info2.command_queue
+            assert info1.response_queue is not info2.response_queue
 
-        manager.shutdown_process("conv-1")
-        manager.shutdown_process("conv-2")
+            manager.shutdown_process("conv-1")
+            manager.shutdown_process("conv-2")

@@ -18,10 +18,14 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import Field
-from openhands.sdk.tool import ToolDefinition, ToolAnnotations, ToolExecutor, register_tool
+from openhands.sdk.tool import (
+    ToolDefinition,
+    ToolAnnotations,
+    ToolExecutor,
+    register_tool,
+)
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
-
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +36,10 @@ DISABLE_JAVASCRIPT_EXECUTE = os.getenv(
 
 # Setup Jinja2 template environment for prompts
 _TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / 'prompts'),
-    autoescape=jinja2.select_autoescape(['html', 'xml']),
+    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
+    autoescape=jinja2.select_autoescape(["html", "xml"]),
     trim_blocks=True,
-    lstrip_blocks=True
+    lstrip_blocks=True,
 )
 
 # Template cache
@@ -45,11 +49,11 @@ _JAVASCRIPT_TOOL_TEMPLATE = None
 def get_javascript_tool_description() -> str:
     """Get the JavaScriptTool description, rendered from Jinja2 template."""
     global _JAVASCRIPT_TOOL_TEMPLATE
-    
+
     # Load template if not cached
     if _JAVASCRIPT_TOOL_TEMPLATE is None:
-        _JAVASCRIPT_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template('javascript_tool.j2')
-    
+        _JAVASCRIPT_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template("javascript_tool.j2")
+
     # Render template with context
     return _JAVASCRIPT_TOOL_TEMPLATE.render(
         disable_javascript=DISABLE_JAVASCRIPT_EXECUTE
@@ -74,9 +78,7 @@ class JavaScriptTool(ToolDefinition[JavaScriptAction, OpenBrowserObservation]):
     name = "javascript"
 
     @classmethod
-    def create(
-        cls, conv_state, terminal_executor=None
-    ) -> Sequence["JavaScriptTool"]:
+    def create(cls, conv_state, terminal_executor=None) -> Sequence["JavaScriptTool"]:
         """Create JavaScriptTool instance.
 
         Args:
@@ -101,9 +103,10 @@ class JavaScriptTool(ToolDefinition[JavaScriptAction, OpenBrowserObservation]):
             # Try to get conversation ID from conv_state to share executor across tools
             # conv_state: openhands-sdk ConversationState
             conversation_id = getattr(conv_state, "id", None)
-            
+
             # Get shared executor for this conversation (or create new if no conversation_id)
             from server.agent.tools.browser_executor import get_browser_executor
+
             executor = get_browser_executor(conversation_id)
 
         return [

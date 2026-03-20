@@ -12,18 +12,22 @@ from pathlib import Path
 from typing import Optional, Literal
 
 from pydantic import Field
-from openhands.sdk.tool import ToolDefinition, ToolAnnotations, ToolExecutor, register_tool
+from openhands.sdk.tool import (
+    ToolDefinition,
+    ToolAnnotations,
+    ToolExecutor,
+    register_tool,
+)
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.agent.tools.prompt_context import get_prompt_render_context
 
-
 # Setup Jinja2 template environment for prompts
 _TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / 'prompts'),
-    autoescape=jinja2.select_autoescape(['html', 'xml']),
+    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
+    autoescape=jinja2.select_autoescape(["html", "xml"]),
     trim_blocks=True,
-    lstrip_blocks=True
+    lstrip_blocks=True,
 )
 
 # Template cache
@@ -33,11 +37,11 @@ _DIALOG_TOOL_TEMPLATE = None
 def get_dialog_tool_description(conv_state=None) -> str:
     """Get the DialogTool description, rendered from Jinja2 template."""
     global _DIALOG_TOOL_TEMPLATE
-    
+
     # Load template if not cached
     if _DIALOG_TOOL_TEMPLATE is None:
-        _DIALOG_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template('dialog_tool.j2')
-    
+        _DIALOG_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template("dialog_tool.j2")
+
     # Render template with context
     return _DIALOG_TOOL_TEMPLATE.render(**get_prompt_render_context(conv_state))
 
@@ -78,11 +82,12 @@ class DialogTool(ToolDefinition[DialogHandleAction, OpenBrowserObservation]):
             # Try to get conversation ID from conv_state to share executor across tools
             # conv_state: openhands-sdk ConversationState
             conversation_id = getattr(conv_state, "id", None)
-            
+
             # Get shared executor for this conversation (or create new if no conversation_id)
             from server.agent.tools.browser_executor import get_browser_executor
+
             executor = get_browser_executor(conversation_id)
-        
+
         return [
             cls(
                 description=get_dialog_tool_description(conv_state),

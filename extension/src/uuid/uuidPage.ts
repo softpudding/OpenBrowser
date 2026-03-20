@@ -1,11 +1,16 @@
 /**
  * UUID Display Page Script
- * 
+ *
  * Displays the browser's UUID with copy and regenerate functionality.
  * Shows connection status to the OpenBrowser server.
  */
 
-import { getOrCreateUUID, storeUUID, clearUUID, generateUUID } from './uuidGenerator';
+import {
+  getOrCreateUUID,
+  storeUUID,
+  clearUUID,
+  generateUUID,
+} from './uuidGenerator';
 
 // DOM Elements
 const uuidDisplay = document.getElementById('uuid-display') as HTMLDivElement;
@@ -24,14 +29,17 @@ type BrowserStatus = 'server_unreachable' | 'not_registered' | 'ready';
 /**
  * Show a toast notification
  */
-function showToast(message: string, type: 'success' | 'error' = 'success'): void {
+function showToast(
+  message: string,
+  type: 'success' | 'error' = 'success',
+): void {
   toast.textContent = message;
   toast.className = `toast ${type}`;
-  
+
   // Force reflow to restart animation
   void toast.offsetWidth;
   toast.classList.add('show');
-  
+
   setTimeout(() => {
     toast.classList.remove('show');
   }, 2000);
@@ -63,9 +71,9 @@ function updateConnectionStatus(status: BrowserStatus): void {
  */
 async function requestBrowserRegistration(): Promise<boolean> {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = (await chrome.runtime.sendMessage({
       type: 'openbrowser:register-browser-identity',
-    }) as { success?: boolean; error?: string } | undefined;
+    })) as { success?: boolean; error?: string } | undefined;
 
     if (response?.success) {
       showToast('Browser UUID registered with server', 'success');
@@ -89,12 +97,12 @@ async function checkServerConnection(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
-    
+
     const response = await fetch(`${SERVER_URL}/health`, {
       method: 'GET',
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
     return response.ok;
   } catch {
@@ -110,10 +118,13 @@ async function checkBrowserRegistration(uuid: string): Promise<boolean> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-    const response = await fetch(`${SERVER_URL}/browsers/${encodeURIComponent(uuid)}/valid`, {
-      method: 'GET',
-      signal: controller.signal,
-    });
+    const response = await fetch(
+      `${SERVER_URL}/browsers/${encodeURIComponent(uuid)}/valid`,
+      {
+        method: 'GET',
+        signal: controller.signal,
+      },
+    );
 
     clearTimeout(timeoutId);
 
@@ -121,7 +132,7 @@ async function checkBrowserRegistration(uuid: string): Promise<boolean> {
       return false;
     }
 
-    const data = await response.json() as { valid?: boolean };
+    const data = (await response.json()) as { valid?: boolean };
     return data.valid === true;
   } catch {
     return false;
@@ -133,7 +144,9 @@ async function checkBrowserRegistration(uuid: string): Promise<boolean> {
  * 1. Can the server be reached?
  * 2. Is this UUID registered on that server?
  */
-async function refreshBrowserStatus(options: { tryRegister?: boolean } = {}): Promise<void> {
+async function refreshBrowserStatus(
+  options: { tryRegister?: boolean } = {},
+): Promise<void> {
   const uuid = uuidDisplay.textContent?.trim();
   const serverReachable = await checkServerConnection();
 
@@ -165,7 +178,7 @@ async function refreshBrowserStatus(options: { tryRegister?: boolean } = {}): Pr
 function startConnectionChecks(): void {
   // Check immediately
   refreshBrowserStatus({ tryRegister: true });
-  
+
   // Then check every 5 seconds
   connectionCheckInterval = window.setInterval(async () => {
     await refreshBrowserStatus();
@@ -179,12 +192,12 @@ async function loadUUID(): Promise<void> {
   try {
     uuidDisplay.textContent = 'Loading...';
     uuidDisplay.classList.add('loading');
-    
+
     const uuid = await getOrCreateUUID();
-    
+
     uuidDisplay.textContent = uuid;
     uuidDisplay.classList.remove('loading');
-    
+
     // Enable buttons
     copyBtn.disabled = false;
     refreshBtn.disabled = false;
@@ -201,16 +214,16 @@ async function loadUUID(): Promise<void> {
  */
 async function copyToClipboard(): Promise<void> {
   const uuid = uuidDisplay.textContent;
-  
+
   if (!uuid || uuid === 'Loading...' || uuid === 'Error loading UUID') {
     showToast('No UUID to copy', 'error');
     return;
   }
-  
+
   try {
     await navigator.clipboard.writeText(uuid);
     showToast('UUID copied to clipboard', 'success');
-    
+
     // Visual feedback on button
     const originalText = copyBtn.innerHTML;
     copyBtn.innerHTML = `
@@ -219,7 +232,7 @@ async function copyToClipboard(): Promise<void> {
       </svg>
       Copied!
     `;
-    
+
     setTimeout(() => {
       copyBtn.innerHTML = originalText;
     }, 1500);
@@ -236,18 +249,18 @@ async function regenerateUUID(): Promise<void> {
   // Disable buttons during operation
   copyBtn.disabled = true;
   refreshBtn.disabled = true;
-  
+
   try {
     // Clear existing UUID
     await clearUUID();
-    
+
     // Generate and store new UUID
     const newUUID = generateUUID();
     await storeUUID(newUUID);
-    
+
     // Update display
     uuidDisplay.textContent = newUUID;
-    
+
     await refreshBrowserStatus({ tryRegister: true });
     showToast('UUID regenerated', 'success');
   } catch (error) {
@@ -266,14 +279,14 @@ async function regenerateUUID(): Promise<void> {
 async function init(): Promise<void> {
   // Load UUID
   await loadUUID();
-  
+
   // Start connection checks
   startConnectionChecks();
-  
+
   // Set up event listeners
   copyBtn.addEventListener('click', copyToClipboard);
   refreshBtn.addEventListener('click', regenerateUUID);
-  
+
   // Clean up on page unload
   window.addEventListener('beforeunload', () => {
     if (connectionCheckInterval !== null) {

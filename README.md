@@ -153,7 +153,7 @@ This means browser control is authorized by possession of the UUID capability to
 
 ### Try OpenBrowser with SKILL - install to your local agents
 
-Simply tell your agent to install skill/open-browser
+Simply tell your agent to install `skill/codex/open-browser`
 
 ## Why Qwen3.5-Plus?
 

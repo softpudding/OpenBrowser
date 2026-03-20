@@ -10,7 +10,7 @@ with open("js/finviz.js", "r") as f:
     content = f.read()
 
 # Find and replace the STOCKS_DATA array
-pattern = r'// Stock data - embedded for frontend operation\nconst STOCKS_DATA = \[[\s\S]*?\];'
+pattern = r"// Stock data - embedded for frontend operation\nconst STOCKS_DATA = \[[\s\S]*?\];"
 replacement = new_stock_data
 
 # Use a simpler approach - find the start and end of STOCKS_DATA
@@ -26,7 +26,9 @@ if start_idx == -1 or end_idx == -1:
     exit(1)
 
 # Replace the stock data
-new_content = content[:start_idx] + new_stock_data + "\n\n" + content[end_idx + len(end_marker):]
+new_content = (
+    content[:start_idx] + new_stock_data + "\n\n" + content[end_idx + len(end_marker) :]
+)
 
 # Write back
 with open("js/finviz.js", "w") as f:

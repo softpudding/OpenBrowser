@@ -1,6 +1,6 @@
 /**
  * Collision Detection Utilities for Element Highlighting
- * 
+ *
  * This module contains pure functions for collision detection and pagination
  * that can be tested independently of Chrome APIs.
  */
@@ -38,9 +38,12 @@ export function bboxesIntersect(a: BBox, b: BBox): boolean {
  * Get the bounding box of just the label (not including the element)
  * Used for label-label collision detection
  */
-export function getLabelBBox(bbox: BBox, position: LabelPosition = 'above'): BBox {
+export function getLabelBBox(
+  bbox: BBox,
+  position: LabelPosition = 'above',
+): BBox {
   const labelWidth = Math.max(bbox.width, MAX_LABEL_WIDTH);
-  
+
   switch (position) {
     case 'above':
       return {
@@ -77,9 +80,12 @@ export function getLabelBBox(bbox: BBox, position: LabelPosition = 'above'): BBo
  * Expand bbox to include label area based on label position
  * This returns the combined bbox of element + label
  */
-export function expandBBoxWithLabel(bbox: BBox, position: LabelPosition = 'above'): BBox {
+export function expandBBoxWithLabel(
+  bbox: BBox,
+  position: LabelPosition = 'above',
+): BBox {
   const labelWidth = Math.max(bbox.width, MAX_LABEL_WIDTH);
-  
+
   switch (position) {
     case 'above':
       return {
@@ -116,7 +122,10 @@ export function expandBBoxWithLabel(bbox: BBox, position: LabelPosition = 'above
  * Check if two elements' labels collide
  * Uses each element's labelPosition if set, defaults to 'above'
  */
-export function elementsCollide(a: InteractiveElement, b: InteractiveElement): boolean {
+export function elementsCollide(
+  a: InteractiveElement,
+  b: InteractiveElement,
+): boolean {
   const labelA = getLabelBBox(a.bbox, a.labelPosition ?? 'above');
   const labelB = getLabelBBox(b.bbox, b.labelPosition ?? 'above');
   return bboxesIntersect(labelA, labelB);
@@ -129,20 +138,22 @@ export function isLabelWithinViewport(
   bbox: BBox,
   position: LabelPosition,
   viewportWidth: number,
-  viewportHeight: number
+  viewportHeight: number,
 ): boolean {
   const labelBBox = getLabelBBox(bbox, position);
-  
-  return labelBBox.x >= 0 &&
-         labelBBox.y >= 0 &&
-         labelBBox.x + labelBBox.width <= viewportWidth &&
-         labelBBox.y + labelBBox.height <= viewportHeight;
+
+  return (
+    labelBBox.x >= 0 &&
+    labelBBox.y >= 0 &&
+    labelBBox.x + labelBBox.width <= viewportWidth &&
+    labelBBox.y + labelBBox.height <= viewportHeight
+  );
 }
 
 /**
  * Select a collision-free page of elements using greedy algorithm
  * Tries label positions in priority order: above → below → left → right
- * 
+ *
  * @param elements - All elements sorted by priority
  * @param page - 1-indexed page number
  * @param viewportWidth - Optional viewport width for boundary checks
@@ -153,7 +164,7 @@ export function selectCollisionFreePage(
   elements: InteractiveElement[],
   page: number,
   viewportWidth?: number,
-  viewportHeight?: number
+  viewportHeight?: number,
 ): InteractiveElement[] {
   if (elements.length === 0 || page < 1) {
     return [];
@@ -168,37 +179,43 @@ export function selectCollisionFreePage(
 
     for (const elem of remaining) {
       for (const pos of positions) {
-        const withinViewport = viewportWidth !== undefined && viewportHeight !== undefined
-          ? isLabelWithinViewport(elem.bbox, pos, viewportWidth, viewportHeight)
-          : true;
-        
+        const withinViewport =
+          viewportWidth !== undefined && viewportHeight !== undefined
+            ? isLabelWithinViewport(
+                elem.bbox,
+                pos,
+                viewportWidth,
+                viewportHeight,
+              )
+            : true;
+
         if (!withinViewport) {
           continue;
         }
-        
+
         const labelBBox = getLabelBBox(elem.bbox, pos);
-        
+
         let hasCollision = false;
-        
+
         for (const s of selected) {
           const sLabelBBox = getLabelBBox(s.bbox, s.labelPosition ?? 'above');
-          
+
           if (bboxesIntersect(labelBBox, sLabelBBox)) {
             hasCollision = true;
             break;
           }
-          
+
           if (bboxesIntersect(labelBBox, s.bbox)) {
             hasCollision = true;
             break;
           }
-          
+
           if (bboxesIntersect(elem.bbox, sLabelBBox)) {
             hasCollision = true;
             break;
           }
         }
-        
+
         if (!hasCollision) {
           elem.labelPosition = pos;
           selected.push(elem);
@@ -212,8 +229,8 @@ export function selectCollisionFreePage(
       break;
     }
 
-    const selectedIds = new Set(selected.map(e => e.id));
-    remaining = remaining.filter(e => !selectedIds.has(e.id));
+    const selectedIds = new Set(selected.map((e) => e.id));
+    remaining = remaining.filter((e) => !selectedIds.has(e.id));
   }
 
   return result;
@@ -235,7 +252,7 @@ export function calculateTotalPages(elements: InteractiveElement[]): number {
     const selected: InteractiveElement[] = [];
 
     for (const elem of remaining) {
-      const collides = selected.some(s => elementsCollide(elem, s));
+      const collides = selected.some((s) => elementsCollide(elem, s));
       if (!collides) {
         selected.push(elem);
       }
@@ -246,8 +263,8 @@ export function calculateTotalPages(elements: InteractiveElement[]): number {
     }
 
     totalPages++;
-    const selectedIds = new Set(selected.map(e => e.id));
-    remaining = remaining.filter(e => !selectedIds.has(e.id));
+    const selectedIds = new Set(selected.map((e) => e.id));
+    remaining = remaining.filter((e) => !selectedIds.has(e.id));
   }
 
   return totalPages;

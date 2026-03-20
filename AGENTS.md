@@ -18,7 +18,6 @@ OpenBrowser/
 │   ├── core/         # Core processing logic
 │   └── websocket/    # WebSocket server
 ├── extension/        # Chrome extension (MV3) for browser control
-├── cli/              # Command-line tool (chrome-cli)
 ├── frontend/         # Static web UI (HTML)
 └── reference/        # External SDK references (read-only)
 ```
@@ -49,7 +48,6 @@ OpenBrowser/
 | Tab management | `extension/src/commands/tab-manager.ts` | Session isolation, tab groups |
 | UUID page | `extension/src/uuid/uuidPage.ts` | Browser UUID display and registration status |
 | Frontend chat UI | `frontend/index.html` | Browser UUID input, conversation UI, Sisyphus |
-| CLI implementation | `cli/main.py` | Interactive mode, shortcuts |
 ## ARCHITECTURE
 
 ```
@@ -113,8 +111,8 @@ OpenBrowser uses Promise.race to detect dialogs gracefully.
      timeout         // User timeout
    ])
 3. If dialog opens:
-   - Alert → Auto-accept
-   - Confirm/Prompt → Return dialog info
+   - Return dialog info to the screenshot/handling flow
+   - Wait for screenshot handling or explicit dialog response
 4. AI calls handle_dialog(accept/dismiss)
 5. Extension handles, checks cascade
 ```
@@ -328,14 +326,6 @@ uv run local-chrome-server serve
 
 # Build extension
 cd extension && npm run build
-
-# CLI interactive mode
-uv run chrome-cli interactive
-
-# CLI tab management
-uv run chrome-cli tabs init https://example.com
-uv run chrome-cli tabs list
-uv run chrome-cli javascript execute "document.title"
 ```
 
 ## SCREENSHOT BEHAVIOR
@@ -365,12 +355,6 @@ OpenBrowser has explicit screenshot control for maximum flexibility:
 |---------|----------|----------------------|
 | `tab list` | Returns tab list only | N/A |
 | `tab close` | Returns close result only | N/A |
-| `javascript_execute` | Returns JS result only | Call `screenshot` after |
-|---------|----------|----------------------|
-| `tab init` | Returns tab info only | Call `screenshot` after |
-| `tab open` | Returns tab info only | Call `screenshot` after |
-| `tab switch` | Returns tab info only | Call `screenshot` after |
-| `tab refresh` | Returns tab info only | Call `screenshot` after |
 | `javascript_execute` | Returns JS result only | Call `screenshot` after |
 
 ### Best Practice

@@ -1,5 +1,9 @@
 import { describe, test, expect } from 'bun:test';
-import { generateShortHash, generateUniqueHash, generateElementId } from '../hash-utils';
+import {
+  generateShortHash,
+  generateUniqueHash,
+  generateElementId,
+} from '../hash-utils';
 
 describe('hash-utils', () => {
   describe('generateShortHash', () => {
@@ -58,7 +62,12 @@ describe('hash-utils', () => {
           existingHashes.add(generateShortHash(cssPath, undefined, i));
         }
 
-        const result = generateUniqueHash(cssPath, existingHashes, undefined, 5);
+        const result = generateUniqueHash(
+          cssPath,
+          existingHashes,
+          undefined,
+          5,
+        );
 
         expect(result.salt).toBe(424242);
         expect(result.hash).toBe(generateShortHash(cssPath, undefined, 424242));
@@ -71,7 +80,11 @@ describe('hash-utils', () => {
   describe('generateElementId', () => {
     test('returns a pure hash and ignores element type prefixes', () => {
       const existingHashes = new Set<string>();
-      const clickable = generateElementId('click', 'div#content', existingHashes);
+      const clickable = generateElementId(
+        'click',
+        'div#content',
+        existingHashes,
+      );
       const input = generateElementId('input', 'div#content', existingHashes);
 
       expect(clickable.id).toBe(clickable.hash);
@@ -90,7 +103,11 @@ describe('hash-utils', () => {
     test('changes the hash when HTML content changes', () => {
       const cssPath = 'div#content';
 
-      const withoutHtml = generateElementId('click', cssPath, new Set<string>());
+      const withoutHtml = generateElementId(
+        'click',
+        cssPath,
+        new Set<string>(),
+      );
       const withHtml = generateElementId(
         'click',
         cssPath,

@@ -1,12 +1,16 @@
 /**
  * Background Script - Main entry point for Chrome extension (Strict Mode)
- * 
+ *
  * All commands require conversation_id to be provided by server.
  * No default fallback behavior.
  */
 
 import { wsClient } from '../websocket/client';
-import { captureScreenshot, compressIfNeeded, getCompressionThreshold } from '../commands/screenshot';
+import {
+  captureScreenshot,
+  compressIfNeeded,
+  getCompressionThreshold,
+} from '../commands/screenshot';
 import { DialogBlockedError } from '../commands/screenshot';
 import { DialogType } from '../commands/dialog';
 import { tabs } from '../commands/tabs';
@@ -21,8 +25,19 @@ import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
 import { elementCache } from '../commands/element-cache';
 import { generateElementId } from '../commands/hash-utils';
-import { performElementClick, performElementHover, performElementScroll, performKeyboardInput, performElementSelect } from '../commands/element-actions';
-import { LABEL_FONT_SIZE, LABEL_PADDING, LABEL_HEIGHT, MAX_LABEL_WIDTH } from '../commands/label-constants';
+import {
+  performElementClick,
+  performElementHover,
+  performElementScroll,
+  performKeyboardInput,
+  performElementSelect,
+} from '../commands/element-actions';
+import {
+  LABEL_FONT_SIZE,
+  LABEL_PADDING,
+  LABEL_HEIGHT,
+  MAX_LABEL_WIDTH,
+} from '../commands/label-constants';
 import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import {
   selectCollisionFreePage,
@@ -57,7 +72,11 @@ class CommandQueueManager {
   private isProcessing = false;
   private commandCooldown = 1000; // 1 second cooldown between commands
   private lastCommandEndTime = 0;
-  private performanceHistory: Array<{type: string; duration: number; timestamp: number}> = [];
+  private performanceHistory: Array<{
+    type: string;
+    duration: number;
+    timestamp: number;
+  }> = [];
   private readonly maxHistory = 20;
 
   /**
@@ -71,15 +90,17 @@ class CommandQueueManager {
         reject,
         addedAt: Date.now(),
       });
-      
+
       // Start processing if not already processing
       if (!this.isProcessing) {
         this.processQueue();
       }
-      
+
       // Log queue status
       if (this.queue.length > 3) {
-        console.warn(`⚠️ Command queue growing: ${this.queue.length} commands pending`);
+        console.warn(
+          `⚠️ Command queue growing: ${this.queue.length} commands pending`,
+        );
       }
     });
   }
@@ -97,10 +118,12 @@ class CommandQueueManager {
     while (this.queue.length > 0) {
       const queuedCommand = this.queue.shift()!;
       const waitTime = Date.now() - queuedCommand.addedAt;
-      
+
       // Warn about long wait times
       if (waitTime > 5000) {
-        console.warn(`⌛ Command waited ${waitTime}ms in queue before processing`);
+        console.warn(
+          `⌛ Command waited ${waitTime}ms in queue before processing`,
+        );
       }
 
       try {
@@ -109,16 +132,15 @@ class CommandQueueManager {
         if (timeSinceLastCommand < this.commandCooldown) {
           const cooldownDelay = this.commandCooldown - timeSinceLastCommand;
           console.log(`⏸️ Command cooldown: waiting ${cooldownDelay}ms`);
-          await new Promise(resolve => setTimeout(resolve, cooldownDelay));
+          await new Promise((resolve) => setTimeout(resolve, cooldownDelay));
         }
 
         // Process the command
         const result = await this.processCommand(queuedCommand.data);
         queuedCommand.resolve(result);
-        
+
         // Update last command end time
         this.lastCommandEndTime = Date.now();
-        
       } catch (error) {
         queuedCommand.reject(error as Error);
         this.lastCommandEndTime = Date.now();
@@ -143,7 +165,7 @@ class CommandQueueManager {
       conversation_id: data.conversation_id,
       action: data.action,
       tab_id: data.tab_id,
-      url: data.url
+      url: data.url,
     });
 
     try {
@@ -155,7 +177,9 @@ class CommandQueueManager {
 
       // Warn about long-running commands
       if (commandDuration > 10000) {
-        console.warn(`⚠️ Long command execution: ${commandType} took ${commandDuration}ms`);
+        console.warn(
+          `⚠️ Long command execution: ${commandType} took ${commandDuration}ms`,
+        );
       }
 
       // Send response back to server
@@ -189,7 +213,9 @@ class CommandQueueManager {
       }
 
       if (commandDuration > 10000) {
-        console.warn(`⚠️ Long failed command: ${commandType} failed after ${commandDuration}ms`);
+        console.warn(
+          `⚠️ Long failed command: ${commandType} failed after ${commandDuration}ms`,
+        );
       }
 
       throw error;
@@ -216,15 +242,20 @@ class CommandQueueManager {
     // Detect performance degradation
     if (this.performanceHistory.length >= 5) {
       const recent = this.performanceHistory.slice(-5);
-      const avgDuration = recent.reduce((sum, cmd) => sum + cmd.duration, 0) / recent.length;
-      
+      const avgDuration =
+        recent.reduce((sum, cmd) => sum + cmd.duration, 0) / recent.length;
+
       if (avgDuration > 5000) {
-        console.warn(`📉 Performance degradation detected: avg command time ${avgDuration.toFixed(0)}ms`);
-        
+        console.warn(
+          `📉 Performance degradation detected: avg command time ${avgDuration.toFixed(0)}ms`,
+        );
+
         // Adaptive cooldown adjustment
         if (avgDuration > 10000) {
           this.commandCooldown = 2000; // Increase to 2 seconds
-          console.log(`⚙️ Increased command cooldown to ${this.commandCooldown}ms`);
+          console.log(
+            `⚙️ Increased command cooldown to ${this.commandCooldown}ms`,
+          );
         }
       } else if (avgDuration < 1000 && this.commandCooldown > 1000) {
         // Reset cooldown if performance improves
@@ -250,12 +281,14 @@ class CommandQueueManager {
    * Clear queue (emergency cleanup)
    */
   clearQueue(): void {
-    console.warn(`🧹 Clearing command queue with ${this.queue.length} pending commands`);
-    
+    console.warn(
+      `🧹 Clearing command queue with ${this.queue.length} pending commands`,
+    );
+
     for (const queuedCommand of this.queue) {
       queuedCommand.reject(new Error('Command queue cleared'));
     }
-    
+
     this.queue = [];
     this.isProcessing = false;
   }
@@ -279,24 +312,26 @@ class WatchdogTimer {
 
   start(): void {
     console.log('🔍 Watchdog timer started');
-    
+
     if (this.watchdogInterval) {
       clearInterval(this.watchdogInterval);
     }
-    
+
     this.lastCheckTime = Date.now();
-    
+
     this.watchdogInterval = setInterval(() => {
       const now = Date.now();
       const timeSinceLastCheck = now - this.lastCheckTime;
-      
+
       if (timeSinceLastCheck > this.FREEZE_THRESHOLD) {
-        console.error(`🚨 WATCHDOG: Main thread may be frozen! No check for ${timeSinceLastCheck}ms`);
-        
+        console.error(
+          `🚨 WATCHDOG: Main thread may be frozen! No check for ${timeSinceLastCheck}ms`,
+        );
+
         // Emergency cleanup if main thread appears frozen
         this.emergencyCleanup();
       }
-      
+
       this.lastCheckTime = now;
     }, this.CHECK_INTERVAL) as unknown as number;
   }
@@ -315,10 +350,10 @@ class WatchdogTimer {
 
   private emergencyCleanup(): void {
     console.warn('🆘 Watchdog emergency cleanup initiated');
-    
+
     // Clear command queue to free up resources
     commandQueue.clearQueue();
-    
+
     // Try to send heartbeat if WebSocket is still connected
     if (wsClient.isConnected()) {
       try {
@@ -347,7 +382,7 @@ watchdog.start();
 
 // Update watchdog on each command processing - wrap the processCommand method
 const originalProcessCommand = commandQueue.processCommand.bind(commandQueue);
-commandQueue.processCommand = async function(data: any) {
+commandQueue.processCommand = async function (data: any) {
   watchdog.tick();
   return originalProcessCommand(data);
 };
@@ -355,20 +390,26 @@ commandQueue.processCommand = async function(data: any) {
 // ============================================================================
 
 // Initialize tab manager
-tabManager.initialize().then(() => {
-  console.log('✅ Tab manager initialized');
-}).catch((error) => {
-  console.error('❌ Failed to initialize tab manager:', error);
-});
+tabManager
+  .initialize()
+  .then(() => {
+    console.log('✅ Tab manager initialized');
+  })
+  .catch((error) => {
+    console.error('❌ Failed to initialize tab manager:', error);
+  });
 
 // Initialize WebSocket connection
-wsClient.connect().then(() => {
-  tabManager.updateStatus('idle');
-  console.log('🌐 WebSocket connected, tab manager status updated');
-}).catch((error) => {
-  console.error('Failed to connect to WebSocket server:', error);
-  tabManager.updateStatus('disconnected');
-});
+wsClient
+  .connect()
+  .then(() => {
+    tabManager.updateStatus('idle');
+    console.log('🌐 WebSocket connected, tab manager status updated');
+  })
+  .catch((error) => {
+    console.error('Failed to connect to WebSocket server:', error);
+    tabManager.updateStatus('disconnected');
+  });
 
 // Listen for WebSocket disconnection
 wsClient.onDisconnect(() => {
@@ -382,7 +423,11 @@ wsClient.onMessage(async (data) => {
   // Only handle command messages (not responses or server messages)
   if (data.type && !data.success && !data.error) {
     // Skip server messages that are not commands
-    if (data.type === 'connected' || data.type === 'ping' || data.type === 'pong') {
+    if (
+      data.type === 'connected' ||
+      data.type === 'ping' ||
+      data.type === 'pong'
+    ) {
       if (data.type === 'connected') {
         currentConnectionId =
           typeof data.connection_id === 'string' ? data.connection_id : null;
@@ -393,22 +438,30 @@ wsClient.onMessage(async (data) => {
           });
         }
       }
-      console.log(`📨 Received server message: ${data.type}`, data.message || '');
+      console.log(
+        `📨 Received server message: ${data.type}`,
+        data.message || '',
+      );
       return;
     }
-    
+
     // Log command receipt
     const commandType = data.type || 'unknown';
     const commandId = data.command_id || `unknown_${Date.now()}`;
     console.log(`📨 Received command: ${commandType} (ID: ${commandId})`);
-    
+
     // Add command to queue for processing
     try {
       await commandQueue.enqueue(data);
-      console.log(`✅ Command ${commandType} (ID: ${commandId}) processed successfully`);
+      console.log(
+        `✅ Command ${commandType} (ID: ${commandId}) processed successfully`,
+      );
     } catch (error) {
-      console.error(`❌ Command ${commandType} (ID: ${commandId}) failed:`, error);
-      
+      console.error(
+        `❌ Command ${commandType} (ID: ${commandId}) failed:`,
+        error,
+      );
+
       // Send error response if still connected
       if (wsClient.isConnected()) {
         const errorResponse: CommandResponse = {
@@ -445,7 +498,7 @@ async function registerBrowserIdentity(connectionId: string): Promise<void> {
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(
-      `Browser registration failed (${response.status}): ${errorText || response.statusText}`
+      `Browser registration failed (${response.status}): ${errorText || response.statusText}`,
     );
   }
 
@@ -504,26 +557,33 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       case 'screenshot': {
         // ✅ STRICT MODE: conversation_id is REQUIRED
         if (!command.conversation_id) {
-          throw new Error('conversation_id is required for screenshot command (strict mode)');
+          throw new Error(
+            'conversation_id is required for screenshot command (strict mode)',
+          );
         }
-        
+
         const conversationId = command.conversation_id;
-        
+
         // Always use current active tab for the conversation (ignore tab_id if provided)
         const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
         if (!activeTabId) {
-          throw new Error(`No active tab found for conversation ${conversationId}. Use tab init or specify tab_id.`);
+          throw new Error(
+            `No active tab found for conversation ${conversationId}. Use tab init or specify tab_id.`,
+          );
         }
-        
-        
-        console.log(`📸 [Screenshot] Using active tab ${activeTabId} for conversation ${conversationId} (ignoring provided tab_id: ${command.tab_id || 'none'})`);
-        
-        console.log(`📸 [Screenshot] Starting for tab ${activeTabId}, conversation: ${conversationId}`);
-        
+
+        console.log(
+          `📸 [Screenshot] Using active tab ${activeTabId} for conversation ${conversationId} (ignoring provided tab_id: ${command.tab_id || 'none'})`,
+        );
+
+        console.log(
+          `📸 [Screenshot] Starting for tab ${activeTabId}, conversation: ${conversationId}`,
+        );
+
         // Ensure tab is managed by tab manager for this conversation
         await tabManager.ensureTabManaged(activeTabId, conversationId);
         tabManager.updateTabActivity(activeTabId, conversationId);
-        
+
         // Take screenshot in background (no tab activation)
         const screenshotResult = await captureScreenshot(
           activeTabId,
@@ -531,11 +591,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           command.include_cursor !== false,
           command.quality || 90,
           false, // resizeToPreset: false for WYSIWYG mode
-          0    // waitForRender
+          0, // waitForRender
         );
-        
+
         console.log(`✅ [Screenshot] Completed for tab ${activeTabId}`);
-        
+
         return {
           success: true,
           message: 'Screenshot captured',
@@ -547,7 +607,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       case 'tab': {
         // ✅ STRICT MODE: conversation_id is REQUIRED
         if (!command.conversation_id) {
-          throw new Error('conversation_id is required for tab command (strict mode)');
+          throw new Error(
+            'conversation_id is required for tab command (strict mode)',
+          );
         }
         const conversationId = command.conversation_id;
         console.log(`🔍 [Tab Command] conversation_id: "${conversationId}"`);
@@ -557,16 +619,28 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             if (!command.url) {
               throw new Error('URL is required for init action');
             }
-            const initResult = await tabManager.initializeSession(command.url, conversationId);
-            
-            console.log(`🚀 [Tab Init] Session ${conversationId} initialized with tab ${initResult.tabId}`);
-            
+            const initResult = await tabManager.initializeSession(
+              command.url,
+              conversationId,
+            );
+
+            console.log(
+              `🚀 [Tab Init] Session ${conversationId} initialized with tab ${initResult.tabId}`,
+            );
+
             // Set the newly created tab as active
             tabManager.setCurrentActiveTabId(conversationId, initResult.tabId);
-            
+
             // Capture screenshot after initialization
-            const initScreenshotResult = await captureScreenshot(initResult.tabId, conversationId, true, 90, false, 0);
-            
+            const initScreenshotResult = await captureScreenshot(
+              initResult.tabId,
+              conversationId,
+              true,
+              90,
+              false,
+              0,
+            );
+
             return {
               success: true,
               message: `Session ${conversationId} initialized with ${command.url}`,
@@ -577,8 +651,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 conversationId: conversationId,
                 isManaged: true,
                 screenshot: initScreenshotResult?.imageData,
-                ...(initScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: initScreenshotResult.dialog_auto_accepted } : {}),
-                ...(initScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: initScreenshotResult.dialog_auto_accepted_list } : {}),
+                ...(initScreenshotResult?.dialog_auto_accepted
+                  ? {
+                      dialog_auto_accepted:
+                        initScreenshotResult.dialog_auto_accepted,
+                    }
+                  : {}),
+                ...(initScreenshotResult?.dialog_auto_accepted_list
+                  ? {
+                      dialog_auto_accepted_list:
+                        initScreenshotResult.dialog_auto_accepted_list,
+                    }
+                  : {}),
               },
               timestamp: Date.now(),
             };
@@ -588,16 +672,27 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               throw new Error('URL is required for open action');
             }
             const openResult = await tabs.openTab(command.url, conversationId);
-            
+
             // Set the newly opened tab as active if it has a tabId
             if (openResult.tabId) {
-              tabManager.setCurrentActiveTabId(conversationId, openResult.tabId);
+              tabManager.setCurrentActiveTabId(
+                conversationId,
+                openResult.tabId,
+              );
             }
-            
+
             // Capture screenshot after opening
-            const openScreenshotResult = openResult.tabId ? 
-              await captureScreenshot(openResult.tabId, conversationId, true, 90, false, 0) : null;
-            
+            const openScreenshotResult = openResult.tabId
+              ? await captureScreenshot(
+                  openResult.tabId,
+                  conversationId,
+                  true,
+                  90,
+                  false,
+                  0,
+                )
+              : null;
+
             return {
               success: true,
               message: openResult.message,
@@ -605,8 +700,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ...openResult,
                 conversationId: conversationId,
                 screenshot: openScreenshotResult?.imageData,
-                ...(openScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: openScreenshotResult.dialog_auto_accepted } : {}),
-                ...(openScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: openScreenshotResult.dialog_auto_accepted_list } : {}),
+                ...(openScreenshotResult?.dialog_auto_accepted
+                  ? {
+                      dialog_auto_accepted:
+                        openScreenshotResult.dialog_auto_accepted,
+                    }
+                  : {}),
+                ...(openScreenshotResult?.dialog_auto_accepted_list
+                  ? {
+                      dialog_auto_accepted_list:
+                        openScreenshotResult.dialog_auto_accepted_list,
+                    }
+                  : {}),
               },
               timestamp: Date.now(),
             };
@@ -621,7 +726,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               message: closeResult.message,
               data: {
                 ...closeResult,
-                conversationId: conversationId
+                conversationId: conversationId,
               },
               timestamp: Date.now(),
             };
@@ -633,13 +738,20 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             const switchResult = await tabs.switchToTab(command.tab_id);
             await tabManager.ensureTabManaged(command.tab_id, conversationId);
             tabManager.updateTabActivity(command.tab_id, conversationId);
-            
+
             // Set the switched-to tab as active
             tabManager.setCurrentActiveTabId(conversationId, command.tab_id);
-            
+
             // Capture screenshot after switching
-            const switchScreenshotResult = await captureScreenshot(command.tab_id, conversationId, true, 90, false, 0);
-            
+            const switchScreenshotResult = await captureScreenshot(
+              command.tab_id,
+              conversationId,
+              true,
+              90,
+              false,
+              0,
+            );
+
             return {
               success: true,
               message: switchResult.message,
@@ -647,8 +759,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ...switchResult,
                 conversationId: conversationId,
                 screenshot: switchScreenshotResult?.imageData,
-                ...(switchScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: switchScreenshotResult.dialog_auto_accepted } : {}),
-                ...(switchScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: switchScreenshotResult.dialog_auto_accepted_list } : {}),
+                ...(switchScreenshotResult?.dialog_auto_accepted
+                  ? {
+                      dialog_auto_accepted:
+                        switchScreenshotResult.dialog_auto_accepted,
+                    }
+                  : {}),
+                ...(switchScreenshotResult?.dialog_auto_accepted_list
+                  ? {
+                      dialog_auto_accepted_list:
+                        switchScreenshotResult.dialog_auto_accepted_list,
+                    }
+                  : {}),
               },
               timestamp: Date.now(),
             };
@@ -663,7 +785,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               data: {
                 ...listResult,
                 conversationId: conversationId,
-                conversationTabs: conversationTabs
+                conversationTabs: conversationTabs,
               },
               timestamp: Date.now(),
             };
@@ -675,10 +797,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             await tabManager.ensureTabManaged(command.tab_id, conversationId);
             tabManager.updateTabActivity(command.tab_id, conversationId);
             const refreshResult = await tabs.refreshTab(command.tab_id);
-            
+
             // Capture screenshot after refresh
-            const refreshScreenshotResult = await captureScreenshot(command.tab_id, conversationId, true, 90, false, 0);
-            
+            const refreshScreenshotResult = await captureScreenshot(
+              command.tab_id,
+              conversationId,
+              true,
+              90,
+              false,
+              0,
+            );
+
             return {
               success: true,
               message: refreshResult.message,
@@ -686,25 +815,47 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ...refreshResult,
                 conversationId: conversationId,
                 screenshot: refreshScreenshotResult?.imageData,
-                ...(refreshScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: refreshScreenshotResult.dialog_auto_accepted } : {}),
-                ...(refreshScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: refreshScreenshotResult.dialog_auto_accepted_list } : {}),
+                ...(refreshScreenshotResult?.dialog_auto_accepted
+                  ? {
+                      dialog_auto_accepted:
+                        refreshScreenshotResult.dialog_auto_accepted,
+                    }
+                  : {}),
+                ...(refreshScreenshotResult?.dialog_auto_accepted_list
+                  ? {
+                      dialog_auto_accepted_list:
+                        refreshScreenshotResult.dialog_auto_accepted_list,
+                    }
+                  : {}),
               },
               timestamp: Date.now(),
-            };            
+            };
           case 'view': {
             // View action: Capture screenshot of current active tab
-            const viewActiveTabId = tabManager.getCurrentActiveTabId(conversationId);
+            const viewActiveTabId =
+              tabManager.getCurrentActiveTabId(conversationId);
             if (!viewActiveTabId) {
-              throw new Error(`No active tab found for conversation ${conversationId}. Use tab init first.`);
+              throw new Error(
+                `No active tab found for conversation ${conversationId}. Use tab init first.`,
+              );
             }
-            
+
             await tabManager.ensureTabManaged(viewActiveTabId, conversationId);
             tabManager.updateTabActivity(viewActiveTabId, conversationId);
-            
-            console.log(`👁️ [Tab View] Capturing screenshot for tab ${viewActiveTabId}, conversation: ${conversationId}`);
-            
-            const viewScreenshotResult = await captureScreenshot(viewActiveTabId, conversationId, true, 90, false, 0);
-            
+
+            console.log(
+              `👁️ [Tab View] Capturing screenshot for tab ${viewActiveTabId}, conversation: ${conversationId}`,
+            );
+
+            const viewScreenshotResult = await captureScreenshot(
+              viewActiveTabId,
+              conversationId,
+              true,
+              90,
+              false,
+              0,
+            );
+
             return {
               success: true,
               message: `View captured for tab ${viewActiveTabId}`,
@@ -712,8 +863,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 tabId: viewActiveTabId,
                 conversationId: conversationId,
                 screenshot: viewScreenshotResult?.imageData,
-                ...(viewScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: viewScreenshotResult.dialog_auto_accepted } : {}),
-                ...(viewScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: viewScreenshotResult.dialog_auto_accepted_list } : {}),
+                ...(viewScreenshotResult?.dialog_auto_accepted
+                  ? {
+                      dialog_auto_accepted:
+                        viewScreenshotResult.dialog_auto_accepted,
+                    }
+                  : {}),
+                ...(viewScreenshotResult?.dialog_auto_accepted_list
+                  ? {
+                      dialog_auto_accepted_list:
+                        viewScreenshotResult.dialog_auto_accepted_list,
+                    }
+                  : {}),
               },
               timestamp: Date.now(),
             };
@@ -725,28 +886,44 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             let targetTabId: number;
             if (command.tab_id) {
               targetTabId = command.tab_id;
-              console.log(`↩️ [Tab ${command.action}] Using provided tab_id ${targetTabId}`);
+              console.log(
+                `↩️ [Tab ${command.action}] Using provided tab_id ${targetTabId}`,
+              );
             } else {
               targetTabId = tabManager.getCurrentActiveTabId(conversationId);
               if (!targetTabId) {
-                throw new Error(`No active tab found for conversation ${conversationId}. Use tab init first or specify tab_id.`);
+                throw new Error(
+                  `No active tab found for conversation ${conversationId}. Use tab init first or specify tab_id.`,
+                );
               }
-              console.log(`↩️ [Tab ${command.action}] Using current active tab ${targetTabId}`);
+              console.log(
+                `↩️ [Tab ${command.action}] Using current active tab ${targetTabId}`,
+              );
             }
-            
+
             await tabManager.ensureTabManaged(targetTabId, conversationId);
             tabManager.updateTabActivity(targetTabId, conversationId);
-            
-            console.log(`↩️ [Tab ${command.action}] Navigating ${command.action} in tab ${targetTabId}, conversation: ${conversationId}`);
-            
+
+            console.log(
+              `↩️ [Tab ${command.action}] Navigating ${command.action} in tab ${targetTabId}, conversation: ${conversationId}`,
+            );
+
             // Execute back or forward navigation
-            const navigationResult = command.action === 'back' 
-              ? await tabs.goBack(targetTabId)
-              : await tabs.goForward(targetTabId);
-            
+            const navigationResult =
+              command.action === 'back'
+                ? await tabs.goBack(targetTabId)
+                : await tabs.goForward(targetTabId);
+
             // Capture screenshot after navigation
-            const screenshotResult = await captureScreenshot(targetTabId, conversationId, true, 90, false, 0);
-            
+            const screenshotResult = await captureScreenshot(
+              targetTabId,
+              conversationId,
+              true,
+              90,
+              false,
+              0,
+            );
+
             return {
               success: true,
               message: navigationResult.message,
@@ -755,8 +932,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 tabId: targetTabId,
                 conversationId: conversationId,
                 screenshot: screenshotResult?.imageData,
-                ...(screenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted } : {}),
-                ...(screenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list } : {}),
+                ...(screenshotResult?.dialog_auto_accepted
+                  ? {
+                      dialog_auto_accepted:
+                        screenshotResult.dialog_auto_accepted,
+                    }
+                  : {}),
+                ...(screenshotResult?.dialog_auto_accepted_list
+                  ? {
+                      dialog_auto_accepted_list:
+                        screenshotResult.dialog_auto_accepted_list,
+                    }
+                  : {}),
               },
               timestamp: Date.now(),
             };
@@ -770,22 +957,26 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       case 'cleanup_session': {
         // ✅ STRICT MODE: conversation_id is REQUIRED
         if (!command.conversation_id) {
-          throw new Error('conversation_id is required for cleanup_session (strict mode)');
+          throw new Error(
+            'conversation_id is required for cleanup_session (strict mode)',
+          );
         }
         const cleanupConversationId = command.conversation_id;
-        console.log(`🧹 [Cleanup Session] Cleaning up session ${cleanupConversationId}`);
-        
+        console.log(
+          `🧹 [Cleanup Session] Cleaning up session ${cleanupConversationId}`,
+        );
+
         // 清理 tab manager 会话
         await tabManager.cleanupSession(cleanupConversationId);
-        
+
         // 清理 debugger 会话（detach 所有相关 tabs）
         await debuggerSessionManager.cleanupSession(cleanupConversationId);
-        
+
         return {
           success: true,
           message: `Session ${cleanupConversationId} cleaned up successfully`,
           data: {
-            conversationId: cleanupConversationId
+            conversationId: cleanupConversationId,
           },
           timestamp: Date.now(),
         };
@@ -794,13 +985,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       case 'get_tabs': {
         // ✅ STRICT MODE: conversation_id is REQUIRED for managed_only=true
         const getTabsManagedOnly = command.managed_only !== false;
-        
+
         if (getTabsManagedOnly) {
           if (!command.conversation_id) {
-            throw new Error('conversation_id is required for get_tabs with managed_only=true (strict mode)');
+            throw new Error(
+              'conversation_id is required for get_tabs with managed_only=true (strict mode)',
+            );
           }
-          const conversationTabs = tabManager.getManagedTabs(command.conversation_id);
-          
+          const conversationTabs = tabManager.getManagedTabs(
+            command.conversation_id,
+          );
+
           // ✅ FIX: Query Chrome API to get active status for each tab
           const tabsWithActive = await Promise.all(
             conversationTabs.map(async (managedTab) => {
@@ -808,21 +1003,23 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 const chromeTab = await chrome.tabs.get(managedTab.tabId);
                 return {
                   ...managedTab,
-                  active: chromeTab.active,  // Add active status from Chrome API
-                  index: chromeTab.index,    // Also add index for consistency
+                  active: chromeTab.active, // Add active status from Chrome API
+                  index: chromeTab.index, // Also add index for consistency
                 };
               } catch (error) {
                 // Tab might have been closed, return with active=false
-                console.warn(`Tab ${managedTab.tabId} not found, marking as inactive`);
+                console.warn(
+                  `Tab ${managedTab.tabId} not found, marking as inactive`,
+                );
                 return {
                   ...managedTab,
                   active: false,
                   index: -1,
                 };
               }
-            })
+            }),
           );
-          
+
           return {
             success: true,
             message: `Found ${tabsWithActive.length} managed tabs in conversation ${command.conversation_id}`,
@@ -836,7 +1033,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           };
         } else {
           // Get all tabs (no conversation filter)
-          const allTabsResult = await tabs.getAllTabs(false, command.conversation_id);
+          const allTabsResult = await tabs.getAllTabs(
+            false,
+            command.conversation_id,
+          );
           return {
             success: true,
             message: `Found ${allTabsResult.count} tabs total`,
@@ -852,59 +1052,85 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       case 'javascript_execute': {
         // ✅ STRICT MODE: conversation_id is REQUIRED
         if (!command.conversation_id) {
-          throw new Error('conversation_id is required for javascript_execute command (strict mode)');
+          throw new Error(
+            'conversation_id is required for javascript_execute command (strict mode)',
+          );
         }
-        
+
         const conversationId = command.conversation_id;
-        
+
         // Determine which tab to execute JavaScript in
         // Always use current active tab for the conversation (ignore tab_id if provided)
         const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
         if (!activeTabId) {
-          throw new Error(`No active tab found for conversation ${conversationId}. Use tab init or specify tab_id.`);
+          throw new Error(
+            `No active tab found for conversation ${conversationId}. Use tab init or specify tab_id.`,
+          );
         }
-        
-        console.log(`📜 [JavaScript] Executing in active tab ${activeTabId}, conversation: ${conversationId} (ignoring provided tab_id: ${command.tab_id || 'none'})`);
-        
+
+        console.log(
+          `📜 [JavaScript] Executing in active tab ${activeTabId}, conversation: ${conversationId} (ignoring provided tab_id: ${command.tab_id || 'none'})`,
+        );
+
         // Ensure tab is managed by tab manager for this conversation
         await tabManager.ensureTabManaged(activeTabId, conversationId);
         tabManager.updateTabActivity(activeTabId, conversationId);
-        
+
         const jsStartTime = Date.now();
-        
+
         const jsResult = await javascript.executeJavaScript(
           activeTabId,
           conversationId,
           command.script,
           command.return_by_value !== false,
           command.await_promise === true,
-          command.timeout || 30000
+          command.timeout || 30000,
         );
-        
+
         const jsDuration = Date.now() - jsStartTime;
         console.log(`✅ [JavaScript] Execution completed in ${jsDuration}ms`);
-        
+
         // Determine which tab to screenshot: latest new tab if created, otherwise original tab
         let screenshotTabId = activeTabId;
         if (jsResult.new_tabs_created && jsResult.new_tabs_created.length > 0) {
-          const latestNewTab = jsResult.new_tabs_created[jsResult.new_tabs_created.length - 1];
+          const latestNewTab =
+            jsResult.new_tabs_created[jsResult.new_tabs_created.length - 1];
           screenshotTabId = latestNewTab.tabId;
-          console.log(`📸 [JavaScript] New tabs detected, screenshot will be on latest new tab ${screenshotTabId}`);
-          
+          console.log(
+            `📸 [JavaScript] New tabs detected, screenshot will be on latest new tab ${screenshotTabId}`,
+          );
+
           // Update active tab for the conversation to the new tab
           tabManager.setCurrentActiveTabId(conversationId, screenshotTabId);
         }
-        
+
         // Always take screenshot
-        const jsScreenshotResult = await captureScreenshot(screenshotTabId, conversationId, true, 90, false, 0);
-        
+        const jsScreenshotResult = await captureScreenshot(
+          screenshotTabId,
+          conversationId,
+          true,
+          90,
+          false,
+          0,
+        );
+
         return {
           success: true,
           message: 'JavaScript executed successfully',
           data: {
-            ...jsResult, screenshot: jsScreenshotResult?.imageData,
-            ...(jsScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: jsScreenshotResult.dialog_auto_accepted } : {}),
-            ...(jsScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: jsScreenshotResult.dialog_auto_accepted_list } : {}),
+            ...jsResult,
+            screenshot: jsScreenshotResult?.imageData,
+            ...(jsScreenshotResult?.dialog_auto_accepted
+              ? {
+                  dialog_auto_accepted: jsScreenshotResult.dialog_auto_accepted,
+                }
+              : {}),
+            ...(jsScreenshotResult?.dialog_auto_accepted_list
+              ? {
+                  dialog_auto_accepted_list:
+                    jsScreenshotResult.dialog_auto_accepted_list,
+                }
+              : {}),
           },
           timestamp: Date.now(),
           duration: jsDuration,
@@ -914,20 +1140,26 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       case 'handle_dialog': {
         // ✅ STRICT MODE: conversation_id is REQUIRED
         if (!command.conversation_id) {
-          throw new Error('conversation_id is required for handle_dialog command (strict mode)');
+          throw new Error(
+            'conversation_id is required for handle_dialog command (strict mode)',
+          );
         }
-        
+
         const conversationId = command.conversation_id;
-        const action = command.action;  // 'accept' or 'dismiss'
-        
-        console.log(`💬 [HandleDialog] Handling dialog for conversation ${conversationId}: action=${action}`);
-        
+        const action = command.action; // 'accept' or 'dismiss'
+
+        console.log(
+          `💬 [HandleDialog] Handling dialog for conversation ${conversationId}: action=${action}`,
+        );
+
         // Get the active tab for this conversation
         const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
         if (!activeTabId) {
-          throw new Error(`No active tab found for conversation ${conversationId}. Use tab init first.`);
+          throw new Error(
+            `No active tab found for conversation ${conversationId}. Use tab init first.`,
+          );
         }
-        
+
         // Check if there's an active dialog
         if (!dialogManager.hasActiveDialog(activeTabId)) {
           return {
@@ -936,39 +1168,48 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             timestamp: Date.now(),
           };
         }
-        
+
         const existingDialog = dialogManager.getActiveDialog(activeTabId)!;
-        console.log(`💬 [HandleDialog] Found dialog: type=${existingDialog.dialogType}, message="${existingDialog.message}"`);
-        
+        console.log(
+          `💬 [HandleDialog] Found dialog: type=${existingDialog.dialogType}, message="${existingDialog.message}"`,
+        );
+
         try {
           // Handle the dialog (may cascade to another dialog)
           const handleResult = await dialogManager.handleDialog(
             activeTabId,
             action,
-            command.prompt_text
+            command.prompt_text,
           );
-          
-          console.log(`✅ [HandleDialog] Dialog handled: status=${handleResult.status}`);
-          
+
+          console.log(
+            `✅ [HandleDialog] Dialog handled: status=${handleResult.status}`,
+          );
+
           // If a new dialog cascaded, return info about it
-          if (handleResult.status === 'dialog_cascaded' && handleResult.newDialog) {
-            console.log(`💬 [HandleDialog] Cascading dialog detected: type=${handleResult.newDialog.type}`);
-            
+          if (
+            handleResult.status === 'dialog_cascaded' &&
+            handleResult.newDialog
+          ) {
+            console.log(
+              `💬 [HandleDialog] Cascading dialog detected: type=${handleResult.newDialog.type}`,
+            );
+
             // Auto-accept if it's an alert (no decision needed)
             if (!handleResult.newDialog.needsDecision) {
               console.log(`💬 [HandleDialog] Auto-accepting cascading alert`);
               await dialogManager.autoAcceptDialog(activeTabId);
-              
+
               // Take screenshot after auto-accept
               const screenshotResult = await captureScreenshot(
                 activeTabId,
                 conversationId,
                 true, // include_cursor
-                90,   // quality
+                90, // quality
                 false, // resizeToPreset
-                0     // waitForRender
+                0, // waitForRender
               );
-              
+
               return {
                 success: true,
                 message: `Dialog handled (${action}), cascading alert auto-accepted: "${handleResult.newDialog.message}"`,
@@ -979,14 +1220,27 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                     message: handleResult.newDialog.message,
                     autoAccepted: true,
                   },
-                  screenshot: await compressIfNeeded(screenshotResult, getCompressionThreshold()),
-                  ...(screenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted } : {}),
-                  ...(screenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list } : {}),
+                  screenshot: await compressIfNeeded(
+                    screenshotResult,
+                    getCompressionThreshold(),
+                  ),
+                  ...(screenshotResult?.dialog_auto_accepted
+                    ? {
+                        dialog_auto_accepted:
+                          screenshotResult.dialog_auto_accepted,
+                      }
+                    : {}),
+                  ...(screenshotResult?.dialog_auto_accepted_list
+                    ? {
+                        dialog_auto_accepted_list:
+                          screenshotResult.dialog_auto_accepted_list,
+                      }
+                    : {}),
                 },
                 timestamp: Date.now(),
               };
             }
-            
+
             // Return info about the cascading dialog (needs decision)
             return {
               success: true,
@@ -1005,32 +1259,45 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               timestamp: Date.now(),
             };
           }
-          
+
           // No cascade - dialog handling complete
           // Take screenshot to show the result
           const screenshotResult = await captureScreenshot(
             activeTabId,
             conversationId,
             true, // include_cursor
-            90,   // quality
+            90, // quality
             false, // resizeToPreset
-            0     // waitForRender
+            0, // waitForRender
           );
-          
-          console.log(`✅ [HandleDialog] Dialog handling complete, screenshot captured`);
-          
+
+          console.log(
+            `✅ [HandleDialog] Dialog handling complete, screenshot captured`,
+          );
+
           return {
             success: true,
             message: `Dialog handled successfully: ${handleResult.previousDialog.type} ${action}ed`,
             data: {
               handledDialog: handleResult.previousDialog,
-              screenshot: await compressIfNeeded(screenshotResult, getCompressionThreshold()),
-              ...(screenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted } : {}),
-              ...(screenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list } : {}),
+              screenshot: await compressIfNeeded(
+                screenshotResult,
+                getCompressionThreshold(),
+              ),
+              ...(screenshotResult?.dialog_auto_accepted
+                ? {
+                    dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
+                  }
+                : {}),
+              ...(screenshotResult?.dialog_auto_accepted_list
+                ? {
+                    dialog_auto_accepted_list:
+                      screenshotResult.dialog_auto_accepted_list,
+                  }
+                : {}),
             },
             timestamp: Date.now(),
           };
-          
         } catch (error) {
           console.error(`❌ [HandleDialog] Failed to handle dialog:`, error);
           if (error instanceof DialogBlockedError) {
@@ -1045,17 +1312,22 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               },
               timestamp: Date.now(),
             };
-            
+
             // Include auto-accepted dialogs if any
-            if (error.autoAcceptedDialogs && error.autoAcceptedDialogs.length > 0) {
-              response.auto_accepted_dialogs = error.autoAcceptedDialogs.map(dialog => ({
-                type: dialog.dialogType,
-                message: dialog.message,
-                url: dialog.url,
-                timestamp: dialog.timestamp,
-              }));
+            if (
+              error.autoAcceptedDialogs &&
+              error.autoAcceptedDialogs.length > 0
+            ) {
+              response.auto_accepted_dialogs = error.autoAcceptedDialogs.map(
+                (dialog) => ({
+                  type: dialog.dialogType,
+                  message: dialog.message,
+                  url: dialog.url,
+                  timestamp: dialog.timestamp,
+                }),
+              );
             }
-            
+
             return response;
           }
           return {
@@ -1068,18 +1340,21 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'highlight_elements': {
         if (!command.conversation_id) {
-          throw new Error('conversation_id is required for highlight_elements command');
+          throw new Error(
+            'conversation_id is required for highlight_elements command',
+          );
         }
         const conversationId = command.conversation_id;
         const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
         if (!activeTabId) {
           throw new Error(`No active tab for conversation ${conversationId}`);
         }
-        
+
         const keywords = command.keywords;
-        const elementType = command.element_type || (keywords ? 'any' : 'clickable');
+        const elementType =
+          command.element_type || (keywords ? 'any' : 'clickable');
         const page = command.page || 1;
-        
+
         // Build script to detect elements IN PAGE CONTEXT
         const detectionScript = `
           (function() {
@@ -1490,17 +1765,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             return { elements: deduplicated, counts };
           })();
         `;
-        
+
         // Execute detection script in page context
         const detectionResult = await javascript.executeJavaScript(
           activeTabId,
           conversationId,
           detectionScript,
-          true,  // returnByValue
+          true, // returnByValue
           false, // awaitPromise
-          5000   // timeout
+          5000, // timeout
         );
-        
+
         if (!detectionResult.success || !detectionResult.result?.value) {
           return {
             success: false,
@@ -1508,13 +1783,15 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             timestamp: Date.now(),
           };
         }
-        
+
         const allElements = detectionResult.result.value.elements || [];
 
         // Process keywords if provided (keywords list)
         let keywordList: string[] = [];
         if (keywords && keywords.length > 0) {
-          keywordList = keywords.map(k => k.trim().toLowerCase()).filter(k => k.length > 0);
+          keywordList = keywords
+            .map((k) => k.trim().toLowerCase())
+            .filter((k) => k.length > 0);
         }
 
         // Filter by keywords if keyword list is not empty
@@ -1524,15 +1801,22 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             if (!el.html) return false;
             const htmlLower = el.html.toLowerCase();
             // Match if ANY keyword is found (OR logic)
-            return keywordList.some(keyword => htmlLower.includes(keyword));
+            return keywordList.some((keyword) => htmlLower.includes(keyword));
           });
-          console.log(`🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${filteredElements.length} of ${allElements.length} elements`);
+          console.log(
+            `🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${filteredElements.length} of ${allElements.length} elements`,
+          );
         }
 
         // Generate hash IDs for filtered elements (collision-free, content-aware)
         const existingHashes = new Set<string>();
         for (const element of filteredElements) {
-          const { id } = generateElementId(element.type, element.selector, existingHashes, element.html);
+          const { id } = generateElementId(
+            element.type,
+            element.selector,
+            existingHashes,
+            element.html,
+          );
           element.id = id;
           existingHashes.add(id);
         }
@@ -1540,25 +1824,40 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         let paginatedElements: InteractiveElement[];
         let totalPages: number;
         let currentPage = page;
-        
+
         if (keywordList.length > 0) {
           // Keyword mode: return all matching elements, no pagination
           paginatedElements = filteredElements;
           totalPages = 1;
           currentPage = 1;
-          console.log(`🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${paginatedElements.length} elements (no pagination)`);
+          console.log(
+            `🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${paginatedElements.length} elements (no pagination)`,
+          );
         } else {
           // Normal collision-aware pagination
           paginatedElements = selectCollisionFreePage(filteredElements, page);
           totalPages = calculateTotalPages(filteredElements);
-          console.log(`📄 [HighlightElements] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`);
+          console.log(
+            `📄 [HighlightElements] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`,
+          );
         }
 
-        elementCache.storeElements(conversationId, activeTabId, filteredElements);
-        
+        elementCache.storeElements(
+          conversationId,
+          activeTabId,
+          filteredElements,
+        );
+
         // Capture screenshot
-        const screenshotResult = await captureScreenshot(activeTabId, conversationId, true, 90, false, 0);
-        
+        const screenshotResult = await captureScreenshot(
+          activeTabId,
+          conversationId,
+          true,
+          90,
+          false,
+          0,
+        );
+
         // Validate screenshot result
         if (!screenshotResult?.success || !screenshotResult?.imageData) {
           return {
@@ -1567,28 +1866,44 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             timestamp: Date.now(),
           };
         }
-        console.log(`📸 [HighlightElements] Screenshot captured, size: ${screenshotResult.imageData.length} bytes`);
-        
+        console.log(
+          `📸 [HighlightElements] Screenshot captured, size: ${screenshotResult.imageData.length} bytes`,
+        );
+
         // Get device pixel ratio for coordinate scaling
-        const devicePixelRatio = screenshotResult.metadata?.devicePixelRatio || 1;
+        const devicePixelRatio =
+          screenshotResult.metadata?.devicePixelRatio || 1;
         const viewportWidth = screenshotResult.metadata?.viewportWidth || 0;
         const viewportHeight = screenshotResult.metadata?.viewportHeight || 0;
-        console.log(`📐 [HighlightElements] Device pixel ratio: ${devicePixelRatio}`);
-        console.log(`📐 [HighlightElements] Viewport: ${viewportWidth}x${viewportHeight} CSS pixels`);
-        console.log(`📐 [HighlightElements] Expected image size: ${viewportWidth * devicePixelRatio}x${viewportHeight * devicePixelRatio} device pixels`);
-        
+        console.log(
+          `📐 [HighlightElements] Device pixel ratio: ${devicePixelRatio}`,
+        );
+        console.log(
+          `📐 [HighlightElements] Viewport: ${viewportWidth}x${viewportHeight} CSS pixels`,
+        );
+        console.log(
+          `📐 [HighlightElements] Expected image size: ${viewportWidth * devicePixelRatio}x${viewportHeight * devicePixelRatio} device pixels`,
+        );
+
         // Log first few element bboxes for debugging
         if (paginatedElements.length > 0) {
-          console.log(`📍 [HighlightElements] First element bbox:`, JSON.stringify(paginatedElements[0].bbox));
+          console.log(
+            `📍 [HighlightElements] First element bbox:`,
+            JSON.stringify(paginatedElements[0].bbox),
+          );
         }
-        
+
         // Draw highlights on screenshot (scale coordinates by DPR)
-        const highlightedScreenshot = await drawHighlights(screenshotResult.imageData, paginatedElements, { 
-          scale: devicePixelRatio,
-          viewportWidth,
-          viewportHeight
-        });
-        
+        const highlightedScreenshot = await drawHighlights(
+          screenshotResult.imageData,
+          paginatedElements,
+          {
+            scale: devicePixelRatio,
+            viewportWidth,
+            viewportHeight,
+          },
+        );
+
         return {
           success: true,
           data: {
@@ -1596,40 +1911,85 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             totalElements: filteredElements.length,
             totalPages: totalPages,
             page: currentPage,
-            screenshot: await compressIfNeeded(highlightedScreenshot, getCompressionThreshold()),
-            ...(screenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted } : {}),
-            ...(screenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list } : {}),
+            screenshot: await compressIfNeeded(
+              highlightedScreenshot,
+              getCompressionThreshold(),
+            ),
+            ...(screenshotResult?.dialog_auto_accepted
+              ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted }
+              : {}),
+            ...(screenshotResult?.dialog_auto_accepted_list
+              ? {
+                  dialog_auto_accepted_list:
+                    screenshotResult.dialog_auto_accepted_list,
+                }
+              : {}),
           },
           timestamp: Date.now(),
         };
       }
 
       case 'click_element': {
-        if (!command.conversation_id) throw new Error('conversation_id required');
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
         const clickTabId = command.tab_id;
-        if (clickTabId === undefined || clickTabId === null) throw new Error('tab_id is required');
-        
-        const clickResult = await performElementClick(command.conversation_id, command.element_id, clickTabId);
-        
+        if (clickTabId === undefined || clickTabId === null)
+          throw new Error('tab_id is required');
+
+        const clickResult = await performElementClick(
+          command.conversation_id,
+          command.element_id,
+          clickTabId,
+        );
+
         // Determine which tab to screenshot: latest new tab if created, otherwise original tab
         let screenshotTabId = clickTabId;
-        if (clickResult.new_tabs_created && clickResult.new_tabs_created.length > 0) {
-          const latestNewTab = clickResult.new_tabs_created[clickResult.new_tabs_created.length - 1];
+        if (
+          clickResult.new_tabs_created &&
+          clickResult.new_tabs_created.length > 0
+        ) {
+          const latestNewTab =
+            clickResult.new_tabs_created[
+              clickResult.new_tabs_created.length - 1
+            ];
           screenshotTabId = latestNewTab.tabId;
-          console.log(`📸 [ClickElement] New tabs detected, screenshot will be on latest new tab ${screenshotTabId}`);
-          
+          console.log(
+            `📸 [ClickElement] New tabs detected, screenshot will be on latest new tab ${screenshotTabId}`,
+          );
+
           // Update active tab for the conversation to the new tab
-          tabManager.setCurrentActiveTabId(command.conversation_id, screenshotTabId);
+          tabManager.setCurrentActiveTabId(
+            command.conversation_id,
+            screenshotTabId,
+          );
         }
-        
-        const clickScreenshotResult = await captureScreenshot(screenshotTabId, command.conversation_id, true, 90, false, 0);
-        
+
+        const clickScreenshotResult = await captureScreenshot(
+          screenshotTabId,
+          command.conversation_id,
+          true,
+          90,
+          false,
+          0,
+        );
+
         return {
           success: clickResult.success,
           data: {
-            ...clickResult, screenshot: clickScreenshotResult?.imageData,
-            ...(clickScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: clickScreenshotResult.dialog_auto_accepted } : {}),
-            ...(clickScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: clickScreenshotResult.dialog_auto_accepted_list } : {}),
+            ...clickResult,
+            screenshot: clickScreenshotResult?.imageData,
+            ...(clickScreenshotResult?.dialog_auto_accepted
+              ? {
+                  dialog_auto_accepted:
+                    clickScreenshotResult.dialog_auto_accepted,
+                }
+              : {}),
+            ...(clickScreenshotResult?.dialog_auto_accepted_list
+              ? {
+                  dialog_auto_accepted_list:
+                    clickScreenshotResult.dialog_auto_accepted_list,
+                }
+              : {}),
           },
           error: clickResult.error,
           timestamp: Date.now(),
@@ -1637,19 +1997,43 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       }
 
       case 'hover_element': {
-        if (!command.conversation_id) throw new Error('conversation_id required');
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
         const hoverTabId = command.tab_id;
-        if (hoverTabId === undefined || hoverTabId === null) throw new Error('tab_id is required');
-        
-        const hoverResult = await performElementHover(command.conversation_id, command.element_id, hoverTabId);
-        const hoverScreenshotResult = await captureScreenshot(hoverTabId, command.conversation_id, true, 90, false, 0);
-        
+        if (hoverTabId === undefined || hoverTabId === null)
+          throw new Error('tab_id is required');
+
+        const hoverResult = await performElementHover(
+          command.conversation_id,
+          command.element_id,
+          hoverTabId,
+        );
+        const hoverScreenshotResult = await captureScreenshot(
+          hoverTabId,
+          command.conversation_id,
+          true,
+          90,
+          false,
+          0,
+        );
+
         return {
           success: hoverResult.success,
-          data: { 
-            ...hoverResult, screenshot: hoverScreenshotResult?.imageData,
-            ...(hoverScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: hoverScreenshotResult.dialog_auto_accepted } : {}),
-            ...(hoverScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: hoverScreenshotResult.dialog_auto_accepted_list } : {}),
+          data: {
+            ...hoverResult,
+            screenshot: hoverScreenshotResult?.imageData,
+            ...(hoverScreenshotResult?.dialog_auto_accepted
+              ? {
+                  dialog_auto_accepted:
+                    hoverScreenshotResult.dialog_auto_accepted,
+                }
+              : {}),
+            ...(hoverScreenshotResult?.dialog_auto_accepted_list
+              ? {
+                  dialog_auto_accepted_list:
+                    hoverScreenshotResult.dialog_auto_accepted_list,
+                }
+              : {}),
           },
           error: hoverResult.error,
           timestamp: Date.now(),
@@ -1657,26 +2041,46 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       }
 
       case 'scroll_element': {
-        if (!command.conversation_id) throw new Error('conversation_id required');
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
         const scrollTabId = command.tab_id;
-        if (scrollTabId === undefined || scrollTabId === null) throw new Error('tab_id is required');
-        
+        if (scrollTabId === undefined || scrollTabId === null)
+          throw new Error('tab_id is required');
+
         // element_id is optional - if not provided, scrolls the entire page
         const scrollResult = await performElementScroll(
           command.conversation_id,
           command.element_id,
           command.direction || 'down',
           scrollTabId,
-          command.scroll_amount || 0.5
+          command.scroll_amount || 0.5,
         );
-        const scrollScreenshotResult = await captureScreenshot(scrollTabId, command.conversation_id, true, 90, false, 0);
-        
+        const scrollScreenshotResult = await captureScreenshot(
+          scrollTabId,
+          command.conversation_id,
+          true,
+          90,
+          false,
+          0,
+        );
+
         return {
           success: scrollResult.success,
-          data: { 
-            ...scrollResult, screenshot: scrollScreenshotResult?.imageData,
-            ...(scrollScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: scrollScreenshotResult.dialog_auto_accepted } : {}),
-            ...(scrollScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: scrollScreenshotResult.dialog_auto_accepted_list } : {}),
+          data: {
+            ...scrollResult,
+            screenshot: scrollScreenshotResult?.imageData,
+            ...(scrollScreenshotResult?.dialog_auto_accepted
+              ? {
+                  dialog_auto_accepted:
+                    scrollScreenshotResult.dialog_auto_accepted,
+                }
+              : {}),
+            ...(scrollScreenshotResult?.dialog_auto_accepted_list
+              ? {
+                  dialog_auto_accepted_list:
+                    scrollScreenshotResult.dialog_auto_accepted_list,
+                }
+              : {}),
           },
           error: scrollResult.error,
           timestamp: Date.now(),
@@ -1684,19 +2088,44 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       }
 
       case 'keyboard_input': {
-        if (!command.conversation_id) throw new Error('conversation_id required');
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
         const inputTabId = command.tab_id;
-        if (inputTabId === undefined || inputTabId === null) throw new Error('tab_id is required');
-        
-        const inputResult = await performKeyboardInput(command.conversation_id, command.element_id, command.text, inputTabId);
-        const inputScreenshotResult = await captureScreenshot(inputTabId, command.conversation_id, true, 90, false, 0);
-        
+        if (inputTabId === undefined || inputTabId === null)
+          throw new Error('tab_id is required');
+
+        const inputResult = await performKeyboardInput(
+          command.conversation_id,
+          command.element_id,
+          command.text,
+          inputTabId,
+        );
+        const inputScreenshotResult = await captureScreenshot(
+          inputTabId,
+          command.conversation_id,
+          true,
+          90,
+          false,
+          0,
+        );
+
         return {
           success: inputResult.success,
-          data: { 
-            ...inputResult, screenshot: inputScreenshotResult?.imageData,
-            ...(inputScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: inputScreenshotResult.dialog_auto_accepted } : {}),
-            ...(inputScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: inputScreenshotResult.dialog_auto_accepted_list } : {}),
+          data: {
+            ...inputResult,
+            screenshot: inputScreenshotResult?.imageData,
+            ...(inputScreenshotResult?.dialog_auto_accepted
+              ? {
+                  dialog_auto_accepted:
+                    inputScreenshotResult.dialog_auto_accepted,
+                }
+              : {}),
+            ...(inputScreenshotResult?.dialog_auto_accepted_list
+              ? {
+                  dialog_auto_accepted_list:
+                    inputScreenshotResult.dialog_auto_accepted_list,
+                }
+              : {}),
           },
           error: inputResult.error,
           timestamp: Date.now(),
@@ -1704,24 +2133,44 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       }
 
       case 'select_element': {
-        if (!command.conversation_id) throw new Error('conversation_id required');
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
         const selectTabId = command.tab_id;
-        if (selectTabId === undefined || selectTabId === null) throw new Error('tab_id is required');
+        if (selectTabId === undefined || selectTabId === null)
+          throw new Error('tab_id is required');
 
         const selectResult = await performElementSelect(
           command.conversation_id,
           command.element_id,
           selectTabId,
-          command.value
+          command.value,
         );
-        const selectScreenshotResult = await captureScreenshot(selectTabId, command.conversation_id, true, 90, false, 0);
+        const selectScreenshotResult = await captureScreenshot(
+          selectTabId,
+          command.conversation_id,
+          true,
+          90,
+          false,
+          0,
+        );
 
         return {
           success: selectResult.success,
           data: {
-            ...selectResult, screenshot: selectScreenshotResult?.imageData,
-            ...(selectScreenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: selectScreenshotResult.dialog_auto_accepted } : {}),
-            ...(selectScreenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: selectScreenshotResult.dialog_auto_accepted_list } : {}),
+            ...selectResult,
+            screenshot: selectScreenshotResult?.imageData,
+            ...(selectScreenshotResult?.dialog_auto_accepted
+              ? {
+                  dialog_auto_accepted:
+                    selectScreenshotResult.dialog_auto_accepted,
+                }
+              : {}),
+            ...(selectScreenshotResult?.dialog_auto_accepted_list
+              ? {
+                  dialog_auto_accepted_list:
+                    selectScreenshotResult.dialog_auto_accepted_list,
+                }
+              : {}),
           },
           error: selectResult.error,
           timestamp: Date.now(),
@@ -1729,25 +2178,34 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       }
 
       case 'get_element_html': {
-        if (!command.conversation_id) throw new Error('conversation_id required for get_element_html');
+        if (!command.conversation_id)
+          throw new Error('conversation_id required for get_element_html');
         const conversationId = command.conversation_id;
         const elementId = command.element_id;
-        
+
         if (!elementId) {
           throw new Error('element_id is required for get_element_html');
         }
-        
+
         // Get current active tab for this conversation
         const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
         if (!activeTabId) {
-          throw new Error(`No active tab found for conversation ${conversationId}. Use tab init first.`);
+          throw new Error(
+            `No active tab found for conversation ${conversationId}. Use tab init first.`,
+          );
         }
-        
+
         // Look up the element in the cache
-        const element = elementCache.getElementById(conversationId, activeTabId, elementId);
-        
+        const element = elementCache.getElementById(
+          conversationId,
+          activeTabId,
+          elementId,
+        );
+
         if (!element) {
-          console.warn(`⚠️ [GetElementHtml] Element ${elementId} not found in cache for conversation ${conversationId}, tab ${activeTabId}`);
+          console.warn(
+            `⚠️ [GetElementHtml] Element ${elementId} not found in cache for conversation ${conversationId}, tab ${activeTabId}`,
+          );
           return {
             success: false,
             error: `Element ${elementId} not found in cache. The element may have been invalidated or the page may have changed. Try highlight_elements again.`,
@@ -1755,11 +2213,13 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             timestamp: Date.now(),
           };
         }
-        
+
         // Return the cached HTML
         const html = element.html || '<not available>';
-        console.log(`✅ [GetElementHtml] Retrieved HTML for element ${elementId} from cache (${html.length} chars)`);
-        
+        console.log(
+          `✅ [GetElementHtml] Retrieved HTML for element ${elementId} from cache (${html.length} chars)`,
+        );
+
         return {
           success: true,
           message: `Retrieved HTML for element ${elementId}`,
@@ -1775,16 +2235,22 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
       case 'highlight_single_element': {
         if (!command.conversation_id) {
-          throw new Error('conversation_id is required for highlight_single_element command');
+          throw new Error(
+            'conversation_id is required for highlight_single_element command',
+          );
         }
         const conversationId = command.conversation_id;
         const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
         if (!activeTabId) {
           throw new Error(`No active tab for conversation ${conversationId}`);
         }
-        
+
         // Get element from cache
-        const element = elementCache.getElementById(conversationId, activeTabId, command.element_id);
+        const element = elementCache.getElementById(
+          conversationId,
+          activeTabId,
+          command.element_id,
+        );
         if (!element) {
           return {
             success: false,
@@ -1792,11 +2258,13 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             timestamp: Date.now(),
           };
         }
-        
+
         // ============================================================
         // Re-fetch current bbox using cached selector (bbox may be stale if page scrolled)
         // ============================================================
-        const escapedSelector = element.selector.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const escapedSelector = element.selector
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"');
         const bboxScript = `
           (function() {
             const el = document.querySelector("${escapedSelector}");
@@ -1810,59 +2278,90 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             };
           })();
         `;
-        
+
         let freshBbox = element.bbox; // Default to cached bbox
         try {
-          const bboxResult = await javascript.executeJavaScript(activeTabId, conversationId, bboxScript, true, false, 5000);
+          const bboxResult = await javascript.executeJavaScript(
+            activeTabId,
+            conversationId,
+            bboxScript,
+            true,
+            false,
+            5000,
+          );
           if (bboxResult.success && bboxResult.result?.value) {
-            const fetchedBbox = bboxResult.result.value as { x: number; y: number; width: number; height: number };
+            const fetchedBbox = bboxResult.result.value as {
+              x: number;
+              y: number;
+              width: number;
+              height: number;
+            };
             freshBbox = fetchedBbox;
-            console.log(`📐 [SingleHighlight] Fresh bbox for ${element.id}:`, JSON.stringify(freshBbox));
+            console.log(
+              `📐 [SingleHighlight] Fresh bbox for ${element.id}:`,
+              JSON.stringify(freshBbox),
+            );
           } else {
-            console.warn(`⚠️ [SingleHighlight] Failed to fetch fresh bbox for ${element.id}:`, {
-              error: bboxResult.error,
-              selector: element.selector,
-              cachedBbox: element.bbox,
-              resultValue: bboxResult.result?.value,
-              rawResult: bboxResult.result,
-            });
+            console.warn(
+              `⚠️ [SingleHighlight] Failed to fetch fresh bbox for ${element.id}:`,
+              {
+                error: bboxResult.error,
+                selector: element.selector,
+                cachedBbox: element.bbox,
+                resultValue: bboxResult.result?.value,
+                rawResult: bboxResult.result,
+              },
+            );
           }
         } catch (bboxError) {
-          console.warn(`⚠️ [SingleHighlight] Error fetching bbox, using cached:`, bboxError);
+          console.warn(
+            `⚠️ [SingleHighlight] Error fetching bbox, using cached:`,
+            bboxError,
+          );
         }
-        
+
         // Capture screenshot
-        const screenshotResult = await captureScreenshot(activeTabId, conversationId, true, 80);
-        
+        const screenshotResult = await captureScreenshot(
+          activeTabId,
+          conversationId,
+          true,
+          80,
+        );
+
         // ============================================================
         // Check if element is visible in viewport
         // ============================================================
         const viewportWidth = screenshotResult.metadata?.viewportWidth || 1280;
         const viewportHeight = screenshotResult.metadata?.viewportHeight || 720;
-        
+
         // Element is considered visible if at least part of it is in the viewport
         const isVisibleInViewport =
-          freshBbox.x < viewportWidth &&  // Left edge is left of right boundary
-          freshBbox.x + freshBbox.width > 0 &&  // Right edge is right of left boundary
-          freshBbox.y < viewportHeight &&  // Top edge is above bottom boundary
-          freshBbox.y + freshBbox.height > 0;   // Bottom edge is below top boundary
-        
+          freshBbox.x < viewportWidth && // Left edge is left of right boundary
+          freshBbox.x + freshBbox.width > 0 && // Right edge is right of left boundary
+          freshBbox.y < viewportHeight && // Top edge is above bottom boundary
+          freshBbox.y + freshBbox.height > 0; // Bottom edge is below top boundary
+
         if (!isVisibleInViewport) {
           // Determine scroll direction hint
           let scrollHint = '';
           if (freshBbox.y >= viewportHeight) {
-            scrollHint = 'The element is below the viewport. Try scrolling down or using scroll_element to bring it into view.';
+            scrollHint =
+              'The element is below the viewport. Try scrolling down or using scroll_element to bring it into view.';
           } else if (freshBbox.y + freshBbox.height <= 0) {
-            scrollHint = 'The element is above the viewport. Try scrolling up or using scroll_element to bring it into view.';
+            scrollHint =
+              'The element is above the viewport. Try scrolling up or using scroll_element to bring it into view.';
           } else if (freshBbox.x >= viewportWidth) {
-            scrollHint = 'The element is to the right of the viewport. Try scrolling right or using scroll_element to bring it into view.';
+            scrollHint =
+              'The element is to the right of the viewport. Try scrolling right or using scroll_element to bring it into view.';
           } else if (freshBbox.x + freshBbox.width <= 0) {
-            scrollHint = 'The element is to the left of the viewport. Try scrolling left or using scroll_element to bring it into view.';
+            scrollHint =
+              'The element is to the left of the viewport. Try scrolling left or using scroll_element to bring it into view.';
           }
-          
+
           return {
             success: false,
-            error: `Element ${element.id} is not visible in the current viewport. ${scrollHint}`.trim(),
+            error:
+              `Element ${element.id} is not visible in the current viewport. ${scrollHint}`.trim(),
             data: {
               elementId: element.id,
               bbox: freshBbox,
@@ -1872,13 +2371,13 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             timestamp: Date.now(),
           };
         }
-        
+
         // Create element with fresh bbox for drawing
         const elementWithFreshBbox = {
           ...element,
-          bbox: freshBbox
+          bbox: freshBbox,
         };
-        
+
         // Draw single element highlight
         const highlightedScreenshot = await highlightSingleElement(
           screenshotResult.imageData,
@@ -1887,23 +2386,33 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             scale: screenshotResult.metadata?.devicePixelRatio || 1,
             viewportWidth: screenshotResult.metadata?.viewportWidth || 0,
             viewportHeight: screenshotResult.metadata?.viewportHeight || 0,
-          }
+          },
         );
-        
+
         return {
           success: true,
           data: {
             html: element.html || '',
-            screenshot: await compressIfNeeded(highlightedScreenshot, getCompressionThreshold()),
+            screenshot: await compressIfNeeded(
+              highlightedScreenshot,
+              getCompressionThreshold(),
+            ),
             elementId: command.element_id,
-            ...(screenshotResult?.dialog_auto_accepted ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted } : {}),
-            ...(screenshotResult?.dialog_auto_accepted_list ? { dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list } : {}),
+            ...(screenshotResult?.dialog_auto_accepted
+              ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted }
+              : {}),
+            ...(screenshotResult?.dialog_auto_accepted_list
+              ? {
+                  dialog_auto_accepted_list:
+                    screenshotResult.dialog_auto_accepted_list,
+                }
+              : {}),
           },
           timestamp: Date.now(),
         };
       }
 
-default:
+      default:
         throw new Error(`Unknown command type: ${(command as any).type}`);
     }
   } catch (error) {
@@ -1921,17 +2430,19 @@ default:
         },
         timestamp: Date.now(),
       };
-      
+
       // Include auto-accepted dialogs if any
       if (error.autoAcceptedDialogs && error.autoAcceptedDialogs.length > 0) {
-        response.auto_accepted_dialogs = error.autoAcceptedDialogs.map(dialog => ({
-          type: dialog.dialogType,
-          message: dialog.message,
-          url: dialog.url,
-          timestamp: dialog.timestamp,
-        }));
+        response.auto_accepted_dialogs = error.autoAcceptedDialogs.map(
+          (dialog) => ({
+            type: dialog.dialogType,
+            message: dialog.message,
+            url: dialog.url,
+            timestamp: dialog.timestamp,
+          }),
+        );
       }
-      
+
       return response;
     }
     return {
@@ -1946,13 +2457,18 @@ default:
 /**
  * Send tab switched event to server
  */
-async function sendTabSwitchedEvent(conversationId: string, tabId: number): Promise<void> {
+async function sendTabSwitchedEvent(
+  conversationId: string,
+  tabId: number,
+): Promise<void> {
   try {
     if (!wsClient.isConnected()) {
-      console.warn(`⚠️ Cannot send tab_switched event: WebSocket not connected`);
+      console.warn(
+        `⚠️ Cannot send tab_switched event: WebSocket not connected`,
+      );
       return;
     }
-    
+
     const event = {
       type: 'event',
       event_type: 'tab_switched',
@@ -1960,8 +2476,10 @@ async function sendTabSwitchedEvent(conversationId: string, tabId: number): Prom
       tab_id: tabId,
       timestamp: Date.now(),
     };
-    
-    console.log(`🔄 [TabEvent] Sending tab_switched event: ${conversationId} -> ${tabId}`);
+
+    console.log(
+      `🔄 [TabEvent] Sending tab_switched event: ${conversationId} -> ${tabId}`,
+    );
     await wsClient.sendCommand(event as any);
     console.log(`✅ [TabEvent] Tab switched event sent successfully`);
   } catch (error) {
@@ -1971,7 +2489,9 @@ async function sendTabSwitchedEvent(conversationId: string, tabId: number): Prom
 
 // Register tab switched listener with tab manager
 tabManager.addTabSwitchedListener((conversationId: string, tabId: number) => {
-  console.log(`🔄 [Background] Tab switched listener called: ${conversationId} -> ${tabId}`);
+  console.log(
+    `🔄 [Background] Tab switched listener called: ${conversationId} -> ${tabId}`,
+  );
   // Send event to server asynchronously (don't await)
   sendTabSwitchedEvent(conversationId, tabId).catch(console.error);
 });

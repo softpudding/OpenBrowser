@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Mock Websites Server for AI Agent Evaluation
-Serves 3 mocked websites (GBR, TechForum, CloudStack) with event tracking capabilities.
+Serves mock websites for evaluation with event tracking capabilities.
 
 Usage:
     python server.py
@@ -18,8 +18,6 @@ import socketserver
 import html
 import json
 import os
-import random
-import socket
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 
@@ -41,14 +39,9 @@ URL_MAPPINGS = {
     "/gbr/tech.html": ("/gbr/tech.html", "text/html"),
     "/gbr/politics.html": ("/gbr/politics.html", "text/html"),
     "/gbr/opinion.html": ("/gbr/opinion.html", "text/html"),
-    "/zhihu": ("/techforum/index.html", "text/html"),  # Legacy redirect
-    "/zhihu/": ("/techforum/index.html", "text/html"),  # Legacy redirect
     "/techforum/": ("/techforum/index.html", "text/html"),
     "/techforum/index.html": ("/techforum/index.html", "text/html"),
     "/techforum/questions.html": ("/techforum/questions.html", "text/html"),
-    "/aliyun": ("/cloudstack/index.html", "text/html"),
-    "/aliyun/": ("/cloudstack/index.html", "text/html"),
-    "/aliyun/index.html": ("/cloudstack/index.html", "text/html"),
     "/cloudstack/": ("/cloudstack/index.html", "text/html"),
     "/cloudstack/index.html": ("/cloudstack/index.html", "text/html"),
     "/cloudstack/rds.html": ("/cloudstack/rds.html", "text/html"),
@@ -192,61 +185,6 @@ JPG_MIMETYPE = "image/jpeg"
 GIF_MIMETYPE = "image/gif"
 
 
-def find_available_port():
-    """Find an available port in range 8000-20000 (deprecated - using fixed port 16605)"""
-    # Ports to avoid
-    used_ports = {
-        33212,
-        5000,
-        5001,
-        55029,
-        7000,
-        8080,
-        8888,
-        14013,
-        14016,
-        14019,
-        14022,
-        14023,
-        18789,
-        18791,
-        18792,
-        33210,
-        33211,
-        3653,
-        4530,
-        4544,
-        5020,
-        5770,
-        6379,
-        8765,
-        8766,
-    }
-
-    def is_port_available(port):
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind(("127.0.0.1", port))
-            sock.close()
-            return True
-        except Exception:
-            return False
-
-    # Find an available port
-    for _ in range(100):
-        port = random.randint(8000, 20000)
-        if port not in used_ports and is_port_available(port):
-            return port
-
-    # Fallback: let OS assign a port
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(("", 0))
-    port = sock.getsockname()[1]
-    sock.close()
-    return port
-
-
 class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
     """Custom HTTP handler for mock websites with tracking API"""
 
@@ -363,13 +301,25 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Check for site-specific JS files (e.g., /techforum/js/, /gbr/js/, /cloudstack/js/)
-        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow", "finviz"]:
+        for site in [
+            "techforum",
+            "gbr",
+            "cloudstack",
+            "dataflow",
+            "finviz",
+        ]:
             if path.startswith(f"/{site}/js/") and path.endswith(".js"):
                 self.send_file(path, JS_MIMETYPE)
                 return
 
         # Check for site-specific CSS files
-        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow", "finviz"]:
+        for site in [
+            "techforum",
+            "gbr",
+            "cloudstack",
+            "dataflow",
+            "finviz",
+        ]:
             if path.startswith(f"/{site}/css/") and path.endswith(".css"):
                 self.send_file(path, CSS_MIMETYPE)
                 return
@@ -768,9 +718,7 @@ def print_startup_info(port):
     print(f"\nAvailable Sites:")
     print(f"  - GBR (Easy):   http://localhost:{port}/gbr/")
     print(f"  - TechForum (Medium): http://localhost:{port}/techforum/")
-    print(
-        f"  - CloudStack (Hard):  http://localhost:{port}/cloudstack/  (legacy: /aliyun/, /zhihu/)"
-    )
+    print(f"  - CloudStack (Hard):  http://localhost:{port}/cloudstack/")
     print(f"  - Finviz (Hard):  http://localhost:{port}/finviz/")
     print(f"\nAPI Endpoints:")
     print(f"  - GET  http://localhost:{port}/api/events       - Get all tracked events")
@@ -784,12 +732,6 @@ def print_startup_info(port):
 
 def main():
     """Main entry point"""
-    global PORT
-
-    # Use fixed port 16605
-    # PORT is already set to 16605 globally
-
-    # Create server
     with socketserver.TCPServer(("", PORT), MockWebsiteHandler) as httpd:
         httpd.allow_reuse_address = True
         print_startup_info(PORT)

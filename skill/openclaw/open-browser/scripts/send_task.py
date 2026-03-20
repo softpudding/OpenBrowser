@@ -19,6 +19,11 @@ from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 
+def emit(message: str) -> None:
+    """Print a log line immediately, even when stdout is redirected."""
+    print(message, flush=True)
+
+
 def create_conversation(base_url: str, cwd: str, chrome_uuid: str | None = None) -> str:
     """Create a new conversation and return its ID."""
     request_body = {"cwd": cwd}
@@ -59,25 +64,23 @@ def get_conversation_status(base_url: str, conversation_id: str) -> dict:
 def stream_task(
     base_url: str, conversation_id: str, task: str, cwd: str, chrome_uuid: str
 ):
-    """Stream task execution with SSE events. Only outputs last 10 events at completion."""
+    """Stream task execution with SSE events in real time."""
     url = f"{base_url}/agent/conversations/{conversation_id}/messages"
     req = Request(
         url,
-        data=json.dumps(
-            {"text": task, "cwd": cwd, "browser_id": chrome_uuid}
-        ).encode("utf-8"),
+        data=json.dumps({"text": task, "cwd": cwd, "browser_id": chrome_uuid}).encode(
+            "utf-8"
+        ),
         headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
         method="POST",
     )
 
     try:
         with urlopen(req, timeout=None) as resp:
-            print(f"🔗 Connected: {conversation_id}")
-            print(f"📋 Task: {task}")
-            print("⏳ Running...")
+            emit(f"🔗 Connected: {conversation_id}")
+            emit(f"📋 Task: {task}")
+            emit("⏳ Running...")
 
-            # Collect events for final summary
-            events = []
             sse_event = None
             sse_data = None
 
@@ -89,9 +92,9 @@ def stream_task(
                     if sse_event and sse_data:
                         try:
                             data = json.loads(sse_data)
-                            events.append((sse_event, data))
+                            format_event(sse_event, data)
                         except json.JSONDecodeError:
-                            events.append((sse_event, {"raw": sse_data}))
+                            emit(f"[{sse_event}] {sse_data}")
                     # Reset for next event
                     sse_event = None
                     sse_data = None
@@ -103,17 +106,10 @@ def stream_task(
                 elif line.startswith("data:"):
                     sse_data = line[5:].strip()
 
-            # Output last 10 events
-            print("-" * 50)
-            print("📋 Last 10 events:")
-            print("-" * 50)
-            for event_type, data in events[-10:]:
-                format_event(event_type, data)
-
     except KeyboardInterrupt:
-        print("\n⚠️  Interrupted by user")
-        print(f"📊 Conversation ID: {conversation_id}")
-        print("   Resume or check status using the ID above.")
+        emit("\n⚠️  Interrupted by user")
+        emit(f"📊 Conversation ID: {conversation_id}")
+        emit("   Resume or check status using the ID above.")
         sys.exit(130)
 
 
@@ -126,7 +122,7 @@ def format_event(event_type: str, data: dict):
     """
     # Handle SSE event types
     if event_type == "complete":
-        print(f"✅ Completed: {data.get('message', '')}")
+        emit(f"✅ Completed: {data.get('message', '')}")
         return
 
     # Handle usage metrics event
@@ -136,24 +132,24 @@ def format_event(event_type: str, data: dict):
         cost = metrics.get("accumulated_cost", 0)
         token_usage = metrics.get("accumulated_token_usage", {})
 
-        print(f"📊 Cost: ¥{cost:.6f} | Model: {model_name}")
+        emit(f"📊 Cost: ¥{cost:.6f} | Model: {model_name}")
 
         if token_usage:
             prompt_tokens = token_usage.get("prompt_tokens", 0)
             completion_tokens = token_usage.get("completion_tokens", 0)
             reasoning_tokens = token_usage.get("reasoning_tokens", 0)
             total_tokens = token_usage.get("total_tokens", 0)
-            
+
             # 如果 total_tokens 不存在或为0，则计算总数
             if total_tokens == 0:
                 total_tokens = prompt_tokens + completion_tokens + reasoning_tokens
-            
+
             if total_tokens > 0:
                 token_details = f"   Tokens: {total_tokens:,} (prompt: {prompt_tokens:,}, completion: {completion_tokens:,}"
                 if reasoning_tokens > 0:
                     token_details += f", reasoning: {reasoning_tokens:,}"
                 token_details += ")"
-                print(token_details)
+                emit(token_details)
         return
 
     # Handle agent events (check data.type field)
@@ -164,29 +160,33 @@ def format_event(event_type: str, data: dict):
             role = data.get("role", "unknown")
             text = data.get("text", "")
             if role == "assistant":
-                print(f"🤖 {text[:200]}")
+                emit(f"🤖 {text[:200]}")
 
         elif data_type == "ThoughtEvent":
             content = data.get("thought", data.get("content", ""))
             if content:
                 preview = content[:100] + "..." if len(content) > 100 else content
-                print(f"💭 {preview}")
+                emit(f"💭 {preview}")
 
         elif data_type == "ActionEvent":
             action = data.get("action", {})
-            action_name = action.get("action", "unknown") if isinstance(action, dict) else str(action)
-            print(f"🔧 Action: {action_name}")
+            action_name = (
+                action.get("action", "unknown")
+                if isinstance(action, dict)
+                else str(action)
+            )
+            emit(f"🔧 Action: {action_name}")
 
         elif data_type == "ObservationEvent":
             success = data.get("success", False)
             message = data.get("message", "")
             status = "✓" if success else "✗"
             if message:
-                print(f"👁️  {status} {message[:100]}")
+                emit(f"👁️  {status} {message[:100]}")
 
         elif data_type == "ErrorEvent":
             error = data.get("error", "Unknown error")
-            print(f"❌ Error: {error}")
+            emit(f"❌ Error: {error}")
 
 
 def main():
@@ -195,9 +195,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python send_task.py \"Open example.com\" --chrome-uuid YOUR_BROWSER_UUID\n"
-            "  python send_task.py \"Fill out the form\" --cwd /path/to/workspace --chrome-uuid YOUR_BROWSER_UUID\n"
-            "  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python send_task.py \"Run in background\" --background --output /tmp/ob.log\n"
+            '  python send_task.py "Open example.com" --chrome-uuid YOUR_BROWSER_UUID\n'
+            '  python send_task.py "Fill out the form" --cwd /path/to/workspace --chrome-uuid YOUR_BROWSER_UUID\n'
+            '  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python send_task.py "Run in background" --background --output /tmp/ob.log\n'
             "  python send_task.py --check\n"
             "  python send_task.py --status <conversation_id>"
         ),
@@ -243,31 +243,30 @@ def main():
     args = parser.parse_args()
 
     if not args.check and not args.status and not args.chrome_uuid:
-        print(
+        emit(
             "Error: --chrome-uuid is required for browser automation "
-            "(or set OPENBROWSER_CHROME_UUID)",
-            file=sys.stderr,
+            "(or set OPENBROWSER_CHROME_UUID)"
         )
         sys.exit(2)
 
     # Status check only
     if args.check:
         status = check_server_status(args.url)
-        print("OpenBrowser Server Status:")
-        print(f"  WebSocket Connected: {status.get('websocket_connected', False)}")
-        print(f"  Connections: {status.get('websocket_connections', 0)}")
+        emit("OpenBrowser Server Status:")
+        emit(f"  WebSocket Connected: {status.get('websocket_connected', False)}")
+        emit(f"  Connections: {status.get('websocket_connections', 0)}")
         return
 
     # Conversation status check
     if args.status:
         status = get_conversation_status(args.url, args.status)
-        print(json.dumps(status, indent=2))
+        emit(json.dumps(status, indent=2))
         return
 
     # Background execution
     if args.background:
         if not args.output:
-            print("❌ Background mode requires --output flag")
+            emit("❌ Background mode requires --output flag")
             sys.exit(1)
 
         # Build command (remove --background flag for child process)
@@ -288,10 +287,10 @@ def main():
                 cmd, stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True
             )
 
-        print(f"🚀 Started task in background")
-        print(f"📝 PID: {process.pid}")
-        print(f"📄 Log file: {args.output}")
-        print(f"   Monitor with: tail -f {args.output}")
+        emit("🚀 Started task in background")
+        emit(f"📝 PID: {process.pid}")
+        emit(f"📄 Log file: {args.output}")
+        emit(f"   Monitor with: tail -f {args.output}")
         return
 
     # Foreground execution
@@ -302,12 +301,10 @@ def main():
         # Check server first
         status = check_server_status(args.url)
         if not status.get("websocket_connected"):
-            print("⚠️  Warning: Chrome extension not connected")
-            print("   Browser automation will not work without the extension.")
-            print("   Please install and enable the OpenBrowser extension.")
-            response = input("Continue anyway? (y/N): ")
-            if response.lower() != "y":
-                sys.exit(1)
+            emit("❌ Chrome extension not connected")
+            emit("   Browser automation will not work without the extension.")
+            emit("   Please install or refresh the OpenBrowser extension first.")
+            sys.exit(1)
 
         # Create conversation
         conversation_id = create_conversation(args.url, args.cwd, args.chrome_uuid)
@@ -316,11 +313,11 @@ def main():
         stream_task(args.url, conversation_id, args.task, args.cwd, args.chrome_uuid)
 
     except URLError as e:
-        print(f"❌ Cannot connect to OpenBrowser server: {e}")
-        print("   Make sure the server is running: uv run local-chrome-server serve")
+        emit(f"❌ Cannot connect to OpenBrowser server: {e}")
+        emit("   Make sure the server is running: uv run local-chrome-server serve")
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Error: {e}")
+        emit(f"❌ Error: {e}")
         sys.exit(1)
 
 

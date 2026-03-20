@@ -45,14 +45,60 @@ def _require_valid_browser_id(browser_id: str | None) -> str:
 
 
 def _authorize_conversation_browser_access(
-    conversation_id: str, _browser_id: str
-) -> None:
-    """Ensure the conversation exists before browser access is granted."""
+    conversation_id: str, browser_id: str | None
+) -> tuple[object, str]:
+    """Authorize browser access for an existing conversation.
+
+    This function performs authorization and resolution only.
+
+    Checks performed:
+    - The conversation/session exists; otherwise raises 404.
+    - If the session metadata already contains a bound ``browser_id``:
+      - Reuse that bound value when the request omits ``browser_id``.
+      - Reject the request with 403 when the request provides a different
+        ``browser_id`` from the bound one.
+    - Ensure the effective ``browser_id`` is present and currently valid;
+      otherwise raises 400.
+
+    Important non-goals:
+    - Does NOT write or update session metadata.
+    - Does NOT bind a browser to the conversation.
+    - Does NOT perform any side effects beyond validation and returning the
+      effective ``browser_id`` to the caller.
+
+    Returns:
+        ``(session, effective_browser_id)``
+
+    The caller is responsible for any first-time binding/update logic after
+    authorization succeeds.
+    """
     session = session_manager.get_session(conversation_id)
     if session is None:
         raise HTTPException(
             status_code=404, detail=f"Conversation {conversation_id} not found"
         )
+
+    bound_browser_id = session.metadata.get("browser_id")
+    if isinstance(bound_browser_id, str) and bound_browser_id:
+        if browser_id is None:
+            browser_id = bound_browser_id
+        elif bound_browser_id != browser_id:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Conversation {conversation_id} is already bound to browser_id "
+                    f"{bound_browser_id}"
+                ),
+            )
+
+    if browser_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="browser_id is required. Open the extension UUID page and paste it here.",
+        )
+
+    browser_id = _require_valid_browser_id(browser_id)
+    return session, browser_id
 
 
 @router.post("")
@@ -67,7 +113,8 @@ async def create_conversation(request: Request):
         browser_id: Optional browser UUID capability token
     """
     try:
-        body = await request.json() if request.body else {}
+        raw_body = await request.body()
+        body = await request.json() if raw_body else {}
         cwd = body.get("cwd", ".")
         model = body.get("model")
         base_url = body.get("base_url")
@@ -189,11 +236,13 @@ async def agent_messages_stream(conversation_id: str, request: Request):
                     status_code=400, detail="Message must contain 'text' field"
                 )
 
-            browser_id = _require_valid_browser_id(message_data.get("browser_id"))
-            _authorize_conversation_browser_access(conversation_id, browser_id)
-            session_manager.update_session_metadata(
-                conversation_id, {"browser_id": browser_id}
+            session, browser_id = _authorize_conversation_browser_access(
+                conversation_id, message_data.get("browser_id")
             )
+            if not session.metadata.get("browser_id"):
+                session_manager.update_session_metadata(
+                    conversation_id, {"browser_id": browser_id}
+                )
 
             # Extract cwd parameter with default value
             cwd = message_data.get("cwd", ".")

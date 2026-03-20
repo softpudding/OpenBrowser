@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 import types
 
+
 # Mock optional OpenHands tool modules before importing agent code.
 class MockTerminalTool:
     name = "terminal"
@@ -64,9 +65,12 @@ class TestToolSetIntegration:
         )
 
         assert (
-            tools["dialog"].executor._get_pending_confirmation()["element_id"] == "abc123"
+            tools["dialog"].executor._get_pending_confirmation()["element_id"]
+            == "abc123"
         )
-        assert tools["tab"].executor._get_pending_confirmation()["action_type"] == "click"
+        assert (
+            tools["tab"].executor._get_pending_confirmation()["action_type"] == "click"
+        )
 
     def test_confirmed_element_cache_is_isolated_by_conversation(self) -> None:
         tools = {tool.name: tool for tool in OpenBrowserToolSet.create(None)}

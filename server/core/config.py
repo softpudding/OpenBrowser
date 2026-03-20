@@ -5,22 +5,25 @@ from pydantic_settings import BaseSettings
 
 class ServerConfig(BaseSettings):
     """Server configuration"""
+
     host: str = "127.0.0.1"
     port: int = 8765
     websocket_port: int = 8766
     max_command_queue: int = 100
-    command_timeout: float = 15.0  # Reduced from 30.0 to 15.0 seconds for better heartbeat responsiveness
+    command_timeout: float = (
+        15.0  # Reduced from 30.0 to 15.0 seconds for better heartbeat responsiveness
+    )
     screenshot_dir: str = "./screenshots"
     log_level: str = "INFO"
-    
+
     # Chrome extension settings
     extension_id: Optional[str] = None
     native_messaging: bool = False  # Use WebSocket by default
-    
+
     class Config:
         env_prefix = "CHROME_SERVER_"
         case_sensitive = False
-        
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Ensure screenshot directory exists

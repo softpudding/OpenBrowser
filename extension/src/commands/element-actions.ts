@@ -14,7 +14,6 @@ import type { ElementActionResult } from '../types';
 import { elementCache } from './element-cache';
 import { executeJavaScript, type JavaScriptResult } from './javascript';
 
-
 /**
  * Result type for element click operation
  */
@@ -64,10 +63,10 @@ export async function performElementClick(
   conversationId: string,
   elementId: string,
   tabId: number,
-  timeout: number = 30000
+  timeout: number = 30000,
 ): Promise<ClickResult> {
   console.log(
-    `👆 [ElementClick] Clicking element ${elementId} in conversation ${conversationId} on tab ${tabId}`
+    `👆 [ElementClick] Clicking element ${elementId} in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
@@ -85,7 +84,9 @@ export async function performElementClick(
     };
   }
 
-  console.log(`✅ [ElementClick] Found element: selector="${element.selector}"`);
+  console.log(
+    `✅ [ElementClick] Found element: selector="${element.selector}"`,
+  );
 
   // ============================================================
   // STEP 2: Build JavaScript to click with full event sequence
@@ -167,7 +168,14 @@ export async function performElementClick(
   let jsResult: JavaScriptResult;
 
   try {
-    jsResult = await executeJavaScript(tabId, conversationId, script, true, false, timeout);
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      false,
+      timeout,
+    );
   } catch (error) {
     console.error(`❌ [ElementClick] JavaScript execution error:`, error);
     return {
@@ -197,12 +205,17 @@ export async function performElementClick(
   }
 
   // Debug: Log JavaScript result for diagnosis
-  console.log(`🔍 [ElementClick] JavaScript result.value:`, JSON.stringify(jsResult.result?.value, null, 2));
+  console.log(
+    `🔍 [ElementClick] JavaScript result.value:`,
+    JSON.stringify(jsResult.result?.value, null, 2),
+  );
   console.log(`🔍 [ElementClick] Full JavaScript result:`, jsResult);
 
   // If a dialog opened during execution, treat as success with dialog info
   if (jsResult.dialog_opened) {
-    console.log(`💬 [ElementClick] Dialog opened during click: ${jsResult.dialog?.type} - treating as successful click with dialog`);
+    console.log(
+      `💬 [ElementClick] Dialog opened during click: ${jsResult.dialog?.type} - treating as successful click with dialog`,
+    );
     const result: ClickResult = {
       success: true,
       elementId,
@@ -212,7 +225,11 @@ export async function performElementClick(
     if (jsResult.dialog) {
       result.dialogOpened = true;
       result.dialog = {
-        type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+        type: jsResult.dialog.type as
+          | 'alert'
+          | 'confirm'
+          | 'prompt'
+          | 'beforeunload',
         message: jsResult.dialog.message,
       };
     }
@@ -220,17 +237,22 @@ export async function performElementClick(
   }
 
   // Check the result from the script (only if no dialog opened)
-  const clickResult = jsResult.result?.value as { clicked: boolean; error?: string; stale?: boolean } | undefined;
-  
+  const clickResult = jsResult.result?.value as
+    | { clicked: boolean; error?: string; stale?: boolean }
+    | undefined;
+
   // Check result structure
   if (!jsResult.result?.value || typeof jsResult.result.value !== 'object') {
-    console.error(`❌ [ElementClick] Invalid JavaScript result.value structure:`, jsResult.result?.value);
+    console.error(
+      `❌ [ElementClick] Invalid JavaScript result.value structure:`,
+      jsResult.result?.value,
+    );
   }
 
   if (!clickResult?.clicked) {
     const isStale = clickResult?.stale === true;
     console.log(
-      `❌ [ElementClick] Click failed: ${clickResult?.error || 'Unknown error'}, stale=${isStale}`
+      `❌ [ElementClick] Click failed: ${clickResult?.error || 'Unknown error'}, stale=${isStale}`,
     );
 
     return {
@@ -254,16 +276,20 @@ export async function performElementClick(
   if (jsResult.dialog_opened && jsResult.dialog) {
     result.dialogOpened = true;
     result.dialog = {
-      type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+      type: jsResult.dialog.type as
+        | 'alert'
+        | 'confirm'
+        | 'prompt'
+        | 'beforeunload',
       message: jsResult.dialog.message,
     };
-    console.log(`💬 [ElementClick] Propagating dialog info to screenshot: ${jsResult.dialog.type}`);
+    console.log(
+      `💬 [ElementClick] Propagating dialog info to screenshot: ${jsResult.dialog.type}`,
+    );
   }
 
   return result;
-
 }
-
 
 /**
  * Perform a hover on an element identified by its cached element_id
@@ -284,10 +310,10 @@ export async function performElementHover(
   conversationId: string,
   elementId: string,
   tabId: number,
-  timeout: number = 30000
+  timeout: number = 30000,
 ): Promise<HoverResult> {
   console.log(
-    `🖱️ [ElementHover] Hovering element ${elementId} in conversation ${conversationId} on tab ${tabId}`
+    `🖱️ [ElementHover] Hovering element ${elementId} in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
@@ -305,7 +331,9 @@ export async function performElementHover(
     };
   }
 
-  console.log(`✅ [ElementHover] Found element: selector="${element.selector}"`);
+  console.log(
+    `✅ [ElementHover] Found element: selector="${element.selector}"`,
+  );
 
   // ============================================================
   // STEP 2: Build JavaScript to dispatch hover events
@@ -367,7 +395,14 @@ export async function performElementHover(
   let jsResult: JavaScriptResult;
 
   try {
-    jsResult = await executeJavaScript(tabId, conversationId, script, true, false, timeout);
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      false,
+      timeout,
+    );
   } catch (error) {
     console.error(`❌ [ElementHover] JavaScript execution error:`, error);
     return {
@@ -392,12 +427,17 @@ export async function performElementHover(
   }
 
   // Debug: Log JavaScript result for diagnosis
-  console.log(`🔍 [ElementHover] JavaScript result.value:`, JSON.stringify(jsResult.result?.value, null, 2));
+  console.log(
+    `🔍 [ElementHover] JavaScript result.value:`,
+    JSON.stringify(jsResult.result?.value, null, 2),
+  );
   console.log(`🔍 [ElementHover] Full JavaScript result:`, jsResult);
 
   // If a dialog opened during execution, treat as success with dialog info
   if (jsResult.dialog_opened) {
-    console.log(`💬 [ElementHover] Dialog opened during hover: ${jsResult.dialog?.type} - treating as successful hover with dialog`);
+    console.log(
+      `💬 [ElementHover] Dialog opened during hover: ${jsResult.dialog?.type} - treating as successful hover with dialog`,
+    );
     const result: HoverResult = {
       success: true,
       elementId,
@@ -407,7 +447,11 @@ export async function performElementHover(
     if (jsResult.dialog) {
       result.dialogOpened = true;
       result.dialog = {
-        type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+        type: jsResult.dialog.type as
+          | 'alert'
+          | 'confirm'
+          | 'prompt'
+          | 'beforeunload',
         message: jsResult.dialog.message,
       };
     }
@@ -415,12 +459,14 @@ export async function performElementHover(
   }
 
   // Check the result from the script (only if no dialog opened)
-  const hoverResult = jsResult.result?.value as { hovered: boolean; error?: string; stale?: boolean } | undefined;
+  const hoverResult = jsResult.result?.value as
+    | { hovered: boolean; error?: string; stale?: boolean }
+    | undefined;
 
   if (!hoverResult?.hovered) {
     const isStale = hoverResult?.stale === true;
     console.log(
-      `❌ [ElementHover] Hover failed: ${hoverResult?.error || 'Unknown error'}, stale=${isStale}`
+      `❌ [ElementHover] Hover failed: ${hoverResult?.error || 'Unknown error'}, stale=${isStale}`,
     );
 
     return {
@@ -443,15 +489,20 @@ export async function performElementHover(
   if (jsResult.dialog_opened && jsResult.dialog) {
     result.dialogOpened = true;
     result.dialog = {
-      type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+      type: jsResult.dialog.type as
+        | 'alert'
+        | 'confirm'
+        | 'prompt'
+        | 'beforeunload',
       message: jsResult.dialog.message,
     };
-    console.log(`💬 [ElementHover] Propagating dialog info to screenshot: ${jsResult.dialog.type}`);
+    console.log(
+      `💬 [ElementHover] Propagating dialog info to screenshot: ${jsResult.dialog.type}`,
+    );
   }
 
   return result;
 }
-
 
 /**
  * Scroll direction type
@@ -495,10 +546,10 @@ export async function performElementScroll(
   direction: ScrollDirection,
   tabId: number,
   scrollAmount: number = 0.5,
-  timeout: number = 30000
+  timeout: number = 30000,
 ): Promise<ScrollResult> {
   console.log(
-    `📜 [ElementScroll] Scrolling ${elementId ? `element ${elementId}` : 'entire page'} ${direction} (amount: ${scrollAmount}x viewport) in conversation ${conversationId} on tab ${tabId}`
+    `📜 [ElementScroll] Scrolling ${elementId ? `element ${elementId}` : 'entire page'} ${direction} (amount: ${scrollAmount}x viewport) in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
@@ -521,7 +572,11 @@ export async function performElementScroll(
 
   if (elementId) {
     // Scroll a specific element
-    const element = elementCache.getElementById(conversationId, tabId, elementId);
+    const element = elementCache.getElementById(
+      conversationId,
+      tabId,
+      elementId,
+    );
     if (!element) {
       console.log(`❌ [ElementScroll] Element ${elementId} not found in cache`);
       return {
@@ -532,7 +587,9 @@ export async function performElementScroll(
       };
     }
 
-    console.log(`✅ [ElementScroll] Found element: selector="${element.selector}"`);
+    console.log(
+      `✅ [ElementScroll] Found element: selector="${element.selector}"`,
+    );
     const escapedSelector = element.selector.replace(/"/g, '\\"');
 
     script = `
@@ -677,7 +734,14 @@ export async function performElementScroll(
   let jsResult: JavaScriptResult;
 
   try {
-    jsResult = await executeJavaScript(tabId, conversationId, script, true, false, timeout);
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      false,
+      timeout,
+    );
   } catch (error) {
     console.error(`❌ [ElementScroll] JavaScript execution error:`, error);
     return {
@@ -689,7 +753,9 @@ export async function performElementScroll(
 
   // Check for execution errors
   if (!jsResult.success) {
-    console.log(`❌ [ElementScroll] Scroll execution failed: ${jsResult.error}`);
+    console.log(
+      `❌ [ElementScroll] Scroll execution failed: ${jsResult.error}`,
+    );
     return {
       success: false,
       elementId,
@@ -698,12 +764,17 @@ export async function performElementScroll(
   }
 
   // Debug: Log JavaScript result for diagnosis
-  console.log(`🔍 [ElementScroll] JavaScript result.value:`, JSON.stringify(jsResult.result?.value, null, 2));
+  console.log(
+    `🔍 [ElementScroll] JavaScript result.value:`,
+    JSON.stringify(jsResult.result?.value, null, 2),
+  );
   console.log(`🔍 [ElementScroll] Full JavaScript result:`, jsResult);
 
   // If a dialog opened during execution, treat as success with dialog info
   if (jsResult.dialog_opened) {
-    console.log(`💬 [ElementScroll] Dialog opened during scroll: ${jsResult.dialog?.type} - treating as successful scroll with dialog`);
+    console.log(
+      `💬 [ElementScroll] Dialog opened during scroll: ${jsResult.dialog?.type} - treating as successful scroll with dialog`,
+    );
     const result: ScrollResult = {
       success: true,
       elementId,
@@ -713,7 +784,11 @@ export async function performElementScroll(
     if (jsResult.dialog) {
       result.dialogOpened = true;
       result.dialog = {
-        type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+        type: jsResult.dialog.type as
+          | 'alert'
+          | 'confirm'
+          | 'prompt'
+          | 'beforeunload',
         message: jsResult.dialog.message,
       };
     }
@@ -721,20 +796,22 @@ export async function performElementScroll(
   }
 
   // Check the result from the script (only if no dialog opened)
-  const scrollResult = jsResult.result?.value as {
-    scrolled: boolean;
-    scrollEffective?: boolean;
-    reason?: string;
-    error?: string;
-    stale?: boolean;
-    scrollPosition?: { x: number; y: number };
-    scrollPositionBefore?: { x: number; y: number };
-  } | undefined;
+  const scrollResult = jsResult.result?.value as
+    | {
+        scrolled: boolean;
+        scrollEffective?: boolean;
+        reason?: string;
+        error?: string;
+        stale?: boolean;
+        scrollPosition?: { x: number; y: number };
+        scrollPositionBefore?: { x: number; y: number };
+      }
+    | undefined;
 
   if (!scrollResult?.scrolled) {
     const isStale = scrollResult?.stale === true;
     console.log(
-      `❌ [ElementScroll] Scroll failed: ${scrollResult?.error || 'Unknown error'}, stale=${isStale}`
+      `❌ [ElementScroll] Scroll failed: ${scrollResult?.error || 'Unknown error'}, stale=${isStale}`,
     );
 
     return {
@@ -749,7 +826,9 @@ export async function performElementScroll(
   const warning = scrollResult.reason;
 
   if (!scrollEffective) {
-    console.log(`⚠️ [ElementScroll] Scroll executed but had no effect: ${warning}`);
+    console.log(
+      `⚠️ [ElementScroll] Scroll executed but had no effect: ${warning}`,
+    );
   } else {
     console.log(`✅ [ElementScroll] Scroll executed successfully`);
   }
@@ -767,10 +846,16 @@ export async function performElementScroll(
   if (jsResult.dialog_opened && jsResult.dialog) {
     result.dialogOpened = true;
     result.dialog = {
-      type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+      type: jsResult.dialog.type as
+        | 'alert'
+        | 'confirm'
+        | 'prompt'
+        | 'beforeunload',
       message: jsResult.dialog.message,
     };
-    console.log(`💬 [ElementScroll] Propagating dialog info to screenshot: ${jsResult.dialog.type}`);
+    console.log(
+      `💬 [ElementScroll] Propagating dialog info to screenshot: ${jsResult.dialog.type}`,
+    );
   }
 
   return result;
@@ -807,10 +892,10 @@ export async function performKeyboardInput(
   elementId: string,
   text: string,
   tabId: number,
-  timeout: number = 30000
+  timeout: number = 30000,
 ): Promise<InputResult> {
   console.log(
-    `⌨️ [KeyboardInput] Inputting text to element ${elementId} in conversation ${conversationId} on tab ${tabId}`
+    `⌨️ [KeyboardInput] Inputting text to element ${elementId} in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
@@ -828,13 +913,17 @@ export async function performKeyboardInput(
     };
   }
 
-  console.log(`✅ [KeyboardInput] Found element: selector="${element.selector}"`);
+  console.log(
+    `✅ [KeyboardInput] Found element: selector="${element.selector}"`,
+  );
 
   // ============================================================
   // STEP 2: Build JavaScript to input text
   // ============================================================
   // Escape quotes and backslashes in selector and text for safe injection
-  const escapedSelector = element.selector.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const escapedSelector = element.selector
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
   const escapedText = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
   const script = `
@@ -911,7 +1000,14 @@ export async function performKeyboardInput(
   let jsResult: JavaScriptResult;
 
   try {
-    jsResult = await executeJavaScript(tabId, conversationId, script, true, false, timeout);
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      false,
+      timeout,
+    );
   } catch (error) {
     console.error(`❌ [KeyboardInput] JavaScript execution error:`, error);
     return {
@@ -941,12 +1037,17 @@ export async function performKeyboardInput(
   }
 
   // Debug: Log JavaScript result for diagnosis
-  console.log(`🔍 [KeyboardInput] JavaScript result.value:`, JSON.stringify(jsResult.result?.value, null, 2));
+  console.log(
+    `🔍 [KeyboardInput] JavaScript result.value:`,
+    JSON.stringify(jsResult.result?.value, null, 2),
+  );
   console.log(`🔍 [KeyboardInput] Full JavaScript result:`, jsResult);
 
   // If a dialog opened during execution, treat as success with dialog info
   if (jsResult.dialog_opened) {
-    console.log(`💬 [KeyboardInput] Dialog opened during input: ${jsResult.dialog?.type} - treating as successful input with dialog`);
+    console.log(
+      `💬 [KeyboardInput] Dialog opened during input: ${jsResult.dialog?.type} - treating as successful input with dialog`,
+    );
     const result: InputResult = {
       success: true,
       elementId,
@@ -957,7 +1058,11 @@ export async function performKeyboardInput(
     if (jsResult.dialog) {
       result.dialogOpened = true;
       result.dialog = {
-        type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+        type: jsResult.dialog.type as
+          | 'alert'
+          | 'confirm'
+          | 'prompt'
+          | 'beforeunload',
         message: jsResult.dialog.message,
       };
     }
@@ -965,12 +1070,14 @@ export async function performKeyboardInput(
   }
 
   // Check the result from the script (only if no dialog opened)
-  const inputResult = jsResult.result?.value as { input: boolean; error?: string; stale?: boolean; value?: string } | undefined;
+  const inputResult = jsResult.result?.value as
+    | { input: boolean; error?: string; stale?: boolean; value?: string }
+    | undefined;
 
   if (!inputResult?.input) {
     const isStale = inputResult?.stale === true;
     console.log(
-      `❌ [KeyboardInput] Input failed: ${inputResult?.error || 'Unknown error'}, stale=${isStale}`
+      `❌ [KeyboardInput] Input failed: ${inputResult?.error || 'Unknown error'}, stale=${isStale}`,
     );
 
     return {
@@ -981,7 +1088,9 @@ export async function performKeyboardInput(
     };
   }
 
-  console.log(`✅ [KeyboardInput] Input executed successfully, value="${inputResult.value}"`);
+  console.log(
+    `✅ [KeyboardInput] Input executed successfully, value="${inputResult.value}"`,
+  );
 
   // If dialog opened during input, propagate dialog info
   const result: InputResult = {
@@ -994,10 +1103,16 @@ export async function performKeyboardInput(
   if (jsResult.dialog_opened && jsResult.dialog) {
     result.dialogOpened = true;
     result.dialog = {
-      type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+      type: jsResult.dialog.type as
+        | 'alert'
+        | 'confirm'
+        | 'prompt'
+        | 'beforeunload',
       message: jsResult.dialog.message,
     };
-    console.log(`💬 [KeyboardInput] Propagating dialog info to screenshot: ${jsResult.dialog.type}`);
+    console.log(
+      `💬 [KeyboardInput] Propagating dialog info to screenshot: ${jsResult.dialog.type}`,
+    );
   }
 
   return result;
@@ -1024,10 +1139,10 @@ export async function performElementSelect(
   elementId: string,
   tabId: number,
   value: string | string[],
-  timeout: number = 30000
+  timeout: number = 30000,
 ): Promise<SelectResult> {
   console.log(
-    `📋 [ElementSelect] Selecting element ${elementId} in conversation ${conversationId} on tab ${tabId}`
+    `📋 [ElementSelect] Selecting element ${elementId} in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
@@ -1045,13 +1160,17 @@ export async function performElementSelect(
     };
   }
 
-  console.log(`✅ [ElementSelect] Found element: selector="${element.selector}"`);
+  console.log(
+    `✅ [ElementSelect] Found element: selector="${element.selector}"`,
+  );
 
   // ============================================================
   // STEP 2: Build JavaScript to select option(s)
   // ============================================================
   // Escape quotes and backslashes in selector for safe injection
-  const escapedSelector = element.selector.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const escapedSelector = element.selector
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
 
   // Serialize value for JavaScript injection
   const valueJson = JSON.stringify(value);
@@ -1159,7 +1278,14 @@ export async function performElementSelect(
   let jsResult: JavaScriptResult;
 
   try {
-    jsResult = await executeJavaScript(tabId, conversationId, script, true, false, timeout);
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      false,
+      timeout,
+    );
   } catch (error) {
     console.error(`❌ [ElementSelect] JavaScript execution error:`, error);
     return {
@@ -1176,7 +1302,9 @@ export async function performElementSelect(
 
   // Check for execution errors
   if (!jsResult.success) {
-    console.log(`❌ [ElementSelect] Select execution failed: ${jsResult.error}`);
+    console.log(
+      `❌ [ElementSelect] Select execution failed: ${jsResult.error}`,
+    );
     return {
       success: false,
       elementId,
@@ -1186,12 +1314,17 @@ export async function performElementSelect(
   }
 
   // Debug: Log JavaScript result for diagnosis
-  console.log(`🔍 [ElementSelect] JavaScript result.value:`, JSON.stringify(jsResult.result?.value, null, 2));
+  console.log(
+    `🔍 [ElementSelect] JavaScript result.value:`,
+    JSON.stringify(jsResult.result?.value, null, 2),
+  );
   console.log(`🔍 [ElementSelect] Full JavaScript result:`, jsResult);
 
   // If a dialog opened during execution, treat as success with dialog info
   if (jsResult.dialog_opened) {
-    console.log(`💬 [ElementSelect] Dialog opened during select: ${jsResult.dialog?.type} - treating as successful select with dialog`);
+    console.log(
+      `💬 [ElementSelect] Dialog opened during select: ${jsResult.dialog?.type} - treating as successful select with dialog`,
+    );
     const result: SelectResult = {
       success: true,
       elementId,
@@ -1201,7 +1334,11 @@ export async function performElementSelect(
     if (jsResult.dialog) {
       result.dialogOpened = true;
       result.dialog = {
-        type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+        type: jsResult.dialog.type as
+          | 'alert'
+          | 'confirm'
+          | 'prompt'
+          | 'beforeunload',
         message: jsResult.dialog.message,
       };
     }
@@ -1209,20 +1346,22 @@ export async function performElementSelect(
   }
 
   // Check the result from the script (only if no dialog opened)
-  const selectResult = jsResult.result?.value as {
-    selected: boolean;
-    error?: string;
-    stale?: boolean;
-    selectedValues?: string[];
-    selectedLabels?: string[];
-    selectedIndices?: number[];
-    isMultiple?: boolean;
-  } | undefined;
+  const selectResult = jsResult.result?.value as
+    | {
+        selected: boolean;
+        error?: string;
+        stale?: boolean;
+        selectedValues?: string[];
+        selectedLabels?: string[];
+        selectedIndices?: number[];
+        isMultiple?: boolean;
+      }
+    | undefined;
 
   if (!selectResult?.selected) {
     const isStale = selectResult?.stale === true;
     console.log(
-      `❌ [ElementSelect] Select failed: ${selectResult?.error || 'Unknown error'}, stale=${isStale}`
+      `❌ [ElementSelect] Select failed: ${selectResult?.error || 'Unknown error'}, stale=${isStale}`,
     );
 
     return {
@@ -1234,7 +1373,9 @@ export async function performElementSelect(
     };
   }
 
-  console.log(`✅ [ElementSelect] Select executed successfully, values=${JSON.stringify(selectResult.selectedValues)}`);
+  console.log(
+    `✅ [ElementSelect] Select executed successfully, values=${JSON.stringify(selectResult.selectedValues)}`,
+  );
 
   // Build result with selected values
   const result: SelectResult = {
@@ -1249,10 +1390,16 @@ export async function performElementSelect(
   if (jsResult.dialog_opened && jsResult.dialog) {
     result.dialogOpened = true;
     result.dialog = {
-      type: jsResult.dialog.type as 'alert' | 'confirm' | 'prompt' | 'beforeunload',
+      type: jsResult.dialog.type as
+        | 'alert'
+        | 'confirm'
+        | 'prompt'
+        | 'beforeunload',
       message: jsResult.dialog.message,
     };
-    console.log(`💬 [ElementSelect] Propagating dialog info to screenshot: ${jsResult.dialog.type}`);
+    console.log(
+      `💬 [ElementSelect] Propagating dialog info to screenshot: ${jsResult.dialog.type}`,
+    );
   }
 
   return result;

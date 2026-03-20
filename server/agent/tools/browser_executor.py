@@ -219,6 +219,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 "list": TabActionEnum.LIST,
                 "refresh": TabActionEnum.REFRESH,
                 "view": TabActionEnum.VIEW,
+                "back": TabActionEnum.BACK,
+                "forward": TabActionEnum.FORWARD,
             }
             if action_str in action_map:
                 action_enum = action_map[action_str]
@@ -248,6 +250,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             message = "Listed tabs"
         elif action_str == "view":
             message = f"Viewed tab {action.tab_id}"
+        elif action_str == "back":
+            message = f"Navigated back in tab ID: {action.tab_id}"
+        elif action_str == "forward":
+            message = f"Navigated forward in tab ID: {action.tab_id}"
         else:
             message = f"Tab action: {action_str}"
 

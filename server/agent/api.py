@@ -22,8 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 async def create_agent_conversation(
-    conversation_id: Optional[str] = None, cwd: str = ".",
-    model: Optional[str] = None, base_url: Optional[str] = None,
+    conversation_id: Optional[str] = None,
+    cwd: str = ".",
+    model: Optional[str] = None,
+    base_url: Optional[str] = None,
     browser_id: Optional[str] = None,
     model_alias: Optional[str] = None,
 ) -> str:

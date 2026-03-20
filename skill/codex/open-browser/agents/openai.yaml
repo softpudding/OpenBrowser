@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenBrowser"
+  short_description: "Use local OpenBrowser for web automation"
+  default_prompt: "Use $open-browser to operate a real Chrome browser through the local OpenBrowser service."
