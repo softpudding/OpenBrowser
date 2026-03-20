@@ -16,18 +16,20 @@ def import_module(module_path: Path, module_name: str):
     return module
 
 
-BASE_MODULE_PATH = Path(__file__).parent.parent / "agent" / "tools" / "base.py"
+BASE_MODULE_PATH = Path(__file__).parent.parent.parent / "agent" / "tools" / "base.py"
 base_module = import_module(BASE_MODULE_PATH, "server.agent.tools.base")
 OpenBrowserObservation = base_module.OpenBrowserObservation
 
-HIGHLIGHT_TOOL_PATH = Path(__file__).parent.parent / "agent" / "tools" / "highlight_tool.py"
+HIGHLIGHT_TOOL_PATH = (
+    Path(__file__).parent.parent.parent / "agent" / "tools" / "highlight_tool.py"
+)
 highlight_tool_module = import_module(
     HIGHLIGHT_TOOL_PATH, "server.agent.tools.highlight_tool"
 )
 HighlightAction = highlight_tool_module.HighlightAction
 get_highlight_tool_description = highlight_tool_module.get_highlight_tool_description
 
-TAB_TOOL_PATH = Path(__file__).parent.parent / "agent" / "tools" / "tab_tool.py"
+TAB_TOOL_PATH = Path(__file__).parent.parent.parent / "agent" / "tools" / "tab_tool.py"
 tab_tool_module = import_module(TAB_TOOL_PATH, "server.agent.tools.tab_tool")
 get_tab_tool_description = tab_tool_module.get_tab_tool_description
 

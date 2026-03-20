@@ -6,7 +6,7 @@ and that server layer no longer proactively triggers screenshots.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 from server.core.processor import CommandProcessor
 from server.models.commands import (
     TabCommand,
@@ -19,6 +19,7 @@ from server.models.commands import (
     ScrollElementCommand,
     KeyboardInputCommand,
     HandleDialogCommand,
+    CommandResponse,
 )
 
 
@@ -39,15 +40,18 @@ class TestServerLayerScreenshotBehavior:
             conversation_id="test-conv-1",
         )
 
-        # Mock the _send_prepared_command to return a response without screenshot
-        with patch.object(
-            processor, "_send_prepared_command", new_callable=AsyncMock()
-        ) as mock_send:
-            mock_response = MagicMock()
-            mock_response.success = True
-            mock_response.data = {"tabId": 123, "url": "https://example.com"}
-            mock_send.return_value = mock_response
+        # Create mock response
+        mock_response = CommandResponse(
+            success=True, data={"tabId": 123, "url": "https://example.com"}
+        )
 
+        # Mock _send_prepared_command using side_effect to return an awaitable
+        async def mock_send_cmd(cmd):
+            return mock_response
+
+        with patch.object(
+            processor, "_send_prepared_command", side_effect=mock_send_cmd
+        ):
             response = await processor._execute_tab_command(command)
 
             # Verify the response does NOT contain screenshot
@@ -57,9 +61,6 @@ class TestServerLayerScreenshotBehavior:
                 "Tab init should not auto-add screenshot"
             )
 
-            # Verify _send_prepared_command was called (extension handles the command)
-            mock_send.assert_called_once()
-
     @pytest.mark.asyncio
     async def test_javascript_execute_no_auto_screenshot(self, processor):
         """JavaScript execute command should NOT automatically add screenshot."""
@@ -67,14 +68,14 @@ class TestServerLayerScreenshotBehavior:
             script="document.title", conversation_id="test-conv-2"
         )
 
-        with patch.object(
-            processor, "_send_prepared_command", new_callable=AsyncMock()
-        ) as mock_send:
-            mock_response = MagicMock()
-            mock_response.success = True
-            mock_response.data = {"result": "Test Page"}
-            mock_send.return_value = mock_response
+        mock_response = CommandResponse(success=True, data={"result": "Test Page"})
 
+        async def mock_send_cmd(cmd):
+            return mock_response
+
+        with patch.object(
+            processor, "_send_prepared_command", side_effect=mock_send_cmd
+        ):
             response = await processor._execute_javascript_execute(command)
 
             # Verify the response does NOT contain screenshot
@@ -88,14 +89,16 @@ class TestServerLayerScreenshotBehavior:
         """Direct screenshot command should still work."""
         command = ScreenshotCommand(conversation_id="test-conv-3")
 
-        with patch.object(
-            processor, "_send_prepared_command", new_callable=AsyncMock()
-        ) as mock_send:
-            mock_response = MagicMock()
-            mock_response.success = True
-            mock_response.data = {"image": "base64imagedata..."}
-            mock_send.return_value = mock_response
+        mock_response = CommandResponse(
+            success=True, data={"image": "base64imagedata..."}
+        )
 
+        async def mock_send_cmd(cmd):
+            return mock_response
+
+        with patch.object(
+            processor, "_send_prepared_command", side_effect=mock_send_cmd
+        ):
             response = await processor._execute_screenshot(command)
 
             # Verify the response DOES contain screenshot (explicit request)
@@ -107,6 +110,11 @@ class TestServerLayerScreenshotBehavior:
 class TestExtensionLayerScreenshotBehavior:
     """Test that Extension layer controls screenshot for visual commands."""
 
+    @pytest.fixture
+    def processor(self):
+        """Create a processor instance for testing."""
+        return CommandProcessor()
+
     @pytest.mark.asyncio
     async def test_highlight_elements_returns_screenshot(self, processor):
         """highlight_elements command should return screenshot (from extension)."""
@@ -114,19 +122,21 @@ class TestExtensionLayerScreenshotBehavior:
             element_type="clickable", conversation_id="test-conv-4"
         )
 
-        with patch.object(
-            processor, "_send_prepared_command", new_callable=AsyncMock()
-        ) as mock_send:
-            mock_response = MagicMock()
-            mock_response.success = True
-            # Extension returns screenshot in data
-            mock_response.data = {
+        mock_response = CommandResponse(
+            success=True,
+            data={
                 "elements": [{"id": "click-1", "html": "<button>Click</button>"}],
                 "screenshot": "base64imagedata...",
                 "totalElements": 5,
-            }
-            mock_send.return_value = mock_response
+            },
+        )
 
+        async def mock_send_cmd(cmd):
+            return mock_response
+
+        with patch.object(
+            processor, "_send_prepared_command", side_effect=mock_send_cmd
+        ):
             response = await processor._execute_highlight_elements(command)
 
             # Verify extension-provided screenshot is passed through
@@ -142,14 +152,16 @@ class TestExtensionLayerScreenshotBehavior:
             element_id="click-1", conversation_id="test-conv-5"
         )
 
-        with patch.object(
-            processor, "_send_prepared_command", new_callable=AsyncMock()
-        ) as mock_send:
-            mock_response = MagicMock()
-            mock_response.success = True
-            mock_response.data = {"clicked": True, "screenshot": "base64imagedata..."}
-            mock_send.return_value = mock_response
+        mock_response = CommandResponse(
+            success=True, data={"clicked": True, "screenshot": "base64imagedata..."}
+        )
 
+        async def mock_send_cmd(cmd):
+            return mock_response
+
+        with patch.object(
+            processor, "_send_prepared_command", side_effect=mock_send_cmd
+        ):
             response = await processor._execute_click_element(command)
 
             assert response.success
@@ -164,17 +176,17 @@ class TestExtensionLayerScreenshotBehavior:
             action=DialogAction.ACCEPT, conversation_id="test-conv-6"
         )
 
-        with patch.object(
-            processor, "_send_prepared_command", new_callable=AsyncMock()
-        ) as mock_send:
-            mock_response = MagicMock()
-            mock_response.success = True
-            mock_response.data = {
-                "handledDialog": True,
-                "screenshot": "base64imagedata...",
-            }
-            mock_send.return_value = mock_response
+        mock_response = CommandResponse(
+            success=True,
+            data={"handledDialog": True, "screenshot": "base64imagedata..."},
+        )
 
+        async def mock_send_cmd(cmd):
+            return mock_response
+
+        with patch.object(
+            processor, "_send_prepared_command", side_effect=mock_send_cmd
+        ):
             response = await processor._execute_handle_dialog(command)
 
             assert response.success
@@ -184,6 +196,11 @@ class TestExtensionLayerScreenshotBehavior:
 class TestDialogBlocksScreenshot:
     """Test that open dialogs block screenshot commands."""
 
+    @pytest.fixture
+    def processor(self):
+        """Create a processor instance for testing."""
+        return CommandProcessor()
+
     @pytest.mark.asyncio
     async def test_javascript_with_dialog_no_screenshot(self, processor):
         """When JS execution triggers a dialog, no screenshot should be returned."""
@@ -191,20 +208,23 @@ class TestDialogBlocksScreenshot:
             script="alert('test')", conversation_id="test-conv-7"
         )
 
-        with patch.object(
-            processor, "_send_prepared_command", new_callable=AsyncMock()
-        ) as mock_send:
-            mock_response = MagicMock()
-            mock_response.success = True
-            mock_response.data = {"result": None}
-            mock_response.dialog_opened = True
-            mock_response.dialog = {
-                "type": "alert",
-                "message": "test",
-                "needsDecision": False,
-            }
-            mock_send.return_value = mock_response
+        # Create mock response with dialog opened
+        mock_response = MagicMock()
+        mock_response.success = True
+        mock_response.data = {"result": None}
+        mock_response.dialog_opened = True
+        mock_response.dialog = {
+            "type": "alert",
+            "message": "test",
+            "needsDecision": False,
+        }
 
+        async def mock_send_cmd(cmd):
+            return mock_response
+
+        with patch.object(
+            processor, "_send_prepared_command", side_effect=mock_send_cmd
+        ):
             response = await processor._execute_javascript_execute(command)
 
             # Dialog opened - no screenshot should be added

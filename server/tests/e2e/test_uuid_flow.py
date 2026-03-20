@@ -74,6 +74,7 @@ class BrowserRegisterRequest(BaseModel):
     """Request model for browser registration."""
 
     uuid: str
+    connection_id: str = "mock_connection_0"
     ttl_hours: int = 24
 
 
@@ -114,10 +115,11 @@ def test_app(uuid_manager: UUIDManager) -> FastAPI:
     class MockWSManager:
         def __init__(self, uuid_mgr: UUIDManager):
             self._uuid_manager = uuid_mgr
-            self.connections = [MagicMock()]
+            self.connections = []
+            self._connection_counter = 0
 
         def is_connected(self) -> bool:
-            return len(self.connections) > 0
+            return True
 
         def register_browser(self, uuid: str, websocket, ttl_hours: int = 24) -> None:
             self._uuid_manager.register_browser(uuid, websocket, ttl_hours)
@@ -127,6 +129,15 @@ def test_app(uuid_manager: UUIDManager) -> FastAPI:
 
         def unregister_browser(self, uuid: str) -> bool:
             return self._uuid_manager.unregister_browser(uuid)
+
+        def get_websocket_by_connection_id(self, connection_id: str):
+            try:
+                idx = int(connection_id.split("_")[-1])
+            except (ValueError, IndexError):
+                idx = len(self.connections)
+            while len(self.connections) <= idx:
+                self.connections.append(MagicMock())
+            return self.connections[idx]
 
     ws_manager = MockWSManager(uuid_manager)
 
@@ -143,7 +154,7 @@ def test_app(uuid_manager: UUIDManager) -> FastAPI:
                 status_code=503, detail="No WebSocket connection available"
             )
 
-        websocket = ws_manager.connections[0]
+        websocket = ws_manager.get_websocket_by_connection_id(request.connection_id)
         ws_manager.register_browser(
             uuid=request.uuid, websocket=websocket, ttl_hours=request.ttl_hours
         )
@@ -319,12 +330,15 @@ class TestUUIDExpiration:
         mock_websocket = MagicMock()
 
         # Register two browsers: one expired, one valid
+        # IMPORTANT: Use different websockets - a websocket can only have one active capability token
         expired_uuid = uuid_manager.generate_uuid()
         valid_uuid = uuid_manager.generate_uuid()
+        mock_ws1 = MagicMock()
+        mock_ws2 = MagicMock()
 
-        uuid_manager.register_browser(expired_uuid, mock_websocket, ttl_hours=0)
-        uuid_manager.register_browser(valid_uuid, mock_websocket, ttl_hours=24)
-        time.sleep(0.1)
+        uuid_manager.register_browser(expired_uuid, mock_ws1, ttl_hours=0)
+        time.sleep(0.1)  # Ensure expired before registering valid
+        uuid_manager.register_browser(valid_uuid, mock_ws2, ttl_hours=24)
 
         # Cleanup should remove expired
         count = uuid_manager.cleanup_expired()
@@ -389,16 +403,17 @@ class TestMultipleBrowsers:
 
     def test_browser_count_is_accurate(self, uuid_manager: UUIDManager) -> None:
         """Test that browser count is accurate."""
-        mock_ws = MagicMock()
+        mock_ws1 = MagicMock()
+        mock_ws2 = MagicMock()
 
         assert uuid_manager.get_browser_count() == 0
 
         uuid1 = uuid_manager.generate_uuid()
-        uuid_manager.register_browser(uuid1, mock_ws, ttl_hours=24)
+        uuid_manager.register_browser(uuid1, mock_ws1, ttl_hours=24)
         assert uuid_manager.get_browser_count() == 1
 
         uuid2 = uuid_manager.generate_uuid()
-        uuid_manager.register_browser(uuid2, mock_ws, ttl_hours=24)
+        uuid_manager.register_browser(uuid2, mock_ws2, ttl_hours=24)
         assert uuid_manager.get_browser_count() == 2
 
         uuid_manager.unregister_browser(uuid1)
@@ -439,13 +454,17 @@ class TestUUIDFlowIntegration:
         extensions = [MockExtensionClient() for _ in range(3)]
         uuids = []
 
-        for ext in extensions:
+        for i, ext in enumerate(extensions):
             uuid_str = ext.generate_uuid()
             uuids.append(uuid_str)
 
             response = client.post(
                 "/browsers/register",
-                json={"uuid": uuid_str, "ttl_hours": 24},
+                json={
+                    "uuid": uuid_str,
+                    "connection_id": f"mock_connection_{i}",
+                    "ttl_hours": 24,
+                },
             )
             assert response.status_code == 200
 

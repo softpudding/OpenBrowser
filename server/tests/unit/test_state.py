@@ -6,7 +6,7 @@ import importlib.util
 import pytest
 
 # Import state module directly to avoid package init dependencies
-_state_path = Path(__file__).parent.parent / "agent" / "tools" / "state.py"
+_state_path = Path(__file__).parent.parent.parent / "agent" / "tools" / "state.py"
 _spec = importlib.util.spec_from_file_location("state", _state_path)
 _state_module = importlib.util.module_from_spec(_spec)
 sys.modules["server.agent.tools.state"] = _state_module

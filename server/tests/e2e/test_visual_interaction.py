@@ -28,7 +28,7 @@ class TestHighlightElementsCommand:
         """Test parsing with minimal required fields."""
         cmd = HighlightElementsCommand()
         assert cmd.type == "highlight_elements"
-        assert cmd.element_type == "clickable"  # Default single type
+        assert cmd.element_type == "any"  # Default is "any" for single-type design
         assert cmd.page == 1  # Default page is 1
         assert cmd.command_id is None
         assert cmd.tab_id is None
@@ -226,10 +226,13 @@ class TestScrollElementCommand:
         assert cmd.tab_id == 3
         assert cmd.conversation_id == "scroll-session"
 
-    def test_missing_element_id(self):
-        """Test that element_id is required."""
-        with pytest.raises(ValidationError):
-            ScrollElementCommand()
+    def test_missing_element_id_is_optional(self):
+        """Test that element_id is optional - page scroll without element."""
+        # element_id is Optional with default=None, so ScrollElementCommand() is valid
+        cmd = ScrollElementCommand()
+        assert cmd.element_id is None
+        assert cmd.direction == "down"  # Default direction
+        assert cmd.scroll_amount == 0.5  # Default scroll amount
 
     def test_via_parse_command(self):
         """Test parsing via parse_command helper."""
@@ -323,9 +326,9 @@ class TestCollisionAwarePagination:
     """Tests for collision-aware pagination with single-type design."""
 
     def test_default_element_type(self):
-        """Test default element type is clickable."""
+        """Test default element type is 'any' for single-type design."""
         cmd = HighlightElementsCommand()
-        assert cmd.element_type == "clickable"
+        assert cmd.element_type == "any"
 
     def test_default_page(self):
         """Test default page is 1."""

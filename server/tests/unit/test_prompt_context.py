@@ -16,7 +16,7 @@ def import_module(module_path: Path, module_name: str):
 
 
 PROMPT_CONTEXT_PATH = (
-    Path(__file__).parent.parent / "agent" / "tools" / "prompt_context.py"
+    Path(__file__).parent.parent.parent / "agent" / "tools" / "prompt_context.py"
 )
 prompt_context_module = import_module(
     PROMPT_CONTEXT_PATH, "server_tests_prompt_context"

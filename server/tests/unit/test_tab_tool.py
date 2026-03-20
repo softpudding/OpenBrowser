@@ -8,7 +8,7 @@ import pytest
 from openhands.sdk.tool import ToolAnnotations
 
 # Import base module first
-BASE_MODULE_PATH = Path(__file__).parent.parent / "agent" / "tools" / "base.py"
+BASE_MODULE_PATH = Path(__file__).parent.parent.parent / "agent" / "tools" / "base.py"
 spec = importlib.util.spec_from_file_location("base", BASE_MODULE_PATH)
 assert spec is not None and spec.loader is not None
 base_module = importlib.util.module_from_spec(spec)
@@ -16,7 +16,7 @@ sys.modules["server.agent.tools.base"] = base_module
 spec.loader.exec_module(base_module)
 
 # Import tab_tool module
-TAB_TOOL_PATH = Path(__file__).parent.parent / "agent" / "tools" / "tab_tool.py"
+TAB_TOOL_PATH = Path(__file__).parent.parent.parent / "agent" / "tools" / "tab_tool.py"
 spec = importlib.util.spec_from_file_location("tab_tool", TAB_TOOL_PATH)
 assert spec is not None and spec.loader is not None
 tab_tool_module = importlib.util.module_from_spec(spec)
@@ -147,4 +147,6 @@ class TestTabTool:
         # Check that description mentions key parameters
         # New template format doesn't use "Required:" prefix but still mentions parameters
         assert "url" in desc.lower()  # for init/open
-        assert "tab_id" in desc or "tab id" in desc.lower()  # for close/switch/refresh/view
+        assert (
+            "tab_id" in desc or "tab id" in desc.lower()
+        )  # for close/switch/refresh/view

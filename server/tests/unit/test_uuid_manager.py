@@ -119,14 +119,16 @@ class TestUUIDManager:
     def test_cleanup_expired_removes_expired_browsers(self) -> None:
         """Test that cleanup_expired removes expired browsers."""
         manager = UUIDManager()
-        mock_websocket = MagicMock()
+        mock_websocket1 = MagicMock()
+        mock_websocket2 = MagicMock()
 
         uuid_expired = manager.generate_uuid()
         uuid_valid = manager.generate_uuid()
 
-        manager.register_browser(uuid_expired, mock_websocket, ttl_hours=0)
-        manager.register_browser(uuid_valid, mock_websocket, ttl_hours=24)
-        time.sleep(0.1)
+        # Use DIFFERENT websockets - a websocket can only have one active capability token
+        manager.register_browser(uuid_expired, mock_websocket1, ttl_hours=0)
+        time.sleep(0.1)  # Ensure expired
+        manager.register_browser(uuid_valid, mock_websocket2, ttl_hours=24)
 
         count = manager.cleanup_expired()
 
@@ -168,16 +170,18 @@ class TestUUIDManager:
     def test_get_browser_count_returns_correct_count(self) -> None:
         """Test that get_browser_count returns correct count."""
         manager = UUIDManager()
-        mock_websocket = MagicMock()
+        mock_websocket1 = MagicMock()
+        mock_websocket2 = MagicMock()
 
         assert manager.get_browser_count() == 0
 
         uuid1 = manager.generate_uuid()
-        manager.register_browser(uuid1, mock_websocket, ttl_hours=24)
+        manager.register_browser(uuid1, mock_websocket1, ttl_hours=24)
         assert manager.get_browser_count() == 1
 
         uuid2 = manager.generate_uuid()
-        manager.register_browser(uuid2, mock_websocket, ttl_hours=24)
+        # Use different websocket - a websocket can only have one active capability token
+        manager.register_browser(uuid2, mock_websocket2, ttl_hours=24)
         assert manager.get_browser_count() == 2
 
         manager.unregister_browser(uuid1)

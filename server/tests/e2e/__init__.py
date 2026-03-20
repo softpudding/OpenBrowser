@@ -1,1 +1,1 @@
-"""End-to-end tests for visual interaction workflow."""
+"""End-to-end tests for OpenBrowser."""

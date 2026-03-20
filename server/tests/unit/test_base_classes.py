@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from openhands.sdk import TextContent, ImageContent
 
-BASE_MODULE_PATH = Path(__file__).parent.parent / "agent" / "tools" / "base.py"
+BASE_MODULE_PATH = Path(__file__).parent.parent.parent / "agent" / "tools" / "base.py"
 
 spec = importlib.util.spec_from_file_location("base", BASE_MODULE_PATH)
 assert spec is not None and spec.loader is not None
