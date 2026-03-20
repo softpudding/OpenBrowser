@@ -165,6 +165,7 @@ class TestBrowserExecutorBundleInitialize:
             mock_agent_mgr.create_conversation.assert_called_once_with(
                 conversation_id="test-conv-6",
                 cwd=".",
+                browser_id="test-browser-6",
             )
 
     @pytest.mark.asyncio
@@ -327,6 +328,7 @@ class TestBrowserExecutorBundleExecuteCommand:
 
             # Verify conversation_id was added
             assert captured_command["conversation_id"] == "test-conv-11"
+            assert captured_command["browser_id"] == "test-browser-11"
 
     @pytest.mark.asyncio
     async def test_execute_command_handles_exception(self):

@@ -147,6 +147,7 @@ class BrowserExecutorBundle:
             self._agent_manager.create_conversation(
                 conversation_id=self.conversation_id,
                 cwd=self.working_directory,
+                browser_id=self.browser_id,
             )
 
             self.state.initialized = True
@@ -202,6 +203,8 @@ class BrowserExecutorBundle:
             # Ensure conversation_id is set in command
             if "conversation_id" not in command:
                 command["conversation_id"] = self.conversation_id
+            if "browser_id" not in command:
+                command["browser_id"] = self.browser_id
 
             # Parse command to validate and create proper type
             parsed_command = parse_command(command)

@@ -206,11 +206,17 @@ async function getTabHistoryInfo(
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => ({
-        length: window.history.length,
-        canGoBack: window.history.length > 1,
-        canGoForward: false,
-      }),
+      func: () => {
+        const nav = (window as typeof window & {
+          navigation?: { canGoForward?: boolean };
+        }).navigation;
+        return {
+          length: window.history.length,
+          canGoBack: window.history.length > 1,
+          canGoForward:
+            typeof nav?.canGoForward === 'boolean' ? nav.canGoForward : false,
+        };
+      },
     });
 
     if (results && results[0] && results[0].result) {
@@ -280,7 +286,18 @@ export async function goBack(tabId: number): Promise<any> {
  */
 export async function goForward(tabId: number): Promise<any> {
   const historyInfo = await getTabHistoryInfo(tabId);
-  console.log(`[History] Tab ${tabId} history.length = ${historyInfo.length}`);
+  console.log(
+    `[History] Tab ${tabId} history.length = ${historyInfo.length}, canGoForward = ${historyInfo.canGoForward}`,
+  );
+
+  if (!historyInfo.canGoForward) {
+    return {
+      success: false,
+      error: 'No forward page in history',
+      historyInfo,
+      tabId,
+    };
+  }
 
   try {
     await chrome.scripting.executeScript({

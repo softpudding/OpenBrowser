@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from server.models.commands import ScreenshotCommand
 from server.websocket.manager import WebSocketManager
 
 
@@ -147,3 +148,17 @@ class TestWebSocketManagerUUID:
         assert manager.is_browser_valid(uuid1) is False
         assert manager.is_browser_valid(uuid2) is True
         assert manager.get_browser_websocket(uuid2) == mock_ws2
+
+    def test_resolve_target_connections_rejects_unrouted_command_when_multiple_browsers_connected(
+        self,
+    ) -> None:
+        """Commands must not broadcast to every websocket when routing metadata is missing."""
+        manager = WebSocketManager()
+        ws1 = MagicMock()
+        ws2 = MagicMock()
+        manager.connections = {ws1, ws2}
+
+        command = ScreenshotCommand()
+
+        with pytest.raises(ConnectionError, match="browser_id"):
+            manager._resolve_target_connections(command)

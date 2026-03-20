@@ -103,3 +103,49 @@ class TestTabTool:
         assert annotations.destructiveHint is True
         assert annotations.idempotentHint is False
         assert annotations.openWorldHint is True
+
+
+class TestBrowserExecutorTabActions:
+    def test_back_action_is_executable_through_browser_executor(self, monkeypatch):
+        executor = BrowserExecutor()
+        executor.conversation_id = "tab-history-conv"
+
+        monkeypatch.setattr(
+            executor,
+            "_execute_command_sync",
+            lambda command: {"success": True, "data": {"navigated": "back"}},
+        )
+        monkeypatch.setattr(
+            executor,
+            "_get_tabs_sync",
+            lambda: {"success": True, "data": {"tabs": []}},
+        )
+
+        observation = executor._execute_tab_action(TabAction(action="back", tab_id=7))
+
+        assert observation.success is True
+        assert "back" in observation.message.lower()
+
+    def test_forward_action_is_executable_through_browser_executor(
+        self, monkeypatch
+    ):
+        executor = BrowserExecutor()
+        executor.conversation_id = "tab-history-conv"
+
+        monkeypatch.setattr(
+            executor,
+            "_execute_command_sync",
+            lambda command: {"success": True, "data": {"navigated": "forward"}},
+        )
+        monkeypatch.setattr(
+            executor,
+            "_get_tabs_sync",
+            lambda: {"success": True, "data": {"tabs": []}},
+        )
+
+        observation = executor._execute_tab_action(
+            TabAction(action="forward", tab_id=7)
+        )
+
+        assert observation.success is True
+        assert "forward" in observation.message.lower()
