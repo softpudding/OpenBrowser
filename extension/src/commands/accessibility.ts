@@ -1,10 +1,10 @@
 /**
  * Accessibility Tree Extraction via Chrome DevTools Protocol
- * 
+ *
  * Uses CDP Accessibility.getFullAXTree() to extract semantic information
  * about interactive elements on the page. This provides the AI agent with
  * structured context about what elements are available for interaction.
- * 
+ *
  * Key Features:
  * - Filters to leaf nodes only (actual interactive elements)
  * - Generates CSS selectors for each element
@@ -93,7 +93,7 @@ interface CdpAxNode {
 
 function isFocusable(node: CdpAxNode): boolean {
   if (!node.properties) return false;
-  const focusableProp = node.properties.find(p => p.name === 'focusable');
+  const focusableProp = node.properties.find((p) => p.name === 'focusable');
   return focusableProp?.value?.value === true;
 }
 
@@ -102,27 +102,28 @@ function isFocusable(node: CdpAxNode): boolean {
  */
 function getRoleToSelector(role: string): string {
   const tagMap: Record<string, string> = {
-    'button': 'button, [role="button"], input[type="button"], input[type="submit"]',
-    'link': 'a, [role="link"]',
-    'textbox': 'input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="tel"], input[type="url"], textarea, [role="textbox"]',
-    'searchbox': 'input[type="search"], [role="searchbox"]',
-    'checkbox': 'input[type="checkbox"], [role="checkbox"]',
-    'radio': 'input[type="radio"], [role="radio"]',
-    'combobox': 'select, [role="combobox"]',
-    'menuitem': '[role="menuitem"]',
-    'tab': '[role="tab"]',
-    'listitem': 'li, [role="listitem"]',
-    'treeitem': '[role="treeitem"]',
-    'heading': 'h1, h2, h3, h4, h5, h6, [role="heading"]',
-    'dialog': '[role="dialog"]',
+    button:
+      'button, [role="button"], input[type="button"], input[type="submit"]',
+    link: 'a, [role="link"]',
+    textbox:
+      'input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="tel"], input[type="url"], textarea, [role="textbox"]',
+    searchbox: 'input[type="search"], [role="searchbox"]',
+    checkbox: 'input[type="checkbox"], [role="checkbox"]',
+    radio: 'input[type="radio"], [role="radio"]',
+    combobox: 'select, [role="combobox"]',
+    menuitem: '[role="menuitem"]',
+    tab: '[role="tab"]',
+    listitem: 'li, [role="listitem"]',
+    treeitem: '[role="treeitem"]',
+    heading: 'h1, h2, h3, h4, h5, h6, [role="heading"]',
+    dialog: '[role="dialog"]',
   };
   return tagMap[role] || `[role="${role}"]`;
 }
 
-
 /**
  * Extract accessibility tree from a page using CDP
- * 
+ *
  * @param tabId Target tab ID
  * @param conversationId Session ID for debugger lifecycle management
  * @param maxElements Maximum number of elements to return (default: 50)
@@ -131,11 +132,16 @@ function getRoleToSelector(role: string): string {
 export async function getAccessibilityTree(
   tabId: number,
   conversationId: string,
-  maxElements: number = 50
+  maxElements: number = 50,
 ): Promise<AccessibilityTreeResult> {
-  console.log(`[A11y] 🌲 getAccessibilityTree: tabId=${tabId}, maxElements=${maxElements}`);
-  
-  const attached = await debuggerSessionManager.attachDebugger(tabId, conversationId);
+  console.log(
+    `[A11y] 🌲 getAccessibilityTree: tabId=${tabId}, maxElements=${maxElements}`,
+  );
+
+  const attached = await debuggerSessionManager.attachDebugger(
+    tabId,
+    conversationId,
+  );
   if (!attached) {
     console.error('[A11y] ❌ Failed to attach debugger');
     throw new Error('[Accessibility] Failed to attach debugger');
@@ -151,7 +157,10 @@ export async function getAccessibilityTree(
       console.log('[A11y] ℹ️ Accessibility domain already enabled');
     }
 
-    const result: any = await cdp.sendCommand('Accessibility.getFullAXTree', {});
+    const result: any = await cdp.sendCommand(
+      'Accessibility.getFullAXTree',
+      {},
+    );
     const nodes: CdpAxNode[] = result?.nodes || [];
     console.log(`[A11y] 📊 AX tree: ${nodes.length} total nodes`);
 
@@ -179,30 +188,35 @@ export async function getAccessibilityTree(
       }
     }
 
-    const interactiveNodes: CdpAxNode[] = nodes.filter(node => {
+    const interactiveNodes: CdpAxNode[] = nodes.filter((node) => {
       if (node.ignored) return false;
       const role = node.role?.value?.toLowerCase() || '';
       const name = node.name?.value || '';
       const focusable = isFocusable(node);
       const hasInteractiveRole = INTERACTIVE_ROLES.has(role);
       if (!focusable && !hasInteractiveRole) return false;
-      if (!name && role !== 'checkbox' && role !== 'radio' && role !== 'switch') return false;
+      if (!name && role !== 'checkbox' && role !== 'radio' && role !== 'switch')
+        return false;
       return true;
     });
 
     pageInfo.totalElements = interactiveNodes.length;
-    console.log(`[A11y] 🎯 Found ${interactiveNodes.length} interactive elements`);
+    console.log(
+      `[A11y] 🎯 Found ${interactiveNodes.length} interactive elements`,
+    );
 
     const elements: AccessibilityNode[] = [];
-    
+
     for (let i = 0; i < Math.min(interactiveNodes.length, maxElements); i++) {
       const node = interactiveNodes[i];
       const role = node.role?.value?.toLowerCase() || 'unknown';
       const name = node.name?.value || '';
       const shortName = name.length > 40 ? name.substring(0, 40) + '...' : name;
-      
-      console.log(`\n[A11y] ═══ Element #${i}: [${role}] "${shortName}" (backendDOMNodeId=${node.backendDOMNodeId})`);
-      
+
+      console.log(
+        `\n[A11y] ═══ Element #${i}: [${role}] "${shortName}" (backendDOMNodeId=${node.backendDOMNodeId})`,
+      );
+
       let selector = '';
       let index = 0;
       let bounds: AccessibilityNode['bounds'] = undefined;
@@ -219,13 +233,13 @@ export async function getAccessibilityTree(
             const dom = domNode.node;
             const nodeName = dom.nodeName?.toLowerCase() || '?';
             console.log(`[A11y]   DOM: <${nodeName}>`);
-            
+
             const attrs = (dom.attributes || []) as string[];
             attrMap = {};
             for (let j = 0; j < attrs.length; j += 2) {
               attrMap[attrs[j]] = attrs[j + 1];
             }
-            
+
             if (attrMap['id']) {
               selector = '#' + CSS.escape(attrMap['id']);
               index = 0;
@@ -243,13 +257,18 @@ export async function getAccessibilityTree(
               console.log(`[A11y]   ✅ SELECTOR (data-testid): ${selector}`);
             } else if (dom.nodeName) {
               const roleSelector = getRoleToSelector(role);
-              const escapedName = name.replace(/\\/g, '\\\\\\\\').replace(/'/g, "\\\\'").replace(/\n/g, ' ');
+              const escapedName = name
+                .replace(/\\/g, '\\\\\\\\')
+                .replace(/'/g, "\\\\'")
+                .replace(/\n/g, ' ');
               const searchName = escapedName.substring(0, 80);
-              
+
               console.log(`[A11y]   🔍 Calculating index via DOM query...`);
               console.log(`[A11y]   🔍 roleSelector="${roleSelector}"`);
-              console.log(`[A11y]   🔍 searchName="${searchName.substring(0, 50)}..."`);
-              
+              console.log(
+                `[A11y]   🔍 searchName="${searchName.substring(0, 50)}..."`,
+              );
+
               const indexExpression = `(() => {
                 const all = document.querySelectorAll('${roleSelector}');
                 console.log('[A11y-INNER] Found', all.length, 'elements for: ${roleSelector}');
@@ -272,18 +291,23 @@ export async function getAccessibilityTree(
                 console.log('[A11y-INNER] NO MATCH, returning 0');
                 return 0;
               })()`;
-              
-              const indexResult: any = await cdp.sendCommand('Runtime.evaluate', {
-                expression: indexExpression,
-                returnByValue: true,
-              });
-              
+
+              const indexResult: any = await cdp.sendCommand(
+                'Runtime.evaluate',
+                {
+                  expression: indexExpression,
+                  returnByValue: true,
+                },
+              );
+
               index = indexResult?.result?.value ?? 0;
               selector = roleSelector;
               selectorType = 'QSA';
-              console.log(`[A11y]   ✅ SELECTOR (qsa): index=${index}, selector="${selector}"`);
+              console.log(
+                `[A11y]   ✅ SELECTOR (qsa): index=${index}, selector="${selector}"`,
+              );
             }
-            
+
             if (domNode.contentSize) {
               bounds = {
                 x: domNode.contentSize.x || 0,
@@ -296,17 +320,21 @@ export async function getAccessibilityTree(
         } catch (e) {
           selector = getRoleToSelector(role);
           selectorType = 'FALLBACK-ERR';
-          console.warn(`[A11y]   ⚠️ DOM.describeNode FAILED, fallback: ${selector}`);
+          console.warn(
+            `[A11y]   ⚠️ DOM.describeNode FAILED, fallback: ${selector}`,
+          );
         }
       } else {
         selector = getRoleToSelector(role);
         selectorType = 'FALLBACK-NOID';
         console.log(`[A11y]   ⚠️ No backendDOMNodeId, fallback: ${selector}`);
       }
-      
+
       const finalSelector = selector || `[role="${role}"]`;
-      console.log(`[A11y]   📤 OUTPUT: type=${selectorType}, selector="${finalSelector}", index=${index}`);
-      
+      console.log(
+        `[A11y]   📤 OUTPUT: type=${selectorType}, selector="${finalSelector}", index=${index}`,
+      );
+
       const elementData: AccessibilityNode = {
         role,
         name: name.slice(0, 200),
@@ -314,22 +342,28 @@ export async function getAccessibilityTree(
         index,
         bounds,
       };
-      
+
       if (domNode?.node && attrMap) {
         if (role === 'link' && attrMap['href']) {
           elementData.href = attrMap['href'].slice(0, 500);
         }
         if (role === 'textbox' || role === 'searchbox') {
           if (attrMap['type']) elementData.input_type = attrMap['type'];
-          if (attrMap['placeholder']) elementData.placeholder = attrMap['placeholder'].slice(0, 100);
-          if (attrMap['value']) elementData.value = attrMap['value'].slice(0, 200);
+          if (attrMap['placeholder'])
+            elementData.placeholder = attrMap['placeholder'].slice(0, 100);
+          if (attrMap['value'])
+            elementData.value = attrMap['value'].slice(0, 200);
         }
         if (role === 'checkbox' || role === 'radio') {
-          if (attrMap['checked'] !== undefined) elementData.checked = attrMap['checked'] === 'true' || attrMap['checked'] === '';
+          if (attrMap['checked'] !== undefined)
+            elementData.checked =
+              attrMap['checked'] === 'true' || attrMap['checked'] === '';
         }
-        if (attrMap['disabled'] !== undefined) elementData.disabled = attrMap['disabled'] === 'true' || attrMap['disabled'] === '';
+        if (attrMap['disabled'] !== undefined)
+          elementData.disabled =
+            attrMap['disabled'] === 'true' || attrMap['disabled'] === '';
       }
-      
+
       elements.push(elementData);
     }
 
@@ -346,7 +380,7 @@ export async function getAccessibilityTree(
 export async function handleGetAccessibilityTree(
   tabId: number,
   conversationId: string,
-  maxElements: number = 50
+  maxElements: number = 50,
 ): Promise<AccessibilityTreeResult> {
   return getAccessibilityTree(tabId, conversationId, maxElements);
 }

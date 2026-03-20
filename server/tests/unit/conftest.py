@@ -33,5 +33,6 @@ preset_default_module = types.ModuleType("openhands.tools.preset.default")
 preset_default_module.get_default_condenser = MagicMock(return_value=None)
 sys.modules.setdefault("openhands.tools.preset.default", preset_default_module)
 sys.modules.setdefault("openhands.tools", types.ModuleType("openhands.tools"))
-sys.modules.setdefault("openhands.tools.preset", types.ModuleType("openhands.tools.preset"))
-
+sys.modules.setdefault(
+    "openhands.tools.preset", types.ModuleType("openhands.tools.preset")
+)

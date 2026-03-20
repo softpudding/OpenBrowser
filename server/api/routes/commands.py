@@ -150,9 +150,7 @@ async def screenshot(
 
 
 @router.post("/tabs")
-async def tab_action(
-    action: str, browser_id: str, url: str = None, tab_id: int = None
-):
+async def tab_action(action: str, browser_id: str, url: str = None, tab_id: int = None):
     """Tab management"""
     command = {
         "type": "tab",

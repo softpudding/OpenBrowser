@@ -1,6 +1,15 @@
 export type MouseButton = 'left' | 'right' | 'middle';
 export type ScrollDirection = 'up' | 'down' | 'left' | 'right';
-export type TabAction = 'open' | 'close' | 'switch' | 'list' | 'init' | 'refresh' | 'view' | 'back' | 'forward';
+export type TabAction =
+  | 'open'
+  | 'close'
+  | 'switch'
+  | 'list'
+  | 'init'
+  | 'refresh'
+  | 'view'
+  | 'back'
+  | 'forward';
 export type DialogType = 'alert' | 'confirm' | 'prompt' | 'beforeunload';
 export type DialogAction = 'accept' | 'dismiss';
 
@@ -9,7 +18,7 @@ export interface BaseCommand {
   command_id?: string;
   timestamp?: number;
   tab_id?: number;
-  conversation_id?: string;  // For multi-session support
+  conversation_id?: string; // For multi-session support
 }
 
 export interface MouseMoveCommand extends BaseCommand {
@@ -82,8 +91,8 @@ export interface CleanupSessionCommand extends BaseCommand {
 
 export interface HandleDialogCommand extends BaseCommand {
   type: 'handle_dialog';
-  action: DialogAction;  // 'accept' or 'dismiss'
-  prompt_text?: string;  // Required for prompt dialogs
+  action: DialogAction; // 'accept' or 'dismiss'
+  prompt_text?: string; // Required for prompt dialogs
 }
 
 export interface GroundedElement {
@@ -106,7 +115,6 @@ export interface GetGroundedElementsCommand extends BaseCommand {
   include_hidden?: boolean;
 }
 
-
 export interface GetAccessibilityTreeCommand extends BaseCommand {
   type: 'get_accessibility_tree';
   max_elements?: number;
@@ -115,9 +123,9 @@ export interface GetAccessibilityTreeCommand extends BaseCommand {
 // Visual interaction commands
 export interface HighlightElementsCommand extends BaseCommand {
   type: 'highlight_elements';
-  element_type?: ElementType;  // Single element type for stable pagination
-  page?: number;  // 1-indexed page number for collision-aware pagination
-  keywords?: string[];  // Keywords list to filter elements by HTML content (no pagination needed when provided)
+  element_type?: ElementType; // Single element type for stable pagination
+  page?: number; // 1-indexed page number for collision-aware pagination
+  keywords?: string[]; // Keywords list to filter elements by HTML content (no pagination needed when provided)
 }
 
 export interface ClickElementCommand extends BaseCommand {
@@ -184,14 +192,13 @@ export interface SelectElementCommand extends BaseCommand {
 export interface GetElementHtmlCommand extends BaseCommand {
   type: 'get_element_html';
   element_id: string;
-  tab_id?: number;  // Optional: uses active tab if not provided
+  tab_id?: number; // Optional: uses active tab if not provided
 }
-
 
 export interface HighlightSingleElementCommand extends BaseCommand {
   type: 'highlight_single_element';
   element_id: string;
-  tab_id?: number;  // Optional: uses active tab if not provided
+  tab_id?: number; // Optional: uses active tab if not provided
 }
 
 export interface GroundedElementsResponse {
@@ -208,7 +215,7 @@ export interface GroundedElementsResponse {
   timestamp: number;
 }
 
-export type Command = 
+export type Command =
   | MouseMoveCommand
   | MouseClickCommand
   | MouseScrollCommand
@@ -250,8 +257,12 @@ export interface CommandResponse {
     needsDecision: boolean;
   };
   // Tab creation tracking
-  new_tabs_created?: Array<{tabId: number, url: string, title?: string, loading?: boolean}>;
-
+  new_tabs_created?: Array<{
+    tabId: number;
+    url: string;
+    title?: string;
+    loading?: boolean;
+  }>;
 }
 
 export interface ScreenshotMetadata {
@@ -269,36 +280,42 @@ export interface WebSocketMessage {
 }
 
 // Visual interaction types
-export type ElementType = 'clickable' | 'scrollable' | 'inputable' | 'hoverable' | 'selectable' | 'any';
+export type ElementType =
+  | 'clickable'
+  | 'scrollable'
+  | 'inputable'
+  | 'hoverable'
+  | 'selectable'
+  | 'any';
 
 export interface InteractiveElement {
-  id: string;                    // Element ID: 6-char hash from CSS path (e.g., "a3f2b1")
-  type: ElementType;             // Type of interactive element
-  tagName: string;               // HTML tag name
-  selector: string;              // CSS selector to find element
-  html?: string;                 // Optional: full HTML of the element (captured at highlight time)
-  text?: string;                 // Visible text content
+  id: string; // Element ID: 6-char hash from CSS path (e.g., "a3f2b1")
+  type: ElementType; // Type of interactive element
+  tagName: string; // HTML tag name
+  selector: string; // CSS selector to find element
+  html?: string; // Optional: full HTML of the element (captured at highlight time)
+  text?: string; // Visible text content
   bbox: {
     x: number;
     y: number;
     width: number;
     height: number;
   };
-  isVisible: boolean;            // Is element visible
-  isInViewport: boolean;         // Is element in viewport
-  labelPosition?: 'above' | 'below' | 'left' | 'right';  // Position of element label
+  isVisible: boolean; // Is element visible
+  isInViewport: boolean; // Is element in viewport
+  labelPosition?: 'above' | 'below' | 'left' | 'right'; // Position of element label
 }
 
 export interface HighlightOptions {
-  elementType?: ElementType;   // Single type to highlight (for stable pagination)
-  page?: number;                 // 1-indexed page number for collision-aware pagination
-  scale?: number;                // Device pixel ratio for coordinate scaling
-  keywords?: string[];              // Keywords list to filter elements by HTML content (no pagination needed when provided)
+  elementType?: ElementType; // Single type to highlight (for stable pagination)
+  page?: number; // 1-indexed page number for collision-aware pagination
+  scale?: number; // Device pixel ratio for coordinate scaling
+  keywords?: string[]; // Keywords list to filter elements by HTML content (no pagination needed when provided)
 }
 
 export interface ElementActionResult {
   success: boolean;
-  elementId?: string | undefined;  // Made optional to support page-level operations (where no element_id is provided)
+  elementId?: string | undefined; // Made optional to support page-level operations (where no element_id is provided)
   screenshotDataUrl?: string;
   dialogOpened?: boolean;
   dialog?: {
@@ -307,6 +324,10 @@ export interface ElementActionResult {
     defaultValue?: string;
   };
   // Tab creation tracking
-  new_tabs_created?: Array<{tabId: number, url: string, title?: string, loading?: boolean}>;
-
+  new_tabs_created?: Array<{
+    tabId: number;
+    url: string;
+    title?: string;
+    loading?: boolean;
+  }>;
 }

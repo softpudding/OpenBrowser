@@ -6,9 +6,9 @@
 import type { InteractiveElement } from '../types';
 
 // Visual style for single-element confirmation
-const CONFIRMATION_COLOR = '#FF6600';  // Orange border
-const CONFIRMATION_BG = 'rgba(255, 102, 0, 0.8)';  // Orange with transparency
-const CONFIRMATION_LABEL = "Is This The Element You Selected? Please Confirm";
+const CONFIRMATION_COLOR = '#FF6600'; // Orange border
+const CONFIRMATION_BG = 'rgba(255, 102, 0, 0.8)'; // Orange with transparency
+const CONFIRMATION_LABEL = 'Is This The Element You Selected? Please Confirm';
 const BASE_FONT_SIZE = 16;
 const BASE_LABEL_PADDING = 4;
 const BASE_BOX_PADDING = 2;
@@ -16,7 +16,7 @@ const BASE_LINE_WIDTH = 3;
 
 /**
  * Draw a single highlighted element with confirmation label
- * 
+ *
  * @param screenshotDataUrl - Base64 data URL of the screenshot
  * @param element - The element to highlight
  * @param options - Options including scale, viewportWidth, viewportHeight
@@ -27,7 +27,9 @@ export async function highlightSingleElement(
   element: InteractiveElement,
   options?: { scale?: number; viewportWidth?: number; viewportHeight?: number },
 ): Promise<string> {
-  console.log(`🎨 [SingleHighlight] Drawing highlight for element ${element.id}...`);
+  console.log(
+    `🎨 [SingleHighlight] Drawing highlight for element ${element.id}...`,
+  );
 
   // Check OffscreenCanvas availability
   if (typeof OffscreenCanvas === 'undefined') {
@@ -52,7 +54,11 @@ export async function highlightSingleElement(
     if (!screenshotDataUrl || typeof screenshotDataUrl !== 'string') {
       throw new Error(
         '[SingleHighlight] Invalid screenshot data: expected a data URL string, got ' +
-          (screenshotDataUrl === null ? 'null' : screenshotDataUrl === undefined ? 'undefined' : typeof screenshotDataUrl),
+          (screenshotDataUrl === null
+            ? 'null'
+            : screenshotDataUrl === undefined
+              ? 'undefined'
+              : typeof screenshotDataUrl),
       );
     }
 
@@ -89,7 +95,9 @@ export async function highlightSingleElement(
     const base64Data = dataUrlParts[1];
 
     if (!base64Data || base64Data.length === 0) {
-      throw new Error('[SingleHighlight] Screenshot data URL contains no image data after header');
+      throw new Error(
+        '[SingleHighlight] Screenshot data URL contains no image data after header',
+      );
     }
 
     // ========================================
@@ -107,30 +115,41 @@ export async function highlightSingleElement(
     const blob = new Blob([bytes], { type: mimeType });
     const imageBitmap = await createImageBitmap(blob);
 
-    console.log(`🖼️ [SingleHighlight] Screenshot dimensions: ${imageBitmap.width}x${imageBitmap.height}`);
+    console.log(
+      `🖼️ [SingleHighlight] Screenshot dimensions: ${imageBitmap.width}x${imageBitmap.height}`,
+    );
 
     // Extract options before using them
     const viewportWidth = options?.viewportWidth ?? 0;
     const viewportHeight = options?.viewportHeight ?? 0;
-    
+
     // Calculate actual scale from screenshot dimensions (more reliable than trusting DPR)
-    const actualScaleX = viewportWidth > 0 ? imageBitmap.width / viewportWidth : 1;
-    const actualScaleY = viewportHeight > 0 ? imageBitmap.height / viewportHeight : 1;
+    const actualScaleX =
+      viewportWidth > 0 ? imageBitmap.width / viewportWidth : 1;
+    const actualScaleY =
+      viewportHeight > 0 ? imageBitmap.height / viewportHeight : 1;
     const actualScale = (actualScaleX + actualScaleY) / 2; // Average in case of rounding
-    
-    console.log(`📐 [SingleHighlight] Calculated scale: ${actualScale.toFixed(3)} (from ${viewportWidth}x${viewportHeight} → ${imageBitmap.width}x${imageBitmap.height})`);
-    
+
+    console.log(
+      `📐 [SingleHighlight] Calculated scale: ${actualScale.toFixed(3)} (from ${viewportWidth}x${viewportHeight} → ${imageBitmap.width}x${imageBitmap.height})`,
+    );
+
     // Prefer calculated scale if it differs significantly from provided scale
     const providedScale = options?.scale ?? 1;
-    const scale = Math.abs(actualScale - providedScale) > 0.1 ? actualScale : providedScale;
-    console.log(`📐 [SingleHighlight] Using scale: ${scale.toFixed(3)} (provided: ${providedScale}, calculated: ${actualScale})`);
+    const scale =
+      Math.abs(actualScale - providedScale) > 0.1 ? actualScale : providedScale;
+    console.log(
+      `📐 [SingleHighlight] Using scale: ${scale.toFixed(3)} (provided: ${providedScale}, calculated: ${actualScale})`,
+    );
 
     // Create OffscreenCanvas with same dimensions as screenshot
     const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
     const ctx = canvas.getContext('2d');
 
     if (!ctx) {
-      throw new Error('[SingleHighlight] Failed to get 2d context from OffscreenCanvas');
+      throw new Error(
+        '[SingleHighlight] Failed to get 2d context from OffscreenCanvas',
+      );
     }
 
     // Draw original screenshot onto canvas
@@ -148,11 +167,16 @@ export async function highlightSingleElement(
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error('[SingleHighlight] Failed to convert result to data URL'));
+      reader.onerror = () =>
+        reject(
+          new Error('[SingleHighlight] Failed to convert result to data URL'),
+        );
       reader.readAsDataURL(resultBlob);
     });
 
-    console.log(`✅ [SingleHighlight] Highlight drawn successfully, size: ${dataUrl.length} bytes`);
+    console.log(
+      `✅ [SingleHighlight] Highlight drawn successfully, size: ${dataUrl.length} bytes`,
+    );
     return dataUrl;
   } catch (error) {
     const errorMsg = `[SingleHighlight] Error drawing highlight: ${error instanceof Error ? error.message : error}`;
@@ -167,7 +191,7 @@ export async function highlightSingleElement(
 function drawSingleBoundingBox(
   ctx: OffscreenCanvasRenderingContext2D,
   element: InteractiveElement,
-  scale: number
+  scale: number,
 ): void {
   const { x, y, width, height } = element.bbox;
 
@@ -181,7 +205,9 @@ function drawSingleBoundingBox(
   const boxWidth = Math.round(width * scale) + boxPadding * 2;
   const boxHeight = Math.round(height * scale) + boxPadding * 2;
 
-  console.log(`[SingleHighlight] Drawing bbox for ${element.id}: CSS(${x}, ${y}, ${width}, ${height}) → Device(${boxX}, ${boxY}, ${boxWidth}, ${boxHeight}) scale=${scale}`);
+  console.log(
+    `[SingleHighlight] Drawing bbox for ${element.id}: CSS(${x}, ${y}, ${width}, ${height}) → Device(${boxX}, ${boxY}, ${boxWidth}, ${boxHeight}) scale=${scale}`,
+  );
 
   // Draw bounding box with orange color
   ctx.strokeStyle = CONFIRMATION_COLOR;
@@ -200,7 +226,7 @@ function drawConfirmationLabel(
   text: string,
   x: number,
   y: number,
-  scale: number
+  scale: number,
 ): void {
   // Calculate device-pixel values from base CSS sizes
   const fontSize = Math.round(BASE_FONT_SIZE * scale);

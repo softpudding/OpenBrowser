@@ -109,9 +109,11 @@ async def check_browser_validity(uuid: str):
             success=True,
             uuid=uuid,
             valid=is_valid,
-            message="Browser UUID is valid"
-            if is_valid
-            else "Browser UUID is invalid or expired",
+            message=(
+                "Browser UUID is valid"
+                if is_valid
+                else "Browser UUID is invalid or expired"
+            ),
         )
 
     except Exception as e:

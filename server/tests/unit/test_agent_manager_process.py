@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
 
+
 # Mock openhands.tools imports used by server.agent.manager in test environments
 class MockTerminalTool:
     name = "terminal"
@@ -65,9 +66,9 @@ class TestAgentManagerMultiProcessMode:
         """Large models should keep javascript plus general tools."""
         manager = OpenBrowserAgentManager()
 
-        tool_names = [tool.name for tool in manager._get_tools_for_model(
-            "dashscope/qwen3.5-plus"
-        )]
+        tool_names = [
+            tool.name for tool in manager._get_tools_for_model("dashscope/qwen3.5-plus")
+        ]
 
         assert tool_names == [
             "tab",
@@ -84,9 +85,10 @@ class TestAgentManagerMultiProcessMode:
         """Small models keep general tools but lose javascript."""
         manager = OpenBrowserAgentManager()
 
-        tool_names = [tool.name for tool in manager._get_tools_for_model(
-            "dashscope/qwen3.5-flash"
-        )]
+        tool_names = [
+            tool.name
+            for tool in manager._get_tools_for_model("dashscope/qwen3.5-flash")
+        ]
 
         assert tool_names == [
             "tab",
@@ -102,9 +104,9 @@ class TestAgentManagerMultiProcessMode:
         """Unconfigured models should keep the large-model toolset."""
         manager = OpenBrowserAgentManager()
 
-        tool_names = [tool.name for tool in manager._get_tools_for_model(
-            "some/new-model"
-        )]
+        tool_names = [
+            tool.name for tool in manager._get_tools_for_model("some/new-model")
+        ]
 
         assert "javascript" in tool_names
 

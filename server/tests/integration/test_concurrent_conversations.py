@@ -258,9 +258,9 @@ class TestProcessIsolation:
             pids.add(process.pid)
 
         # All PIDs should be unique
-        assert len(pids) == num_conversations, (
-            "Each conversation should have unique PID"
-        )
+        assert (
+            len(pids) == num_conversations
+        ), "Each conversation should have unique PID"
 
         # Cleanup
         for conv_id in conv_ids:
@@ -348,9 +348,9 @@ class TestProcessIsolation:
         # First should be stopped, others still running
         assert not process_manager.is_process_alive(first_conv)
         for conv_id in conv_ids[1:]:
-            assert process_manager.is_process_alive(conv_id), (
-                f"Conversation {conv_id} should still be running"
-            )
+            assert process_manager.is_process_alive(
+                conv_id
+            ), f"Conversation {conv_id} should still be running"
 
         # Cleanup remaining
         for conv_id in conv_ids[1:]:

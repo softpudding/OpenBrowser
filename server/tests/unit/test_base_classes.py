@@ -6,7 +6,6 @@ from pathlib import Path
 
 from openhands.sdk import ImageContent, TextContent
 
-
 TOOLS_DIR = Path(__file__).resolve().parents[2] / "agent" / "tools"
 
 
@@ -42,7 +41,9 @@ class TestOpenBrowserAction:
 
 
 class TestOpenBrowserObservation:
-    def test_javascript_result_truncates_large_payload_and_hides_script_source(self) -> None:
+    def test_javascript_result_truncates_large_payload_and_hides_script_source(
+        self,
+    ) -> None:
         observation = OpenBrowserObservation(
             success=True,
             message="Executed JavaScript: (() => window.secretToken)()",
@@ -78,7 +79,9 @@ class TestOpenBrowserObservation:
         assert "**[99]** Example" in llm_content[0].text
         assert llm_content[1].image_urls == ["data:image/png;base64,abc123"]
 
-    def test_highlighted_elements_truncate_long_html_for_non_selectable_results(self) -> None:
+    def test_highlighted_elements_truncate_long_html_for_non_selectable_results(
+        self,
+    ) -> None:
         long_html = "<button>" + ("x" * 220) + "</button>"
         observation = OpenBrowserObservation(
             success=True,
@@ -93,9 +96,11 @@ class TestOpenBrowserObservation:
         assert "...(Truncated)" in text
 
     def test_selectable_elements_keep_full_html_so_options_remain_visible(self) -> None:
-        select_html = "<select>" + "".join(
-            f"<option value='{i}'>Option {i}</option>" for i in range(12)
-        ) + "</select>"
+        select_html = (
+            "<select>"
+            + "".join(f"<option value='{i}'>Option {i}</option>" for i in range(12))
+            + "</select>"
+        )
         observation = OpenBrowserObservation(
             success=True,
             element_type="selectable",

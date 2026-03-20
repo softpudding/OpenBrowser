@@ -13,10 +13,10 @@ import type { InteractiveElement } from '../types';
 
 /**
  * TDD Tests for Smart Label Placement
- * 
+ *
  * Feature: 4-position greedy algorithm for label placement
  * Priority: above → below → left → right
- * 
+ *
  * Current behavior: Labels are always placed above the element
  * Target behavior: Labels try positions in priority order, skipping elements when all positions collide
  */
@@ -28,7 +28,7 @@ function createElement(
   y: number,
   width: number,
   height: number,
-  labelPosition?: 'above' | 'below' | 'left' | 'right'
+  labelPosition?: 'above' | 'below' | 'left' | 'right',
 ): InteractiveElement {
   return {
     id,
@@ -47,7 +47,7 @@ describe('Smart Label Placement', () => {
     test('should expand bbox upward when labelPosition is "above" (default)', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox, 'above');
-      
+
       // Label is above: y decreases by LABEL_HEIGHT
       expect(expanded.x).toBe(100);
       expect(expanded.y).toBe(100 - LABEL_HEIGHT); // 74
@@ -58,7 +58,7 @@ describe('Smart Label Placement', () => {
     test('should expand bbox downward when labelPosition is "below"', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox, 'below');
-      
+
       // Label is below: y stays same, height increases
       expect(expanded.x).toBe(100);
       expect(expanded.y).toBe(100);
@@ -69,7 +69,7 @@ describe('Smart Label Placement', () => {
     test('should expand bbox to the left when labelPosition is "left"', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox, 'left');
-      
+
       // Label is left: x decreases by label width
       const labelWidth = Math.max(50, MAX_LABEL_WIDTH); // 120
       expect(expanded.x).toBe(100 - labelWidth); // -20
@@ -81,7 +81,7 @@ describe('Smart Label Placement', () => {
     test('should expand bbox to the right when labelPosition is "right"', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox, 'right');
-      
+
       // Label is right: x stays same, width increases
       const labelWidth = Math.max(50, MAX_LABEL_WIDTH); // 120
       expect(expanded.x).toBe(100);
@@ -93,7 +93,7 @@ describe('Smart Label Placement', () => {
     test('should default to "above" when labelPosition is undefined', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox);
-      
+
       // Should behave same as 'above'
       expect(expanded.y).toBe(100 - LABEL_HEIGHT);
     });
@@ -104,7 +104,7 @@ describe('Smart Label Placement', () => {
       // Element A at (100, 100), Element B at (110, 100) - close enough to collide
       const elemA = createElement('a', 100, 100, 50, 30, 'above');
       const elemB = createElement('b', 110, 100, 50, 30, 'above');
-      
+
       expect(elementsCollide(elemA, elemB)).toBe(true);
     });
 
@@ -114,7 +114,7 @@ describe('Smart Label Placement', () => {
       // They should NOT collide because labels are on opposite sides
       const elemA = createElement('a', 100, 100, 50, 30, 'above');
       const elemB = createElement('b', 100, 70, 50, 30, 'below');
-      
+
       // Element A's expanded bbox: y=74 (100-26), height=56
       // Element B's expanded bbox: y=70, height=56 (label below)
       // These should NOT overlap because A's label is above (y=74-100) and B's label is below (y=100-126)
@@ -127,7 +127,7 @@ describe('Smart Label Placement', () => {
       // They should NOT collide because labels are on opposite sides
       const elemA = createElement('a', 200, 100, 50, 30, 'left');
       const elemB = createElement('b', 200, 100, 50, 30, 'right');
-      
+
       // Element A's expanded bbox: x=80 (200-120), width=170
       // Element B's expanded bbox: x=200, width=170
       // These should NOT overlap because A's label is left (x=80-200) and B's label is right (x=200-370)
@@ -140,7 +140,7 @@ describe('Smart Label Placement', () => {
       // Single element with plenty of space above
       const elements = [createElement('a', 100, 200, 50, 30)];
       const result = selectCollisionFreePage(elements, 1);
-      
+
       expect(result).toHaveLength(1);
       expect(result[0].labelPosition).toBe('above');
     });
@@ -152,9 +152,9 @@ describe('Smart Label Placement', () => {
       const elemA = createElement('a', 100, 100, 50, 30);
       const elemB = createElement('b', 100, 100, 50, 30);
       const elements = [elemA, elemB];
-      
+
       const result = selectCollisionFreePage(elements, 1);
-      
+
       // Both elements should be on page 1 with different label positions
       expect(result).toHaveLength(2);
       const resultB = result.find((e: InteractiveElement) => e.id === 'b');
@@ -170,9 +170,9 @@ describe('Smart Label Placement', () => {
       const elemB = createElement('b', 50, 80, 50, 30);
       const elemC = createElement('c', 100, 130, 50, 30);
       const elements = [elemA, elemB, elemC];
-      
+
       const result = selectCollisionFreePage(elements, 1);
-      
+
       // All three should fit with different positions
       expect(result).toHaveLength(3);
       const resultB = result.find((e: InteractiveElement) => e.id === 'b');
@@ -189,9 +189,9 @@ describe('Smart Label Placement', () => {
       const elemA = createElement('a', 200, 100, 50, 30);
       const elemB = createElement('b', 150, 80, 50, 30);
       const elements = [elemA, elemB];
-      
+
       const result = selectCollisionFreePage(elements, 1);
-      
+
       expect(result).toHaveLength(2);
       const resultB = result.find((e: InteractiveElement) => e.id === 'b');
       expect(resultB?.labelPosition).toBe('left');
@@ -209,16 +209,20 @@ describe('Smart Label Placement', () => {
       const left = createElement('left', 80, 100, 50, 30);
       // Right blocker - placed fourth
       const right = createElement('right', 320, 100, 50, 30);
-      
+
       const elements = [above, below, left, right, center];
-      
+
       // Page 1 should have 4 elements (center skipped due to all positions blocked)
       const page1 = selectCollisionFreePage(elements, 1);
-      expect(page1.find((e: InteractiveElement) => e.id === 'center')).toBeUndefined();
-      
+      expect(
+        page1.find((e: InteractiveElement) => e.id === 'center'),
+      ).toBeUndefined();
+
       // Page 2 should have the center element
       const page2 = selectCollisionFreePage(elements, 2);
-      expect(page2.find((e: InteractiveElement) => e.id === 'center')).toBeDefined();
+      expect(
+        page2.find((e: InteractiveElement) => e.id === 'center'),
+      ).toBeDefined();
     });
   });
 
@@ -229,9 +233,9 @@ describe('Smart Label Placement', () => {
       // Should try next position (right) instead
       const elemA = createElement('a', 50, 100, 50, 30);
       const elemB = createElement('b', 50, 60, 50, 30); // Blocks above
-      
+
       const result = selectCollisionFreePage([elemA, elemB], 1, 1280, 720);
-      
+
       const resultA = result.find((e: InteractiveElement) => e.id === 'a');
       // A's above is blocked by B, left would go outside viewport
       // So A should try right or below
@@ -245,9 +249,14 @@ describe('Smart Label Placement', () => {
       const elemA = createElement('a', 1200, 100, 50, 30);
       const elemB = createElement('b', 1200, 60, 50, 30); // Blocks above
       const elemC = createElement('c', 1200, 130, 50, 30); // Blocks below
-      
-      const result = selectCollisionFreePage([elemA, elemB, elemC], 1, 1280, 720);
-      
+
+      const result = selectCollisionFreePage(
+        [elemA, elemB, elemC],
+        1,
+        1280,
+        720,
+      );
+
       const resultA = result.find((e: InteractiveElement) => e.id === 'a');
       // A's above blocked by B, below blocked by C, right outside viewport
       // So A should try left
@@ -259,9 +268,9 @@ describe('Smart Label Placement', () => {
       // Label above would be at y=-16 (outside viewport)
       // Should try below instead
       const elemA = createElement('a', 100, 10, 50, 30);
-      
+
       const result = selectCollisionFreePage([elemA], 1, 1280, 720);
-      
+
       // Label above would go outside viewport, should try below
       expect(result[0]?.labelPosition).toBe('below');
     });
@@ -272,9 +281,9 @@ describe('Smart Label Placement', () => {
       // Should try left or right instead
       const elemA = createElement('a', 100, 700, 50, 30);
       const elemB = createElement('b', 100, 660, 50, 30); // Blocks above
-      
+
       const result = selectCollisionFreePage([elemA, elemB], 1, 1280, 720);
-      
+
       const resultA = result.find((e: InteractiveElement) => e.id === 'a');
       // A's above blocked by B, below outside viewport
       // So A should try left or right
@@ -289,9 +298,9 @@ describe('Smart Label Placement', () => {
       // Left would go outside (x=-110)
       // Should try below or right
       const elem = createElement('corner', 10, 10, 50, 30);
-      
+
       const result = selectCollisionFreePage([elem], 1, 1280, 720);
-      
+
       // Should not be above or left
       expect(result[0]?.labelPosition).not.toBe('above');
       expect(result[0]?.labelPosition).not.toBe('left');
@@ -303,9 +312,9 @@ describe('Smart Label Placement', () => {
       // Right would go outside (x=1340)
       // Should try above or left
       const elem = createElement('corner', 1220, 690, 50, 30);
-      
+
       const result = selectCollisionFreePage([elem], 1, 1280, 720);
-      
+
       // Should not be below or right
       expect(result[0]?.labelPosition).not.toBe('below');
       expect(result[0]?.labelPosition).not.toBe('right');
@@ -326,9 +335,9 @@ describe('Smart Label Placement', () => {
       const elemA = createElement('a', 100, 100, 50, 30);
       const elemB = createElement('b', 300, 100, 50, 30);
       const elemC = createElement('c', 500, 100, 50, 30);
-      
+
       const result = selectCollisionFreePage([elemA, elemB, elemC], 1);
-      
+
       // All should fit without collision
       expect(result).toHaveLength(3);
       expect(result[0].id).toBe('a');

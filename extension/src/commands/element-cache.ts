@@ -18,7 +18,11 @@ class ElementCacheImpl {
   /**
    * Generate composite cache key
    */
-  private buildKey(conversationId: string, tabId: number, elementId: string): string {
+  private buildKey(
+    conversationId: string,
+    tabId: number,
+    elementId: string,
+  ): string {
     return `${conversationId}:${tabId}:${elementId}`;
   }
 
@@ -28,7 +32,11 @@ class ElementCacheImpl {
    * - If an element with same ID already exists, it is replaced with new data
    * - No limit on element count - relies on TTL for cleanup
    */
-  storeElements(conversationId: string, tabId: number, elements: InteractiveElement[]): void {
+  storeElements(
+    conversationId: string,
+    tabId: number,
+    elements: InteractiveElement[],
+  ): void {
     if (!conversationId || !elements.length) {
       return;
     }
@@ -64,7 +72,7 @@ class ElementCacheImpl {
     }
 
     console.log(
-      `📁 [ElementCache] Added ${added}, updated ${updated} elements for conversation ${conversationId}, tab ${tabId} (total: ${this.cache.size})`
+      `📁 [ElementCache] Added ${added}, updated ${updated} elements for conversation ${conversationId}, tab ${tabId} (total: ${this.cache.size})`,
     );
   }
 
@@ -110,7 +118,7 @@ class ElementCacheImpl {
   getElementById(
     conversationId: string,
     tabId: number,
-    elementId: string
+    elementId: string,
   ): InteractiveElement | undefined {
     if (!conversationId || !elementId) {
       return undefined;
@@ -133,7 +141,7 @@ class ElementCacheImpl {
     // Validate tab_id match
     if (entry.tabId !== tabId) {
       console.log(
-        `⚠️ [ElementCache] Tab ID mismatch: expected ${tabId}, found ${entry.tabId} for key ${key}`
+        `⚠️ [ElementCache] Tab ID mismatch: expected ${tabId}, found ${entry.tabId} for key ${key}`,
       );
       return undefined;
     }
@@ -147,9 +155,10 @@ class ElementCacheImpl {
    * If no tabId, invalidate all elements for the conversation
    */
   invalidate(conversationId: string, tabId?: number): void {
-    const prefix = tabId !== undefined
-      ? `${conversationId}:${tabId}:`
-      : `${conversationId}:`;
+    const prefix =
+      tabId !== undefined
+        ? `${conversationId}:${tabId}:`
+        : `${conversationId}:`;
 
     const keysToDelete: string[] = [];
     for (const key of this.cache.keys()) {
@@ -165,7 +174,7 @@ class ElementCacheImpl {
     if (keysToDelete.length > 0) {
       const scope = tabId !== undefined ? `tab ${tabId}` : 'all tabs';
       console.log(
-        `🗑️ [ElementCache] Invalidated ${keysToDelete.length} elements for conversation ${conversationId} (${scope})`
+        `🗑️ [ElementCache] Invalidated ${keysToDelete.length} elements for conversation ${conversationId} (${scope})`,
       );
     }
   }

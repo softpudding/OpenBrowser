@@ -12,7 +12,6 @@ from pydantic import ValidationError
 
 from server.agent.tools.browser_executor import BrowserExecutor
 
-
 TOOLS_DIR = Path(__file__).resolve().parents[2] / "agent" / "tools"
 AGENT_DIR = TOOLS_DIR.parent
 
@@ -69,7 +68,9 @@ class TestTabTool:
         assert len(tools) == 1
         assert tools[0].executor is executor
 
-    def test_create_without_executor_uses_registry_executor_for_conversation(self) -> None:
+    def test_create_without_executor_uses_registry_executor_for_conversation(
+        self,
+    ) -> None:
         from server.agent.tools.browser_executor import remove_browser_executor
 
         conversation_id = "tab-tool-conv"
@@ -83,7 +84,9 @@ class TestTabTool:
         finally:
             remove_browser_executor(conversation_id)
 
-    def test_description_documents_clean_screenshot_and_history_navigation(self) -> None:
+    def test_description_documents_clean_screenshot_and_history_navigation(
+        self,
+    ) -> None:
         description = get_tab_tool_description()
 
         assert "tab view" in description

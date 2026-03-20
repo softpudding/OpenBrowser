@@ -9,11 +9,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field
 from pydantic.json import pydantic_encoder
-
 
 DEFAULT_MODEL = "dashscope/qwen3.5-plus"
 DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -26,7 +24,7 @@ class LLMConfig(BaseModel):
     alias: str = DEFAULT_ALIAS
     model: str = DEFAULT_MODEL
     base_url: str = DEFAULT_BASE_URL
-    api_key: Optional[str] = None  # API key must be provided by user
+    api_key: str | None = None  # API key must be provided by user
 
 
 class AppConfig(BaseModel):
@@ -43,7 +41,7 @@ class LLMConfigManager:
     def __init__(self) -> None:
         self.config_dir = Path.home() / ".openbrowser"
         self.config_file = self.config_dir / "llm_config.json"
-        self._config: Optional[AppConfig] = None
+        self._config: AppConfig | None = None
 
     def _ensure_config_dir(self) -> None:
         """Ensure configuration directory exists."""
@@ -62,6 +60,9 @@ class LLMConfigManager:
         normalized_default_alias = (
             config.default_llm_alias or ""
         ).strip() or DEFAULT_ALIAS
+        if not config.llm_configs:
+            config.default_llm_alias = normalized_default_alias
+            return config
         if normalized_default_alias not in configs_by_alias:
             normalized_default_alias = config.llm_configs[0].alias
 
@@ -120,7 +121,7 @@ class LLMConfigManager:
         except Exception as e:
             raise RuntimeError(f"Failed to save configuration: {e}")
 
-    def get_llm_config(self, alias: Optional[str] = None) -> LLMConfig:
+    def get_llm_config(self, alias: str | None = None) -> LLMConfig:
         """Get one LLM configuration by alias or the default configuration."""
         config = self._load_config()
         if alias is None:
@@ -146,7 +147,7 @@ class LLMConfigManager:
         return [llm_config.model_copy() for llm_config in config.llm_configs]
 
     def set_llm_configs(
-        self, llm_configs: list[LLMConfig], default_alias: Optional[str] = None
+        self, llm_configs: list[LLMConfig], default_alias: str | None = None
     ) -> AppConfig:
         """Replace all configured LLM entries."""
         config = self._load_config()

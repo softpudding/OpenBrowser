@@ -145,4 +145,3 @@ def test_update_llm_config_accepts_multi_config_payload() -> None:
     data = response.json()
     assert data["default_alias"] == "flash"
     assert len(data["configs"]) == 2
-

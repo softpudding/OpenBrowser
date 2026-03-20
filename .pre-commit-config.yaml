@@ -1,0 +1,29 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-toml
+        files: ^pyproject\.toml$
+      - id: check-yaml
+        files: ^(\.pre-commit-config\.yaml|\.github/workflows/.*\.ya?ml)$
+
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        entry: uv run black
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      - id: extension-prettier
+        name: extension prettier
+        entry: npm --prefix extension exec prettier -- --write --ignore-unknown
+        language: system
+        files: ^extension/(?!package-lock\.json$).*\.(ts|tsx|js|mjs|cjs|json|html|css|md)$
+
+      - id: extension-eslint
+        name: extension eslint
+        entry: npm --prefix extension exec eslint -- --config extension/eslint.config.mjs --max-warnings=0
+        language: system
+        files: ^extension/.*\.ts$

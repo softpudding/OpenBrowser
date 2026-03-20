@@ -52,7 +52,9 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     assert "Collision-Aware Pagination" not in description
 
 
-def test_large_model_highlight_prompt_keeps_detailed_search_and_pagination_guidance() -> None:
+def test_large_model_highlight_prompt_keeps_detailed_search_and_pagination_guidance() -> (
+    None
+):
     with patch(
         "server.agent.tools.highlight_tool.get_prompt_render_context",
         return_value={

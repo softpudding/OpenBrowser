@@ -46,91 +46,110 @@ async function resizeImage(
   targetWidth: number = 1280,
   targetHeight: number = 720,
 ): Promise<{ dataUrl: string; cropOffsetX: number; cropOffsetY: number }> {
-  console.log(`🖼️ [Worker] Resizing image to ${targetWidth}x${targetHeight} (cover mode)...`);
-  
+  console.log(
+    `🖼️ [Worker] Resizing image to ${targetWidth}x${targetHeight} (cover mode)...`,
+  );
+
   // Check if OffscreenCanvas is available
   if (typeof OffscreenCanvas === 'undefined') {
     throw new Error(
       '[Worker] OffscreenCanvas is not available in this environment. ' +
-      'Image resizing requires OffscreenCanvas support.'
+        'Image resizing requires OffscreenCanvas support.',
     );
   }
-  
+
   // Check if createImageBitmap is available
   if (typeof createImageBitmap === 'undefined') {
     throw new Error(
       '[Worker] createImageBitmap is not available in this environment. ' +
-      'Image resizing requires createImageBitmap support.'
+        'Image resizing requires createImageBitmap support.',
     );
   }
-  
+
   try {
     // Convert data URL to Blob
     const response = await fetch(dataUrl);
     const blob = await response.blob();
-    
+
     // Create ImageBitmap from Blob
     const imageBitmap = await createImageBitmap(blob);
-    
-    console.log(`🖼️ [Worker] Original image dimensions: ${imageBitmap.width}x${imageBitmap.height}`);
-    
+
+    console.log(
+      `🖼️ [Worker] Original image dimensions: ${imageBitmap.width}x${imageBitmap.height}`,
+    );
+
     if (imageBitmap.width <= 0 || imageBitmap.height <= 0) {
-      throw new Error(`[Worker] Invalid original image dimensions: ${imageBitmap.width}x${imageBitmap.height}`);
+      throw new Error(
+        `[Worker] Invalid original image dimensions: ${imageBitmap.width}x${imageBitmap.height}`,
+      );
     }
-    
+
     const canvas = new OffscreenCanvas(targetWidth, targetHeight);
     const ctx = canvas.getContext('2d');
-    
+
     if (!ctx) {
       throw new Error('[Worker] Failed to get 2d context from OffscreenCanvas');
     }
-    
+
     // Fill background with white (to avoid transparency issues)
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, targetWidth, targetHeight);
-    
+
     // Calculate scaling to COVER target dimensions while maintaining aspect ratio
     const scaleX = targetWidth / imageBitmap.width;
     const scaleY = targetHeight / imageBitmap.height;
     const scale = Math.max(scaleX, scaleY); // Cover mode
-    
+
     const scaledWidth = Math.floor(imageBitmap.width * scale);
     const scaledHeight = Math.floor(imageBitmap.height * scale);
-    
+
     if (scaledWidth <= 0 || scaledHeight <= 0) {
-      throw new Error(`[Worker] Invalid scaled dimensions: ${scaledWidth}x${scaledHeight}`);
+      throw new Error(
+        `[Worker] Invalid scaled dimensions: ${scaledWidth}x${scaledHeight}`,
+      );
     }
-    
+
     // Calculate crop offset to center the image
     // This will be negative when the scaled image is larger than target
     const cropOffsetX = Math.floor((targetWidth - scaledWidth) / 2);
     const cropOffsetY = Math.floor((targetHeight - scaledHeight) / 2);
-    
-    console.log(`🖼️ [Worker] Scaling: scale=${scale.toFixed(3)}, scaled dimensions: ${scaledWidth}x${scaledHeight}, crop offset: (${cropOffsetX}, ${cropOffsetY})`);
-    
+
+    console.log(
+      `🖼️ [Worker] Scaling: scale=${scale.toFixed(3)}, scaled dimensions: ${scaledWidth}x${scaledHeight}, crop offset: (${cropOffsetX}, ${cropOffsetY})`,
+    );
+
     // Draw ImageBitmap to canvas with scaling and centering
     // Negative offsets will crop the overflow
-    ctx.drawImage(imageBitmap, cropOffsetX, cropOffsetY, scaledWidth, scaledHeight);
-    
+    ctx.drawImage(
+      imageBitmap,
+      cropOffsetX,
+      cropOffsetY,
+      scaledWidth,
+      scaledHeight,
+    );
+
     // IMPORTANT: Close ImageBitmap to free memory
     imageBitmap.close();
-    
+
     // Convert to data URL (PNG format for lossless quality)
     const resizedBlob = await canvas.convertToBlob({ type: 'image/png' });
-    
+
     // Convert Blob to data URL using FileReader
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const resizedDataUrl = reader.result as string;
-        console.log(`✅ [Worker] Image resized successfully (cover mode): ${imageBitmap.width}x${imageBitmap.height} → ${targetWidth}x${targetHeight}`);
+        console.log(
+          `✅ [Worker] Image resized successfully (cover mode): ${imageBitmap.width}x${imageBitmap.height} → ${targetWidth}x${targetHeight}`,
+        );
         resolve({
           dataUrl: resizedDataUrl,
-          cropOffsetX: cropOffsetX,  // Negative value indicates crop from left/top
+          cropOffsetX: cropOffsetX, // Negative value indicates crop from left/top
           cropOffsetY: cropOffsetY,
         });
       };
-      reader.onerror = () => reject(new Error('[Worker] Failed to read resized blob'));
+      reader.onerror = () =>
+        reject(new Error('[Worker] Failed to read resized blob'));
       reader.readAsDataURL(resizedBlob);
     });
   } catch (error) {
@@ -157,7 +176,7 @@ function getMemoryInfo() {
 // Worker message handler
 self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
-  
+
   try {
     switch (request.type) {
       case 'resizeImage': {
@@ -165,16 +184,16 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
           const result = await resizeImage(
             request.dataUrl,
             request.targetWidth,
-            request.targetHeight
+            request.targetHeight,
           );
-          
+
           const response: ResizeImageResponse = {
             id: request.id,
             dataUrl: result.dataUrl,
             cropOffsetX: result.cropOffsetX,
             cropOffsetY: result.cropOffsetY,
           };
-          
+
           self.postMessage(response);
         } catch (error) {
           const response: ResizeImageResponse = {
@@ -188,7 +207,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         }
         break;
       }
-      
+
       case 'status': {
         const response: WorkerStatusResponse = {
           type: 'status',
@@ -198,7 +217,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         self.postMessage(response);
         break;
       }
-      
+
       default: {
         console.warn(`[Worker] Unknown request type: ${(request as any).type}`);
       }

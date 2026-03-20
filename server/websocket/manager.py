@@ -12,7 +12,6 @@ from server.core.config import config
 from server.core.uuid_manager import UUIDManager
 from server.core.session_manager import session_manager
 
-
 logger = logging.getLogger(__name__)
 
 

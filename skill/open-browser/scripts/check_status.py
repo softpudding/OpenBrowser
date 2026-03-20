@@ -38,7 +38,7 @@ def check_extension(base_url: str) -> dict:
             data = json.loads(resp.read().decode())
             return {
                 "connected": data.get("websocket_connected", False),
-                "connections": data.get("websocket_connections", 0)
+                "connections": data.get("websocket_connections", 0),
             }
     except Exception as e:
         return {"connected": False, "error": str(e)}
@@ -54,7 +54,7 @@ def check_llm_config(base_url: str) -> dict:
             return {
                 "configured": config.get("has_api_key", False),
                 "model": config.get("model"),
-                "base_url": config.get("base_url")
+                "base_url": config.get("base_url"),
             }
     except Exception as e:
         return {"configured": False, "error": str(e)}
@@ -89,13 +89,9 @@ def main():
     parser.add_argument(
         "--url",
         default="http://127.0.0.1:8765",
-        help="OpenBrowser server URL (default: http://127.0.0.1:8765)"
+        help="OpenBrowser server URL (default: http://127.0.0.1:8765)",
     )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument(
         "--chrome-uuid",
         default=os.environ.get("OPENBROWSER_CHROME_UUID"),
@@ -109,7 +105,7 @@ def main():
     results = {
         "server": check_server(args.url),
         "extension": check_extension(args.url),
-        "llm_config": check_llm_config(args.url)
+        "llm_config": check_llm_config(args.url),
     }
 
     if args.chrome_uuid:
@@ -117,9 +113,9 @@ def main():
 
     # Determine overall status
     all_ready = (
-        results["server"].get("status") == "healthy" and
-        results["extension"].get("connected", False) and
-        results["llm_config"].get("configured", False)
+        results["server"].get("status") == "healthy"
+        and results["extension"].get("connected", False)
+        and results["llm_config"].get("configured", False)
     )
     if args.chrome_uuid:
         all_ready = all_ready and results["browser_uuid"].get("valid", False)
@@ -159,7 +155,11 @@ def main():
             if results["browser_uuid"].get("valid"):
                 print(f"✅ Browser UUID: Valid and registered")
             else:
-                error = results["browser_uuid"].get("error") or results["browser_uuid"].get("message") or "UUID not registered"
+                error = (
+                    results["browser_uuid"].get("error")
+                    or results["browser_uuid"].get("message")
+                    or "UUID not registered"
+                )
                 print(f"❌ Browser UUID: {error}")
 
         print("=" * 50)

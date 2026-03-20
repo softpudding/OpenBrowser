@@ -405,9 +405,11 @@ class Evaluator:
         self.current_model: Optional[str] = None  # Current model being tested
         self.current_target: Optional[LLMTarget] = None  # Current CLI target
 
-    def ensure_services(self, skip_services: bool = False, manual: bool = False) -> bool:
+    def ensure_services(
+        self, skip_services: bool = False, manual: bool = False
+    ) -> bool:
         """Ensure required services are running, or skip check if requested
-        
+
         Args:
             skip_services: If True, skip all service checks
             manual: If True, only check eval server (manual mode doesn't need OpenBrowser)
@@ -499,7 +501,9 @@ class Evaluator:
         if conversation_id:
             logger.debug(f"Created conversation: {conversation_id}")
         else:
-            logger.warning(f"Failed to create conversation for model {self.current_model}")
+            logger.warning(
+                f"Failed to create conversation for model {self.current_model}"
+            )
             return TestResult(
                 test_case=test_case,
                 passed=False,
@@ -848,7 +852,9 @@ class Evaluator:
             # For optional criteria, we give the points automatically (treat as satisfied)
             if optional:
                 score += points
-                logger.debug(f"Optional criterion '{criterion_type}' satisfied: +{points} points")
+                logger.debug(
+                    f"Optional criterion '{criterion_type}' satisfied: +{points} points"
+                )
                 continue
 
             if self._check_criterion(expected, track_events, sse_events) or (
@@ -856,7 +862,9 @@ class Evaluator:
                 and self._check_criterion(alternative, track_events, sse_events)
             ):
                 score += points
-                logger.debug(f"Criterion '{criterion_type}' satisfied: +{points} points")
+                logger.debug(
+                    f"Criterion '{criterion_type}' satisfied: +{points} points"
+                )
             else:
                 logger.debug(f"Criterion '{criterion_type}' not satisfied: 0 points")
 
@@ -922,7 +930,10 @@ class Evaluator:
                     count += 1
                 elif event_type == "click" and event.get("elementId") == "send-btn":
                     count += 1
-                elif event_type == "keydown_enter" and event.get("elementId") == "chat-input":
+                elif (
+                    event_type == "keydown_enter"
+                    and event.get("elementId") == "chat-input"
+                ):
                     count += 1
             else:
                 # Default: just check event type matches condition
@@ -1085,13 +1096,16 @@ class Evaluator:
             "total_usage_score": total_usage_score,
             "total_combined_score": total_combined_score,
             "total_combined_max_score": total_combined_max_score,
-            "average_duration": sum(r.duration or 0 for r in self.results)
-            / len(self.results)
-            if self.results
-            else 0,
-            "average_cost": sum(r.cost or 0 for r in self.results) / len(self.results)
-            if self.results
-            else 0,
+            "average_duration": (
+                sum(r.duration or 0 for r in self.results) / len(self.results)
+                if self.results
+                else 0
+            ),
+            "average_cost": (
+                sum(r.cost or 0 for r in self.results) / len(self.results)
+                if self.results
+                else 0
+            ),
             "results": [
                 {
                     "test_id": r.test_case.id,
@@ -1157,78 +1171,82 @@ class Evaluator:
     def run_manual_test(self, test_case: TestCase) -> TestResult:
         """Run a test case in manual mode with human performing the same task as OpenBrowser"""
         logger.info(f"Running manual test: {test_case.name}")
-        
+
         # Ensure output directory exists
         if self.output_dir is None:
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             self.output_dir = OUTPUT_BASE_DIR / timestamp
             self.output_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Created output directory: {self.output_dir}")
-        
+
         # Clear previous events
         self.eval_server.clear_events()
-        
+
         # Print test information
         print("\n" + "=" * 60)
         print(f"MANUAL TEST: {test_case.name}")
         print(f"Start URL: {test_case.start_url}")
         print("=" * 60)
-        
+
         if test_case.start_url:
             print(f"\n📋 Please open your browser and navigate to:")
             print(f"   {test_case.start_url}")
             print("Make sure the eval server is running (localhost:16605).")
             print("The browser should load the test page.")
             input("\nPress Enter when ready to continue...")
-        
+
         # Show the SAME instruction that would be given to OpenBrowser
         print(f"\n📝 Task Instruction (same as given to OpenBrowser):")
         print(f"   {test_case.instruction}")
-        print("\nPerform this task in the browser. Events will be tracked from this moment.")
+        print(
+            "\nPerform this task in the browser. Events will be tracked from this moment."
+        )
         print("When you have completed the task, enter 'ok' below.")
-        
+
         # Start timing when instruction is shown (same as automated test)
         start_time = time.time()
-        
+
         # Wait for user to complete the entire task
         while True:
-            response = input("\nEnter 'ok' when you have completed the task > ").strip().lower()
-            if response == 'ok':
+            response = (
+                input("\nEnter 'ok' when you have completed the task > ")
+                .strip()
+                .lower()
+            )
+            if response == "ok":
                 break
             else:
                 print("Please enter 'ok' when you have completed the task.")
-        
+
         end_time = time.time()
         duration = end_time - start_time
-        
+
         # Wait a moment for any pending events to be tracked
         time.sleep(2)
-        
+
         # Get tracking events
         track_events = self.eval_server.get_events()
-        
+
         # Save track events to file (no conversation_id for manual mode, use "manual")
         track_events_file = self._save_track_events(
             track_events, test_case.id, "manual", self.output_dir
         )
-        
+
         # Evaluate against criteria (no SSE events in manual mode)
-        passed, score, max_score = self._evaluate_criteria(
-            test_case, track_events, []
-        )
-        
+        passed, score, max_score = self._evaluate_criteria(test_case, track_events, [])
+
         # Calculate efficiency score (skip usage score for manual mode)
         efficiency_score = self._calculate_efficiency_score(
             duration, test_case.time_limit
         )
         usage_score = 1.0  # Manual mode gets full usage score (no cost)
         total_score = score + efficiency_score + usage_score
-        
+
         # No images or SSE events in manual mode
         images = []
         sse_events = []
         sse_events_file = None
-        
+
         result = TestResult(
             test_case=test_case,
             passed=passed,
@@ -1250,7 +1268,7 @@ class Evaluator:
             track_events_file=track_events_file,
             model="manual",
         )
-        
+
         # Print completion message
         print(f"\n{'=' * 60}")
         print(f"Manual test completed!")
@@ -1263,7 +1281,7 @@ class Evaluator:
         print(f"Passed: {'YES' if passed else 'NO'}")
         print(f"Track events saved to: {track_events_file}")
         print("=" * 60)
-        
+
         return result
 
     def run_all(
@@ -1349,7 +1367,7 @@ class Evaluator:
 
     def run_all_manual(self, skip_services: bool = False) -> bool:
         """Run all test cases in manual mode with human performing the tasks
-        
+
         Args:
             skip_services: If True, skip service availability checks
         """
@@ -1373,7 +1391,7 @@ class Evaluator:
         print(f"Found {len(test_cases)} test cases to complete")
         print(f"Each test will start when you confirm ready after seeing start URL")
         print(f"{'=' * 60}")
-        
+
         # Store overall results for summary report
         all_results = []
 
@@ -1381,23 +1399,23 @@ class Evaluator:
             print(f"\n{'=' * 60}")
             print(f"Test {i}/{len(test_cases)}: {test_case.name}")
             print(f"{'=' * 60}")
-            
+
             result = self.run_manual_test(test_case)
             result.model = "manual"  # Set model to manual for consistency
             all_results.append(result)
-            
+
             # Print test summary
             status = "PASSED" if result.passed else "FAILED"
             print(f"\n✓ Test '{test_case.name}' completed: {status}")
             print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
             print(f"  Duration: {result.duration or 0:.1f}s")
-            
+
             if i < len(test_cases):
                 input("\nPress Enter to continue to next test...")
 
         # Generate summary report for manual mode
         self._generate_manual_summary(all_results)
-        
+
         # Restore results for backward compatibility
         self.results = all_results
 
@@ -1410,13 +1428,19 @@ class Evaluator:
             total_tests = len(all_results)
             passed_tests = sum(1 for r in all_results if r.passed)
             pass_rate = (passed_tests / total_tests * 100) if total_tests > 0 else 0
-            
+
             total_task_score = sum(r.score for r in all_results)
             total_max_score = sum(r.max_score for r in all_results)
             total_efficiency_score = sum(r.efficiency_score or 0 for r in all_results)
-            avg_duration = sum(r.duration or 0 for r in all_results) / total_tests if total_tests > 0 else 0
-            avg_efficiency_score = total_efficiency_score / total_tests if total_tests > 0 else 0
-            
+            avg_duration = (
+                sum(r.duration or 0 for r in all_results) / total_tests
+                if total_tests > 0
+                else 0
+            )
+            avg_efficiency_score = (
+                total_efficiency_score / total_tests if total_tests > 0 else 0
+            )
+
             # Generate per-test results
             test_results = {}
             for result in all_results:
@@ -1433,7 +1457,7 @@ class Evaluator:
                     "conversation_id": result.conversation_id,
                     "track_events_file": result.track_events_file,
                 }
-            
+
             # Create summary report
             summary = {
                 "timestamp": time.time(),
@@ -1448,12 +1472,12 @@ class Evaluator:
                 "avg_efficiency_score": avg_efficiency_score,
                 "test_results": test_results,
             }
-            
+
             # Save summary to file
             summary_path = self.output_dir / "manual_summary.json"
             with open(summary_path, "w") as f:
                 json.dump(summary, f, indent=2, default=str)
-            
+
             # Print final summary
             print(f"\n{'=' * 60}")
             print(f"MANUAL TESTING COMPLETE")
@@ -1465,19 +1489,23 @@ class Evaluator:
             print(f"Average duration: {avg_duration:.1f}s per test")
             print(f"\nDetailed results saved to: {summary_path}")
             print(f"{'=' * 60}")
-            
+
             # Print per-test summary table
             print(f"\nTest Results Summary:")
-            print(f"{'Test Name':40} {'Status':10} {'Task Score':12} {'Efficiency':12} {'Duration':10}")
+            print(
+                f"{'Test Name':40} {'Status':10} {'Task Score':12} {'Efficiency':12} {'Duration':10}"
+            )
             print(f"{'-'*40} {'-'*10} {'-'*12} {'-'*12} {'-'*10}")
-            
+
             for result in all_results:
                 status = "PASS" if result.passed else "FAIL"
                 task_score = f"{result.score:.1f}/{result.max_score:.1f}"
                 efficiency = f"{result.efficiency_score or 0:.2f}"
                 duration = f"{result.duration or 0:.1f}s"
-                print(f"{result.test_case.name[:40]:40} {status:10} {task_score:12} {efficiency:12} {duration:10}")
-            
+                print(
+                    f"{result.test_case.name[:40]:40} {status:10} {task_score:12} {efficiency:12} {duration:10}"
+                )
+
         except Exception as e:
             logger.error(f"Failed to generate manual summary: {e}")
 
@@ -1510,8 +1538,10 @@ class Evaluator:
             normalized_pass = pass_rate / 100.0
             normalized_eff = efficiency_score / len(results) if len(results) > 0 else 0
             normalized_usage = usage_score / len(results) if len(results) > 0 else 0
-            composite_score = (normalized_pass * 3 + normalized_eff * 1 + normalized_usage * 1) / 5.0
-            
+            composite_score = (
+                normalized_pass * 3 + normalized_eff * 1 + normalized_usage * 1
+            ) / 5.0
+
             model_stats[model] = {
                 "task_score": task_score,
                 "task_max_score": task_max_score,
@@ -1539,8 +1569,10 @@ class Evaluator:
             passed_float = 1.0 if result.passed else 0.0
             eff_score = result.efficiency_score or 0.0
             usage_score_val = result.usage_score or 0.0
-            test_composite_score = (passed_float * 3 + eff_score + usage_score_val) / 5.0
-            
+            test_composite_score = (
+                passed_float * 3 + eff_score + usage_score_val
+            ) / 5.0
+
             test_cases[test_id]["results_by_model"][result.model or "unknown"] = {
                 "passed": result.passed,
                 "task_score": result.score,
@@ -1676,12 +1708,18 @@ class Evaluator:
                                 result.get("efficiency_score", 0), 4
                             ),
                             "usage_score": round(result.get("usage_score", 0), 4),
-                            "composite_score": round(result.get("composite_score", 0), 4),
+                            "composite_score": round(
+                                result.get("composite_score", 0), 4
+                            ),
                             "total_score": round(
                                 result.get("total_score", result["task_score"]), 2
                             ),
                             "duration": round(result["duration"], 2),
-                            "cost": round(result["cost"], 6) if result["cost"] is not None else None,
+                            "cost": (
+                                round(result["cost"], 6)
+                                if result["cost"] is not None
+                                else None
+                            ),
                         }
 
                 report["evaluation"]["test_results"][test_id] = test_result
@@ -1756,7 +1794,11 @@ def main():
         ),
     )
     parser.add_argument("--test", help="Run specific test by ID")
-    parser.add_argument("--manual", action="store_true", help="Manual mode: human performs the test steps")
+    parser.add_argument(
+        "--manual",
+        action="store_true",
+        help="Manual mode: human performs the test steps",
+    )
     parser.add_argument("--list", action="store_true", help="List available tests")
     parser.add_argument(
         "--llm-model",
@@ -1817,9 +1859,7 @@ def main():
                 "--llm-model, --llm-base-url, and --llm-api-key must all be provided together"
             )
 
-        if not (
-            len(llm_models) == len(llm_base_urls) == len(llm_api_keys)
-        ):
+        if not (len(llm_models) == len(llm_base_urls) == len(llm_api_keys)):
             parser.error(
                 "--llm-model, --llm-base-url, and --llm-api-key must have the same number of values"
             )
@@ -1855,7 +1895,9 @@ def main():
             logger.error(f"Test not found: {args.test}")
             return
 
-        if not evaluator.ensure_services(skip_services=args.no_services, manual=args.manual):
+        if not evaluator.ensure_services(
+            skip_services=args.no_services, manual=args.manual
+        ):
             logger.error("Services unavailable")
             return
 
@@ -1873,10 +1915,10 @@ def main():
             print(f"Test: {test_case.name}")
             print(f"Model selection ignored (manual human test)")
             print(f"{'=' * 60}")
-            
+
             result = evaluator.run_manual_test(test_case)
             all_results = [result]
-            
+
             # Print result for manual test
             print(f"\nTest result for {test_case.name} (manual):")
             print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
@@ -1893,11 +1935,13 @@ def main():
             print(
                 f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)"
             )
-            print(f"  Cost: {result.cost or 'N/A'} RMB (limit: {test_case.cost_limit}RMB)")
+            print(
+                f"  Cost: {result.cost or 'N/A'} RMB (limit: {test_case.cost_limit}RMB)"
+            )
             print(f"  Track events: {len(result.track_events)}")
             if result.track_events_file:
                 print(f"  Track events file: {result.track_events_file}")
-        
+
         # Normal (automated) mode
         else:
             all_results = []
@@ -1933,7 +1977,9 @@ def main():
                 print(
                     f"  Duration: {result.duration or 0:.1f}s (limit: {test_case.time_limit}s)"
                 )
-                print(f"  Cost: {result.cost or 0:.6f} RMB (limit: {test_case.cost_limit}RMB)")
+                print(
+                    f"  Cost: {result.cost or 0:.6f} RMB (limit: {test_case.cost_limit}RMB)"
+                )
                 print(f"  Conversation ID: {result.conversation_id}")
                 print(f"  Track events: {len(result.track_events)}")
                 print(f"  SSE events: {len(result.sse_events)}")
@@ -1955,7 +2001,9 @@ def main():
                 if model_results:
                     result = model_results[0]
                     status = "PASS" if result.passed else "FAIL"
-                    print(f"  {target_name}: {status} (score: {result.score:.1f}/{result.max_score:.1f})")
+                    print(
+                        f"  {target_name}: {status} (score: {result.score:.1f}/{result.max_score:.1f})"
+                    )
 
     else:
         # Run all tests for all models (manual mode now supported)
@@ -1965,7 +2013,7 @@ def main():
             print(f"ALL TESTS MANUAL MODE")
             print(f"Model selection ignored (manual human test)")
             print(f"{'=' * 60}")
-            
+
             success = evaluator.run_all_manual(skip_services=args.no_services)
             if not success:
                 sys.exit(1)

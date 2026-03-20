@@ -8,29 +8,29 @@ Chrome extension providing browser control via Chrome DevTools Protocol. Handles
 
 ## COMPLEXITY HOTSPOTS (>500 lines)
 
-| File | Lines | Purpose |
-|------|-------|----------|
-| `src/commands/tab-manager.ts` | 1010 | Tab lifecycle, multi-session, tab groups |
-| `src/commands/dialog.ts` | 378 | Dialog event handling, cascading dialogs |
-| `src/commands/javascript.ts` | 429 | JS execution with dialog detection |
-| `src/commands/computer.ts` | 817 | Computer/browser automation actions |
-| `src/background/index.ts` | 890 | Command queue, CDP flow, dialog handling |
-| `src/commands/screenshot.ts` | 605 | CDP capture, image processing pipeline |
-| `src/workers/worker-manager.ts` | 635 | Web worker lifecycle, image resizing |
+| File                            | Lines | Purpose                                  |
+| ------------------------------- | ----- | ---------------------------------------- |
+| `src/commands/tab-manager.ts`   | 1010  | Tab lifecycle, multi-session, tab groups |
+| `src/commands/dialog.ts`        | 378   | Dialog event handling, cascading dialogs |
+| `src/commands/javascript.ts`    | 429   | JS execution with dialog detection       |
+| `src/commands/computer.ts`      | 817   | Computer/browser automation actions      |
+| `src/background/index.ts`       | 890   | Command queue, CDP flow, dialog handling |
+| `src/commands/screenshot.ts`    | 605   | CDP capture, image processing pipeline   |
+| `src/workers/worker-manager.ts` | 635   | Web worker lifecycle, image resizing     |
 
 ## WHERE TO LOOK
 
-| Task | File | Key Exports |
-|------|------|-------------|
-| Background entry | `src/background/index.ts` | `handleCommand()`, `CommandQueueManager` |
-| Dialog handling | `src/commands/dialog.ts` | `dialogManager`, `DialogManager` |
-| Tab management | `src/commands/tab-manager.ts` | `tabManager`, `TabSessionManager` |
-| JavaScript exec | `src/commands/javascript.ts` | `executeJavaScript()` (with dialog racing) |
-| Screenshot | `src/commands/screenshot.ts` | `captureScreenshot()` |
-| CDP commands | `src/commands/cdp-commander.ts` | `CDPCommander` |
-| Debugger | `src/commands/debugger-manager.ts` | `debuggerSessionManager` |
-| Types | `src/types.ts` | `Command`, `HandleDialogCommand` |
-| WebSocket client | `src/websocket/client.ts` | `wsClient` |
+| Task             | File                               | Key Exports                                |
+| ---------------- | ---------------------------------- | ------------------------------------------ |
+| Background entry | `src/background/index.ts`          | `handleCommand()`, `CommandQueueManager`   |
+| Dialog handling  | `src/commands/dialog.ts`           | `dialogManager`, `DialogManager`           |
+| Tab management   | `src/commands/tab-manager.ts`      | `tabManager`, `TabSessionManager`          |
+| JavaScript exec  | `src/commands/javascript.ts`       | `executeJavaScript()` (with dialog racing) |
+| Screenshot       | `src/commands/screenshot.ts`       | `captureScreenshot()`                      |
+| CDP commands     | `src/commands/cdp-commander.ts`    | `CDPCommander`                             |
+| Debugger         | `src/commands/debugger-manager.ts` | `debuggerSessionManager`                   |
+| Types            | `src/types.ts`                     | `Command`, `HandleDialogCommand`           |
+| WebSocket client | `src/websocket/client.ts`          | `wsClient`                                 |
 
 ## STRUCTURE
 
@@ -82,13 +82,13 @@ npm run typecheck    # Type check only
 
 ## KEY CLASSES
 
-| Class | Location | Role |
-|-------|----------|------|
-| `CommandQueueManager` | background/index.ts:35 | Serializes command execution |
-| `WatchdogTimer` | background/index.ts:254 | Detects main thread freezes |
-| `DialogManager` | commands/dialog.ts | Dialog event detection, cascading |
-| `TabManager` | commands/tab-manager.ts | Session-to-tab mapping |
-| `DebuggerSessionManager` | commands/debugger-manager.ts | CDP session lifecycle |
+| Class                    | Location                     | Role                              |
+| ------------------------ | ---------------------------- | --------------------------------- |
+| `CommandQueueManager`    | background/index.ts:35       | Serializes command execution      |
+| `WatchdogTimer`          | background/index.ts:254      | Detects main thread freezes       |
+| `DialogManager`          | commands/dialog.ts           | Dialog event detection, cascading |
+| `TabManager`             | commands/tab-manager.ts      | Session-to-tab mapping            |
+| `DebuggerSessionManager` | commands/debugger-manager.ts | CDP session lifecycle             |
 
 ## DIALOG HANDLING
 
@@ -96,6 +96,7 @@ When JavaScript triggers a dialog (alert/confirm/prompt), the browser pauses exe
 The extension uses Promise.race to detect dialogs and handle them gracefully.
 
 ### Design Flow
+
 ```
 1. executeJavaScript() enables Page domain for dialog events
 2. Promise.race([
@@ -109,27 +110,33 @@ The extension uses Promise.race to detect dialogs and handle them gracefully.
 ```
 
 ### Key Components
+
 - **dialog.ts**: Listens to `Page.javascriptDialogOpening` CDP events
 - **javascript.ts**: Races JS execution vs dialog detection
 - **background/index.ts**: Handles `handle_dialog` command with cascade detection
 
 ### Dialog Types
-| Type | Needs Decision | Handling |
-|------|----------------|----------|
-| alert | No | Auto-accept |
-| confirm | Yes | AI must use handle_dialog |
-| prompt | Yes | AI must use handle_dialog with prompt_text |
-| beforeunload | Yes | AI must use handle_dialog |
+
+| Type         | Needs Decision | Handling                                   |
+| ------------ | -------------- | ------------------------------------------ |
+| alert        | No             | Auto-accept                                |
+| confirm      | Yes            | AI must use handle_dialog                  |
+| prompt       | Yes            | AI must use handle_dialog with prompt_text |
+| beforeunload | Yes            | AI must use handle_dialog                  |
 
 ### Cascading Dialogs
+
 After handling one dialog, another may appear (e.g., confirm → alert).
 The system:
+
 1. Detects cascade via 150ms wait window
 2. Auto-accepts alerts
 3. Returns info for confirm/prompt requiring another handle_dialog
 
 ### Blocking State
+
 During dialog state:
+
 - `javascript_execute` returns error: "Dialog is open"
 - `screenshot` returns error: "Dialog is open"
 - Only `handle_dialog` works
@@ -137,20 +144,24 @@ During dialog state:
 ## UNIQUE PATTERNS
 
 ### Click by Visible Text
+
 ```javascript
 (() => {
-    const text = 'YOUR_TEXT';
-    const leaf = Array.from(document.querySelectorAll('*'))
-        .find(el => el.children.length === 0 && el.textContent.includes(text));
-    if (!leaf) return 'not found';
-    const target = leaf.closest('a, button, [role="button"]') || leaf;
-    target.click();
-    return 'clicked: ' + target.tagName;
-})()
+  const text = 'YOUR_TEXT';
+  const leaf = Array.from(document.querySelectorAll('*')).find(
+    (el) => el.children.length === 0 && el.textContent.includes(text),
+  );
+  if (!leaf) return 'not found';
+  const target = leaf.closest('a, button, [role="button"]') || leaf;
+  target.click();
+  return 'clicked: ' + target.tagName;
+})();
 ```
 
 ### 2-Strike Rule
+
 If operation fails twice:
+
 1. Try full event sequence (pointerdown → mousedown → click)
 2. Inspect DOM structure
 3. Consider direct URL navigation

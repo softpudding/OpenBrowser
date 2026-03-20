@@ -97,14 +97,14 @@ class TestHighlightElements:
                 element_id = element.get("id", "")
                 # Element ID should be a hash string (6 chars, alphanumeric)
                 # NOT a prefixed ID like "click-1", "input-2", etc.
-                assert not re.match(r"^(click|input|scroll|hover)-\d+$", element_id), (
-                    f"Element ID should not have prefix: {element_id}"
-                )
+                assert not re.match(
+                    r"^(click|input|scroll|hover)-\d+$", element_id
+                ), f"Element ID should not have prefix: {element_id}"
 
                 # Should be 6-character alphanumeric hash
-                assert re.match(r"^[a-z0-9]{6}$", element_id), (
-                    f"Element ID should be 6-char hash: {element_id}"
-                )
+                assert re.match(
+                    r"^[a-z0-9]{6}$", element_id
+                ), f"Element ID should be 6-char hash: {element_id}"
 
 
 @pytest.mark.integration
@@ -199,9 +199,9 @@ class TestClickElement:
                 or "no such" in error_msg
             ), f"Expected tab-related error, got: {data.get('error')}"
         else:
-            assert response.status_code == 400, (
-                f"Expected 400 for invalid tab_id, got {response.status_code}"
-            )
+            assert (
+                response.status_code == 400
+            ), f"Expected 400 for invalid tab_id, got {response.status_code}"
 
 
 @pytest.mark.integration
@@ -322,9 +322,9 @@ class TestElementOperationsIntegration:
 
         assert highlight_response.status_code == 200
         highlight_data: dict[str, Any] = highlight_response.json()
-        assert highlight_data.get("success"), (
-            f"Highlight failed: {highlight_data.get('error')}"
-        )
+        assert highlight_data.get(
+            "success"
+        ), f"Highlight failed: {highlight_data.get('error')}"
 
         elements = highlight_data.get("data", {}).get("elements", [])
 
@@ -333,9 +333,9 @@ class TestElementOperationsIntegration:
 
         # Step 2: Verify element IDs are hash format
         element_id = elements[0].get("id")
-        assert re.match(r"^[a-z0-9]{6}$", element_id), (
-            f"Invalid element ID format: {element_id}"
-        )
+        assert re.match(
+            r"^[a-z0-9]{6}$", element_id
+        ), f"Invalid element ID format: {element_id}"
 
         # Step 3: Click with valid tab_id
         click_response = requests.post(

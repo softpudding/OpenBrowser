@@ -14,7 +14,10 @@ export class WebSocketClient {
   private reconnectAttempts = 0;
   private isConnecting = false;
   private messageHandlers: ((data: any) => void)[] = [];
-  private responseHandlers = new Map<string, (response: CommandResponse) => void>();
+  private responseHandlers = new Map<
+    string,
+    (response: CommandResponse) => void
+  >();
   private disconnectHandlers: (() => void)[] = [];
   private heartbeatTimer: number | null = null;
   private lastPongTime: number = 0;
@@ -23,7 +26,10 @@ export class WebSocketClient {
   private readonly PONG_TIMEOUT = 15000; // Consider connection dead if no pong for 15 seconds
   private activeCommandCount = 0;
   private isHeartbeatScheduled = false;
-  private activeCommands = new Map<string, { type: string; startTime: number; data?: any }>();
+  private activeCommands = new Map<
+    string,
+    { type: string; startTime: number; data?: any }
+  >();
 
   constructor(url: string = DEFAULT_WS_URL) {
     this.url = url;
@@ -36,11 +42,11 @@ export class WebSocketClient {
 
     return new Promise((resolve, reject) => {
       this.isConnecting = true;
-      
+
       try {
         console.log(`🔌 Connecting to WebSocket server at ${this.url}`);
         this.ws = new WebSocket(this.url);
-        
+
         this.ws.onopen = () => {
           console.log('✅ WebSocket connected to server at', this.url);
           this.isConnecting = false;
@@ -51,27 +57,31 @@ export class WebSocketClient {
           this.startHeartbeat();
           resolve();
         };
-        
+
         this.ws.onclose = (event) => {
-          console.log(`WebSocket disconnected from ${this.url}: code=${event.code}, reason=${event.reason}, wasClean=${event.wasClean}`);
+          console.log(
+            `WebSocket disconnected from ${this.url}: code=${event.code}, reason=${event.reason}, wasClean=${event.wasClean}`,
+          );
           this.isConnecting = false;
           this.stopHeartbeat();
           this.ws = null;
-          
+
           // Notify disconnect handlers
           this.notifyDisconnect();
-          
+
           // Special handling for heartbeat timeout (code 1001)
           if (event.code === 1001 && event.reason === 'Heartbeat timeout') {
             // Heartbeat timeout is usually due to temporary main thread blocking
             // Try to reconnect immediately with minimal delay
-            console.log('💓 Heartbeat timeout detected, attempting immediate reconnection...');
-            
+            console.log(
+              '💓 Heartbeat timeout detected, attempting immediate reconnection...',
+            );
+
             // Use a short delay to allow main thread to recover
             const shortDelay = 500; // 0.5 seconds
             setTimeout(() => {
               console.log('💓 Attempting heartbeat timeout reconnection...');
-              this.connect().catch(error => {
+              this.connect().catch((error) => {
                 console.error('💓 Heartbeat reconnection failed:', error);
                 // If immediate reconnection fails, fall back to normal reconnection logic
                 this.scheduleNormalReconnection(event);
@@ -79,40 +89,45 @@ export class WebSocketClient {
             }, shortDelay);
             return;
           }
-          
+
           // Attempt to reconnect if not intentionally closed (1000 = normal closure)
           // Also avoid reconnecting for some specific error codes
-          const shouldReconnect = event.code !== 1000 && // Normal closure
-                                 event.code !== 1008 && // Policy violation
-                                 event.code !== 1011 && // Server error
-                                 this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS;
-          
+          const shouldReconnect =
+            event.code !== 1000 && // Normal closure
+            event.code !== 1008 && // Policy violation
+            event.code !== 1011 && // Server error
+            this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS;
+
           if (shouldReconnect) {
             this.scheduleNormalReconnection(event);
           } else if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            console.error(`Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`);
+            console.error(
+              `Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`,
+            );
           } else {
-            console.log(`Not reconnecting: code=${event.code}, wasClean=${event.wasClean}`);
+            console.log(
+              `Not reconnecting: code=${event.code}, wasClean=${event.wasClean}`,
+            );
           }
         };
-        
+
         this.ws.onerror = (error) => {
           console.error('WebSocket error:', error);
           this.isConnecting = false;
           reject(new Error('WebSocket connection failed'));
         };
-        
+
         this.ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            
+
             // Handle pong messages for heartbeat
             if (data.type === 'pong') {
               this.lastPongTime = Date.now();
               console.log('❤️ Received pong from server');
               return;
             }
-            
+
             this.handleMessage(data);
           } catch (error) {
             console.error('Failed to parse WebSocket message:', error);
@@ -142,7 +157,9 @@ export class WebSocketClient {
       }
 
       // Generate command ID if not present
-      const commandId = command.command_id || `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const commandId =
+        command.command_id ||
+        `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const commandWithId = { ...command, command_id: commandId };
 
       // Set up response handler
@@ -221,96 +238,116 @@ export class WebSocketClient {
   private startHeartbeat(): void {
     // Clear any existing heartbeat
     this.stopHeartbeat();
-    
+
     console.log('❤️ Starting WebSocket heartbeat');
-    
+
     // Use recursive setTimeout instead of setInterval to prevent callback stacking
     this.isHeartbeatScheduled = true;
     this.scheduleNextHeartbeat();
   }
-  
+
   private scheduleNextHeartbeat(): void {
     if (!this.isHeartbeatScheduled || this.heartbeatTimer !== null) {
       return;
     }
-    
+
     this.heartbeatTimer = setTimeout(() => {
       this.heartbeatTimer = null;
       this.performHeartbeat();
       this.scheduleNextHeartbeat();
     }, this.HEARTBEAT_INTERVAL) as unknown as number;
   }
-  
+
   private performHeartbeat(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.log('❤️ Heartbeat skipped: WebSocket not open');
       return;
     }
-    
+
     const now = Date.now();
     const timeSinceLastPong = now - this.lastPongTime;
     const timeSinceLastPing = now - this.lastPingTime;
-    
+
     // Early warning: if we haven't sent a ping in > 2x heartbeat interval
     if (timeSinceLastPing > this.HEARTBEAT_INTERVAL * 2) {
-      console.warn(`⚠️ Possible main thread slowdown: Haven't sent ping for ${timeSinceLastPing}ms (> 2x interval ${this.HEARTBEAT_INTERVAL * 2}ms)`);
+      console.warn(
+        `⚠️ Possible main thread slowdown: Haven't sent ping for ${timeSinceLastPing}ms (> 2x interval ${this.HEARTBEAT_INTERVAL * 2}ms)`,
+      );
     }
-    
+
     // Critical check: if we haven't sent a ping in too long, send immediately
     if (timeSinceLastPing > this.PONG_TIMEOUT) {
-      console.error(`🚨 CRITICAL: Haven't sent ping for ${timeSinceLastPing}ms (> PONG timeout ${this.PONG_TIMEOUT}ms)! Main thread may be blocked.`);
+      console.error(
+        `🚨 CRITICAL: Haven't sent ping for ${timeSinceLastPing}ms (> PONG timeout ${this.PONG_TIMEOUT}ms)! Main thread may be blocked.`,
+      );
       // Still try to send ping
     }
-    
+
     // Check if we haven't received a pong in too long
     if (timeSinceLastPong > this.PONG_TIMEOUT) {
-      console.warn(`❤️ No pong received for ${timeSinceLastPong}ms (timeout: ${this.PONG_TIMEOUT}ms). Connection may be dead.`);
+      console.warn(
+        `❤️ No pong received for ${timeSinceLastPong}ms (timeout: ${this.PONG_TIMEOUT}ms). Connection may be dead.`,
+      );
       // Try to reconnect - use code 1001 (Going Away) to trigger reconnection
       // 1001: "The endpoint is going away" - appropriate for heartbeat timeout
       this.ws.close(1001, 'Heartbeat timeout');
       return;
     }
-    
+
     // Check if there are active commands that might block the main thread
     if (this.activeCommandCount > 0) {
-      console.log(`❤️ Active commands: ${this.activeCommandCount}, still sending ping`);
-      
+      console.log(
+        `❤️ Active commands: ${this.activeCommandCount}, still sending ping`,
+      );
+
       // Log detailed information about active commands
       if (this.activeCommands.size > 0) {
         const now = Date.now();
         console.log('🔍 Active command details:');
         for (const [commandId, cmdInfo] of this.activeCommands.entries()) {
           const duration = now - cmdInfo.startTime;
-          console.log(`  - ${cmdInfo.type} (ID: ${commandId}): ${duration}ms, data: ${JSON.stringify(cmdInfo.data || {}).substring(0, 100)}`);
-          
+          console.log(
+            `  - ${cmdInfo.type} (ID: ${commandId}): ${duration}ms, data: ${JSON.stringify(cmdInfo.data || {}).substring(0, 100)}`,
+          );
+
           // Warn about very long-running commands
           if (duration > 20000) {
-            console.error(`🚨 EXTREMELY LONG COMMAND: ${cmdInfo.type} running for ${duration}ms!`);
+            console.error(
+              `🚨 EXTREMELY LONG COMMAND: ${cmdInfo.type} running for ${duration}ms!`,
+            );
           } else if (duration > 10000) {
-            console.warn(`⚠️ Long command: ${cmdInfo.type} running for ${duration}ms`);
+            console.warn(
+              `⚠️ Long command: ${cmdInfo.type} running for ${duration}ms`,
+            );
           }
         }
       }
-      
+
       // If there are active commands and last ping was recent, we might delay this ping
       // to avoid overloading the main thread
       if (timeSinceLastPing < this.HEARTBEAT_INTERVAL) {
-        console.log(`❤️ Delaying ping due to active commands and recent ping (${timeSinceLastPing}ms ago)`);
+        console.log(
+          `❤️ Delaying ping due to active commands and recent ping (${timeSinceLastPing}ms ago)`,
+        );
         return;
       }
     }
-    
+
     // Check if last ping was too recent (shouldn't happen with proper scheduling)
     if (timeSinceLastPing < this.HEARTBEAT_INTERVAL / 2) {
-      console.warn(`❤️ Last ping was only ${timeSinceLastPing}ms ago, skipping to avoid flooding`);
+      console.warn(
+        `❤️ Last ping was only ${timeSinceLastPing}ms ago, skipping to avoid flooding`,
+      );
       return;
     }
-    
+
     // Send ping to server
     try {
       this.ws.send(JSON.stringify({ type: 'ping' }));
       this.lastPingTime = now;
-      console.log(`❤️ Sent ping to server (active commands: ${this.activeCommandCount}, last pong: ${timeSinceLastPong}ms ago)`);
+      console.log(
+        `❤️ Sent ping to server (active commands: ${this.activeCommandCount}, last pong: ${timeSinceLastPong}ms ago)`,
+      );
     } catch (error) {
       console.error('❤️ Failed to send ping:', error);
     }
@@ -328,7 +365,7 @@ export class WebSocketClient {
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
-  
+
   /**
    * Track command execution for heartbeat health monitoring
    */
@@ -337,53 +374,66 @@ export class WebSocketClient {
     this.activeCommands.set(commandId, {
       type: commandType,
       startTime: Date.now(),
-      data: data
+      data: data,
     });
-    
+
     if (this.activeCommandCount > 5) {
       console.warn(`⚠️ High active command count: ${this.activeCommandCount}`);
     }
-    
-    console.log(`📊 Command tracking: Started ${commandType} (ID: ${commandId}), active: ${this.activeCommandCount}`);
+
+    console.log(
+      `📊 Command tracking: Started ${commandType} (ID: ${commandId}), active: ${this.activeCommandCount}`,
+    );
   }
-  
+
   trackCommandEnd(commandId: string): void {
     if (this.activeCommands.has(commandId)) {
       const cmdInfo = this.activeCommands.get(commandId)!;
       const duration = Date.now() - cmdInfo.startTime;
       this.activeCommands.delete(commandId);
-      
+
       if (this.activeCommandCount > 0) {
         this.activeCommandCount--;
       }
-      
-      console.log(`📊 Command tracking: Completed ${cmdInfo.type} (ID: ${commandId}) in ${duration}ms, active: ${this.activeCommandCount}`);
-      
+
+      console.log(
+        `📊 Command tracking: Completed ${cmdInfo.type} (ID: ${commandId}) in ${duration}ms, active: ${this.activeCommandCount}`,
+      );
+
       if (duration > 10000) {
-        console.warn(`⏱️ Long command completed: ${cmdInfo.type} took ${duration}ms`);
+        console.warn(
+          `⏱️ Long command completed: ${cmdInfo.type} took ${duration}ms`,
+        );
       }
     } else {
       // Command not found in tracking, still decrement count
       if (this.activeCommandCount > 0) {
         this.activeCommandCount--;
       }
-      console.warn(`📊 Command tracking: Command ${commandId} not found in active commands, decremented count anyway`);
+      console.warn(
+        `📊 Command tracking: Command ${commandId} not found in active commands, decremented count anyway`,
+      );
     }
   }
-  
+
   /**
    * Schedule a normal reconnection with exponential backoff
    */
   private scheduleNormalReconnection(_event: CloseEvent): void {
     this.reconnectAttempts++;
-    
+
     // Exponential backoff: 3s, 6s, 12s, 24s, 48s... capped at 60s
     const baseDelay = RECONNECT_DELAY; // 3000ms
-    const exponentialDelay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts - 1), 60000);
+    const exponentialDelay = Math.min(
+      baseDelay * Math.pow(2, this.reconnectAttempts - 1),
+      60000,
+    );
     const jitter = Math.random() * 1000; // Add up to 1s jitter to avoid thundering herd
     const delay = exponentialDelay + jitter;
-    
-    console.log(`Attempting to reconnect (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) in ${Math.round(delay)}ms (exponential backoff)...`);
+
+    console.log(
+      `Attempting to reconnect (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) in ${Math.round(delay)}ms (exponential backoff)...`,
+    );
     setTimeout(() => this.connect().catch(console.error), delay);
   }
 
@@ -393,18 +443,21 @@ export class WebSocketClient {
       console.warn(`⚠️ High active command count: ${this.activeCommandCount}`);
     }
   }
-  
+
   decrementActiveCommandCount(): void {
     if (this.activeCommandCount > 0) {
       this.activeCommandCount--;
     }
   }
-  
+
   getActiveCommandCount(): number {
     return this.activeCommandCount;
   }
-  
-  getActiveCommands(): Map<string, { type: string; startTime: number; data?: any }> {
+
+  getActiveCommands(): Map<
+    string,
+    { type: string; startTime: number; data?: any }
+  > {
     return this.activeCommands;
   }
 }

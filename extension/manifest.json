@@ -24,9 +24,7 @@
       "all_frames": true
     }
   ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "host_permissions": ["<all_urls>"],
   "permissions": [
     "tabs",
     "tabGroups",
@@ -37,10 +35,7 @@
     "alarms"
   ],
   "externally_connectable": {
-    "matches": [
-      "http://localhost:*/*",
-      "http://127.0.0.1:*/*"
-    ]
+    "matches": ["http://localhost:*/*", "http://127.0.0.1:*/*"]
   },
   "web_accessible_resources": [
     {

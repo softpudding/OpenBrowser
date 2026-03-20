@@ -60,7 +60,9 @@ class QueueVisualizer(ConversationVisualizerBase):
             # Get basic event information
             event_type = type(event).__name__
             content = event.visualize
-            logger.debug(f"QueueVisualizer: content type {type(content)}, has plain? {hasattr(content, 'plain')}")
+            logger.debug(
+                f"QueueVisualizer: content type {type(content)}, has plain? {hasattr(content, 'plain')}"
+            )
             # Determine the best text representation
             if isinstance(content, Text):
                 text_content = content.plain
@@ -70,10 +72,16 @@ class QueueVisualizer(ConversationVisualizerBase):
                 logger.debug("QueueVisualizer: using content.plain (has plain)")
             else:
                 text_content = str(event)
-                logger.warning(f"QueueVisualizer: falling back to str(event), content type: {type(content)}")
-            logger.debug(f"QueueVisualizer: text_content length {len(text_content)}, preview: {text_content[:200]}")
-            if '...' in text_content[-10:]:
-                logger.warning(f"QueueVisualizer: text_content ends with '...'! Full text: {text_content}")
+                logger.warning(
+                    f"QueueVisualizer: falling back to str(event), content type: {type(content)}"
+                )
+            logger.debug(
+                f"QueueVisualizer: text_content length {len(text_content)}, preview: {text_content[:200]}"
+            )
+            if "..." in text_content[-10:]:
+                logger.warning(
+                    f"QueueVisualizer: text_content ends with '...'! Full text: {text_content}"
+                )
 
             # Build SSE data with common fields
             sse_data = {

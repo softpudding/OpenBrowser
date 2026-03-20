@@ -89,7 +89,7 @@ async def get_llm_config():
 async def update_llm_config(request: Request):
     """Update LLM configuration.
 
-    Supports both legacy single-config payloads and new multi-config payloads.
+    Accepts the multi-config payload used by the current frontend.
     """
     try:
         data = await request.json()

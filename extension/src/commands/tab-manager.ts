@@ -34,37 +34,43 @@ export class TabManager {
   // ✅ Multi-session support: Map conversation_id -> TabGroupState
   private sessions: Map<string, TabGroupState> = new Map();
   private statusUpdateInterval: number | null = null;
-  
+
   // Event listeners for tab switching
-  private tabSwitchedListeners: Array<(conversationId: string, tabId: number) => void> = [];
+  private tabSwitchedListeners: Array<
+    (conversationId: string, tabId: number) => void
+  > = [];
 
   /**
    * Initialize the tab manager
    */
   async initialize(): Promise<void> {
     console.log('📁 [TabManager] Initializing multi-session tab manager...');
-    
+
     // Check if tabGroups API is available
     if (!chrome.tabGroups) {
-      console.warn('⚠️ [TabManager] tabGroups API not available, falling back to simple tab management');
+      console.warn(
+        '⚠️ [TabManager] tabGroups API not available, falling back to simple tab management',
+      );
       return;
     }
-    
+
     // Setup listeners
     this.setupListeners();
-    
+
     // Start status update interval
     this.startStatusUpdates();
-    
+
     console.log('✅ [TabManager] Multi-session tab manager initialized');
   }
-  
+
   /**
    * Get or create session state for a conversation
    */
   private getOrCreateSession(conversationId: string): TabGroupState {
     if (!this.sessions.has(conversationId)) {
-      console.log(`📁 [TabManager] Creating new session state for conversation: ${conversationId}`);
+      console.log(
+        `📁 [TabManager] Creating new session state for conversation: ${conversationId}`,
+      );
       this.sessions.set(conversationId, {
         groupId: null,
         managedTabs: new Map(),
@@ -72,7 +78,7 @@ export class TabManager {
         createdAt: Date.now(),
         lastActivity: Date.now(),
         status: 'idle',
-        currentActiveTabId: null
+        currentActiveTabId: null,
       });
     }
     return this.sessions.get(conversationId)!;
@@ -81,38 +87,48 @@ export class TabManager {
   /**
    * Find existing tab group or create a new one for a conversation
    */
-  private async findOrCreateTabGroup(conversationId: string): Promise<number | null> {
+  private async findOrCreateTabGroup(
+    conversationId: string,
+  ): Promise<number | null> {
     try {
       const session = this.getOrCreateSession(conversationId);
-      
+
       // If we already have a groupId, verify it still exists
       if (session.groupId !== null) {
         try {
           const existingGroup = await chrome.tabGroups.get(session.groupId);
           if (existingGroup) {
-            console.log(`✅ [TabManager] Using existing tab group for ${conversationId}: ${existingGroup.title} (ID: ${session.groupId})`);
+            console.log(
+              `✅ [TabManager] Using existing tab group for ${conversationId}: ${existingGroup.title} (ID: ${session.groupId})`,
+            );
             return session.groupId;
           }
         } catch (error) {
           // Group might have been deleted, continue to find or create
-          console.log(`⚠️ [TabManager] Previous group ${session.groupId} not found for ${conversationId}, will find or create new one`);
+          console.log(
+            `⚠️ [TabManager] Previous group ${session.groupId} not found for ${conversationId}, will find or create new one`,
+          );
           session.groupId = null;
         }
       }
-      
+
       // Generate group name for this conversation
       const groupName = this.generateGroupName(conversationId);
-      
+
       // Query existing tab groups by name
       const groups = await chrome.tabGroups.query({ title: groupName });
-      
+
       if (groups.length > 0) {
         // Use the first matching group
         session.groupId = groups[0].id;
-        console.log(`✅ [TabManager] Found existing tab group for ${conversationId}: ${groupName} (ID: ${session.groupId})`);
-        
+        console.log(
+          `✅ [TabManager] Found existing tab group for ${conversationId}: ${groupName} (ID: ${session.groupId})`,
+        );
+
         // Get tabs in this group
-        const tabsInGroup = await chrome.tabs.query({ groupId: session.groupId });
+        const tabsInGroup = await chrome.tabs.query({
+          groupId: session.groupId,
+        });
         for (const tab of tabsInGroup) {
           if (tab.id) {
             session.managedTabs.set(tab.id, {
@@ -122,46 +138,66 @@ export class TabManager {
               url: tab.url || '',
               title: tab.title,
               createdAt: Date.now(),
-              lastActivity: Date.now()
+              lastActivity: Date.now(),
             });
           }
         }
         return session.groupId;
       } else {
-        console.log(`📁 [TabManager] No existing tab group found for ${conversationId}, will create when needed`);
+        console.log(
+          `📁 [TabManager] No existing tab group found for ${conversationId}, will create when needed`,
+        );
         return null;
       }
     } catch (error) {
-      console.error(`❌ [TabManager] Error finding/creating tab group for ${conversationId}:`, error);
+      console.error(
+        `❌ [TabManager] Error finding/creating tab group for ${conversationId}:`,
+        error,
+      );
       return null;
     }
   }
-  
+
   /**
    * Generate tab group name for a conversation
    * Always uses a suffix based on the conversation ID for uniqueness.
    */
   private generateGroupName(conversationId: string): string {
-    console.log(`🔍 [generateGroupName] Called with conversationId: "${conversationId}"`);
+    console.log(
+      `🔍 [generateGroupName] Called with conversationId: "${conversationId}"`,
+    );
     // Use first 8 characters of conversation ID for shorter group names
-    const shortId = (conversationId && conversationId.length >= 8)
-      ? conversationId.substring(0, 8)
-      : (conversationId && conversationId.length > 0 ? conversationId : 'default');
+    const shortId =
+      conversationId && conversationId.length >= 8
+        ? conversationId.substring(0, 8)
+        : conversationId && conversationId.length > 0
+          ? conversationId
+          : 'default';
     const groupName = `${TAB_GROUP_NAME}-${shortId}`;
-    console.log(`✅ [generateGroupName] Generated group name: "${groupName}" for conversationId: "${conversationId}"`);
+    console.log(
+      `✅ [generateGroupName] Generated group name: "${groupName}" for conversationId: "${conversationId}"`,
+    );
     return groupName;
   }
 
   /**
    * Position a tab group to the left side (after pinned tabs)
    */
-  private async positionTabGroup(groupId: number, windowId: number): Promise<void> {
+  private async positionTabGroup(
+    groupId: number,
+    windowId: number,
+  ): Promise<void> {
     try {
       const pinnedTabs = await chrome.tabs.query({ pinned: true, windowId });
       await chrome.tabGroups.move(groupId, { index: pinnedTabs.length });
-      console.log(`✅ [TabManager] Positioned group ${groupId} after ${pinnedTabs.length} pinned tabs`);
+      console.log(
+        `✅ [TabManager] Positioned group ${groupId} after ${pinnedTabs.length} pinned tabs`,
+      );
     } catch (error) {
-      console.warn(`⚠️ [TabManager] Could not position group ${groupId}:`, error);
+      console.warn(
+        `⚠️ [TabManager] Could not position group ${groupId}:`,
+        error,
+      );
     }
   }
 
@@ -174,11 +210,16 @@ export class TabManager {
    * Initialize a new managed session with a starting URL
    * This creates the tab group and opens the first tab
    */
-  async initializeSession(startUrl: string, conversationId: string): Promise<ManagedTab> {
-    console.log(`🚀 [TabManager] Initializing new session for ${conversationId} with URL: ${startUrl}`);
-    
+  async initializeSession(
+    startUrl: string,
+    conversationId: string,
+  ): Promise<ManagedTab> {
+    console.log(
+      `🚀 [TabManager] Initializing new session for ${conversationId} with URL: ${startUrl}`,
+    );
+
     const session = this.getOrCreateSession(conversationId);
-    
+
     // Ensure URL has protocol
     let targetUrl = startUrl;
 
@@ -186,73 +227,109 @@ export class TabManager {
     // if (!startUrl.match(/^https?:\/\//)) {
     //   targetUrl = `https://${startUrl}`;
     // }
-    
+
     // First, ensure we have a tab group (find existing or create new)
-    
+
     // ⬇️ DEBUG: Print current window's existing tab groups before initialization
     if (!chrome.tabGroups) {
-      throw new Error('chrome.tabGroups API is not available. Ensure Chrome version >= 85 and "tabGroups" permission is declared in manifest.json');
+      throw new Error(
+        'chrome.tabGroups API is not available. Ensure Chrome version >= 85 and "tabGroups" permission is declared in manifest.json',
+      );
     }
     try {
       const currentWindow = await chrome.windows.getCurrent();
-      const allGroups = await chrome.tabGroups.query({ windowId: currentWindow.id });
-      console.log(`🔍 [DEBUG-${conversationId.substring(0, 8)}] Current window has ${allGroups.length} existing groups:`,
-        allGroups.map(g => ({ id: g.id, title: g.title, color: g.color })));
+      const allGroups = await chrome.tabGroups.query({
+        windowId: currentWindow.id,
+      });
+      console.log(
+        `🔍 [DEBUG-${conversationId.substring(0, 8)}] Current window has ${allGroups.length} existing groups:`,
+        allGroups.map((g) => ({ id: g.id, title: g.title, color: g.color })),
+      );
     } catch (e) {
-      console.log(`🔍 [DEBUG-${conversationId.substring(0, 8)}] Failed to query existing groups:`, e);
+      console.log(
+        `🔍 [DEBUG-${conversationId.substring(0, 8)}] Failed to query existing groups:`,
+        e,
+      );
     }
     if (!session.groupId && chrome.tabGroups) {
-      console.log(`📁 [TabManager] Finding or creating tab group for session ${conversationId}`);
+      console.log(
+        `📁 [TabManager] Finding or creating tab group for session ${conversationId}`,
+      );
       const groupId = await this.findOrCreateTabGroup(conversationId);
-      console.log(`🔍 [DEBUG-${conversationId.substring(0, 8)}] findOrCreateTabGroup returned: ${groupId}`);
+      console.log(
+        `🔍 [DEBUG-${conversationId.substring(0, 8)}] findOrCreateTabGroup returned: ${groupId}`,
+      );
       if (!groupId) {
-        console.log(`📁 [TabManager] No existing tab group found for ${conversationId}, will create with first tab`);
+        console.log(
+          `📁 [TabManager] No existing tab group found for ${conversationId}, will create with first tab`,
+        );
       }
-      console.log(`✅ [TabManager] Tab group ready for ${conversationId}: ${session.groupId}`);
+      console.log(
+        `✅ [TabManager] Tab group ready for ${conversationId}: ${session.groupId}`,
+      );
     }
-    
+
     // Create the first tab
     const tab = await chrome.tabs.create({ url: targetUrl, active: false });
-    
+
     // ⬇️ DEBUG: Print initial groupId of the created tab
-    console.log(`🔍 [DEBUG-${conversationId.substring(0, 8)}] Created tab ${tab.id}, initial groupId: ${tab.groupId}, windowId: ${tab.windowId}`);
-    
+    console.log(
+      `🔍 [DEBUG-${conversationId.substring(0, 8)}] Created tab ${tab.id}, initial groupId: ${tab.groupId}, windowId: ${tab.windowId}`,
+    );
+
     // ⬇️ FIX: If Chrome auto-grouped the tab, remove it from that group first
-    if (tab.groupId !== undefined && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-      console.log(`⚠️ [DEBUG-${conversationId.substring(0, 8)}] Tab was auto-grouped into group ${tab.groupId}, removing it first`);
+    if (
+      tab.groupId !== undefined &&
+      tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE
+    ) {
+      console.log(
+        `⚠️ [DEBUG-${conversationId.substring(0, 8)}] Tab was auto-grouped into group ${tab.groupId}, removing it first`,
+      );
       try {
         await chrome.tabs.ungroup([tab.id!]);
-        console.log(`✅ [DEBUG-${conversationId.substring(0, 8)}] Successfully removed tab from auto-assigned group`);
+        console.log(
+          `✅ [DEBUG-${conversationId.substring(0, 8)}] Successfully removed tab from auto-assigned group`,
+        );
       } catch (e) {
-        console.warn(`⚠️ [DEBUG-${conversationId.substring(0, 8)}] Failed to ungroup tab:`, e);
+        console.warn(
+          `⚠️ [DEBUG-${conversationId.substring(0, 8)}] Failed to ungroup tab:`,
+          e,
+        );
       }
     }
-    
+
     if (!tab.id) {
       throw new Error('Failed to create tab for session initialization');
     }
-    
+
     // Add to management
     await this.addTabToManagement(tab.id, conversationId);
-    
+
     // ⬇️ DEBUG: Verify tab was moved to correct group
     try {
       const finalTab = await chrome.tabs.get(tab.id);
-      console.log(`🔍 [DEBUG-${conversationId.substring(0, 8)}] After addTabToManagement, tab ${tab.id} groupId: ${finalTab.groupId}, expected: ${session.groupId}`);
+      console.log(
+        `🔍 [DEBUG-${conversationId.substring(0, 8)}] After addTabToManagement, tab ${tab.id} groupId: ${finalTab.groupId}, expected: ${session.groupId}`,
+      );
     } catch (e) {
-      console.log(`🔍 [DEBUG-${conversationId.substring(0, 8)}] Failed to verify final tab groupId:`, e);
+      console.log(
+        `🔍 [DEBUG-${conversationId.substring(0, 8)}] Failed to verify final tab groupId:`,
+        e,
+      );
     }
-    
+
     // Update session status
     this.updateSessionStatus(conversationId, 'active');
-    
-    console.log(`✅ [TabManager] Session ${conversationId} initialized with tab ${tab.id} in group ${session.groupId}`);
-    
+
+    console.log(
+      `✅ [TabManager] Session ${conversationId} initialized with tab ${tab.id} in group ${session.groupId}`,
+    );
+
     const managedTab = session.managedTabs.get(tab.id);
     if (!managedTab) {
       throw new Error('Failed to retrieve managed tab after creation');
     }
-    
+
     return managedTab;
   }
 
@@ -261,16 +338,20 @@ export class TabManager {
    */
   isSessionInitialized(conversationId: string): boolean {
     const session = this.sessions.get(conversationId);
-    return session !== undefined && session.groupId !== null && session.managedTabs.size > 0;
+    return (
+      session !== undefined &&
+      session.groupId !== null &&
+      session.managedTabs.size > 0
+    );
   }
-  
+
   /**
    * Get all conversation IDs
    */
   getAllConversationIds(): string[] {
     return Array.from(this.sessions.keys());
   }
-  
+
   /**
    * Get only managed tabs for a specific conversation
    */
@@ -282,24 +363,32 @@ export class TabManager {
   /**
    * Open a new tab and add it to the managed tab group
    */
-  async openManagedTab(url: string, active: boolean = false, conversationId: string): Promise<ManagedTab> {
-    console.log(`📁 [TabManager] Opening managed tab for ${conversationId}: ${url}`);
-    
+  async openManagedTab(
+    url: string,
+    active: boolean = false,
+    conversationId: string,
+  ): Promise<ManagedTab> {
+    console.log(
+      `📁 [TabManager] Opening managed tab for ${conversationId}: ${url}`,
+    );
+
     const session = this.getOrCreateSession(conversationId);
-    
+
     // Ensure URL has protocol
     let targetUrl = url;
     if (!url.match(/^https?:\/\//)) {
       targetUrl = `https://${url}`;
     }
-    
+
     // Create the tab
     const tab = await chrome.tabs.create({ url: targetUrl, active });
-    
+
     // Use addTabToManagement for consistent group handling
     const added = await this.addTabToManagement(tab.id!, conversationId);
     if (!added) {
-      console.warn(`⚠️ [TabManager] Failed to add tab ${tab.id} to management for ${conversationId}`);
+      console.warn(
+        `⚠️ [TabManager] Failed to add tab ${tab.id} to management for ${conversationId}`,
+      );
       // Fall back to creating managed tab record manually
       const fallbackManagedTab: ManagedTab = {
         tabId: tab.id!,
@@ -308,29 +397,38 @@ export class TabManager {
         url: targetUrl,
         title: tab.title,
         createdAt: Date.now(),
-        lastActivity: Date.now()
+        lastActivity: Date.now(),
       };
       session.managedTabs.set(tab.id!, fallbackManagedTab);
       session.lastActivity = Date.now();
-      console.log(`✅ [TabManager] Opened managed tab ${tab.id} for ${conversationId} (fallback, no group)`);
+      console.log(
+        `✅ [TabManager] Opened managed tab ${tab.id} for ${conversationId} (fallback, no group)`,
+      );
       return fallbackManagedTab;
     }
-    
+
     // Get the managed tab that was created by addTabToManagement
     const managedTab = session.managedTabs.get(tab.id!);
     if (!managedTab) {
-      throw new Error(`Failed to retrieve managed tab ${tab.id} after adding to management`);
+      throw new Error(
+        `Failed to retrieve managed tab ${tab.id} after adding to management`,
+      );
     }
-    
-    console.log(`✅ [TabManager] Opened managed tab ${tab.id} for ${conversationId} in ${managedTab.groupId ? 'group ' + managedTab.groupId : 'no group'}`);
-    
+
+    console.log(
+      `✅ [TabManager] Opened managed tab ${tab.id} for ${conversationId} in ${managedTab.groupId ? 'group ' + managedTab.groupId : 'no group'}`,
+    );
+
     return managedTab;
   }
 
   /**
    * Add an existing tab to the managed group
    */
-  async addTabToManagement(tabId: number, conversationId: string): Promise<boolean> {
+  async addTabToManagement(
+    tabId: number,
+    conversationId: string,
+  ): Promise<boolean> {
     try {
       const session = this.getOrCreateSession(conversationId);
       const tab = await chrome.tabs.get(tabId);
@@ -338,50 +436,56 @@ export class TabManager {
         console.warn(`⚠️ [TabManager] Tab ${tabId} not found`);
         return false;
       }
-      
+
       // Check if already managed
       if (session.managedTabs.has(tabId)) {
-        console.log(`📁 [TabManager] Tab ${tabId} is already managed for ${conversationId}`);
+        console.log(
+          `📁 [TabManager] Tab ${tabId} is already managed for ${conversationId}`,
+        );
         return true;
       }
-      
+
       // Add to group if available
       let groupId = session.groupId;
       if (chrome.tabGroups && tab.id) {
         if (!session.groupId) {
           // ✅ FIX: Create group with first real tab instead of dummy tab
           const groupName = this.generateGroupName(conversationId);
-          console.log(`📁 [TabManager] Creating tab group with first real tab for ${conversationId}`);
-          
+          console.log(
+            `📁 [TabManager] Creating tab group with first real tab for ${conversationId}`,
+          );
+
           groupId = await chrome.tabs.group({
             createProperties: { windowId: tab.windowId },
-            tabIds: [tab.id]
+            tabIds: [tab.id],
           });
-          
+
           // Update group properties
           await chrome.tabGroups.update(groupId, {
             title: groupName,
             collapsed: TAB_GROUP_COLLAPSED,
-            color: TAB_GROUP_COLOR
+            color: TAB_GROUP_COLOR,
           });
-          
+
           session.groupId = groupId;
-          console.log(`✅ [TabManager] Created tab group for ${conversationId}: ${groupName} (ID: ${groupId})`);
-          
+          console.log(
+            `✅ [TabManager] Created tab group for ${conversationId}: ${groupName} (ID: ${groupId})`,
+          );
+
           // Position the new group
           await this.positionTabGroup(groupId, tab.windowId);
         } else {
           // Add to existing group
           await chrome.tabs.group({
             groupId: groupId!,
-            tabIds: [tab.id]
+            tabIds: [tab.id],
           });
-          
+
           // Position the group (ensure consistent placement)
           await this.positionTabGroup(groupId!, tab.windowId);
         }
       }
-      
+
       // Create managed tab record
       const managedTab: ManagedTab = {
         tabId: tab.id!,
@@ -390,16 +494,21 @@ export class TabManager {
         url: tab.url || '',
         title: tab.title,
         createdAt: Date.now(),
-        lastActivity: Date.now()
+        lastActivity: Date.now(),
       };
-      
+
       session.managedTabs.set(tabId, managedTab);
-      
-      console.log(`✅ [TabManager] Added tab ${tabId} to management for ${conversationId}`);
-      
+
+      console.log(
+        `✅ [TabManager] Added tab ${tabId} to management for ${conversationId}`,
+      );
+
       return true;
     } catch (error) {
-      console.error(`❌ [TabManager] Error adding tab ${tabId} to management:`, error);
+      console.error(
+        `❌ [TabManager] Error adding tab ${tabId} to management:`,
+        error,
+      );
       return false;
     }
   }
@@ -407,31 +516,42 @@ export class TabManager {
   /**
    * Remove a tab from management (but don't close it)
    */
-  async removeTabFromManagement(tabId: number, conversationId: string): Promise<boolean> {
+  async removeTabFromManagement(
+    tabId: number,
+    conversationId: string,
+  ): Promise<boolean> {
     try {
       const session = this.sessions.get(conversationId);
       if (!session || !session.managedTabs.has(tabId)) {
         return true; // Already not managed
       }
-      
+
       // Remove from group if it's in one
       const managedTab = session.managedTabs.get(tabId);
       if (managedTab?.groupId && chrome.tabGroups) {
         try {
           await chrome.tabs.ungroup([tabId]);
         } catch (error) {
-          console.warn(`⚠️ [TabManager] Could not remove tab ${tabId} from group:`, error);
+          console.warn(
+            `⚠️ [TabManager] Could not remove tab ${tabId} from group:`,
+            error,
+          );
         }
       }
-      
+
       // Remove from tracking
       session.managedTabs.delete(tabId);
-      
-      console.log(`✅ [TabManager] Removed tab ${tabId} from management for ${conversationId}`);
-      
+
+      console.log(
+        `✅ [TabManager] Removed tab ${tabId} from management for ${conversationId}`,
+      );
+
       return true;
     } catch (error) {
-      console.error(`❌ [TabManager] Error removing tab ${tabId} from management:`, error);
+      console.error(
+        `❌ [TabManager] Error removing tab ${tabId} from management:`,
+        error,
+      );
       return false;
     }
   }
@@ -464,29 +584,32 @@ export class TabManager {
     return null;
   }
 
-
-
   /**
    * Find conversation ID by tab group ID (most accurate for managed tabs)
    */
   async findConversationByGroup(tabId: number): Promise<string | null> {
     // Check if tab groups API is available
     if (!chrome.tabGroups) {
-      console.log(`ℹ️ [TabManager] Tab groups API not available, skipping group detection for tab ${tabId}`);
+      console.log(
+        `ℹ️ [TabManager] Tab groups API not available, skipping group detection for tab ${tabId}`,
+      );
       return null;
     }
-    
+
     try {
       const tab = await chrome.tabs.get(tabId);
       if (!tab) {
         return null;
       }
-      
+
       // Check if tab is in a group (groupId may be -1 for no group)
-      if (tab.groupId === undefined || tab.groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) {
+      if (
+        tab.groupId === undefined ||
+        tab.groupId === chrome.tabGroups.TAB_GROUP_ID_NONE
+      ) {
         return null;
       }
-      
+
       const groupId = tab.groupId;
       for (const [conversationId, session] of this.sessions.entries()) {
         if (session.groupId === groupId) {
@@ -494,7 +617,10 @@ export class TabManager {
         }
       }
     } catch (error) {
-      console.warn(`⚠️ [TabManager] Error finding conversation by group for tab ${tabId}:`, error);
+      console.warn(
+        `⚠️ [TabManager] Error finding conversation by group for tab ${tabId}:`,
+        error,
+      );
     }
     return null;
   }
@@ -502,17 +628,20 @@ export class TabManager {
   /**
    * Update session status display
    */
-  updateSessionStatus(conversationId: string, status: 'active' | 'idle' | 'disconnected'): void {
+  updateSessionStatus(
+    conversationId: string,
+    status: 'active' | 'idle' | 'disconnected',
+  ): void {
     const session = this.sessions.get(conversationId);
     if (!session || session.status === status) return;
-    
+
     session.status = status;
     session.lastActivity = Date.now();
-    
+
     if (!session.groupId || !chrome.tabGroups) {
       return;
     }
-    
+
     // Update group title with status indicator
     let statusIndicator = '';
     switch (status) {
@@ -526,15 +655,18 @@ export class TabManager {
         statusIndicator = '🔴'; // Red circle for disconnected
         break;
     }
-    
+
     const groupName = this.generateGroupName(conversationId);
     const title = `${groupName} ${statusIndicator}`;
-    
+
     chrome.tabGroups.update(session.groupId, { title }).catch((error) => {
-      console.warn(`⚠️ [TabManager] Could not update group title for ${conversationId}:`, error);
+      console.warn(
+        `⚠️ [TabManager] Could not update group title for ${conversationId}:`,
+        error,
+      );
     });
   }
-  
+
   /**
    * Update global status (for backward compatibility)
    */
@@ -551,13 +683,13 @@ export class TabManager {
   updateTabActivity(tabId: number, conversationId: string): void {
     const session = this.sessions.get(conversationId);
     if (!session) return;
-    
+
     const managedTab = session.managedTabs.get(tabId);
     if (managedTab) {
       managedTab.lastActivity = Date.now();
       session.managedTabs.set(tabId, managedTab);
       session.lastActivity = Date.now();
-      
+
       // Update status to active
       this.updateSessionStatus(conversationId, 'active');
     }
@@ -566,29 +698,40 @@ export class TabManager {
   /**
    * Ensure a tab is managed (add to management if not already)
    */
-  async ensureTabManaged(tabId: number, conversationId: string): Promise<boolean> {
+  async ensureTabManaged(
+    tabId: number,
+    conversationId: string,
+  ): Promise<boolean> {
     if (this.isTabManaged(tabId, conversationId)) {
       return true;
     }
-    
+
     return await this.addTabToManagement(tabId, conversationId);
   }
 
   /**
    * Get or create a managed tab for the current active tab
    */
-  async getOrCreateManagedTabForCurrent(conversationId: string): Promise<ManagedTab | null> {
+  async getOrCreateManagedTabForCurrent(
+    conversationId: string,
+  ): Promise<ManagedTab | null> {
     try {
-      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const [activeTab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
       if (!activeTab?.id) {
         return null;
       }
-      
+
       await this.ensureTabManaged(activeTab.id, conversationId);
       const session = this.sessions.get(conversationId);
       return session?.managedTabs.get(activeTab.id) || null;
     } catch (error) {
-      console.error(`❌ [TabManager] Error getting/creating managed tab for current in ${conversationId}:`, error);
+      console.error(
+        `❌ [TabManager] Error getting/creating managed tab for current in ${conversationId}:`,
+        error,
+      );
       return null;
     }
   }
@@ -598,10 +741,12 @@ export class TabManager {
    */
   async cleanup(): Promise<void> {
     console.log('🧹 [TabManager] Cleaning up all sessions...');
-    
+
     const existingTabs = await chrome.tabs.query({});
-    const existingTabIds = new Set(existingTabs.map(tab => tab.id).filter(Boolean) as number[]);
-    
+    const existingTabIds = new Set(
+      existingTabs.map((tab) => tab.id).filter(Boolean) as number[],
+    );
+
     let totalCleaned = 0;
     for (const [conversationId, session] of this.sessions.entries()) {
       let cleanedCount = 0;
@@ -611,34 +756,38 @@ export class TabManager {
           cleanedCount++;
         }
       }
-      
+
       if (cleanedCount > 0) {
-        console.log(`✅ [TabManager] Cleaned up ${cleanedCount} closed tabs for ${conversationId}`);
+        console.log(
+          `✅ [TabManager] Cleaned up ${cleanedCount} closed tabs for ${conversationId}`,
+        );
       }
-      
+
       // If no managed tabs left, update status
       if (session.managedTabs.size === 0) {
         this.updateSessionStatus(conversationId, 'idle');
       }
-      
+
       totalCleaned += cleanedCount;
     }
-    
-    console.log(`✅ [TabManager] Total cleaned: ${totalCleaned} tabs across all sessions`);
+
+    console.log(
+      `✅ [TabManager] Total cleaned: ${totalCleaned} tabs across all sessions`,
+    );
   }
-  
+
   /**
    * Cleanup a specific session and close its tabs
    */
   async cleanupSession(conversationId: string): Promise<void> {
     console.log(`🧹 [TabManager] Cleaning up session ${conversationId}...`);
-    
+
     const session = this.sessions.get(conversationId);
     if (!session) {
       console.log(`⚠️ [TabManager] Session ${conversationId} not found`);
       return;
     }
-    
+
     // Close all managed tabs
     const tabIds = Array.from(session.managedTabs.keys());
     for (const tabId of tabIds) {
@@ -648,18 +797,23 @@ export class TabManager {
         console.warn(`⚠️ [TabManager] Could not close tab ${tabId}:`, error);
       }
     }
-    
+
     // Remove tab group if it exists
     if (session.groupId && chrome.tabGroups) {
       try {
         // Chrome tabGroups API doesn't have a remove method - group will be auto-removed when all tabs are closed
         // Alternatively, we could ungroup all tabs first, but closing tabs should be sufficient
-        console.log(`✅ [TabManager] Tab group ${session.groupId} will be auto-removed after closing all tabs for ${conversationId}`);
+        console.log(
+          `✅ [TabManager] Tab group ${session.groupId} will be auto-removed after closing all tabs for ${conversationId}`,
+        );
       } catch (error) {
-        console.warn(`⚠️ [TabManager] Could not remove group ${session.groupId}:`, error);
+        console.warn(
+          `⚠️ [TabManager] Could not remove group ${session.groupId}:`,
+          error,
+        );
       }
     }
-    
+
     // Remove session
     this.sessions.delete(conversationId);
     console.log(`✅ [TabManager] Session ${conversationId} cleaned up`);
@@ -674,19 +828,23 @@ export class TabManager {
       // Find which session this tab belongs to
       for (const [conversationId, session] of this.sessions.entries()) {
         if (session.managedTabs.has(tabId)) {
-          console.log(`🗑️ [TabManager] Managed tab ${tabId} was closed for ${conversationId}`);
-          
+          console.log(
+            `🗑️ [TabManager] Managed tab ${tabId} was closed for ${conversationId}`,
+          );
+
           // Check if this was the current active tab
           const wasActiveTab = session.currentActiveTabId === tabId;
-          
+
           session.managedTabs.delete(tabId);
-          
+
           // Clear active tab if it was the one closed
           if (wasActiveTab) {
             session.currentActiveTabId = null;
-            console.log(`🗑️ [TabManager] Active tab ${tabId} was closed, clearing active tab for ${conversationId}`);
+            console.log(
+              `🗑️ [TabManager] Active tab ${tabId} was closed, clearing active tab for ${conversationId}`,
+            );
           }
-          
+
           // Update status if no tabs left
           if (session.managedTabs.size === 0) {
             this.updateSessionStatus(conversationId, 'idle');
@@ -698,130 +856,153 @@ export class TabManager {
 
     // Listen for tab creation (new tabs opened from managed tabs)
     chrome.tabs.onCreated.addListener(async (tab) => {
-      console.log(`➕ [TabManager] Tab created: ${tab.id}, openerTabId: ${tab.openerTabId}, active: ${tab.active}, windowId: ${tab.windowId}`);
-      
+      console.log(
+        `➕ [TabManager] Tab created: ${tab.id}, openerTabId: ${tab.openerTabId}, active: ${tab.active}, windowId: ${tab.windowId}`,
+      );
+
       if (!tab.id) {
         console.log(`⚠️ [TabManager] Tab created without ID, skipping`);
         return;
       }
-      
+
       const tabId = tab.id;
       let conversationId: string | null = null;
       let detectionMethod = 'none';
-      
+
       // Method A: Try openerTabId first (most accurate for link clicks)
       if (tab.openerTabId) {
         conversationId = this.findConversationIdByTabId(tab.openerTabId);
         if (conversationId) {
           detectionMethod = 'openerTabId';
-          console.log(`➕ [TabManager] New tab ${tabId} opened from managed tab ${tab.openerTabId} in conversation ${conversationId} (via ${detectionMethod})`);
+          console.log(
+            `➕ [TabManager] New tab ${tabId} opened from managed tab ${tab.openerTabId} in conversation ${conversationId} (via ${detectionMethod})`,
+          );
         } else {
-          console.log(`ℹ️ [TabManager] New tab ${tabId} has openerTabId ${tab.openerTabId} but opener is not managed or no conversation found`);
+          console.log(
+            `ℹ️ [TabManager] New tab ${tabId} has openerTabId ${tab.openerTabId} but opener is not managed or no conversation found`,
+          );
         }
       }
-      
+
       // Method B: If openerTabId failed, try tab group detection (most accurate for managed tabs)
       if (!conversationId) {
         conversationId = await this.findConversationByGroup(tabId);
         if (conversationId) {
           detectionMethod = 'groupId';
-          console.log(`➕ [TabManager] New tab ${tabId} detected via tab group in conversation ${conversationId} (via ${detectionMethod})`);
+          console.log(
+            `➕ [TabManager] New tab ${tabId} detected via tab group in conversation ${conversationId} (via ${detectionMethod})`,
+          );
         }
       }
-      
 
-      
       // If we found a conversation, add to management and set as active
       if (conversationId) {
         await this.addTabToManagement(tabId, conversationId);
-        
+
         // Auto-switch to new tab when opened from a managed tab
         // This matches user expectation: clicking a link should go to the new page
         this.setCurrentActiveTabId(conversationId, tabId);
-        console.log(`🔄 [TabManager] Auto-switched to new tab ${tabId} in conversation ${conversationId} (detected via ${detectionMethod})`);
+        console.log(
+          `🔄 [TabManager] Auto-switched to new tab ${tabId} in conversation ${conversationId} (detected via ${detectionMethod})`,
+        );
       } else {
-        console.log(`ℹ️ [TabManager] New tab ${tabId} could not be associated with any conversation`);
+        console.log(
+          `ℹ️ [TabManager] New tab ${tabId} could not be associated with any conversation`,
+        );
       }
     });
-    
+
     // Listen for tab activation (when user switches tabs)
     chrome.tabs.onActivated.addListener(async (activeInfo) => {
       const { tabId, windowId } = activeInfo;
-      console.log(`🎯 [TabManager] Tab activated: ${tabId} in window ${windowId}`);
-      
+      console.log(
+        `🎯 [TabManager] Tab activated: ${tabId} in window ${windowId}`,
+      );
+
       // Method A: Try tab ID first (already managed)
       let conversationId = this.findConversationIdByTabId(tabId);
       let detectionMethod = conversationId ? 'tabId' : 'none';
-      
+
       // Method B: If not found by tab ID, try tab group detection
       if (!conversationId) {
         conversationId = await this.findConversationByGroup(tabId);
         if (conversationId) {
           detectionMethod = 'groupId';
-          console.log(`🎯 [TabManager] Activated tab ${tabId} not in managedTabs, but belongs to tab group in conversation ${conversationId}`);
-          
+          console.log(
+            `🎯 [TabManager] Activated tab ${tabId} not in managedTabs, but belongs to tab group in conversation ${conversationId}`,
+          );
+
           // Add this tab to management since it's in a managed group
           await this.addTabToManagement(tabId, conversationId);
-          console.log(`➕ [TabManager] Added activated tab ${tabId} to management via group detection`);
+          console.log(
+            `➕ [TabManager] Added activated tab ${tabId} to management via group detection`,
+          );
         }
       }
-      
 
-      
       if (conversationId) {
         // Update as active for its conversation
-        console.log(`🎯 [TabManager] Activated tab ${tabId} is managed, updating as active for conversation ${conversationId} (detected via ${detectionMethod})`);
+        console.log(
+          `🎯 [TabManager] Activated tab ${tabId} is managed, updating as active for conversation ${conversationId} (detected via ${detectionMethod})`,
+        );
         this.setCurrentActiveTabId(conversationId, tabId);
       } else {
-        console.log(`ℹ️ [TabManager] Activated tab ${tabId} is not managed and window ${windowId} has no managed conversation`);
+        console.log(
+          `ℹ️ [TabManager] Activated tab ${tabId} is not managed and window ${windowId} has no managed conversation`,
+        );
       }
     });
-    
+
     // Listen for tab updates (title changes, URL changes)
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, _tab) => {
       // Find which session this tab belongs to
       for (const [_conversationId, session] of this.sessions.entries()) {
         if (session.managedTabs.has(tabId)) {
           const managedTab = session.managedTabs.get(tabId)!;
-          
+
           // Update URL if changed
           if (changeInfo.url) {
             managedTab.url = changeInfo.url;
           }
-          
+
           // Update title if changed
           if (changeInfo.title) {
             managedTab.title = changeInfo.title;
           }
-          
+
           session.managedTabs.set(tabId, managedTab);
           break;
         }
       }
     });
-    
+
     // Listen for tab group updates
     if (chrome.tabGroups && chrome.tabGroups.onUpdated) {
       chrome.tabGroups.onUpdated.addListener((group) => {
         // Find which session this group belongs to
         for (const [conversationId, session] of this.sessions.entries()) {
           if (session.groupId === group.id) {
-            console.log(`📁 [TabManager] Tab group updated for ${conversationId}:`, group.title);
+            console.log(
+              `📁 [TabManager] Tab group updated for ${conversationId}:`,
+              group.title,
+            );
             break;
           }
         }
       });
     }
-    
+
     // Listen for tab group removal
     if (chrome.tabGroups && chrome.tabGroups.onRemoved) {
       chrome.tabGroups.onRemoved.addListener((group) => {
         // Find which session this group belongs to
         for (const [conversationId, session] of this.sessions.entries()) {
           if (session.groupId === group.id) {
-            console.log(`🗑️ [TabManager] Tab group was removed for ${conversationId}`);
+            console.log(
+              `🗑️ [TabManager] Tab group was removed for ${conversationId}`,
+            );
             session.groupId = null;
-            
+
             // Clear managed tabs that were in this group
             for (const [tabId, managedTab] of session.managedTabs.entries()) {
               if (managedTab.groupId === group.id) {
@@ -842,7 +1023,7 @@ export class TabManager {
     if (this.statusUpdateInterval) {
       clearInterval(this.statusUpdateInterval);
     }
-    
+
     // Update status every 30 seconds to handle idle timeouts
     this.statusUpdateInterval = setInterval(() => {
       this.checkIdleStatus();
@@ -855,13 +1036,13 @@ export class TabManager {
   private checkIdleStatus(): void {
     const now = Date.now();
     const idleThreshold = 60000; // 1 minute
-    
+
     // Check each session
     for (const [conversationId, session] of this.sessions.entries()) {
       if (session.status !== 'active' || session.managedTabs.size === 0) {
         continue;
       }
-      
+
       // Check if any tab has been active recently
       let isActive = false;
       for (const managedTab of session.managedTabs.values()) {
@@ -870,7 +1051,7 @@ export class TabManager {
           break;
         }
       }
-      
+
       if (!isActive) {
         this.updateSessionStatus(conversationId, 'idle');
       }
@@ -881,16 +1062,24 @@ export class TabManager {
    * Set current active tab for a conversation
    * @param notifyListeners Whether to notify tab switched listeners (default: true)
    */
-  setCurrentActiveTabId(conversationId: string, tabId: number, notifyListeners: boolean = true): void {
+  setCurrentActiveTabId(
+    conversationId: string,
+    tabId: number,
+    notifyListeners: boolean = true,
+  ): void {
     const session = this.sessions.get(conversationId);
     if (!session) {
-      console.warn(`⚠️ [TabManager] Cannot set active tab ${tabId}: session ${conversationId} not found`);
+      console.warn(
+        `⚠️ [TabManager] Cannot set active tab ${tabId}: session ${conversationId} not found`,
+      );
       return;
     }
 
     // Verify tab exists in managed tabs
     if (!session.managedTabs.has(tabId)) {
-      console.warn(`⚠️ [TabManager] Cannot set active tab ${tabId}: tab not managed in session ${conversationId}`);
+      console.warn(
+        `⚠️ [TabManager] Cannot set active tab ${tabId}: tab not managed in session ${conversationId}`,
+      );
       return;
     }
 
@@ -900,7 +1089,9 @@ export class TabManager {
     }
 
     session.currentActiveTabId = tabId;
-    console.log(`✅ [TabManager] Set active tab for ${conversationId}: ${tabId}`);
+    console.log(
+      `✅ [TabManager] Set active tab for ${conversationId}: ${tabId}`,
+    );
 
     // Notify listeners
     if (notifyListeners) {
@@ -919,7 +1110,10 @@ export class TabManager {
     }
 
     // If active tab is set and still exists, return it
-    if (session.currentActiveTabId && session.managedTabs.has(session.currentActiveTabId)) {
+    if (
+      session.currentActiveTabId &&
+      session.managedTabs.has(session.currentActiveTabId)
+    ) {
       return session.currentActiveTabId;
     }
 
@@ -940,7 +1134,7 @@ export class TabManager {
   getCurrentActiveTab(conversationId: string): ManagedTab | null {
     const tabId = this.getCurrentActiveTabId(conversationId);
     if (!tabId) return null;
-    
+
     const session = this.sessions.get(conversationId);
     return session?.managedTabs.get(tabId) || null;
   }
@@ -948,14 +1142,18 @@ export class TabManager {
   /**
    * Add listener for tab switched events
    */
-  addTabSwitchedListener(listener: (conversationId: string, tabId: number) => void): void {
+  addTabSwitchedListener(
+    listener: (conversationId: string, tabId: number) => void,
+  ): void {
     this.tabSwitchedListeners.push(listener);
   }
 
   /**
    * Remove listener for tab switched events
    */
-  removeTabSwitchedListener(listener: (conversationId: string, tabId: number) => void): void {
+  removeTabSwitchedListener(
+    listener: (conversationId: string, tabId: number) => void,
+  ): void {
     const index = this.tabSwitchedListeners.indexOf(listener);
     if (index > -1) {
       this.tabSwitchedListeners.splice(index, 1);
@@ -965,8 +1163,13 @@ export class TabManager {
   /**
    * Notify all tab switched listeners
    */
-  private notifyTabSwitchedListeners(conversationId: string, tabId: number): void {
-    console.log(`🔄 [TabManager] Notifying ${this.tabSwitchedListeners.length} listeners about tab switch: ${conversationId} -> ${tabId}`);
+  private notifyTabSwitchedListeners(
+    conversationId: string,
+    tabId: number,
+  ): void {
+    console.log(
+      `🔄 [TabManager] Notifying ${this.tabSwitchedListeners.length} listeners about tab switch: ${conversationId} -> ${tabId}`,
+    );
     for (const listener of this.tabSwitchedListeners) {
       try {
         listener(conversationId, tabId);
@@ -992,7 +1195,7 @@ export class TabManager {
       clearInterval(this.statusUpdateInterval);
       this.statusUpdateInterval = null;
     }
-    
+
     this.sessions.clear();
     console.log('🧹 [TabManager] Disposed');
   }

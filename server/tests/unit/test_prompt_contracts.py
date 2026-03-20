@@ -9,7 +9,6 @@ from openhands.sdk import TextContent
 
 from server.models.commands import HighlightElementsCommand
 
-
 TOOLS_DIR = Path(__file__).resolve().parents[2] / "agent" / "tools"
 AGENT_DIR = TOOLS_DIR.parent
 

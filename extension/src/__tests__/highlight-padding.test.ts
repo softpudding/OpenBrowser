@@ -1,14 +1,14 @@
 import { describe, test, expect } from 'bun:test';
 
 // Import constants from shared constants file (no Chrome API dependencies)
-import { 
-  LABEL_FONT_SIZE, 
-  LABEL_PADDING, 
-  LABEL_HEIGHT 
+import {
+  LABEL_FONT_SIZE,
+  LABEL_PADDING,
+  LABEL_HEIGHT,
 } from '../commands/label-constants';
-import { 
-  BASE_FONT_SIZE, 
-  BASE_LABEL_PADDING 
+import {
+  BASE_FONT_SIZE,
+  BASE_LABEL_PADDING,
 } from '../commands/visual-highlight';
 
 /**
@@ -55,7 +55,7 @@ describe('Padding Consistency', () => {
     test('label heights should match between collision and drawing', () => {
       const collisionLabelHeight = LABEL_FONT_SIZE + LABEL_PADDING * 2;
       const visualLabelHeight = BASE_FONT_SIZE + BASE_LABEL_PADDING * 2;
-      
+
       expect(collisionLabelHeight).toBe(visualLabelHeight);
       expect(collisionLabelHeight).toBe(26);
     });

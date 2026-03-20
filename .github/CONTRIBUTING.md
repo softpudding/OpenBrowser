@@ -67,10 +67,13 @@ When you open a Pull Request, the CLA Assistant bot will automatically check if 
 3. Install dependencies:
    ```bash
    # Python dependencies
-   uv sync
+   uv sync --extra dev
 
    # Extension dependencies
    cd extension && npm install && cd ..
+
+   # Install git hooks
+   uv run pre-commit install
    ```
 
 ## Development Setup
@@ -79,10 +82,13 @@ When you open a Pull Request, the CLA Assistant bot will automatically check if 
 
 ```bash
 # Install with dev dependencies
-uv sync --group dev
+uv sync --extra dev
 
 # Run the server
 uv run local-chrome-server serve
+
+# Run pre-commit checks
+uv run pre-commit run --all-files
 
 # Run tests
 uv run pytest
@@ -105,8 +111,17 @@ npm run dev
 # Production build
 npm run build
 
+# Format
+npm run format
+
+# Lint
+npm run lint
+
 # Type checking
 npm run typecheck
+
+# Tests
+npm test
 ```
 
 ## Pull Request Process
@@ -119,6 +134,7 @@ npm run typecheck
 2. **Make your changes** following our coding standards
 
 3. **Test your changes**:
+   - Run `uv run pre-commit run --all-files`
    - Run the test suite
    - Test manually if applicable
    - Check type errors
@@ -148,7 +164,7 @@ npm run typecheck
 - **Line length**: 88 characters (black/ruff)
 - **Target**: Python 3.12+
 - **Type hints**: Required (strict mypy)
-- **Formatting**: Use ruff for linting and formatting
+- **Formatting**: Use black for formatting and ruff for linting/import sorting
 - **Imports**: Sorted via ruff (isort compatible)
 
 ### TypeScript
@@ -157,6 +173,7 @@ npm run typecheck
 - **Strict mode**: Enabled
 - **Path alias**: Use `@/*` for `src/*`
 - **No type suppression**: Avoid `as any`, `@ts-ignore`, `@ts-expect-error`
+- **Formatting/Linting**: Use Prettier and ESLint before committing
 
 ### General
 

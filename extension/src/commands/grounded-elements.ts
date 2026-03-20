@@ -32,7 +32,7 @@ export async function extractGroundedElements(
   tabId: number,
   conversationId: string,
   maxElements: number = 100,
-  includeHidden: boolean = false
+  includeHidden: boolean = false,
 ): Promise<GroundedElementsResult> {
   // Ensure debugger is attached for the target tab
   await debuggerSessionManager.attachDebugger(tabId, conversationId);
@@ -117,21 +117,27 @@ export async function extractGroundedElements(
   const response: any = await cdp.sendCommand('Runtime.evaluate', {
     expression,
     returnByValue: true,
-    awaitPromise: true
+    awaitPromise: true,
   });
 
   // The result is returned as a serializable value when using returnByValue
-  const value = response?.result?.value ?? response?.result?.returnValue ?? undefined;
+  const value =
+    response?.result?.value ?? response?.result?.returnValue ?? undefined;
   if (value && typeof value === 'object') {
-    const elements: GroundedElement[] = (value.elements as GroundedElement[]) ?? [];
-    const pageInfo = (value.pageInfo as any) ?? { url: '', title: '', totalInteractive: 0 };
+    const elements: GroundedElement[] =
+      (value.elements as GroundedElement[]) ?? [];
+    const pageInfo = (value.pageInfo as any) ?? {
+      url: '',
+      title: '',
+      totalInteractive: 0,
+    };
     return {
       elements,
       pageInfo: {
         url: pageInfo.url ?? '',
         title: pageInfo.title ?? '',
-        totalInteractive: pageInfo.totalInteractive ?? 0
-      }
+        totalInteractive: pageInfo.totalInteractive ?? 0,
+      },
     };
   }
 
@@ -141,7 +147,7 @@ export async function extractGroundedElements(
     pageInfo: {
       url: '',
       title: '',
-      totalInteractive: 0
-    }
+      totalInteractive: 0,
+    },
   };
 }

@@ -35,6 +35,7 @@ from server.core.llm_config import llm_config_manager
 from server.core.model_profiles import is_small_model
 from server.core.process_manager import ProcessManager
 from server.core.session_manager import session_manager, SessionStatus
+
 logger = get_logger(__name__)
 
 
@@ -378,7 +379,9 @@ class OpenBrowserAgentManager:
         return self.conversations.get(conversation_id)
 
     def get_or_create_conversation(
-        self, conversation_id: str, cwd: str = ".",
+        self,
+        conversation_id: str,
+        cwd: str = ".",
         model: Optional[str] = None,
         base_url: Optional[str] = None,
         model_alias: Optional[str] = None,
@@ -390,7 +393,7 @@ class OpenBrowserAgentManager:
             cwd: Working directory for the conversation (default: current directory)
             model: Optional model name override (e.g., "dashscope/qwen3.5-plus")
             base_url: Optional base URL override
-            
+
         Returns:
             ConversationState
         """
@@ -410,7 +413,7 @@ class OpenBrowserAgentManager:
             session_model = existing_session.metadata.get("model")
             session_base_url = existing_session.metadata.get("base_url")
             session_model_alias = existing_session.metadata.get("model_alias")
-            
+
             # If model was not provided as parameter, use session model
             if model is None and session_model:
                 model = session_model
@@ -453,9 +456,7 @@ class OpenBrowserAgentManager:
         agent_context = AgentContext(current_datetime=datetime.now())
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
-        agent = Agent(
-            llm=llm_instance, tools=tools, agent_context=agent_context
-        )
+        agent = Agent(llm=llm_instance, tools=tools, agent_context=agent_context)
 
         # Create visualizer (queue will be set when processing messages)
         visualizer = QueueVisualizer()
@@ -608,9 +609,11 @@ class OpenBrowserAgentManager:
                     {
                         "status": session.status.value,
                         "message_count": session.message_count,
-                        "last_message_at": session.last_message_at.isoformat()
-                        if session.last_message_at
-                        else None,
+                        "last_message_at": (
+                            session.last_message_at.isoformat()
+                            if session.last_message_at
+                            else None
+                        ),
                         "working_directory": session.working_directory,
                         "tags": session.tags,
                         "first_user_message": session.first_user_message,
@@ -626,9 +629,11 @@ class OpenBrowserAgentManager:
                         "created_at": session.created_at.timestamp(),
                         "updated_at": session.updated_at.isoformat(),
                         "message_count": session.message_count,
-                        "last_message_at": session.last_message_at.isoformat()
-                        if session.last_message_at
-                        else None,
+                        "last_message_at": (
+                            session.last_message_at.isoformat()
+                            if session.last_message_at
+                            else None
+                        ),
                         "working_directory": session.working_directory,
                         "tags": session.tags,
                         "first_user_message": session.first_user_message,

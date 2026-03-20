@@ -363,13 +363,29 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Check for site-specific JS files (e.g., /techforum/js/, /gbr/js/, /cloudstack/js/)
-        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow", "finviz"]:
+        for site in [
+            "techforum",
+            "gbr",
+            "cloudstack",
+            "aliyun",
+            "zhihu",
+            "dataflow",
+            "finviz",
+        ]:
             if path.startswith(f"/{site}/js/") and path.endswith(".js"):
                 self.send_file(path, JS_MIMETYPE)
                 return
 
         # Check for site-specific CSS files
-        for site in ["techforum", "gbr", "cloudstack", "aliyun", "zhihu", "dataflow", "finviz"]:
+        for site in [
+            "techforum",
+            "gbr",
+            "cloudstack",
+            "aliyun",
+            "zhihu",
+            "dataflow",
+            "finviz",
+        ]:
             if path.startswith(f"/{site}/css/") and path.endswith(".css"):
                 self.send_file(path, CSS_MIMETYPE)
                 return

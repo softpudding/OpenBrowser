@@ -1,8 +1,8 @@
 /**
  * Debugger Session Manager
- * 
+ *
  * 会话级别的 Debugger 生命周期管理
- * 
+ *
  * 设计原则:
  * 1. 长连接优先：会话活跃期间保持 debugger attached
  * 2. 会话隔离：每个 conversation 有独立的 debugger 状态
@@ -28,7 +28,7 @@ export interface DebuggerTabState {
   tabId: number;
   attachedAt: number;
   lastUsedAt: number;
-  pendingCommands: number;  // 正在执行的命令数
+  pendingCommands: number; // 正在执行的命令数
 }
 
 // ============================================================================
@@ -51,16 +51,16 @@ const HEARTBEAT_INTERVAL = 30 * 1000;
 export class DebuggerSessionManager {
   // 会话存储：conversationId -> DebuggerSession
   private sessions: Map<string, DebuggerSession> = new Map();
-  
+
   // 快速查找：tabId -> conversationId
   private tabToSession: Map<number, string> = new Map();
-  
+
   // attach/detach 操作锁，防止并发问题
   private attachLocks: Map<number, Promise<boolean>> = new Map();
-  
+
   // 空闲检查定时器
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  
+
   // 全局初始化标记
   private initialized = false;
 
@@ -95,15 +95,17 @@ export class DebuggerSessionManager {
 
     // 启动心跳检查
     this.startHeartbeat();
-    
-    console.log('🔧 [DebuggerManager] Session-based debugger manager initialized');
+
+    console.log(
+      '🔧 [DebuggerManager] Session-based debugger manager initialized',
+    );
   }
 
   private startHeartbeat(): void {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
     }
-    
+
     this.heartbeatTimer = setInterval(() => {
       this.checkIdleSessions();
     }, HEARTBEAT_INTERVAL);
@@ -125,7 +127,9 @@ export class DebuggerSessionManager {
         lastActivity: Date.now(),
         status: 'idle',
       });
-      console.log(`🔧 [DebuggerManager] Created new session: ${conversationId}`);
+      console.log(
+        `🔧 [DebuggerManager] Created new session: ${conversationId}`,
+      );
     }
     return this.sessions.get(conversationId)!;
   }
@@ -156,15 +160,17 @@ export class DebuggerSessionManager {
   async cleanupSession(conversationId: string): Promise<void> {
     const session = this.sessions.get(conversationId);
     if (!session) {
-      console.log(`🔧 [DebuggerManager] Session ${conversationId} not found for cleanup`);
+      console.log(
+        `🔧 [DebuggerManager] Session ${conversationId} not found for cleanup`,
+      );
       return;
     }
 
     console.log(`🧹 [DebuggerManager] Cleaning up session: ${conversationId}`);
 
     // Detach 所有 tabs
-    const detachPromises = Array.from(session.attachedTabs.keys()).map(tabId =>
-      this.detachTab(tabId, 'session cleanup')
+    const detachPromises = Array.from(session.attachedTabs.keys()).map(
+      (tabId) => this.detachTab(tabId, 'session cleanup'),
     );
 
     await Promise.allSettled(detachPromises);
@@ -176,7 +182,7 @@ export class DebuggerSessionManager {
 
     // 删除会话
     this.sessions.delete(conversationId);
-    
+
     console.log(`✅ [DebuggerManager] Session ${conversationId} cleaned up`);
   }
 
@@ -186,12 +192,15 @@ export class DebuggerSessionManager {
 
   /**
    * 为会话中的 tab attach debugger（长连接模式）
-   * 
+   *
    * @param tabId 目标 tab
    * @param conversationId 会话 ID
    * @returns 是否成功 attach
    */
-  async attachDebugger(tabId: number, conversationId: string): Promise<boolean> {
+  async attachDebugger(
+    tabId: number,
+    conversationId: string,
+  ): Promise<boolean> {
     this.initialize();
 
     // 检查是否已经在某个会话中 attached
@@ -205,20 +214,26 @@ export class DebuggerSessionManager {
           if (tabState) {
             tabState.lastUsedAt = Date.now();
             this.touchSession(conversationId);
-            console.log(`🔧 [DebuggerManager] Tab ${tabId} already attached in session ${conversationId}`);
+            console.log(
+              `🔧 [DebuggerManager] Tab ${tabId} already attached in session ${conversationId}`,
+            );
             return true;
           }
         }
       } else {
         // 不同会话，先 detach 再 attach（应该不会发生，但防御性处理）
-        console.warn(`⚠️ [DebuggerManager] Tab ${tabId} attached in different session ${existingConversationId}, detaching...`);
+        console.warn(
+          `⚠️ [DebuggerManager] Tab ${tabId} attached in different session ${existingConversationId}, detaching...`,
+        );
         await this.detachTab(tabId, 'session switch');
       }
     }
 
     // 检查操作锁，防止并发 attach
     if (this.attachLocks.has(tabId)) {
-      console.log(`🔧 [DebuggerManager] Waiting for existing attach operation on tab ${tabId}...`);
+      console.log(
+        `🔧 [DebuggerManager] Waiting for existing attach operation on tab ${tabId}...`,
+      );
       return await this.attachLocks.get(tabId)!;
     }
 
@@ -234,7 +249,10 @@ export class DebuggerSessionManager {
     }
   }
 
-  private async doAttach(tabId: number, conversationId: string): Promise<boolean> {
+  private async doAttach(
+    tabId: number,
+    conversationId: string,
+  ): Promise<boolean> {
     // 获取或创建会话
     const session = this.getOrCreateSession(conversationId);
 
@@ -248,14 +266,21 @@ export class DebuggerSessionManager {
     try {
       const tab = await chrome.tabs.get(tabId);
       const url = tab.url || '';
-      
-      if (url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
-        console.error(`❌ [DebuggerManager] Cannot attach to restricted URL: ${url}`);
+
+      if (
+        url.startsWith('chrome://') ||
+        url.startsWith('chrome-extension://')
+      ) {
+        console.error(
+          `❌ [DebuggerManager] Cannot attach to restricted URL: ${url}`,
+        );
         return false;
       }
 
       if (tab.status !== 'complete') {
-        console.warn(`⚠️ [DebuggerManager] Tab ${tabId} is not fully loaded (status: ${tab.status})`);
+        console.warn(
+          `⚠️ [DebuggerManager] Tab ${tabId} is not fully loaded (status: ${tab.status})`,
+        );
       }
     } catch (error) {
       console.error(`❌ [DebuggerManager] Failed to get tab ${tabId}:`, error);
@@ -266,8 +291,10 @@ export class DebuggerSessionManager {
     return new Promise((resolve) => {
       chrome.debugger.attach({ tabId }, '1.3', () => {
         if (chrome.runtime.lastError) {
-          console.error(`❌ [DebuggerManager] Failed to attach debugger to tab ${tabId}:`, 
-            chrome.runtime.lastError.message);
+          console.error(
+            `❌ [DebuggerManager] Failed to attach debugger to tab ${tabId}:`,
+            chrome.runtime.lastError.message,
+          );
           resolve(false);
         } else {
           // 记录状态
@@ -280,8 +307,10 @@ export class DebuggerSessionManager {
           });
           this.tabToSession.set(tabId, conversationId);
           this.touchSession(conversationId);
-          
-          console.log(`✅ [DebuggerManager] Debugger attached to tab ${tabId} in session ${conversationId}`);
+
+          console.log(
+            `✅ [DebuggerManager] Debugger attached to tab ${tabId} in session ${conversationId}`,
+          );
           resolve(true);
         }
       });
@@ -307,7 +336,9 @@ export class DebuggerSessionManager {
 
     // 如果没有 attached，直接返回
     if (!tabState) {
-      console.log(`🔧 [DebuggerManager] Tab ${tabId} not attached, skip detach`);
+      console.log(
+        `🔧 [DebuggerManager] Tab ${tabId} not attached, skip detach`,
+      );
       return;
     }
 
@@ -316,10 +347,14 @@ export class DebuggerSessionManager {
       if (chrome.debugger?.detach) {
         chrome.debugger.detach({ tabId }, () => {
           if (chrome.runtime.lastError) {
-            console.warn(`⚠️ [DebuggerManager] Detach error for tab ${tabId}:`, 
-              chrome.runtime.lastError.message);
+            console.warn(
+              `⚠️ [DebuggerManager] Detach error for tab ${tabId}:`,
+              chrome.runtime.lastError.message,
+            );
           } else {
-            console.log(`✅ [DebuggerManager] Debugger detached from tab ${tabId} (reason: ${reason})`);
+            console.log(
+              `✅ [DebuggerManager] Debugger detached from tab ${tabId} (reason: ${reason})`,
+            );
           }
           resolve();
         });
@@ -356,7 +391,7 @@ export class DebuggerSessionManager {
     const conversationId = this.tabToSession.get(tabId);
     const session = conversationId ? this.sessions.get(conversationId) : null;
     const tabState = session?.attachedTabs.get(tabId);
-    
+
     if (tabState) {
       tabState.pendingCommands++;
       tabState.lastUsedAt = Date.now();
@@ -371,7 +406,7 @@ export class DebuggerSessionManager {
     const conversationId = this.tabToSession.get(tabId);
     const session = conversationId ? this.sessions.get(conversationId) : null;
     const tabState = session?.attachedTabs.get(tabId);
-    
+
     if (tabState && tabState.pendingCommands > 0) {
       tabState.pendingCommands--;
     }
@@ -386,15 +421,20 @@ export class DebuggerSessionManager {
    */
   private checkIdleSessions(): void {
     const now = Date.now();
-    
+
     for (const [conversationId, session] of this.sessions) {
       const sessionIdleTime = now - session.lastActivity;
-      
+
       // 会话空闲超过阈值，detach 所有 tabs
       if (sessionIdleTime > SESSION_IDLE_TIMEOUT) {
-        console.log(`⏰ [DebuggerManager] Session ${conversationId} idle for ${sessionIdleTime}ms, detaching all tabs`);
-        this.cleanupSession(conversationId).catch(err => {
-          console.error(`❌ [DebuggerManager] Failed to cleanup idle session ${conversationId}:`, err);
+        console.log(
+          `⏰ [DebuggerManager] Session ${conversationId} idle for ${sessionIdleTime}ms, detaching all tabs`,
+        );
+        this.cleanupSession(conversationId).catch((err) => {
+          console.error(
+            `❌ [DebuggerManager] Failed to cleanup idle session ${conversationId}:`,
+            err,
+          );
         });
         continue;
       }
@@ -403,14 +443,19 @@ export class DebuggerSessionManager {
       if (session.status === 'idle') {
         for (const [tabId, tabState] of session.attachedTabs) {
           const tabIdleTime = now - tabState.lastUsedAt;
-          
+
           // Tab 空闲且有未执行完的命令，跳过
           if (tabState.pendingCommands > 0) continue;
-          
+
           if (tabIdleTime > TAB_IDLE_TIMEOUT) {
-            console.log(`⏰ [DebuggerManager] Tab ${tabId} idle for ${tabIdleTime}ms in idle session, detaching`);
-            this.detachTab(tabId, 'tab idle').catch(err => {
-              console.error(`❌ [DebuggerManager] Failed to detach idle tab ${tabId}:`, err);
+            console.log(
+              `⏰ [DebuggerManager] Tab ${tabId} idle for ${tabIdleTime}ms in idle session, detaching`,
+            );
+            this.detachTab(tabId, 'tab idle').catch((err) => {
+              console.error(
+                `❌ [DebuggerManager] Failed to detach idle tab ${tabId}:`,
+                err,
+              );
             });
           }
         }
@@ -426,8 +471,10 @@ export class DebuggerSessionManager {
    * 处理强制 detach（用户手动关闭、页面崩溃等）
    */
   private handleForcedDetach(tabId: number, reason: string): void {
-    console.log(`⚠️ [DebuggerManager] Forced detach for tab ${tabId}: ${reason}`);
-    
+    console.log(
+      `⚠️ [DebuggerManager] Forced detach for tab ${tabId}: ${reason}`,
+    );
+
     const conversationId = this.tabToSession.get(tabId);
     const session = conversationId ? this.sessions.get(conversationId) : null;
 
@@ -450,9 +497,11 @@ export class DebuggerSessionManager {
 
     if (session) {
       session.attachedTabs.delete(tabId);
-      console.log(`🗑️ [DebuggerManager] Tab ${tabId} closed, removed from session ${conversationId}`);
+      console.log(
+        `🗑️ [DebuggerManager] Tab ${tabId} closed, removed from session ${conversationId}`,
+      );
     }
-    
+
     this.tabToSession.delete(tabId);
     rejectPendingCommands(tabId, 'Tab closed');
   }
@@ -474,12 +523,14 @@ export class DebuggerSessionManager {
       lastActivity: number;
     }>;
   } {
-    const sessionsDetail = Array.from(this.sessions.values()).map(session => ({
-      conversationId: session.conversationId,
-      attachedTabs: session.attachedTabs.size,
-      status: session.status,
-      lastActivity: session.lastActivity,
-    }));
+    const sessionsDetail = Array.from(this.sessions.values()).map(
+      (session) => ({
+        conversationId: session.conversationId,
+        attachedTabs: session.attachedTabs.size,
+        status: session.status,
+        lastActivity: session.lastActivity,
+      }),
+    );
 
     return {
       sessions: this.sessions.size,
@@ -515,4 +566,3 @@ export class DebuggerSessionManager {
 // ============================================================================
 
 export const debuggerSessionManager = new DebuggerSessionManager();
-

@@ -33,9 +33,11 @@ export class CdpCommander {
     retries: number = MAX_RETRIES,
   ): Promise<T> {
     const attempt = async (attemptNumber: number): Promise<T> => {
-      console.log(`🔧 [CDP] Sending command '${command}' (attempt ${attemptNumber}/${retries + 1})`, 
-                  Object.keys(params).length > 0 ? params : '');
-      
+      console.log(
+        `🔧 [CDP] Sending command '${command}' (attempt ${attemptNumber}/${retries + 1})`,
+        Object.keys(params).length > 0 ? params : '',
+      );
+
       return new Promise((resolve, reject) => {
         const pendingEntry = { reject, command };
 
@@ -67,12 +69,11 @@ export class CdpCommander {
             }
 
             if (chrome.runtime.lastError) {
-              const error = chrome.runtime.lastError.message || 'Unknown CDP error';
+              const error =
+                chrome.runtime.lastError.message || 'Unknown CDP error';
               console.error(`❌ [CDP] Command '${command}' failed:`, error);
               reject(
-                new Error(
-                  `Failed to send CDP command '${command}': ${error}`,
-                ),
+                new Error(`Failed to send CDP command '${command}': ${error}`),
               );
             } else {
               console.log(`✅ [CDP] Command '${command}' successful`);
@@ -84,36 +85,47 @@ export class CdpCommander {
     };
 
     let lastError: Error | null = null;
-    
+
     for (let i = 0; i <= retries; i++) {
       try {
         return await attempt(i + 1);
       } catch (error) {
         lastError = error as Error;
-        
+
         // Check if we should retry
         if (i < retries) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+
           // Only retry certain types of errors
-          const shouldRetry = errorMessage.includes('timed out') || 
-                            errorMessage.includes('failed to send') ||
-                            errorMessage.includes('background tab') ||
-                            !errorMessage.includes('invalid');
-          
+          const shouldRetry =
+            errorMessage.includes('timed out') ||
+            errorMessage.includes('failed to send') ||
+            errorMessage.includes('background tab') ||
+            !errorMessage.includes('invalid');
+
           if (shouldRetry) {
-            console.log(`🔄 [CDP] Retrying command '${command}' after ${RETRY_DELAY}ms (${i + 1}/${retries})`);
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (i + 1))); // Exponential backoff
+            console.log(
+              `🔄 [CDP] Retrying command '${command}' after ${RETRY_DELAY}ms (${i + 1}/${retries})`,
+            );
+            await new Promise((resolve) =>
+              setTimeout(resolve, RETRY_DELAY * (i + 1)),
+            ); // Exponential backoff
             continue;
           }
         }
-        
+
         // If we shouldn't retry or this was the last attempt, break
         break;
       }
     }
-    
+
     // If we get here, all retries failed
-    throw lastError || new Error(`Failed to execute CDP command '${command}' after ${retries + 1} attempts`);
+    throw (
+      lastError ||
+      new Error(
+        `Failed to execute CDP command '${command}' after ${retries + 1} attempts`,
+      )
+    );
   }
 }

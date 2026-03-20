@@ -60,7 +60,9 @@ class TestVisualInteractionContracts:
         with pytest.raises(ValidationError):
             ScrollElementCommand(scroll_amount=amount)
 
-    def test_keyboard_input_allows_empty_text_for_clear_style_interactions(self) -> None:
+    def test_keyboard_input_allows_empty_text_for_clear_style_interactions(
+        self,
+    ) -> None:
         command = KeyboardInputCommand(element_id="field123", text="")
 
         assert command.text == ""

@@ -63,9 +63,9 @@ def stream_task(
     url = f"{base_url}/agent/conversations/{conversation_id}/messages"
     req = Request(
         url,
-        data=json.dumps(
-            {"text": task, "cwd": cwd, "browser_id": chrome_uuid}
-        ).encode("utf-8"),
+        data=json.dumps({"text": task, "cwd": cwd, "browser_id": chrome_uuid}).encode(
+            "utf-8"
+        ),
         headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
         method="POST",
     )
@@ -143,11 +143,11 @@ def format_event(event_type: str, data: dict):
             completion_tokens = token_usage.get("completion_tokens", 0)
             reasoning_tokens = token_usage.get("reasoning_tokens", 0)
             total_tokens = token_usage.get("total_tokens", 0)
-            
+
             # 如果 total_tokens 不存在或为0，则计算总数
             if total_tokens == 0:
                 total_tokens = prompt_tokens + completion_tokens + reasoning_tokens
-            
+
             if total_tokens > 0:
                 token_details = f"   Tokens: {total_tokens:,} (prompt: {prompt_tokens:,}, completion: {completion_tokens:,}"
                 if reasoning_tokens > 0:
@@ -174,7 +174,11 @@ def format_event(event_type: str, data: dict):
 
         elif data_type == "ActionEvent":
             action = data.get("action", {})
-            action_name = action.get("action", "unknown") if isinstance(action, dict) else str(action)
+            action_name = (
+                action.get("action", "unknown")
+                if isinstance(action, dict)
+                else str(action)
+            )
             print(f"🔧 Action: {action_name}")
 
         elif data_type == "ObservationEvent":
@@ -195,9 +199,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python send_task.py \"Open example.com\" --chrome-uuid YOUR_BROWSER_UUID\n"
-            "  python send_task.py \"Fill out the form\" --cwd /path/to/workspace --chrome-uuid YOUR_BROWSER_UUID\n"
-            "  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python send_task.py \"Run in background\" --background --output /tmp/ob.log\n"
+            '  python send_task.py "Open example.com" --chrome-uuid YOUR_BROWSER_UUID\n'
+            '  python send_task.py "Fill out the form" --cwd /path/to/workspace --chrome-uuid YOUR_BROWSER_UUID\n'
+            '  OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID python send_task.py "Run in background" --background --output /tmp/ob.log\n'
             "  python send_task.py --check\n"
             "  python send_task.py --status <conversation_id>"
         ),
