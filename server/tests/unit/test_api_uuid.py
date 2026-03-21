@@ -277,7 +277,7 @@ class TestAgentMessageBrowserBinding:
             body = "".join(response.iter_text())
 
         assert response.status_code == 200
-        assert 'event: message' in body
+        assert "event: message" in body
         mock_process_agent_message.assert_called_once_with(
             "test-conversation", "hello from bound conversation", "."
         )

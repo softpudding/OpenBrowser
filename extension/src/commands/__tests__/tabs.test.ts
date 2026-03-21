@@ -21,7 +21,9 @@ describe('tabs history navigation', () => {
 
   test('goBack reports failure and skips navigation when there is no back history', async () => {
     const executeScript = (globalThis as any).chrome.scripting.executeScript;
-    executeScript.mockResolvedValueOnce([{ result: { length: 1, canGoBack: false, canGoForward: false } }]);
+    executeScript.mockResolvedValueOnce([
+      { result: { length: 1, canGoBack: false, canGoForward: false } },
+    ]);
 
     const result = await goBack(7);
 
@@ -32,7 +34,9 @@ describe('tabs history navigation', () => {
 
   test('goForward reports failure and skips navigation when there is no forward history', async () => {
     const executeScript = (globalThis as any).chrome.scripting.executeScript;
-    executeScript.mockResolvedValueOnce([{ result: { length: 2, canGoBack: true, canGoForward: false } }]);
+    executeScript.mockResolvedValueOnce([
+      { result: { length: 2, canGoBack: true, canGoForward: false } },
+    ]);
 
     const result = await goForward(7);
 

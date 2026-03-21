@@ -126,9 +126,7 @@ class TestBrowserExecutorTabActions:
         assert observation.success is True
         assert "back" in observation.message.lower()
 
-    def test_forward_action_is_executable_through_browser_executor(
-        self, monkeypatch
-    ):
+    def test_forward_action_is_executable_through_browser_executor(self, monkeypatch):
         executor = BrowserExecutor()
         executor.conversation_id = "tab-history-conv"
 

@@ -207,9 +207,11 @@ async function getTabHistoryInfo(
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       func: () => {
-        const nav = (window as typeof window & {
-          navigation?: { canGoForward?: boolean };
-        }).navigation;
+        const nav = (
+          window as typeof window & {
+            navigation?: { canGoForward?: boolean };
+          }
+        ).navigation;
         return {
           length: window.history.length,
           canGoBack: window.history.length > 1,

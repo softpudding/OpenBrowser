@@ -49,9 +49,12 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
 
     assert "## Core Rules" in description
     assert 'Prefer `element_type: "any"` first.' in description
-    assert 'icon-only toolbar or header control' in description
+    assert "icon-only toolbar or header control" in description
     assert 'use `element_type: "clickable"` only as a targeted fallback' in description
-    assert 'Do not use `keywords` such as `"settings"`, `"gear"`, or `"bell"`' in description
+    assert (
+        'Do not use `keywords` such as `"settings"`, `"gear"`, or `"bell"`'
+        in description
+    )
     assert "Phase 1: Precise Search" not in description
     assert "Collision-Aware Pagination" not in description
 
@@ -74,5 +77,11 @@ def test_large_model_highlight_prompt_keeps_detailed_search_and_pagination_guida
     assert "Phase 1: Precise Search" in description
     assert "Phase 2: Broad Search" in description
     assert "icon-only controls" in description
-    assert 'Prefer `element_type: "clickable"` for buttons, links, tabs, and icon-only controls' in description
-    assert 'DO NOT search for unlabeled toolbar icons with guessed words like "settings", "gear", "bell", or "chat"' in description
+    assert (
+        'Prefer `element_type: "clickable"` for buttons, links, tabs, and icon-only controls'
+        in description
+    )
+    assert (
+        'DO NOT search for unlabeled toolbar icons with guessed words like "settings", "gear", "bell", or "chat"'
+        in description
+    )

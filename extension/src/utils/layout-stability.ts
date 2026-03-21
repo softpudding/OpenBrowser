@@ -27,16 +27,15 @@ export function didLayoutStabilityMetricsChange(
     previous.scrollHeight !== current.scrollHeight ||
     previous.pendingImages !== current.pendingImages ||
     previous.viewportMediaCount !== current.viewportMediaCount ||
-    previous.completeViewportMediaCount !== current.completeViewportMediaCount ||
+    previous.completeViewportMediaCount !==
+      current.completeViewportMediaCount ||
     previous.textBlockCount !== current.textBlockCount ||
     previous.textCharCount !== current.textCharCount ||
     previous.visibleClickableCount !== current.visibleClickableCount
   );
 }
 
-export function getLayoutContentScore(
-  metrics: LayoutStabilityMetrics,
-): number {
+export function getLayoutContentScore(metrics: LayoutStabilityMetrics): number {
   let score = 0;
 
   if (metrics.completeViewportMediaCount >= 2) {

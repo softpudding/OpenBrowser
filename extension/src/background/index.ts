@@ -44,9 +44,7 @@ import {
   calculateTotalPages,
 } from '../utils/collision-detection';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
-import {
-  buildLayoutStabilityHelpersScript,
-} from '../utils/layout-stability';
+import { buildLayoutStabilityHelpersScript } from '../utils/layout-stability';
 import {
   HIGHLIGHT_CONSISTENCY_CONFIG,
   evaluateHighlightConsistency,
@@ -2322,7 +2320,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             `⏱️ [HighlightTrace] background consistency-check ${Date.now() - consistencyCheckStart}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
           );
 
-          if (highlightConsistency.shouldRetry && attempt < maxHighlightAttempts) {
+          if (
+            highlightConsistency.shouldRetry &&
+            attempt < maxHighlightAttempts
+          ) {
             console.warn(
               `⚠️ [HighlightElements] Layout drift detected after screenshot, retrying (attempt ${attempt}/${maxHighlightAttempts})`,
             );
@@ -2389,7 +2390,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               page: currentPage,
               screenshot: compressedScreenshot,
               ...(screenshotResult?.dialog_auto_accepted
-                ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted }
+                ? {
+                    dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
+                  }
                 : {}),
               ...(screenshotResult?.dialog_auto_accepted_list
                 ? {

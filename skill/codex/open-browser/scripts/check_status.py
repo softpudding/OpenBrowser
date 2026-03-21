@@ -69,7 +69,9 @@ def main() -> int:
         default="http://127.0.0.1:8765",
         help="OpenBrowser server URL",
     )
-    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    parser.add_argument(
+        "--json", action="store_true", help="Print machine-readable JSON"
+    )
     parser.add_argument(
         "--chrome-uuid",
         default=os.environ.get("OPENBROWSER_CHROME_UUID"),
@@ -110,9 +112,7 @@ def main() -> int:
         count = results["extension"].get("connections", 0)
         print(f"[OK] Extension connected ({count} websocket connection(s))")
     else:
-        print(
-            f"[FAIL] Extension: {results['extension'].get('error', 'not connected')}"
-        )
+        print(f"[FAIL] Extension: {results['extension'].get('error', 'not connected')}")
 
     if results["llm_config"].get("configured", False):
         model = results["llm_config"].get("model", "unknown")
@@ -127,7 +127,9 @@ def main() -> int:
         if browser_uuid.get("valid", False):
             print("[OK] Browser UUID is valid and registered")
         else:
-            error = browser_uuid.get("error") or browser_uuid.get("message") or "invalid"
+            error = (
+                browser_uuid.get("error") or browser_uuid.get("message") or "invalid"
+            )
             print(f"[FAIL] Browser UUID: {error}")
 
     if ready:

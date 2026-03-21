@@ -915,7 +915,9 @@ export async function compressIfNeeded(
     let bestCompressedDataUrl: string | null = null;
 
     // Try progressively smaller sizes until under threshold
-    const scaleSteps = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1];
+    const scaleSteps = [
+      0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1,
+    ];
     const qualitySteps = Array.from(
       new Set([80, 70, 60, 50, 40, 30, 20, 10, minQuality]),
     )

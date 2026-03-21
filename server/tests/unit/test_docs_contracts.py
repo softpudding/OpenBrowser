@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 AGENTS_DOC = REPO_ROOT / "AGENTS.md"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
