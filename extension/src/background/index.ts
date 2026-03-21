@@ -43,6 +43,7 @@ import {
   selectCollisionFreePage,
   calculateTotalPages,
 } from '../utils/collision-detection';
+import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
 import type { Command, CommandResponse, InteractiveElement } from '../types';
 console.log('🚀 OpenBrowser extension starting (Strict Mode)...');
 
@@ -890,12 +891,14 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 `↩️ [Tab ${command.action}] Using provided tab_id ${targetTabId}`,
               );
             } else {
-              targetTabId = tabManager.getCurrentActiveTabId(conversationId);
-              if (!targetTabId) {
+              const activeTabId =
+                tabManager.getCurrentActiveTabId(conversationId);
+              if (!activeTabId) {
                 throw new Error(
                   `No active tab found for conversation ${conversationId}. Use tab init first or specify tab_id.`,
                 );
               }
+              targetTabId = activeTabId;
               console.log(
                 `↩️ [Tab ${command.action}] Using current active tab ${targetTabId}`,
               );
@@ -1359,6 +1362,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         const detectionScript = `
           (function() {
             const elementType = "${elementType}";
+            ${buildHitTestVisibilityHelpersScript()}
             
             function isVisible(el) {
               const style = window.getComputedStyle(el);
@@ -1660,10 +1664,13 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             const counts = { clickable: 0, scrollable: 0, inputable: 0, hoverable: 0, selectable: 0 };
             const elements = [];
             const allElements = Array.from(document.querySelectorAll('*'));
+            const activeTopLayerRoot = getActiveTopLayerRoot();
             
             for (const el of allElements) {
               if (!isVisible(el)) continue;
               if (!isInViewport(el)) continue;
+              if (!isElementInActiveTopLayer(el, activeTopLayerRoot)) continue;
+              if (!getElementHitTestVisibility(el).visible) continue;
               
               let type = null;
               if (elementType === 'any') {
