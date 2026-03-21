@@ -44,6 +44,14 @@ import {
   calculateTotalPages,
 } from '../utils/collision-detection';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
+import {
+  buildLayoutStabilityHelpersScript,
+} from '../utils/layout-stability';
+import {
+  HIGHLIGHT_CONSISTENCY_CONFIG,
+  evaluateHighlightConsistency,
+} from '../utils/highlight-consistency';
+import { HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS } from '../utils/highlight-screenshot';
 import type { Command, CommandResponse, InteractiveElement } from '../types';
 console.log('🚀 OpenBrowser extension starting (Strict Mode)...');
 
@@ -63,6 +71,52 @@ async function compressScreenshotResult<T extends { imageData?: string }>(
   );
 
   return (compressedResult as T | null | undefined) ?? screenshotResult;
+}
+
+function buildHighlightConsistencyScript(
+  elements: InteractiveElement[],
+): string {
+  const samples = elements
+    .slice(0, HIGHLIGHT_CONSISTENCY_CONFIG.maxSampleSize)
+    .map((element) => ({
+      id: element.id,
+      selector: element.selector,
+      bbox: element.bbox,
+    }));
+
+  return `
+    (() => {
+      const samples = ${JSON.stringify(samples)};
+
+      function getBBox(el) {
+        const rect = el.getBoundingClientRect();
+        return {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        };
+      }
+
+      return {
+        samples: samples.flatMap((sample) => {
+          try {
+            const el = document.querySelector(sample.selector);
+            if (!el) {
+              return [];
+            }
+
+            return [{
+              id: sample.id,
+              bbox: getBBox(el),
+            }];
+          } catch (error) {
+            return [];
+          }
+        }),
+      };
+    })();
+  `;
 }
 
 // ============================================================================
@@ -1392,9 +1446,190 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         // Build script to detect elements IN PAGE CONTEXT
         const detectionScript = `
-          (function() {
+          (async function() {
             const elementType = "${elementType}";
             ${buildHitTestVisibilityHelpersScript()}
+            ${buildLayoutStabilityHelpersScript()}
+            const traceStart = performance.now();
+
+            function trace(stage, details) {
+              const elapsed = Math.round(performance.now() - traceStart);
+              const suffix = details ? ' ' + details : '';
+              console.log('[HighlightTrace] ' + stage + ' +' + elapsed + 'ms' + suffix);
+            }
+
+            async function waitForLayoutStability() {
+              const startTime = performance.now();
+
+              function isRectInViewport(rect) {
+                return rect.width > 0 &&
+                       rect.height > 0 &&
+                       rect.top < window.innerHeight &&
+                       rect.bottom > 0 &&
+                       rect.left < window.innerWidth &&
+                       rect.right > 0;
+              }
+
+              function countPendingViewportImages() {
+                return Array.from(document.images).filter((img) => {
+                  const rect = img.getBoundingClientRect();
+                  return isRectInViewport(rect) && !img.complete;
+                }).length;
+              }
+
+              function countViewportMedia() {
+                const mediaElements = Array.from(
+                  document.querySelectorAll('img, video, canvas'),
+                );
+                let total = 0;
+                let complete = 0;
+
+                for (const media of mediaElements) {
+                  const rect = media.getBoundingClientRect();
+                  if (!isRectInViewport(rect)) {
+                    continue;
+                  }
+
+                  total++;
+
+                  if (
+                    media.tagName === 'IMG' &&
+                    'complete' in media &&
+                    media.complete
+                  ) {
+                    complete++;
+                    continue;
+                  }
+
+                  if (
+                    media.tagName === 'VIDEO' &&
+                    media.readyState >= 2
+                  ) {
+                    complete++;
+                    continue;
+                  }
+
+                  if (media.tagName === 'CANVAS') {
+                    complete++;
+                  }
+                }
+
+                return { total, complete };
+              }
+
+              function countVisibleClickableCandidates() {
+                const clickableCandidates = document.querySelectorAll(
+                  'a, button, [role="button"], input[type="button"], input[type="submit"], input[type="checkbox"], input[type="radio"]',
+                );
+                let count = 0;
+
+                for (const candidate of clickableCandidates) {
+                  const rect = candidate.getBoundingClientRect();
+                  if (
+                    rect.width <= 0 ||
+                    rect.height <= 0 ||
+                    !isRectInViewport(rect)
+                  ) {
+                    continue;
+                  }
+
+                  if (!isVisible(candidate)) {
+                    continue;
+                  }
+
+                  count++;
+
+                  if (count >= 24) {
+                    break;
+                  }
+                }
+
+                return count;
+              }
+
+              function collectViewportTextMetrics() {
+                const textCandidates = document.querySelectorAll(
+                  'h1, h2, h3, h4, p, span, a, button, li',
+                );
+                let textBlockCount = 0;
+                let textCharCount = 0;
+
+                for (const candidate of textCandidates) {
+                  const rect = candidate.getBoundingClientRect();
+                  if (
+                    rect.width <= 0 ||
+                    rect.height <= 0 ||
+                    !isRectInViewport(rect)
+                  ) {
+                    continue;
+                  }
+
+                  if (!isVisible(candidate)) {
+                    continue;
+                  }
+
+                  const text = (candidate.textContent || '')
+                    .replace(/\\s+/g, ' ')
+                    .trim();
+
+                  if (text.length < 8) {
+                    continue;
+                  }
+
+                  textBlockCount++;
+                  textCharCount += Math.min(text.length, 120);
+
+                  if (textBlockCount >= 24 || textCharCount >= 800) {
+                    break;
+                  }
+                }
+
+                return { textBlockCount, textCharCount };
+              }
+
+              function getPageMetrics() {
+                const viewportMedia = countViewportMedia();
+                const viewportText = collectViewportTextMetrics();
+                return {
+                  bodyHeight: Math.round(document.body?.getBoundingClientRect().height || 0),
+                  scrollHeight: Math.round(document.documentElement?.scrollHeight || 0),
+                  pendingImages: countPendingViewportImages(),
+                  viewportMediaCount: viewportMedia.total,
+                  completeViewportMediaCount: viewportMedia.complete,
+                  textBlockCount: viewportText.textBlockCount,
+                  textCharCount: viewportText.textCharCount,
+                  visibleClickableCount: countVisibleClickableCandidates(),
+                };
+              }
+
+              const finalMetrics = getPageMetrics();
+              const pageReady = document.readyState === 'complete';
+              const viewportImagesReady = finalMetrics.pendingImages === 0;
+              const meaningfulContent =
+                hasMeaningfulViewportContent(finalMetrics);
+              const contentScore = getLayoutContentScore(finalMetrics);
+              const stabilized =
+                pageReady && viewportImagesReady && meaningfulContent;
+
+              return {
+                stabilized,
+                waitedMs: Math.round(performance.now() - startTime),
+                quietForMs: stabilized ? layoutStabilityConfig.quietWindowMs : 0,
+                meaningfulContent,
+                contentScore,
+                pendingViewportImages: finalMetrics.pendingImages,
+                bodyHeight: finalMetrics.bodyHeight,
+                scrollHeight: finalMetrics.scrollHeight,
+                viewportMediaCount: finalMetrics.viewportMediaCount,
+                completeViewportMediaCount: finalMetrics.completeViewportMediaCount,
+                textBlockCount: finalMetrics.textBlockCount,
+                textCharCount: finalMetrics.textCharCount,
+                visibleClickableCount: finalMetrics.visibleClickableCount,
+                pageReady,
+              };
+            }
+
+            trace('start', 'elementType=' + elementType);
             
             function isVisible(el) {
               const style = window.getComputedStyle(el);
@@ -1593,44 +1828,74 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             // Check if element contains any clickable children (depth 2)
             // Only check for explicit interactive elements, not cursor: pointer (which may be inherited)
             function hasClickableChildren(el) {
-              const children = el.children;
-              
-              for (let i = 0; i < children.length; i++) {
-                const child = children[i];
-                const childTag = child.tagName.toLowerCase();
-                
-                // Only check for explicit interactive elements
-                if (childTag === 'button' || childTag === 'a' || 
-                    childTag === 'input' || childTag === 'select' || childTag === 'textarea') {
+              const interactiveDescendants = [];
+
+              function isExplicitInteractiveElement(node) {
+                const nodeTag = node.tagName.toLowerCase();
+                if (nodeTag === 'button' || nodeTag === 'a' || nodeTag === 'select' || nodeTag === 'textarea') {
                   return true;
                 }
-                
-                // Check for explicit click attributes (not inherited cursor)
-                if (child.getAttribute('role') === 'button' || 
-                    child.hasAttribute('onclick') || 
-                    child.hasAttribute('ng-click') || 
-                    child.hasAttribute('@click')) {
+
+                if (nodeTag === 'input') {
                   return true;
                 }
-                
-                // Check grandchildren (depth 2) - only explicit interactive elements
-                const grandchildren = child.children;
-                for (let j = 0; j < grandchildren.length; j++) {
-                  const grandchild = grandchildren[j];
-                  const gcTag = grandchild.tagName.toLowerCase();
-                  if (gcTag === 'button' || gcTag === 'a') {
-                    return true;
+
+                if (node.getAttribute('role') === 'button') {
+                  return true;
+                }
+
+                if (
+                  node.hasAttribute('onclick') ||
+                  node.hasAttribute('ng-click') ||
+                  node.hasAttribute('@click')
+                ) {
+                  return true;
+                }
+
+                return false;
+              }
+
+              function collectInteractiveDescendants(node, depth) {
+                if (depth > 3) return;
+
+                const children = node.children;
+                for (let i = 0; i < children.length; i++) {
+                  const child = children[i];
+                  const childRect = child.getBoundingClientRect();
+                  if (childRect.width <= 0 || childRect.height <= 0) {
+                    continue;
                   }
-                  
-                  if (grandchild.getAttribute('role') === 'button' || 
-                      grandchild.hasAttribute('onclick') || 
-                      grandchild.hasAttribute('ng-click') || 
-                      grandchild.hasAttribute('@click')) {
-                    return true;
+                  if (!isVisible(child)) {
+                    continue;
                   }
+                  if (!getElementHitTestVisibility(child).visible) {
+                    continue;
+                  }
+                  if (isExplicitInteractiveElement(child)) {
+                    interactiveDescendants.push(child);
+                    continue;
+                  }
+                  collectInteractiveDescendants(child, depth + 1);
                 }
               }
-              
+
+              collectInteractiveDescendants(el, 1);
+
+              if (interactiveDescendants.length >= 2) {
+                return true;
+              }
+
+              if (interactiveDescendants.length === 1) {
+                const parentRect = el.getBoundingClientRect();
+                const childRect = interactiveDescendants[0].getBoundingClientRect();
+                const parentArea = parentRect.width * parentRect.height;
+                const childArea = childRect.width * childRect.height;
+
+                if (parentArea > 0 && childArea / parentArea >= 0.6) {
+                  return true;
+                }
+              }
+
               return false;
             }
             
@@ -1693,12 +1958,31 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               return false;
             }
 
+            trace('layoutStability:start');
+            const layoutStability = await waitForLayoutStability();
+            trace(
+              'layoutStability:end',
+              'stabilized=' + layoutStability.stabilized +
+                ' waitedMs=' + layoutStability.waitedMs +
+                ' pendingImages=' + layoutStability.pendingViewportImages,
+            );
             const counts = { clickable: 0, scrollable: 0, inputable: 0, hoverable: 0, selectable: 0 };
             const elements = [];
+            trace('querySelectorAll:start');
             const allElements = Array.from(document.querySelectorAll('*'));
+            trace('querySelectorAll:end', 'count=' + allElements.length);
             const activeTopLayerRoot = getActiveTopLayerRoot();
+            trace('scan:start');
+            let scannedCount = 0;
             
             for (const el of allElements) {
+              scannedCount++;
+              if (scannedCount % 1000 === 0) {
+                trace(
+                  'scan:progress',
+                  'processed=' + scannedCount + ' matched=' + elements.length,
+                );
+              }
               if (!isVisible(el)) continue;
               if (!isInViewport(el)) continue;
               if (!isElementInActiveTopLayer(el, activeTopLayerRoot)) continue;
@@ -1736,8 +2020,15 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 }
               }
             }
+            trace(
+              'scan:end',
+              'processed=' + scannedCount +
+                ' matched=' + elements.length +
+                ' counts=' + JSON.stringify(counts),
+            );
             
             // Smart sorting: prioritize action buttons over large containers
+            trace('sort:start', 'count=' + elements.length);
             elements.sort((a, b) => {
               function getPriority(el) {
                 const tag = el.tagName.toLowerCase();
@@ -1765,8 +2056,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               }
               return getPriority(b) - getPriority(a);
             });
+            trace('sort:end', 'count=' + elements.length);
             
             // Deduplicate: Remove larger elements that mostly contain smaller elements
+            trace('dedupe:start', 'count=' + elements.length);
             const deduplicated = [];
             const SKIP_OVERLAP_RATIO = 0.6; // If smaller element overlaps >60% with larger, skip larger
             
@@ -1799,171 +2092,319 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 deduplicated.push(larger);
               }
             }
+            trace(
+              'dedupe:end',
+              'before=' + elements.length + ' after=' + deduplicated.length,
+            );
             
             
-            return { elements: deduplicated, counts };
+            trace(
+              'return',
+              'elements=' + deduplicated.length + ' totalElapsed=' + Math.round(performance.now() - traceStart) + 'ms',
+            );
+            return {
+              elements: deduplicated,
+              counts,
+              layoutStability,
+              viewport: {
+                width: window.innerWidth,
+                height: window.innerHeight
+              }
+            };
           })();
         `;
 
-        // Execute detection script in page context
-        const detectionResult = await javascript.executeJavaScript(
-          activeTabId,
-          conversationId,
-          detectionScript,
-          true, // returnByValue
-          false, // awaitPromise
-          5000, // timeout
-        );
+        const maxHighlightAttempts = 3;
 
-        if (!detectionResult.success || !detectionResult.result?.value) {
+        for (let attempt = 1; attempt <= maxHighlightAttempts; attempt++) {
+          console.log(
+            `🔁 [HighlightElements] Attempt ${attempt}/${maxHighlightAttempts}`,
+          );
+
+          // Execute detection script in page context
+          const detectionResult = await javascript.executeJavaScript(
+            activeTabId,
+            conversationId,
+            detectionScript,
+            true, // returnByValue
+            true, // awaitPromise
+            12000, // timeout
+          );
+
+          if (!detectionResult.success || !detectionResult.result?.value) {
+            return {
+              success: false,
+              error: detectionResult.error || 'Failed to detect elements',
+              timestamp: Date.now(),
+            };
+          }
+
+          const allElements = detectionResult.result.value.elements || [];
+          const detectedViewport = detectionResult.result.value.viewport || {};
+          const layoutStability = detectionResult.result.value.layoutStability;
+          const highlightTraceStart = Date.now();
+          const detectedViewportWidth =
+            typeof detectedViewport.width === 'number'
+              ? detectedViewport.width
+              : 0;
+          const detectedViewportHeight =
+            typeof detectedViewport.height === 'number'
+              ? detectedViewport.height
+              : 0;
+          if (layoutStability) {
+            console.log(
+              `⏳ [HighlightElements] Layout stability: ${JSON.stringify(layoutStability)}`,
+            );
+          }
+
+          if (
+            layoutStability &&
+            !layoutStability.stabilized &&
+            attempt < maxHighlightAttempts
+          ) {
+            const retryDelayMs = 250 * attempt;
+            console.warn(
+              `⚠️ [HighlightElements] Quick stability check says page is still settling, retrying in ${retryDelayMs}ms (attempt ${attempt}/${maxHighlightAttempts})`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+            continue;
+          }
+
+          // Process keywords if provided (keywords list)
+          const keywordFilterStart = Date.now();
+          let keywordList: string[] = [];
+          if (keywords && keywords.length > 0) {
+            keywordList = keywords
+              .map((k) => k.trim().toLowerCase())
+              .filter((k) => k.length > 0);
+          }
+
+          // Filter by keywords if keyword list is not empty
+          let filteredElements = allElements;
+          if (keywordList.length > 0) {
+            filteredElements = allElements.filter((el: InteractiveElement) => {
+              if (!el.html) return false;
+              const htmlLower = el.html.toLowerCase();
+              // Match if ANY keyword is found (OR logic)
+              return keywordList.some((keyword) => htmlLower.includes(keyword));
+            });
+            console.log(
+              `🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${filteredElements.length} of ${allElements.length} elements`,
+            );
+          }
+          console.log(
+            `⏱️ [HighlightTrace] background keyword-filter ${Date.now() - keywordFilterStart}ms (keywords=${keywordList.length}, kept=${filteredElements.length}/${allElements.length})`,
+          );
+
+          // Generate hash IDs for filtered elements (collision-free, content-aware)
+          const hashStart = Date.now();
+          const existingHashes = new Set<string>();
+          for (const element of filteredElements) {
+            const { id } = generateElementId(
+              element.type,
+              element.selector,
+              existingHashes,
+              element.html,
+            );
+            element.id = id;
+            existingHashes.add(id);
+          }
+          console.log(
+            `⏱️ [HighlightTrace] background hash-ids ${Date.now() - hashStart}ms (count=${filteredElements.length})`,
+          );
+
+          let paginatedElements: InteractiveElement[];
+          let totalPages: number;
+          let currentPage = page;
+
+          if (keywordList.length > 0) {
+            // Keyword mode: return all matching elements, no pagination
+            paginatedElements = filteredElements;
+            totalPages = 1;
+            currentPage = 1;
+            console.log(
+              `🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${paginatedElements.length} elements (no pagination)`,
+            );
+          } else {
+            // Normal collision-aware pagination
+            const paginationSelectionStart = Date.now();
+            paginatedElements = selectCollisionFreePage(
+              filteredElements,
+              page,
+              detectedViewportWidth,
+              detectedViewportHeight,
+            );
+            const paginationSelectionMs = Date.now() - paginationSelectionStart;
+            const totalPagesStart = Date.now();
+            totalPages = calculateTotalPages(
+              filteredElements,
+              detectedViewportWidth,
+              detectedViewportHeight,
+            );
+            const totalPagesMs = Date.now() - totalPagesStart;
+            console.log(
+              `📄 [HighlightElements] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`,
+            );
+            console.log(
+              `⏱️ [HighlightTrace] background pagination select=${paginationSelectionMs}ms totalPages=${totalPagesMs}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
+            );
+          }
+
+          // Capture screenshot
+          const screenshotStart = Date.now();
+          const screenshotResult = await captureScreenshot(
+            activeTabId,
+            conversationId,
+            true,
+            70,
+            false,
+            0,
+            HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
+          );
+
+          // Validate screenshot result
+          if (!screenshotResult?.success || !screenshotResult?.imageData) {
+            return {
+              success: false,
+              error: `Failed to capture screenshot: ${screenshotResult?.success === false ? 'Screenshot command failed' : 'No image data returned'}`,
+              timestamp: Date.now(),
+            };
+          }
+          console.log(
+            `📸 [HighlightElements] Screenshot captured, size: ${screenshotResult.imageData.length} bytes`,
+          );
+          console.log(
+            `⏱️ [HighlightTrace] background screenshot ${Date.now() - screenshotStart}ms`,
+          );
+
+          // Get device pixel ratio for coordinate scaling
+          const devicePixelRatio =
+            screenshotResult.metadata?.devicePixelRatio || 1;
+          const viewportWidth = screenshotResult.metadata?.viewportWidth || 0;
+          const viewportHeight = screenshotResult.metadata?.viewportHeight || 0;
+          console.log(
+            `📐 [HighlightElements] Device pixel ratio: ${devicePixelRatio}`,
+          );
+          console.log(
+            `📐 [HighlightElements] Viewport: ${viewportWidth}x${viewportHeight} CSS pixels`,
+          );
+          console.log(
+            `📐 [HighlightElements] Expected image size: ${viewportWidth * devicePixelRatio}x${viewportHeight * devicePixelRatio} device pixels`,
+          );
+
+          const consistencyCheckStart = Date.now();
+          const consistencyScript =
+            buildHighlightConsistencyScript(paginatedElements);
+          const consistencyResult = await javascript.executeJavaScript(
+            activeTabId,
+            conversationId,
+            consistencyScript,
+            true,
+            false,
+            2000,
+          );
+          const currentConsistencySamples =
+            consistencyResult.success &&
+            consistencyResult.result?.value?.samples &&
+            Array.isArray(consistencyResult.result.value.samples)
+              ? consistencyResult.result.value.samples
+              : [];
+          const highlightConsistency = evaluateHighlightConsistency(
+            paginatedElements
+              .slice(0, HIGHLIGHT_CONSISTENCY_CONFIG.maxSampleSize)
+              .map((element) => ({
+                id: element.id,
+                bbox: element.bbox,
+              })),
+            currentConsistencySamples,
+          );
+          console.log(
+            `⏱️ [HighlightTrace] background consistency-check ${Date.now() - consistencyCheckStart}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
+          );
+
+          if (highlightConsistency.shouldRetry && attempt < maxHighlightAttempts) {
+            console.warn(
+              `⚠️ [HighlightElements] Layout drift detected after screenshot, retrying (attempt ${attempt}/${maxHighlightAttempts})`,
+            );
+            continue;
+          }
+
+          if (highlightConsistency.shouldRetry) {
+            console.warn(
+              `⚠️ [HighlightElements] Layout drift still detected on final attempt, returning latest screenshot`,
+            );
+          }
+
+          const cacheStoreStart = Date.now();
+          elementCache.storeElements(
+            conversationId,
+            activeTabId,
+            filteredElements,
+          );
+          console.log(
+            `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (count=${filteredElements.length})`,
+          );
+
+          // Log first few element bboxes for debugging
+          if (paginatedElements.length > 0) {
+            console.log(
+              `📍 [HighlightElements] First element bbox:`,
+              JSON.stringify(paginatedElements[0].bbox),
+            );
+          }
+
+          // Draw highlights on screenshot (scale coordinates by DPR)
+          const drawHighlightsStart = Date.now();
+          const highlightedScreenshot = await drawHighlights(
+            screenshotResult.imageData,
+            paginatedElements,
+            {
+              scale: devicePixelRatio,
+              viewportWidth,
+              viewportHeight,
+            },
+          );
+          console.log(
+            `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${paginatedElements.length})`,
+          );
+
+          const compressStart = Date.now();
+          const compressedScreenshot = await compressIfNeeded(
+            highlightedScreenshot,
+            getCompressionThreshold(),
+          );
+          console.log(
+            `⏱️ [HighlightTrace] background compress ${Date.now() - compressStart}ms`,
+          );
+          console.log(
+            `⏱️ [HighlightTrace] background total ${Date.now() - highlightTraceStart}ms`,
+          );
+
           return {
-            success: false,
-            error: detectionResult.error || 'Failed to detect elements',
+            success: true,
+            data: {
+              elements: paginatedElements,
+              totalElements: filteredElements.length,
+              totalPages: totalPages,
+              page: currentPage,
+              screenshot: compressedScreenshot,
+              ...(screenshotResult?.dialog_auto_accepted
+                ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted }
+                : {}),
+              ...(screenshotResult?.dialog_auto_accepted_list
+                ? {
+                    dialog_auto_accepted_list:
+                      screenshotResult.dialog_auto_accepted_list,
+                  }
+                : {}),
+            },
             timestamp: Date.now(),
           };
         }
-
-        const allElements = detectionResult.result.value.elements || [];
-
-        // Process keywords if provided (keywords list)
-        let keywordList: string[] = [];
-        if (keywords && keywords.length > 0) {
-          keywordList = keywords
-            .map((k) => k.trim().toLowerCase())
-            .filter((k) => k.length > 0);
-        }
-
-        // Filter by keywords if keyword list is not empty
-        let filteredElements = allElements;
-        if (keywordList.length > 0) {
-          filteredElements = allElements.filter((el: InteractiveElement) => {
-            if (!el.html) return false;
-            const htmlLower = el.html.toLowerCase();
-            // Match if ANY keyword is found (OR logic)
-            return keywordList.some((keyword) => htmlLower.includes(keyword));
-          });
-          console.log(
-            `🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${filteredElements.length} of ${allElements.length} elements`,
-          );
-        }
-
-        // Generate hash IDs for filtered elements (collision-free, content-aware)
-        const existingHashes = new Set<string>();
-        for (const element of filteredElements) {
-          const { id } = generateElementId(
-            element.type,
-            element.selector,
-            existingHashes,
-            element.html,
-          );
-          element.id = id;
-          existingHashes.add(id);
-        }
-
-        let paginatedElements: InteractiveElement[];
-        let totalPages: number;
-        let currentPage = page;
-
-        if (keywordList.length > 0) {
-          // Keyword mode: return all matching elements, no pagination
-          paginatedElements = filteredElements;
-          totalPages = 1;
-          currentPage = 1;
-          console.log(
-            `🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${paginatedElements.length} elements (no pagination)`,
-          );
-        } else {
-          // Normal collision-aware pagination
-          paginatedElements = selectCollisionFreePage(filteredElements, page);
-          totalPages = calculateTotalPages(filteredElements);
-          console.log(
-            `📄 [HighlightElements] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`,
-          );
-        }
-
-        elementCache.storeElements(
-          conversationId,
-          activeTabId,
-          filteredElements,
-        );
-
-        // Capture screenshot
-        const screenshotResult = await captureScreenshot(
-          activeTabId,
-          conversationId,
-          true,
-          90,
-          false,
-          0,
-        );
-
-        // Validate screenshot result
-        if (!screenshotResult?.success || !screenshotResult?.imageData) {
-          return {
-            success: false,
-            error: `Failed to capture screenshot: ${screenshotResult?.success === false ? 'Screenshot command failed' : 'No image data returned'}`,
-            timestamp: Date.now(),
-          };
-        }
-        console.log(
-          `📸 [HighlightElements] Screenshot captured, size: ${screenshotResult.imageData.length} bytes`,
-        );
-
-        // Get device pixel ratio for coordinate scaling
-        const devicePixelRatio =
-          screenshotResult.metadata?.devicePixelRatio || 1;
-        const viewportWidth = screenshotResult.metadata?.viewportWidth || 0;
-        const viewportHeight = screenshotResult.metadata?.viewportHeight || 0;
-        console.log(
-          `📐 [HighlightElements] Device pixel ratio: ${devicePixelRatio}`,
-        );
-        console.log(
-          `📐 [HighlightElements] Viewport: ${viewportWidth}x${viewportHeight} CSS pixels`,
-        );
-        console.log(
-          `📐 [HighlightElements] Expected image size: ${viewportWidth * devicePixelRatio}x${viewportHeight * devicePixelRatio} device pixels`,
-        );
-
-        // Log first few element bboxes for debugging
-        if (paginatedElements.length > 0) {
-          console.log(
-            `📍 [HighlightElements] First element bbox:`,
-            JSON.stringify(paginatedElements[0].bbox),
-          );
-        }
-
-        // Draw highlights on screenshot (scale coordinates by DPR)
-        const highlightedScreenshot = await drawHighlights(
-          screenshotResult.imageData,
-          paginatedElements,
-          {
-            scale: devicePixelRatio,
-            viewportWidth,
-            viewportHeight,
-          },
-        );
 
         return {
-          success: true,
-          data: {
-            elements: paginatedElements,
-            totalElements: filteredElements.length,
-            totalPages: totalPages,
-            page: currentPage,
-            screenshot: await compressIfNeeded(
-              highlightedScreenshot,
-              getCompressionThreshold(),
-            ),
-            ...(screenshotResult?.dialog_auto_accepted
-              ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted }
-              : {}),
-            ...(screenshotResult?.dialog_auto_accepted_list
-              ? {
-                  dialog_auto_accepted_list:
-                    screenshotResult.dialog_auto_accepted_list,
-                }
-              : {}),
-          },
+          success: false,
+          error: 'Failed to produce a stable highlight screenshot',
           timestamp: Date.now(),
         };
       }
@@ -2011,8 +2452,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
-        const compressedClickScreenshotResult =
-          await compressScreenshotResult(clickScreenshotResult);
+        const compressedClickScreenshotResult = await compressScreenshotResult(
+          clickScreenshotResult,
+        );
 
         return {
           success: clickResult.success,
@@ -2057,8 +2499,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
-        const compressedHoverScreenshotResult =
-          await compressScreenshotResult(hoverScreenshotResult);
+        const compressedHoverScreenshotResult = await compressScreenshotResult(
+          hoverScreenshotResult,
+        );
 
         return {
           success: hoverResult.success,
@@ -2106,8 +2549,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
-        const compressedScrollScreenshotResult =
-          await compressScreenshotResult(scrollScreenshotResult);
+        const compressedScrollScreenshotResult = await compressScreenshotResult(
+          scrollScreenshotResult,
+        );
 
         return {
           success: scrollResult.success,
@@ -2153,8 +2597,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
-        const compressedInputScreenshotResult =
-          await compressScreenshotResult(inputScreenshotResult);
+        const compressedInputScreenshotResult = await compressScreenshotResult(
+          inputScreenshotResult,
+        );
 
         return {
           success: inputResult.success,
@@ -2200,8 +2645,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
-        const compressedSelectScreenshotResult =
-          await compressScreenshotResult(selectScreenshotResult);
+        const compressedSelectScreenshotResult = await compressScreenshotResult(
+          selectScreenshotResult,
+        );
 
         return {
           success: selectResult.success,

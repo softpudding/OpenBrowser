@@ -8,6 +8,10 @@ import { CdpCommander } from './cdp-commander';
 import { debuggerSessionManager } from './debugger-manager';
 import { workerManager } from '../workers/worker-manager';
 import { dialogManager, DialogType, type DialogInfo } from './dialog';
+import {
+  calculateScreenshotCaptureScale,
+  type ScreenshotCaptureOptions,
+} from '../utils/highlight-screenshot';
 
 /**
  * Error thrown when screenshot capture is blocked by an open dialog
@@ -208,6 +212,7 @@ async function captureScreenshotWithCDP(
   quality: number = 90,
   _resizeToPreset: boolean = true, // 已忽略，不再进行缩放
   waitForRender: number = 500,
+  options?: ScreenshotCaptureOptions,
 ): Promise<any> {
   console.log(
     `📸 [Screenshot] Capturing screenshot via CDP for tab ${tabId} in session ${conversationId}`,
@@ -385,22 +390,26 @@ async function captureScreenshotWithCDP(
     // - clip.scale: device pixel ratio (e.g., 2 for Retina displays)
     // The returned image will be in device pixels (width * scale, height * scale)
 
-    // 使用实际设备像素比，不限制
-    const clipScale = devicePixelRatio;
+    const clipScale = calculateScreenshotCaptureScale(
+      cssViewportWidth,
+      cssViewportHeight,
+      devicePixelRatio,
+      options,
+    );
 
     console.log(
-      `🎯 [Screenshot] Capturing with clip: (${cssViewportX}, ${cssViewportY}) ${cssViewportWidth}x${cssViewportHeight} CSS pixels, scale=${clipScale} (实际DPI)`,
+      `🎯 [Screenshot] Capturing with clip: (${cssViewportX}, ${cssViewportY}) ${cssViewportWidth}x${cssViewportHeight} CSS pixels, scale=${clipScale} (sourceDPR=${devicePixelRatio})`,
     );
 
     // 最大允许的base64数据大小：10MB
     const MAX_BASE64_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 
-    // 先尝试PNG格式（无损）
+    const preferredFormat = options?.preferredFormat ?? 'png';
     let screenshot: any;
-    let format = 'png';
+    let format = preferredFormat;
     let finalQuality = quality;
     let attempts = 0;
-    const maxAttempts = 5; // PNG + JPEG质量递减尝试
+    const maxAttempts = preferredFormat === 'jpeg' ? 4 : 5;
 
     while (attempts < maxAttempts) {
       attempts++;
@@ -510,8 +519,8 @@ async function captureScreenshotWithCDP(
     // STEP 6: Validate screenshot data
     // ========================================
     // The screenshot should be in device pixels
-    const expectedDeviceWidth = cssViewportWidth * devicePixelRatio;
-    const expectedDeviceHeight = cssViewportHeight * devicePixelRatio;
+    const expectedDeviceWidth = Math.round(cssViewportWidth * clipScale);
+    const expectedDeviceHeight = Math.round(cssViewportHeight * clipScale);
 
     console.log(
       `📊 [Screenshot] Final image: ${format.toUpperCase()} ${expectedDeviceWidth}x${expectedDeviceHeight}, quality=${finalQuality}, size=${screenshot.data.length} bytes`,
@@ -576,7 +585,9 @@ async function captureScreenshotWithCDP(
         format: format, // 图像格式 (png/jpeg)
         quality: finalQuality, // 图像质量 (JPEG only)
         captureMethod: 'cdp',
-        devicePixelRatio: devicePixelRatio,
+        devicePixelRatio: clipScale,
+        sourceDevicePixelRatio: devicePixelRatio,
+        captureScale: clipScale,
         // 不再有裁剪偏移，因为不进行缩放
         cropOffsetX: 0,
         cropOffsetY: 0,
@@ -618,6 +629,7 @@ export async function captureScreenshot(
   quality: number = 90,
   resizeToPreset: boolean = false,
   waitForRender: number = 500,
+  options?: ScreenshotCaptureOptions,
 ): Promise<any> {
   // Resolve tab ID if not provided
   let targetTabId = tabId;
@@ -747,6 +759,7 @@ export async function captureScreenshot(
     quality,
     resizeToPreset,
     waitForRender,
+    options,
   );
 
   // Add auto-accepted dialog info to metadata if applicable
