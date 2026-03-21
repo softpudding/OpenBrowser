@@ -3115,10 +3115,27 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: command, cwd: cwd, browser_id: browserId }),
                 signal: abortController.signal
-            }).then(response => {
+            }).then(async response => {
                 console.log(`[Frontend] POST response status: ${response.status}, ok: ${response.ok}, content-type: ${response.headers.get('content-type')}`);
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                    let errorMessage = `HTTP ${response.status}`;
+                    const contentType = response.headers.get('content-type') || '';
+
+                    try {
+                        if (contentType.includes('application/json')) {
+                            const error = await response.json();
+                            errorMessage = error.detail || error.error || error.message || errorMessage;
+                        } else {
+                            const text = await response.text();
+                            if (text && text.trim()) {
+                                errorMessage = text.trim();
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('[Frontend] Failed to parse error response body:', error);
+                    }
+
+                    throw new Error(errorMessage);
                 }
                 
                 // Check if response is SSE
