@@ -4,6 +4,7 @@ OpenBrowser Agent Manager
 Manages agent instances and conversations with optional multi-process support.
 """
 
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -37,6 +38,21 @@ from server.core.process_manager import ProcessManager
 from server.core.session_manager import session_manager, SessionStatus
 
 logger = get_logger(__name__)
+
+
+def _multi_process_mode_from_env() -> bool:
+    """Read multi-process mode from environment.
+
+    This is evaluated when the module-level ``agent_manager`` is created so the
+    server can opt into process isolation before FastAPI imports the routes.
+    """
+    raw_value = os.getenv("CHROME_SERVER_MULTI_PROCESS_MODE") or os.getenv(
+        "OPENBROWSER_MULTI_PROCESS"
+    )
+    if raw_value is None:
+        return False
+
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 class OpenBrowserAgentManager:
@@ -426,6 +442,8 @@ class OpenBrowserAgentManager:
             # Race condition: conversation was just created by another thread
             return self.conversations[conversation_id]
 
+        browser_id: Optional[str] = None
+
         # Check if session exists and has model metadata
         existing_session = session_manager.get_session(conversation_id)
         if existing_session:
@@ -433,6 +451,7 @@ class OpenBrowserAgentManager:
             session_model = existing_session.metadata.get("model")
             session_base_url = existing_session.metadata.get("base_url")
             session_model_alias = existing_session.metadata.get("model_alias")
+            session_browser_id = existing_session.metadata.get("browser_id")
 
             # If model was not provided as parameter, use session model
             if model is None and session_model:
@@ -441,11 +460,14 @@ class OpenBrowserAgentManager:
                 base_url = session_base_url
             if model_alias is None and session_model_alias:
                 model_alias = session_model_alias
+            if isinstance(session_browser_id, str) and session_browser_id:
+                browser_id = session_browser_id
 
             metadata = existing_session.metadata.copy()
             resolved_metadata = self._build_session_metadata(
                 model=model,
                 base_url=base_url,
+                browser_id=browser_id,
                 model_alias=model_alias,
             )
             for key, value in resolved_metadata.items():
@@ -462,6 +484,7 @@ class OpenBrowserAgentManager:
             metadata = self._build_session_metadata(
                 model=model,
                 base_url=base_url,
+                browser_id=browser_id,
                 model_alias=model_alias,
             )
 
@@ -470,6 +493,17 @@ class OpenBrowserAgentManager:
                 working_directory=cwd,
                 metadata=metadata,
             )
+
+        if self.multi_process_mode:
+            self._create_conversation_process(
+                conversation_id,
+                cwd,
+                model=model,
+                base_url=base_url,
+                browser_id=browser_id,
+                model_alias=model_alias,
+            )
+            return self.conversations[conversation_id]
 
         # Create new conversation with the given ID
         # Create agent with tools
@@ -851,4 +885,6 @@ class OpenBrowserAgentManager:
 
 
 # Global agent manager instance
-agent_manager = OpenBrowserAgentManager()
+agent_manager = OpenBrowserAgentManager(
+    multi_process_mode=_multi_process_mode_from_env()
+)

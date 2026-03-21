@@ -39,6 +39,7 @@ sys.modules["openhands.tools.preset.default"] = preset_default_module
 sys.modules["openhands.tools"] = types.ModuleType("openhands.tools")
 sys.modules["openhands.tools.preset"] = types.ModuleType("openhands.tools.preset")
 
+from server.agent.conversation import ConversationState
 from server.agent.manager import OpenBrowserAgentManager
 from server.core.ipc_types import BrowserCommandMessage
 
@@ -261,6 +262,55 @@ class TestConversationCreationMultiProcess:
                 conv_id=conv_id,
                 command_queue=mock_command_queue,
                 response_queue=mock_response_queue,
+            )
+
+    def test_get_or_create_conversation_uses_process_mode(self) -> None:
+        """get_or_create_conversation should keep using worker processes."""
+        manager = OpenBrowserAgentManager(multi_process_mode=True)
+        conv_id = str(uuid.uuid4())
+
+        with (
+            patch("server.agent.manager.session_manager") as mock_session_manager,
+            patch("server.agent.manager.llm_config_manager") as mock_llm_config,
+            patch.object(
+                manager, "_create_conversation_process"
+            ) as mock_create_process,
+        ):
+            mock_llm_config.reload_config.return_value = MagicMock()
+            mock_llm_config.get_llm_config.return_value = MagicMock(
+                model="test-model",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+            mock_session_manager.get_session.return_value = MagicMock(
+                metadata={
+                    "model": "test-model",
+                    "base_url": "http://test.url",
+                    "model_alias": "default",
+                    "browser_id": "browser-123",
+                }
+            )
+
+            def _store_process_state(*args, **kwargs):
+                manager.conversations[conv_id] = ConversationState(
+                    conversation_id=conv_id,
+                    conversation=None,
+                    visualizer=None,
+                )
+                return conv_id
+
+            mock_create_process.side_effect = _store_process_state
+
+            conv_state = manager.get_or_create_conversation(conv_id, cwd="/tmp/demo")
+
+            assert conv_state.conversation_id == conv_id
+            mock_create_process.assert_called_once_with(
+                conv_id,
+                "/tmp/demo",
+                model="test-model",
+                base_url="http://test.url",
+                browser_id="browser-123",
+                model_alias="default",
             )
 
 

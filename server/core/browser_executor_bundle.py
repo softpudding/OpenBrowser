@@ -12,11 +12,13 @@ and recreating objects during initialization.
 
 from __future__ import annotations
 
+import inspect
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from server.agent.manager import OpenBrowserAgentManager
+from server.api.sse import SSEEvent
 from server.core.processor import CommandProcessor
 from server.models.commands import parse_command, CommandResponse
 
@@ -147,6 +149,8 @@ class BrowserExecutorBundle:
             self._agent_manager.create_conversation(
                 conversation_id=self.conversation_id,
                 cwd=self.working_directory,
+                model=self.llm_config.get("model"),
+                base_url=self.llm_config.get("base_url"),
                 browser_id=self.browser_id,
             )
 
@@ -232,6 +236,109 @@ class BrowserExecutorBundle:
                 "success": False,
                 "error": str(e),
                 "data": None,
+            }
+
+    async def execute_agent_message(
+        self,
+        message_text: str,
+        event_queue: Any,
+    ) -> dict[str, Any]:
+        """Execute a conversation turn inside the worker process.
+
+        Events are streamed back to the main process via ``event_queue`` as
+        ``SSEEvent`` instances so the HTTP layer can forward them unchanged.
+        """
+        if not self.state.initialized:
+            raise RuntimeError(
+                f"BrowserExecutorBundle[{self.conversation_id}]: "
+                "Cannot execute agent message - bundle not initialized"
+            )
+
+        if self._agent_manager is None:
+            raise RuntimeError(
+                f"BrowserExecutorBundle[{self.conversation_id}]: "
+                "AgentManager not available"
+            )
+
+        conv_state = self._agent_manager.get_conversation(self.conversation_id)
+        if (
+            conv_state is None
+            or conv_state.conversation is None
+            or conv_state.visualizer is None
+        ):
+            raise RuntimeError(
+                f"BrowserExecutorBundle[{self.conversation_id}]: "
+                "Conversation state not available in worker"
+            )
+
+        conv_state.visualizer.set_event_queue(event_queue)
+
+        try:
+            conv_state.conversation.send_message(message_text)
+
+            run_method = conv_state.conversation.run
+            if inspect.iscoroutinefunction(run_method):
+                await run_method()
+            else:
+                run_method()
+
+            usage_metrics = {}
+            try:
+                if hasattr(conv_state.conversation, "conversation_stats"):
+                    stats = conv_state.conversation.conversation_stats
+                    if hasattr(stats, "get_combined_metrics"):
+                        combined_metrics = stats.get_combined_metrics()
+                        usage_metrics = combined_metrics.get()
+                        usage_metrics["model_name"] = combined_metrics.model_name
+            except Exception as e:
+                logger.warning(
+                    "BrowserExecutorBundle[%s]: failed to collect usage metrics: %s",
+                    self.conversation_id,
+                    e,
+                )
+
+            event_queue.put(
+                SSEEvent(
+                    "complete",
+                    {
+                        "conversation_id": self.conversation_id,
+                        "message": "Conversation completed",
+                    },
+                )
+            )
+
+            if usage_metrics:
+                event_queue.put(
+                    SSEEvent(
+                        "usage_metrics",
+                        {
+                            "conversation_id": self.conversation_id,
+                            "metrics": usage_metrics,
+                        },
+                    )
+                )
+
+            return {"success": True}
+
+        except Exception as e:
+            logger.error(
+                "BrowserExecutorBundle[%s]: agent execution failed: %s",
+                self.conversation_id,
+                e,
+                exc_info=True,
+            )
+            event_queue.put(
+                SSEEvent(
+                    "error",
+                    {
+                        "conversation_id": self.conversation_id,
+                        "error": str(e),
+                    },
+                )
+            )
+            return {
+                "success": False,
+                "error": str(e),
             }
 
     async def shutdown(self) -> bool:
