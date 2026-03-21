@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   calculateScreenshotCaptureScale,
   HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
+  TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
 } from '../utils/highlight-screenshot';
 
 describe('Highlight Screenshot', () => {
@@ -40,5 +41,11 @@ describe('Highlight Screenshot', () => {
     });
 
     expect(scale).toBe(0.25);
+  });
+
+  test('enables pre-capture settling for tab view screenshots', () => {
+    expect(TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS.settleBeforeCapture).toBe(true);
+    expect(TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS.settleTimeoutMs).toBe(1800);
+    expect(TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS.settleQuietWindowMs).toBe(450);
   });
 });

@@ -13,6 +13,243 @@ import {
   type ScreenshotCaptureOptions,
 } from '../utils/highlight-screenshot';
 
+function buildPreCaptureSettleScript(
+  timeoutMs: number,
+  quietWindowMs: number,
+): string {
+  return `
+    (async () => {
+      const timeoutMs = ${JSON.stringify(timeoutMs)};
+      const quietWindowMs = ${JSON.stringify(quietWindowMs)};
+      const pollIntervalMs = 100;
+      const start = performance.now();
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      async function waitForFramePair() {
+        const rafPair = new Promise((resolve) => {
+          if (typeof requestAnimationFrame !== 'function') {
+            resolve(null);
+            return;
+          }
+
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve(null)));
+        });
+
+        await Promise.race([
+          rafPair,
+          sleep(document.hidden ? 96 : 160),
+        ]);
+      }
+
+      async function waitForFonts() {
+        const fonts = document.fonts;
+        if (!fonts || !fonts.ready) {
+          return;
+        }
+
+        try {
+          await Promise.race([
+            fonts.ready,
+            sleep(Math.min(timeoutMs, 700)),
+          ]);
+        } catch (_error) {
+          // Ignore font readiness errors and continue with best effort.
+        }
+      }
+
+      function isElementVisible(el) {
+        const style = window.getComputedStyle(el);
+        return (
+          style.visibility !== 'hidden' &&
+          style.display !== 'none' &&
+          Number.parseFloat(style.opacity || '1') > 0
+        );
+      }
+
+      function isRectInViewport(rect) {
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.bottom > 0 &&
+          rect.right > 0 &&
+          rect.top < window.innerHeight &&
+          rect.left < window.innerWidth
+        );
+      }
+
+      function countPendingViewportMedia() {
+        const mediaElements = Array.from(
+          document.querySelectorAll('img, video'),
+        );
+        let pending = 0;
+
+        for (const media of mediaElements) {
+          const rect = media.getBoundingClientRect();
+          if (!isRectInViewport(rect) || !isElementVisible(media)) {
+            continue;
+          }
+
+          if (media.tagName === 'IMG' && 'complete' in media && !media.complete) {
+            pending++;
+            continue;
+          }
+
+          if (media.tagName === 'VIDEO' && media.readyState < 2) {
+            pending++;
+          }
+        }
+
+        return pending;
+      }
+
+      function collectViewportTextWeight() {
+        const candidates = document.querySelectorAll(
+          'h1, h2, h3, h4, p, span, a, button, li, div',
+        );
+        let textWeight = 0;
+        let blocks = 0;
+
+        for (const candidate of candidates) {
+          const rect = candidate.getBoundingClientRect();
+          if (!isRectInViewport(rect) || !isElementVisible(candidate)) {
+            continue;
+          }
+
+          const text = (candidate.textContent || '').replace(/\\s+/g, ' ').trim();
+          if (text.length < 12) {
+            continue;
+          }
+
+          textWeight += Math.min(text.length, 140);
+          blocks++;
+
+          if (blocks >= 30 || textWeight >= 1200) {
+            break;
+          }
+        }
+
+        return { textWeight, blocks };
+      }
+
+      function getStabilitySignature() {
+        const root = document.scrollingElement || document.documentElement;
+        const bodyHeight = Math.round(document.body?.getBoundingClientRect().height || 0);
+        const scrollHeight = Math.round(root?.scrollHeight || 0);
+        const pendingMedia = countPendingViewportMedia();
+        const textMetrics = collectViewportTextWeight();
+        const dialogLikeLayer = Boolean(
+          document.querySelector(
+            '[role="dialog"], [aria-modal="true"], [class*="modal"], [class*="drawer"], [class*="overlay"]',
+          ),
+        );
+
+        return JSON.stringify({
+          scrollX: Math.round(window.scrollX),
+          scrollY: Math.round(window.scrollY),
+          innerWidth: Math.round(window.innerWidth),
+          innerHeight: Math.round(window.innerHeight),
+          bodyHeight,
+          scrollHeight,
+          pendingMedia,
+          textWeight: textMetrics.textWeight,
+          textBlocks: textMetrics.blocks,
+          dialogLikeLayer,
+        });
+      }
+
+      await waitForFonts();
+      await waitForFramePair();
+
+      let lastChangeTs = performance.now();
+      let lastSignature = getStabilitySignature();
+      let observer = null;
+
+      try {
+        observer = new MutationObserver(() => {
+          lastChangeTs = performance.now();
+        });
+        observer.observe(document.documentElement || document.body, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          characterData: true,
+        });
+      } catch (_error) {
+        observer = null;
+      }
+
+      let timedOut = false;
+      while (performance.now() - start < timeoutMs) {
+        await sleep(pollIntervalMs);
+        const currentSignature = getStabilitySignature();
+        if (currentSignature !== lastSignature) {
+          lastSignature = currentSignature;
+          lastChangeTs = performance.now();
+        }
+
+        if (
+          countPendingViewportMedia() === 0 &&
+          performance.now() - lastChangeTs >= quietWindowMs
+        ) {
+          break;
+        }
+      }
+
+      if (performance.now() - start >= timeoutMs) {
+        timedOut = true;
+      }
+
+      if (observer) {
+        observer.disconnect();
+      }
+
+      await waitForFramePair();
+
+      return {
+        waitedMs: Math.round(performance.now() - start),
+        timedOut,
+        signature: lastSignature,
+        pendingMedia: countPendingViewportMedia(),
+      };
+    })()
+  `;
+}
+
+async function waitForPageToSettleBeforeCapture(
+  cdpCommander: CdpCommander,
+  options?: ScreenshotCaptureOptions,
+): Promise<void> {
+  if (!options?.settleBeforeCapture) {
+    return;
+  }
+
+  const timeoutMs = Math.max(0, options.settleTimeoutMs ?? 1800);
+  const quietWindowMs = Math.max(0, options.settleQuietWindowMs ?? 400);
+
+  try {
+    const settleResult = await cdpCommander.sendCommand<any>(
+      'Runtime.evaluate',
+      {
+        expression: buildPreCaptureSettleScript(timeoutMs, quietWindowMs),
+        returnByValue: true,
+        awaitPromise: true,
+      },
+      Math.max(timeoutMs + 1500, 5000),
+    );
+
+    console.log(
+      `⏳ [Screenshot] Pre-capture settle complete: ${JSON.stringify(settleResult?.result?.value || {})}`,
+    );
+  } catch (settleError) {
+    console.warn(
+      `⚠️ [Screenshot] Pre-capture settle failed, continuing with best effort: ${settleError instanceof Error ? settleError.message : settleError}`,
+    );
+  }
+}
+
 /**
  * Error thrown when screenshot capture is blocked by an open dialog
  */
@@ -380,6 +617,8 @@ async function captureScreenshotWithCDP(
       );
       await new Promise((resolve) => setTimeout(resolve, waitForRender));
     }
+
+    await waitForPageToSettleBeforeCapture(cdpCommander, options);
 
     // ========================================
     // STEP 5: Capture screenshot - "所见即所得"方案

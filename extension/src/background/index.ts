@@ -49,7 +49,10 @@ import {
   HIGHLIGHT_CONSISTENCY_CONFIG,
   evaluateHighlightConsistency,
 } from '../utils/highlight-consistency';
-import { HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS } from '../utils/highlight-screenshot';
+import {
+  HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
+  TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+} from '../utils/highlight-screenshot';
 import type { Command, CommandResponse, InteractiveElement } from '../types';
 console.log('🚀 OpenBrowser extension starting (Strict Mode)...');
 
@@ -931,7 +934,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               true,
               90,
               false,
-              0,
+              350,
+              TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
             );
             const compressedViewScreenshotResult =
               await compressScreenshotResult(viewScreenshotResult);

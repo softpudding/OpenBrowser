@@ -3,6 +3,9 @@ export interface ScreenshotCaptureOptions {
   maxOutputWidth?: number;
   maxOutputHeight?: number;
   minCaptureScale?: number;
+  settleBeforeCapture?: boolean;
+  settleTimeoutMs?: number;
+  settleQuietWindowMs?: number;
 }
 
 export const HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
@@ -10,6 +13,12 @@ export const HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
   maxOutputWidth: 1280,
   maxOutputHeight: 720,
   minCaptureScale: 0.25,
+};
+
+export const TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
+  settleBeforeCapture: true,
+  settleTimeoutMs: 1800,
+  settleQuietWindowMs: 450,
 };
 
 export function calculateScreenshotCaptureScale(
