@@ -290,6 +290,22 @@ describe('Highlight Integration', () => {
       expect(result[0].labelPosition).not.toBe('above');
     });
 
+    test('should calculate total pages with the same viewport constraints as selection', () => {
+      const elements = [
+        createElement('a', 'clickable', 10, 10, 80, 30),
+        createElement('b', 'clickable', 10, 10, 80, 30),
+        createElement('c', 'clickable', 10, 10, 80, 30),
+      ];
+
+      const page1 = selectCollisionFreePage(elements, 1, 1280, 720);
+      const page2 = selectCollisionFreePage(elements, 2, 1280, 720);
+      const totalPages = calculateTotalPages(elements, 1280, 720);
+
+      expect(page1).toHaveLength(2);
+      expect(page2).toHaveLength(1);
+      expect(totalPages).toBe(2);
+    });
+
     test('should handle element near left edge', () => {
       // Element near left edge - left position would go outside
       const elemLeft = createElement('left', 'clickable', 50, 100, 80, 30);
@@ -370,7 +386,13 @@ describe('Highlight Integration', () => {
       for (const elem of result) {
         expect(elem.labelPosition).toBeDefined();
         expect(
-          isLabelWithinViewport(elem.bbox, elem.labelPosition!, 1280, 720),
+          isLabelWithinViewport(
+            elem.bbox,
+            elem.labelPosition!,
+            1280,
+            720,
+            elem.id,
+          ),
         ).toBe(true);
       }
     });

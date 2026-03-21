@@ -6,6 +6,7 @@
  */
 
 import type { InteractiveElement } from '../types';
+import { getLabelDimensions } from './label-geometry';
 
 export const LABEL_FONT_SIZE = 16;
 export const LABEL_PADDING = 5;
@@ -41,37 +42,41 @@ export function bboxesIntersect(a: BBox, b: BBox): boolean {
 export function getLabelBBox(
   bbox: BBox,
   position: LabelPosition = 'above',
+  text?: string,
 ): BBox {
-  const labelWidth = Math.max(bbox.width, MAX_LABEL_WIDTH);
+  const { width: labelWidth, height: labelHeight } = getLabelDimensions(
+    text,
+    bbox.width,
+  );
 
   switch (position) {
     case 'above':
       return {
         x: bbox.x,
-        y: bbox.y - LABEL_HEIGHT,
+        y: bbox.y - labelHeight,
         width: labelWidth,
-        height: LABEL_HEIGHT,
+        height: labelHeight,
       };
     case 'below':
       return {
         x: bbox.x,
         y: bbox.y + bbox.height,
         width: labelWidth,
-        height: LABEL_HEIGHT,
+        height: labelHeight,
       };
     case 'left':
       return {
         x: bbox.x - labelWidth,
         y: bbox.y,
         width: labelWidth,
-        height: LABEL_HEIGHT,
+        height: labelHeight,
       };
     case 'right':
       return {
         x: bbox.x + bbox.width,
         y: bbox.y,
         width: labelWidth,
-        height: LABEL_HEIGHT,
+        height: labelHeight,
       };
   }
 }
@@ -83,23 +88,27 @@ export function getLabelBBox(
 export function expandBBoxWithLabel(
   bbox: BBox,
   position: LabelPosition = 'above',
+  text?: string,
 ): BBox {
-  const labelWidth = Math.max(bbox.width, MAX_LABEL_WIDTH);
+  const { width: labelWidth, height: labelHeight } = getLabelDimensions(
+    text,
+    bbox.width,
+  );
 
   switch (position) {
     case 'above':
       return {
         x: bbox.x,
-        y: bbox.y - LABEL_HEIGHT,
+        y: bbox.y - labelHeight,
         width: labelWidth,
-        height: bbox.height + LABEL_HEIGHT,
+        height: bbox.height + labelHeight,
       };
     case 'below':
       return {
         x: bbox.x,
         y: bbox.y,
         width: labelWidth,
-        height: bbox.height + LABEL_HEIGHT,
+        height: bbox.height + labelHeight,
       };
     case 'left':
       return {
@@ -126,8 +135,8 @@ export function elementsCollide(
   a: InteractiveElement,
   b: InteractiveElement,
 ): boolean {
-  const labelA = getLabelBBox(a.bbox, a.labelPosition ?? 'above');
-  const labelB = getLabelBBox(b.bbox, b.labelPosition ?? 'above');
+  const labelA = getLabelBBox(a.bbox, a.labelPosition ?? 'above', a.id);
+  const labelB = getLabelBBox(b.bbox, b.labelPosition ?? 'above', b.id);
   return bboxesIntersect(labelA, labelB);
 }
 
@@ -139,8 +148,9 @@ export function isLabelWithinViewport(
   position: LabelPosition,
   viewportWidth: number,
   viewportHeight: number,
+  text?: string,
 ): boolean {
-  const labelBBox = getLabelBBox(bbox, position);
+  const labelBBox = getLabelBBox(bbox, position, text);
 
   return (
     labelBBox.x >= 0 &&
@@ -170,11 +180,41 @@ export function selectCollisionFreePage(
     return [];
   }
 
-  const positions: LabelPosition[] = ['above', 'below', 'left', 'right'];
-  let remaining = [...elements];
-  let result: InteractiveElement[] = [];
+  const pages = buildCollisionFreePages(
+    elements,
+    viewportWidth,
+    viewportHeight,
+  );
+  return pages[page - 1] ?? [];
+}
 
-  for (let p = 1; p <= page; p++) {
+/**
+ * Calculate total number of collision-free pages
+ * This pre-computes the pagination to determine how many pages exist
+ */
+export function calculateTotalPages(
+  elements: InteractiveElement[],
+  viewportWidth?: number,
+  viewportHeight?: number,
+): number {
+  return buildCollisionFreePages(elements, viewportWidth, viewportHeight)
+    .length;
+}
+
+function buildCollisionFreePages(
+  elements: InteractiveElement[],
+  viewportWidth?: number,
+  viewportHeight?: number,
+): InteractiveElement[][] {
+  if (elements.length === 0) {
+    return [];
+  }
+
+  const positions: LabelPosition[] = ['above', 'below', 'left', 'right'];
+  let remaining = elements.map(cloneInteractiveElement);
+  const pages: InteractiveElement[][] = [];
+
+  while (remaining.length > 0) {
     const selected: InteractiveElement[] = [];
 
     for (const elem of remaining) {
@@ -186,6 +226,7 @@ export function selectCollisionFreePage(
                 pos,
                 viewportWidth,
                 viewportHeight,
+                elem.id,
               )
             : true;
 
@@ -193,12 +234,16 @@ export function selectCollisionFreePage(
           continue;
         }
 
-        const labelBBox = getLabelBBox(elem.bbox, pos);
+        const labelBBox = getLabelBBox(elem.bbox, pos, elem.id);
 
         let hasCollision = false;
 
         for (const s of selected) {
-          const sLabelBBox = getLabelBBox(s.bbox, s.labelPosition ?? 'above');
+          const sLabelBBox = getLabelBBox(
+            s.bbox,
+            s.labelPosition ?? 'above',
+            s.id,
+          );
 
           if (bboxesIntersect(labelBBox, sLabelBBox)) {
             hasCollision = true;
@@ -217,44 +262,9 @@ export function selectCollisionFreePage(
         }
 
         if (!hasCollision) {
-          elem.labelPosition = pos;
-          selected.push(elem);
+          selected.push({ ...elem, labelPosition: pos });
           break;
         }
-      }
-    }
-
-    if (p === page) {
-      result = selected;
-      break;
-    }
-
-    const selectedIds = new Set(selected.map((e) => e.id));
-    remaining = remaining.filter((e) => !selectedIds.has(e.id));
-  }
-
-  return result;
-}
-
-/**
- * Calculate total number of collision-free pages
- * This pre-computes the pagination to determine how many pages exist
- */
-export function calculateTotalPages(elements: InteractiveElement[]): number {
-  if (elements.length === 0) {
-    return 0;
-  }
-
-  let remaining = [...elements];
-  let totalPages = 0;
-
-  while (remaining.length > 0) {
-    const selected: InteractiveElement[] = [];
-
-    for (const elem of remaining) {
-      const collides = selected.some((s) => elementsCollide(elem, s));
-      if (!collides) {
-        selected.push(elem);
       }
     }
 
@@ -262,10 +272,19 @@ export function calculateTotalPages(elements: InteractiveElement[]): number {
       break;
     }
 
-    totalPages++;
+    pages.push(selected);
     const selectedIds = new Set(selected.map((e) => e.id));
     remaining = remaining.filter((e) => !selectedIds.has(e.id));
   }
 
-  return totalPages;
+  return pages;
+}
+
+function cloneInteractiveElement(
+  element: InteractiveElement,
+): InteractiveElement {
+  return {
+    ...element,
+    bbox: { ...element.bbox },
+  };
 }
