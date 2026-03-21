@@ -115,6 +115,43 @@ export function buildHitTestVisibilityHelpersScript(): string {
       );
     }
 
+    function hasVisibleBox(el) {
+      if (!(el instanceof HTMLElement)) {
+        return false;
+      }
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    }
+
+    function resolveTopLayerRoot(node) {
+      if (!(node instanceof HTMLElement)) {
+        return null;
+      }
+
+      if (!node.matches('.modal-overlay')) {
+        return node;
+      }
+
+      let current = node.parentElement;
+      while (current && current !== document.body) {
+        const hasVisibleSiblingContent = Array.from(current.children).some(
+          (child) =>
+            child !== node &&
+            child instanceof HTMLElement &&
+            isElementStyleVisible(child) &&
+            hasVisibleBox(child),
+        );
+
+        if (hasVisibleSiblingContent) {
+          return current;
+        }
+
+        current = current.parentElement;
+      }
+
+      return node.parentElement instanceof HTMLElement ? node.parentElement : node;
+    }
+
     function getActiveTopLayerRoot() {
       const candidates = [];
       let domOrder = 0;
@@ -128,12 +165,18 @@ export function buildHitTestVisibilityHelpersScript(): string {
           if (!isElementStyleVisible(node)) {
             continue;
           }
-          const rect = node.getBoundingClientRect();
-          if (rect.width <= 0 || rect.height <= 0) {
+          if (!hasVisibleBox(node)) {
+            continue;
+          }
+          const root = resolveTopLayerRoot(node);
+          if (!(root instanceof HTMLElement)) {
+            continue;
+          }
+          if (!isElementStyleVisible(root) || !hasVisibleBox(root)) {
             continue;
           }
           candidates.push({
-            node,
+            node: root,
             zIndex: getNumericZIndex(node),
             domOrder: domOrder++,
           });
