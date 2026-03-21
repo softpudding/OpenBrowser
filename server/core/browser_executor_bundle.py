@@ -341,6 +341,37 @@ class BrowserExecutorBundle:
                 "error": str(e),
             }
 
+    async def pause_conversation(self) -> bool:
+        """Request that the worker-local conversation pause."""
+        if not self.state.initialized:
+            logger.warning(
+                "BrowserExecutorBundle[%s]: Cannot pause - bundle not initialized",
+                self.conversation_id,
+            )
+            return False
+
+        if self._agent_manager is None:
+            logger.warning(
+                "BrowserExecutorBundle[%s]: Cannot pause - agent manager unavailable",
+                self.conversation_id,
+            )
+            return False
+
+        conv_state = self._agent_manager.get_conversation(self.conversation_id)
+        if conv_state is None or conv_state.conversation is None:
+            logger.warning(
+                "BrowserExecutorBundle[%s]: Cannot pause - conversation unavailable",
+                self.conversation_id,
+            )
+            return False
+
+        conv_state.conversation.pause()
+        logger.info(
+            "BrowserExecutorBundle[%s]: Pause requested successfully",
+            self.conversation_id,
+        )
+        return True
+
     async def shutdown(self) -> bool:
         """Shutdown the bundle and cleanup resources.
 

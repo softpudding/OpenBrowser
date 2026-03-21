@@ -424,6 +424,42 @@ class TestBrowserExecutorBundleExecuteCommand:
             assert usage_event.event_type == "usage_metrics"
             assert usage_event.data["metrics"]["model_name"] == "test-model"
 
+    @pytest.mark.asyncio
+    async def test_pause_conversation_requests_pause_on_worker_conversation(self):
+        """pause_conversation() should delegate to the worker-local conversation."""
+        bundle = BrowserExecutorBundle(
+            conv_id="test-conv-12c",
+            browser_id="test-browser-12c",
+            llm_config={"model": "test-model", "api_key": "test-key"},
+        )
+
+        with (
+            patch(
+                "server.core.browser_executor_bundle.OpenBrowserAgentManager"
+            ) as mock_agent_mgr_class,
+            patch(
+                "server.core.browser_executor_bundle.CommandProcessor"
+            ) as mock_processor_class,
+        ):
+            mock_conversation = MagicMock()
+            mock_conv_state = MagicMock(
+                conversation=mock_conversation,
+                visualizer=MagicMock(),
+            )
+
+            mock_agent_mgr = MagicMock()
+            mock_agent_mgr.create_conversation = MagicMock()
+            mock_agent_mgr.get_conversation.return_value = mock_conv_state
+            mock_agent_mgr_class.return_value = mock_agent_mgr
+
+            mock_processor_class.return_value = MagicMock()
+
+            await bundle.initialize()
+            result = await bundle.pause_conversation()
+
+            assert result is True
+            mock_conversation.pause.assert_called_once_with()
+
 
 class TestBrowserExecutorBundleShutdown:
     """Tests for shutdown() method."""

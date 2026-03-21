@@ -5,6 +5,7 @@ Manages agent instances and conversations with optional multi-process support.
 """
 
 import os
+import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -798,6 +799,61 @@ class OpenBrowserAgentManager:
         )
 
         return self._ipc_router.route_command(message)
+
+    def request_pause(self, conversation_id: str) -> bool:
+        """Request that a conversation pause without blocking the caller.
+
+        In single-process mode the actual ``conversation.pause()`` call is moved
+        to a background thread so the HTTP event loop never blocks waiting on
+        OpenHands' internal conversation lock.
+
+        In multi-process mode a pause control message is queued for the worker.
+        The worker can only observe it after the current turn returns to its
+        command loop, but the main process remains responsive.
+        """
+        if self.multi_process_mode:
+            try:
+                command_queue = self.get_command_queue(conversation_id)
+            except RuntimeError:
+                return False
+
+            if command_queue is None:
+                return False
+
+            command_queue.put({"control": "pause"})
+            logger.info("Queued pause request for conversation %s", conversation_id)
+            return True
+
+        conv_state = self.conversations.get(conversation_id)
+        if conv_state is None or conv_state.conversation is None:
+            return False
+
+        pause_thread = threading.Thread(
+            target=self._pause_conversation_blocking,
+            args=(conv_state.conversation, conversation_id),
+            name=f"pause-{conversation_id[:8]}",
+            daemon=True,
+        )
+        pause_thread.start()
+        logger.info(
+            "Started background pause request for conversation %s", conversation_id
+        )
+        return True
+
+    @staticmethod
+    def _pause_conversation_blocking(
+        conversation: Conversation, conversation_id: str
+    ) -> None:
+        """Run the blocking ``conversation.pause()`` call off the event loop."""
+        try:
+            conversation.pause()
+            logger.info("Conversation %s paused successfully", conversation_id)
+        except Exception as e:
+            logger.warning(
+                "Failed to pause conversation %s in background thread: %s",
+                conversation_id,
+                e,
+            )
 
     def get_response_queue(self, conversation_id: str):
         """Get the response queue for a conversation.

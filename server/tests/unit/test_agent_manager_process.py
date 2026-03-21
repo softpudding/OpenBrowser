@@ -491,3 +491,65 @@ class TestProcessStatusMethods:
         result = manager.get_process_status("conv-123")
 
         assert result is None
+
+
+class TestPauseRequests:
+    """Tests for non-blocking pause requests."""
+
+    def test_request_pause_spawns_background_thread_in_single_process(self) -> None:
+        """Single-process pause requests should never block the caller."""
+        manager = OpenBrowserAgentManager(multi_process_mode=False)
+        conversation = MagicMock()
+        manager.conversations["conv-123"] = ConversationState(
+            conversation_id="conv-123",
+            conversation=conversation,
+            visualizer=None,
+        )
+        captured: dict[str, object] = {}
+
+        class FakeThread:
+            def __init__(
+                self,
+                target,
+                args=(),
+                kwargs=None,
+                name=None,
+                daemon=None,
+                group=None,
+            ) -> None:
+                captured["target"] = target
+                captured["args"] = args
+                captured["name"] = name
+                captured["daemon"] = daemon
+
+            def start(self) -> None:
+                captured["started"] = True
+
+        with patch("server.agent.manager.threading.Thread", FakeThread):
+            result = manager.request_pause("conv-123")
+
+        assert result is True
+        assert captured["started"] is True
+        assert captured["name"] == "pause-conv-123"
+        assert captured["daemon"] is True
+        conversation.pause.assert_not_called()
+
+        target = captured["target"]
+        args = captured["args"]
+        assert callable(target)
+        target(*args)
+        conversation.pause.assert_called_once_with()
+
+    def test_request_pause_queues_control_message_in_multi_process_mode(self) -> None:
+        """Multi-process pause requests should be sent via the worker queue."""
+        manager = OpenBrowserAgentManager(multi_process_mode=True)
+        command_queue = MagicMock()
+
+        with patch.object(
+            manager, "get_command_queue", return_value=command_queue
+        ) as mock_get_queue:
+            result = manager.request_pause("conv-456")
+
+        assert result is True
+        mock_get_queue.assert_called_once_with("conv-456")
+        command_queue.put.assert_called_once_with({"control": "pause"})

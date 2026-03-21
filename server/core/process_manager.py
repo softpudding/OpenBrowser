@@ -138,6 +138,15 @@ def _conversation_worker(
                         )
                     continue
 
+                if isinstance(message, dict) and message.get("control") == "pause":
+                    pause_success = asyncio.run(bundle.pause_conversation())
+                    if not pause_success:
+                        logger.warning(
+                            "Worker %s: pause request could not be applied",
+                            conv_id,
+                        )
+                    continue
+
                 if isinstance(message, dict) and "command" in message:
                     result = asyncio.run(bundle.execute_command(message["command"]))
 
