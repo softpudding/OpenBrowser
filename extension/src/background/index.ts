@@ -50,6 +50,21 @@ console.log('🚀 OpenBrowser extension starting (Strict Mode)...');
 const SERVER_HTTP_URL = 'http://127.0.0.1:8765';
 let currentConnectionId: string | null = null;
 
+async function compressScreenshotResult<T extends { imageData?: string }>(
+  screenshotResult: T | null | undefined,
+): Promise<T | null | undefined> {
+  if (!screenshotResult?.imageData) {
+    return screenshotResult;
+  }
+
+  const compressedResult = await compressIfNeeded(
+    screenshotResult,
+    getCompressionThreshold(),
+  );
+
+  return (compressedResult as T | null | undefined) ?? screenshotResult;
+}
+
 // ============================================================================
 // Command Queue Management System
 // ============================================================================
@@ -594,13 +609,15 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false, // resizeToPreset: false for WYSIWYG mode
           0, // waitForRender
         );
+        const compressedScreenshotResult =
+          await compressScreenshotResult(screenshotResult);
 
         console.log(`✅ [Screenshot] Completed for tab ${activeTabId}`);
 
         return {
           success: true,
           message: 'Screenshot captured',
-          data: screenshotResult,
+          data: compressedScreenshotResult,
           timestamp: Date.now(),
         };
       }
@@ -641,6 +658,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               false,
               0,
             );
+            const compressedInitScreenshotResult =
+              await compressScreenshotResult(initScreenshotResult);
 
             return {
               success: true,
@@ -651,17 +670,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 url: initResult.url,
                 conversationId: conversationId,
                 isManaged: true,
-                screenshot: initScreenshotResult?.imageData,
-                ...(initScreenshotResult?.dialog_auto_accepted
+                screenshot: compressedInitScreenshotResult?.imageData,
+                ...(compressedInitScreenshotResult?.dialog_auto_accepted
                   ? {
                       dialog_auto_accepted:
-                        initScreenshotResult.dialog_auto_accepted,
+                        compressedInitScreenshotResult.dialog_auto_accepted,
                     }
                   : {}),
-                ...(initScreenshotResult?.dialog_auto_accepted_list
+                ...(compressedInitScreenshotResult?.dialog_auto_accepted_list
                   ? {
                       dialog_auto_accepted_list:
-                        initScreenshotResult.dialog_auto_accepted_list,
+                        compressedInitScreenshotResult.dialog_auto_accepted_list,
                     }
                   : {}),
               },
@@ -693,6 +712,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                   0,
                 )
               : null;
+            const compressedOpenScreenshotResult =
+              await compressScreenshotResult(openScreenshotResult);
 
             return {
               success: true,
@@ -700,17 +721,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               data: {
                 ...openResult,
                 conversationId: conversationId,
-                screenshot: openScreenshotResult?.imageData,
-                ...(openScreenshotResult?.dialog_auto_accepted
+                screenshot: compressedOpenScreenshotResult?.imageData,
+                ...(compressedOpenScreenshotResult?.dialog_auto_accepted
                   ? {
                       dialog_auto_accepted:
-                        openScreenshotResult.dialog_auto_accepted,
+                        compressedOpenScreenshotResult.dialog_auto_accepted,
                     }
                   : {}),
-                ...(openScreenshotResult?.dialog_auto_accepted_list
+                ...(compressedOpenScreenshotResult?.dialog_auto_accepted_list
                   ? {
                       dialog_auto_accepted_list:
-                        openScreenshotResult.dialog_auto_accepted_list,
+                        compressedOpenScreenshotResult.dialog_auto_accepted_list,
                     }
                   : {}),
               },
@@ -752,6 +773,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               false,
               0,
             );
+            const compressedSwitchScreenshotResult =
+              await compressScreenshotResult(switchScreenshotResult);
 
             return {
               success: true,
@@ -759,17 +782,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               data: {
                 ...switchResult,
                 conversationId: conversationId,
-                screenshot: switchScreenshotResult?.imageData,
-                ...(switchScreenshotResult?.dialog_auto_accepted
+                screenshot: compressedSwitchScreenshotResult?.imageData,
+                ...(compressedSwitchScreenshotResult?.dialog_auto_accepted
                   ? {
                       dialog_auto_accepted:
-                        switchScreenshotResult.dialog_auto_accepted,
+                        compressedSwitchScreenshotResult.dialog_auto_accepted,
                     }
                   : {}),
-                ...(switchScreenshotResult?.dialog_auto_accepted_list
+                ...(compressedSwitchScreenshotResult?.dialog_auto_accepted_list
                   ? {
                       dialog_auto_accepted_list:
-                        switchScreenshotResult.dialog_auto_accepted_list,
+                        compressedSwitchScreenshotResult.dialog_auto_accepted_list,
                     }
                   : {}),
               },
@@ -808,6 +831,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               false,
               0,
             );
+            const compressedRefreshScreenshotResult =
+              await compressScreenshotResult(refreshScreenshotResult);
 
             return {
               success: true,
@@ -815,17 +840,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               data: {
                 ...refreshResult,
                 conversationId: conversationId,
-                screenshot: refreshScreenshotResult?.imageData,
-                ...(refreshScreenshotResult?.dialog_auto_accepted
+                screenshot: compressedRefreshScreenshotResult?.imageData,
+                ...(compressedRefreshScreenshotResult?.dialog_auto_accepted
                   ? {
                       dialog_auto_accepted:
-                        refreshScreenshotResult.dialog_auto_accepted,
+                        compressedRefreshScreenshotResult.dialog_auto_accepted,
                     }
                   : {}),
-                ...(refreshScreenshotResult?.dialog_auto_accepted_list
+                ...(compressedRefreshScreenshotResult?.dialog_auto_accepted_list
                   ? {
                       dialog_auto_accepted_list:
-                        refreshScreenshotResult.dialog_auto_accepted_list,
+                        compressedRefreshScreenshotResult.dialog_auto_accepted_list,
                     }
                   : {}),
               },
@@ -856,6 +881,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               false,
               0,
             );
+            const compressedViewScreenshotResult =
+              await compressScreenshotResult(viewScreenshotResult);
 
             return {
               success: true,
@@ -863,17 +890,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               data: {
                 tabId: viewActiveTabId,
                 conversationId: conversationId,
-                screenshot: viewScreenshotResult?.imageData,
-                ...(viewScreenshotResult?.dialog_auto_accepted
+                screenshot: compressedViewScreenshotResult?.imageData,
+                ...(compressedViewScreenshotResult?.dialog_auto_accepted
                   ? {
                       dialog_auto_accepted:
-                        viewScreenshotResult.dialog_auto_accepted,
+                        compressedViewScreenshotResult.dialog_auto_accepted,
                     }
                   : {}),
-                ...(viewScreenshotResult?.dialog_auto_accepted_list
+                ...(compressedViewScreenshotResult?.dialog_auto_accepted_list
                   ? {
                       dialog_auto_accepted_list:
-                        viewScreenshotResult.dialog_auto_accepted_list,
+                        compressedViewScreenshotResult.dialog_auto_accepted_list,
                     }
                   : {}),
               },
@@ -926,6 +953,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               false,
               0,
             );
+            const compressedNavigationScreenshotResult =
+              await compressScreenshotResult(screenshotResult);
 
             return {
               success: true,
@@ -934,17 +963,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ...navigationResult,
                 tabId: targetTabId,
                 conversationId: conversationId,
-                screenshot: screenshotResult?.imageData,
-                ...(screenshotResult?.dialog_auto_accepted
+                screenshot: compressedNavigationScreenshotResult?.imageData,
+                ...(compressedNavigationScreenshotResult?.dialog_auto_accepted
                   ? {
                       dialog_auto_accepted:
-                        screenshotResult.dialog_auto_accepted,
+                        compressedNavigationScreenshotResult.dialog_auto_accepted,
                     }
                   : {}),
-                ...(screenshotResult?.dialog_auto_accepted_list
+                ...(compressedNavigationScreenshotResult?.dialog_auto_accepted_list
                   ? {
                       dialog_auto_accepted_list:
-                        screenshotResult.dialog_auto_accepted_list,
+                        compressedNavigationScreenshotResult.dialog_auto_accepted_list,
                     }
                   : {}),
               },
@@ -1116,22 +1145,25 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
+        const compressedJsScreenshotResult =
+          await compressScreenshotResult(jsScreenshotResult);
 
         return {
           success: true,
           message: 'JavaScript executed successfully',
           data: {
             ...jsResult,
-            screenshot: jsScreenshotResult?.imageData,
-            ...(jsScreenshotResult?.dialog_auto_accepted
+            screenshot: compressedJsScreenshotResult?.imageData,
+            ...(compressedJsScreenshotResult?.dialog_auto_accepted
               ? {
-                  dialog_auto_accepted: jsScreenshotResult.dialog_auto_accepted,
+                  dialog_auto_accepted:
+                    compressedJsScreenshotResult.dialog_auto_accepted,
                 }
               : {}),
-            ...(jsScreenshotResult?.dialog_auto_accepted_list
+            ...(compressedJsScreenshotResult?.dialog_auto_accepted_list
               ? {
                   dialog_auto_accepted_list:
-                    jsScreenshotResult.dialog_auto_accepted_list,
+                    compressedJsScreenshotResult.dialog_auto_accepted_list,
                 }
               : {}),
           },
@@ -1979,22 +2011,24 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
+        const compressedClickScreenshotResult =
+          await compressScreenshotResult(clickScreenshotResult);
 
         return {
           success: clickResult.success,
           data: {
             ...clickResult,
-            screenshot: clickScreenshotResult?.imageData,
-            ...(clickScreenshotResult?.dialog_auto_accepted
+            screenshot: compressedClickScreenshotResult?.imageData,
+            ...(compressedClickScreenshotResult?.dialog_auto_accepted
               ? {
                   dialog_auto_accepted:
-                    clickScreenshotResult.dialog_auto_accepted,
+                    compressedClickScreenshotResult.dialog_auto_accepted,
                 }
               : {}),
-            ...(clickScreenshotResult?.dialog_auto_accepted_list
+            ...(compressedClickScreenshotResult?.dialog_auto_accepted_list
               ? {
                   dialog_auto_accepted_list:
-                    clickScreenshotResult.dialog_auto_accepted_list,
+                    compressedClickScreenshotResult.dialog_auto_accepted_list,
                 }
               : {}),
           },
@@ -2023,22 +2057,24 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
+        const compressedHoverScreenshotResult =
+          await compressScreenshotResult(hoverScreenshotResult);
 
         return {
           success: hoverResult.success,
           data: {
             ...hoverResult,
-            screenshot: hoverScreenshotResult?.imageData,
-            ...(hoverScreenshotResult?.dialog_auto_accepted
+            screenshot: compressedHoverScreenshotResult?.imageData,
+            ...(compressedHoverScreenshotResult?.dialog_auto_accepted
               ? {
                   dialog_auto_accepted:
-                    hoverScreenshotResult.dialog_auto_accepted,
+                    compressedHoverScreenshotResult.dialog_auto_accepted,
                 }
               : {}),
-            ...(hoverScreenshotResult?.dialog_auto_accepted_list
+            ...(compressedHoverScreenshotResult?.dialog_auto_accepted_list
               ? {
                   dialog_auto_accepted_list:
-                    hoverScreenshotResult.dialog_auto_accepted_list,
+                    compressedHoverScreenshotResult.dialog_auto_accepted_list,
                 }
               : {}),
           },
@@ -2070,22 +2106,24 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
+        const compressedScrollScreenshotResult =
+          await compressScreenshotResult(scrollScreenshotResult);
 
         return {
           success: scrollResult.success,
           data: {
             ...scrollResult,
-            screenshot: scrollScreenshotResult?.imageData,
-            ...(scrollScreenshotResult?.dialog_auto_accepted
+            screenshot: compressedScrollScreenshotResult?.imageData,
+            ...(compressedScrollScreenshotResult?.dialog_auto_accepted
               ? {
                   dialog_auto_accepted:
-                    scrollScreenshotResult.dialog_auto_accepted,
+                    compressedScrollScreenshotResult.dialog_auto_accepted,
                 }
               : {}),
-            ...(scrollScreenshotResult?.dialog_auto_accepted_list
+            ...(compressedScrollScreenshotResult?.dialog_auto_accepted_list
               ? {
                   dialog_auto_accepted_list:
-                    scrollScreenshotResult.dialog_auto_accepted_list,
+                    compressedScrollScreenshotResult.dialog_auto_accepted_list,
                 }
               : {}),
           },
@@ -2115,22 +2153,24 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
+        const compressedInputScreenshotResult =
+          await compressScreenshotResult(inputScreenshotResult);
 
         return {
           success: inputResult.success,
           data: {
             ...inputResult,
-            screenshot: inputScreenshotResult?.imageData,
-            ...(inputScreenshotResult?.dialog_auto_accepted
+            screenshot: compressedInputScreenshotResult?.imageData,
+            ...(compressedInputScreenshotResult?.dialog_auto_accepted
               ? {
                   dialog_auto_accepted:
-                    inputScreenshotResult.dialog_auto_accepted,
+                    compressedInputScreenshotResult.dialog_auto_accepted,
                 }
               : {}),
-            ...(inputScreenshotResult?.dialog_auto_accepted_list
+            ...(compressedInputScreenshotResult?.dialog_auto_accepted_list
               ? {
                   dialog_auto_accepted_list:
-                    inputScreenshotResult.dialog_auto_accepted_list,
+                    compressedInputScreenshotResult.dialog_auto_accepted_list,
                 }
               : {}),
           },
@@ -2160,22 +2200,24 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           false,
           0,
         );
+        const compressedSelectScreenshotResult =
+          await compressScreenshotResult(selectScreenshotResult);
 
         return {
           success: selectResult.success,
           data: {
             ...selectResult,
-            screenshot: selectScreenshotResult?.imageData,
-            ...(selectScreenshotResult?.dialog_auto_accepted
+            screenshot: compressedSelectScreenshotResult?.imageData,
+            ...(compressedSelectScreenshotResult?.dialog_auto_accepted
               ? {
                   dialog_auto_accepted:
-                    selectScreenshotResult.dialog_auto_accepted,
+                    compressedSelectScreenshotResult.dialog_auto_accepted,
                 }
               : {}),
-            ...(selectScreenshotResult?.dialog_auto_accepted_list
+            ...(compressedSelectScreenshotResult?.dialog_auto_accepted_list
               ? {
                   dialog_auto_accepted_list:
-                    selectScreenshotResult.dialog_auto_accepted_list,
+                    compressedSelectScreenshotResult.dialog_auto_accepted_list,
                 }
               : {}),
           },

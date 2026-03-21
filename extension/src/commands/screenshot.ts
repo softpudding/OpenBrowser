@@ -898,16 +898,23 @@ export async function compressIfNeeded(
       `🖼️ [CompressIfNeeded] Original dimensions: ${originalWidth}x${originalHeight}`,
     );
 
+    // Track the smallest successful candidate even if it does not hit threshold
+    let bestCompressedDataUrl: string | null = null;
+
     // Try progressively smaller sizes until under threshold
-    const scaleSteps = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3];
-    const qualitySteps = [80, 70, 60, minQuality];
+    const scaleSteps = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1];
+    const qualitySteps = Array.from(
+      new Set([80, 70, 60, 50, 40, 30, 20, 10, minQuality]),
+    )
+      .filter((quality) => quality >= 10 && quality <= 100)
+      .sort((a, b) => b - a);
 
     for (const scale of scaleSteps) {
       for (const quality of qualitySteps) {
         const targetWidth = Math.floor(originalWidth * scale);
         const targetHeight = Math.floor(originalHeight * scale);
 
-        if (targetWidth < 200 || targetHeight < 150) {
+        if (targetWidth < 100 || targetHeight < 75) {
           console.warn(
             `⚠️ [CompressIfNeeded] Reached minimum dimensions, stopping compression`,
           );
@@ -950,6 +957,13 @@ export async function compressIfNeeded(
             `📊 [CompressIfNeeded] Tried scale=${scale.toFixed(1)}, quality=${quality}%: ${compressedDataUrl.length} bytes`,
           );
 
+          if (
+            !bestCompressedDataUrl ||
+            compressedDataUrl.length < bestCompressedDataUrl.length
+          ) {
+            bestCompressedDataUrl = compressedDataUrl;
+          }
+
           if (compressedDataUrl.length <= thresholdBytes) {
             console.log(
               `✅ [CompressIfNeeded] Compressed successfully: ${dataUrl.length} → ${compressedDataUrl.length} bytes (${((1 - compressedDataUrl.length / dataUrl.length) * 100).toFixed(1)}% reduction)`,
@@ -971,8 +985,18 @@ export async function compressIfNeeded(
       }
     }
 
+    if (bestCompressedDataUrl) {
+      console.warn(
+        `⚠️ [CompressIfNeeded] Returning smallest compressed candidate: ${bestCompressedDataUrl.length} bytes`,
+      );
+      if (isObject) {
+        return { ...(imageData as object), imageData: bestCompressedDataUrl };
+      }
+      return bestCompressedDataUrl;
+    }
+
     console.warn(
-      `⚠️ [CompressIfNeeded] Could not compress below threshold, returning best effort`,
+      `⚠️ [CompressIfNeeded] Could not produce a compressed image, returning original`,
     );
     return imageData;
   } catch (error) {
