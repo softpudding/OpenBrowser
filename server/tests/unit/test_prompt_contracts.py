@@ -55,6 +55,12 @@ class TestPromptContracts:
         assert '"any" (default)' in description
         assert '"clickable" (default without keywords)' not in description
 
+    def test_highlight_prompt_guides_icon_targets_to_clickable_pagination(self) -> None:
+        description = get_highlight_tool_description()
+
+        assert "icon-only controls" in description
+        assert "Stay on the same `element_type` across pages" in description
+
     def test_tab_prompt_points_agents_to_tab_view_for_clean_screenshots(self) -> None:
         description = get_tab_tool_description()
 

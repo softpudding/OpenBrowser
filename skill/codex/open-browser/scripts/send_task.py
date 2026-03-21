@@ -122,9 +122,9 @@ def stream_task(
 ) -> None:
     request = Request(
         f"{base_url}/agent/conversations/{conversation_id}/messages",
-        data=json.dumps(
-            {"text": task, "cwd": cwd, "browser_id": chrome_uuid}
-        ).encode("utf-8"),
+        data=json.dumps({"text": task, "cwd": cwd, "browser_id": chrome_uuid}).encode(
+            "utf-8"
+        ),
         headers={
             "Content-Type": "application/json",
             "Accept": "text/event-stream",

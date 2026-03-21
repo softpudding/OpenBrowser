@@ -20,13 +20,20 @@ BASE_URL = "http://localhost:8765"
 COMMAND_URL = f"{BASE_URL}/command"
 
 
+def local_request(method: str, url: str, **kwargs: Any) -> requests.Response:
+    """Send a localhost request without inheriting proxy settings."""
+    session = requests.Session()
+    session.trust_env = False
+    return session.request(method, url, **kwargs)
+
+
 @pytest.fixture
 def server_available() -> bool:
     """Check if the server is available for integration tests."""
     try:
-        response = requests.get(f"{BASE_URL}/health", timeout=2)
+        response = local_request("GET", f"{BASE_URL}/health", timeout=2)
         return bool(response.status_code == 200)
-    except requests.exceptions.ConnectionError:
+    except requests.exceptions.RequestException:
         return False
 
 
@@ -39,7 +46,8 @@ def managed_tab_id(server_available: bool) -> int:
     if not server_available:
         pytest.skip("Server not available")
 
-    response = requests.post(
+    response = local_request(
+        "POST",
         COMMAND_URL,
         json={"type": "get_tabs", "managed_only": True},
         timeout=10,
@@ -70,7 +78,8 @@ class TestHighlightElements:
         if not server_available:
             pytest.skip("Server not available")
 
-        response = requests.post(
+        response = local_request(
+            "POST",
             COMMAND_URL,
             json={
                 "type": "highlight_elements",
@@ -123,7 +132,8 @@ class TestClickElement:
             pytest.skip("Server not available")
 
         # First, get elements to click
-        highlight_response = requests.post(
+        highlight_response = local_request(
+            "POST",
             COMMAND_URL,
             json={
                 "type": "highlight_elements",
@@ -147,7 +157,8 @@ class TestClickElement:
         element_id = elements[0].get("id")
 
         # Click with matching tab_id
-        click_response = requests.post(
+        click_response = local_request(
+            "POST",
             COMMAND_URL,
             json={
                 "type": "click_element",
@@ -178,7 +189,8 @@ class TestClickElement:
 
         invalid_tab_id = 999999
 
-        response = requests.post(
+        response = local_request(
+            "POST",
             COMMAND_URL,
             json={
                 "type": "click_element",
@@ -220,7 +232,8 @@ class TestKeyboardInput:
             pytest.skip("Server not available")
 
         # First, get inputable elements
-        highlight_response = requests.post(
+        highlight_response = local_request(
+            "POST",
             COMMAND_URL,
             json={
                 "type": "highlight_elements",
@@ -245,7 +258,8 @@ class TestKeyboardInput:
 
         # Test with valid tab_id - should succeed or fail gracefully
         # (element might not accept input, but no tab_id error)
-        valid_response = requests.post(
+        valid_response = local_request(
+            "POST",
             COMMAND_URL,
             json={
                 "type": "keyboard_input",
@@ -266,7 +280,8 @@ class TestKeyboardInput:
             assert "tab_id" not in error_msg or "invalid" not in error_msg
 
         # Test with invalid tab_id - should fail
-        invalid_response = requests.post(
+        invalid_response = local_request(
+            "POST",
             COMMAND_URL,
             json={
                 "type": "keyboard_input",
@@ -309,7 +324,8 @@ class TestElementOperationsIntegration:
             pytest.skip("Server not available")
 
         # Step 1: Highlight clickable elements
-        highlight_response = requests.post(
+        highlight_response = local_request(
+            "POST",
             COMMAND_URL,
             json={
                 "type": "highlight_elements",
@@ -338,7 +354,8 @@ class TestElementOperationsIntegration:
         ), f"Invalid element ID format: {element_id}"
 
         # Step 3: Click with valid tab_id
-        click_response = requests.post(
+        click_response = local_request(
+            "POST",
             COMMAND_URL,
             json={
                 "type": "click_element",

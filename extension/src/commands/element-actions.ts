@@ -13,6 +13,7 @@ import type { ElementActionResult } from '../types';
 
 import { elementCache } from './element-cache';
 import { executeJavaScript, type JavaScriptResult } from './javascript';
+import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
 
 /**
  * Result type for element click operation
@@ -97,6 +98,7 @@ export async function performElementClick(
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      ${buildHitTestVisibilityHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
@@ -104,7 +106,7 @@ export async function performElementClick(
       }
 
       // Check if element is still visible
-      const rect = el.getBoundingClientRect();
+      let rect = el.getBoundingClientRect();
       const style = window.getComputedStyle(el);
 
       if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
@@ -115,6 +117,25 @@ export async function performElementClick(
       if (rect.top < 0 || rect.bottom > window.innerHeight ||
           rect.left < 0 || rect.right > window.innerWidth) {
         el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+        rect = el.getBoundingClientRect();
+      }
+
+      const activeTopLayerRoot = getActiveTopLayerRoot();
+      if (!isElementInActiveTopLayer(el, activeTopLayerRoot)) {
+        return {
+          clicked: false,
+          error: "Element is outside the active top layer: " + describeElement(activeTopLayerRoot),
+          stale: false
+        };
+      }
+
+      const hitTestVisibility = getElementHitTestVisibility(el);
+      if (!hitTestVisibility.visible) {
+        return {
+          clicked: false,
+          error: "Element is occluded by " + (hitTestVisibility.occludedBy || "another element"),
+          stale: false
+        };
       }
 
       // Full event sequence for React/Vue compatibility

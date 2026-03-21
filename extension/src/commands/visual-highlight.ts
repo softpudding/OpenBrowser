@@ -10,6 +10,7 @@ import type {
   HighlightOptions,
 } from '../types';
 import { LABEL_FONT_SIZE, LABEL_PADDING } from './label-constants';
+import { getLabelDimensions } from '../utils/label-geometry';
 
 /**
  * Color mapping for different element types (with transparency for label backgrounds)
@@ -488,7 +489,11 @@ function drawLabel(
   scale: number,
   position: 'above' | 'below' | 'left' | 'right' = 'above',
 ): void {
-  // Calculate device-pixel values from base CSS sizes
+  const { width: labelWidth, height: labelHeight } = getLabelDimensions(
+    text,
+    width,
+    scale,
+  );
   const fontSize = Math.round(LABEL_FONT_SIZE * scale);
   const labelPadding = Math.round(LABEL_PADDING * scale);
 
@@ -496,14 +501,6 @@ function drawLabel(
   ctx.font = `bold ${fontSize}px Arial`;
 
   // Measure text width
-  const metrics = ctx.measureText(text);
-  const textWidth = metrics.width;
-  const textHeight = fontSize; // Height matches font size
-
-  // Calculate label dimensions
-  const labelWidth = textWidth + labelPadding * 2;
-  const labelHeight = textHeight + labelPadding * 2;
-
   let labelX: number;
   let labelY: number;
 
@@ -537,6 +534,11 @@ function drawLabel(
   }
 
   // Draw label background
+  const canvasWidth = ctx.canvas.width;
+  const canvasHeight = ctx.canvas.height;
+  labelX = Math.max(0, Math.min(labelX, canvasWidth - labelWidth));
+  labelY = Math.max(0, Math.min(labelY, canvasHeight - labelHeight));
+
   ctx.fillStyle = bgColor;
   ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
 

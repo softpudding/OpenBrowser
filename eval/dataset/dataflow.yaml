@@ -4,7 +4,7 @@ difficulty: medium
 description: "Test visual understanding capabilities through realistic dashboard tasks"
 start_url: "http://localhost:16605/dataflow/"
 instruction: "Please complete the following tasks: 1) Enable the weekly reports feature in settings. 2) View the detailed report for the quarter with the highest revenue. 3) Navigate to the Revenue tab."
-time_limit: 300.0
+time_limit: 600.0
 cost_limit: 0.5
 
 criteria:

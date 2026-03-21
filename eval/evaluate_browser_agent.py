@@ -215,7 +215,9 @@ class OpenBrowserClient:
             base_url: Optional base URL override
             model_alias: Optional configured model alias
         """
-        if self.chrome_uuid and not self.wait_for_browser_validity(timeout_seconds=30.0):
+        if self.chrome_uuid and not self.wait_for_browser_validity(
+            timeout_seconds=30.0
+        ):
             return None
 
         request_json: Dict[str, Any] = {}
@@ -2031,9 +2033,11 @@ class Evaluator:
                                 result.get("composite_score") or 0, 4
                             ),
                             "total_score": round(
-                                result.get("total_score")
-                                if result.get("total_score") is not None
-                                else result["task_score"],
+                                (
+                                    result.get("total_score")
+                                    if result.get("total_score") is not None
+                                    else result["task_score"]
+                                ),
                                 2,
                             ),
                             "duration": round(result.get("duration") or 0, 2),
@@ -2241,9 +2245,7 @@ def main():
                 passed_float = 1.0 if result.passed else 0.0
                 eff_score = result.efficiency_score or 0.0
                 usage_score_val = result.usage_score or 0.0
-                test_composite = (
-                    passed_float * 3 + eff_score + usage_score_val
-                ) / 5.0
+                test_composite = (passed_float * 3 + eff_score + usage_score_val) / 5.0
                 print(f"  Composite score: {test_composite:.2f}/1.0")
                 print(f"  Total score: {result.total_score or result.score:.1f}")
                 print(
@@ -2282,9 +2284,7 @@ def main():
                     )
                     print(f"  Status: {'PASS' if result.passed else 'FAIL'}")
                     print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
-                    print(
-                        f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0"
-                    )
+                    print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
                     print(f"  Usage score: {result.usage_score or 0:.2f}/1.0")
                     # Calculate composite score for this test
                     passed_float = 1.0 if result.passed else 0.0

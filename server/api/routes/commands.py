@@ -16,7 +16,9 @@ def _resolve_and_validate_browser_id(command_data: dict) -> str:
     conversation_id = command_data.get("conversation_id")
 
     session = (
-        session_manager.get_session(conversation_id) if conversation_id is not None else None
+        session_manager.get_session(conversation_id)
+        if conversation_id is not None
+        else None
     )
     bound_browser_id = None
     if session is not None:

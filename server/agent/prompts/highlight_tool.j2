@@ -6,9 +6,10 @@ Find elements before interacting.
 ## Core Rules
 
 1. Prefer `element_type: "any"` first.
-2. Use the screenshot and returned HTML together.
-3. If the target is not visible, change `page` or use `keywords`.
-4. Do not guess an `element_id` without a highlight result.
+2. Use `keywords` when the target has visible text or distinctive HTML text.
+3. For icon-only toolbar or header controls, use `element_type: "clickable"` only as a targeted fallback, not as the default.
+4. If the target is not visible, keep the same `element_type` and increment `page`.
+5. Do not guess an `element_id` without a highlight result.
 
 ## Command
 
@@ -24,8 +25,10 @@ Find elements before interacting.
 
 ## Selection Strategy
 
+- Start with `element_type: "any"` for general exploration
 - If you know the target text, try `keywords` first
-- If you do not know the exact text, use `element_type: "any"`
+- If the target is an icon-only toolbar or header control, use `element_type: "clickable"` and continue `page=1,2,3...`
+- Do not use `keywords` such as `"settings"`, `"gear"`, or `"bell"` to find icon-only SVG toolbar icons
 - If many elements overlap across pages, stay on the same `element_type` and increment `page`
 
 ## After Highlight
@@ -99,11 +102,14 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 - If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements
 - Continue to the next page until you find the most appropriate element for your task
 - Stay on the same `element_type` across pages to browse through all elements of that category
+- For icon-only controls (gear, close, bell, avatar menu, toolbar icons), prefer pagination over broad keyword search
 
 **When to Use Keywords**:
 - When you know what text/attribute you're looking for (e.g., "Submit", "Login", "search")
 - More efficient than pagination when target is visually identifiable
 - No need for pagination - all matching elements are returned at once
+- Weak for icon-only controls because SVG meaning often is not represented in searchable text
+- Do not use keywords as your first attempt for toolbar icons like settings, history, notifications, chat, or avatar menus
 
 **Keyword Search Strategies (Two-Phase Approach)**:
 
@@ -141,6 +147,7 @@ Examples of broad search:
 **Anti-Patterns**:
 - DO NOT use overly broad keywords like ["x"] that match everything
 - DO NOT start with broad search when you can see exact text
+- DO NOT search for unlabeled toolbar icons with guessed words like "settings", "gear", "bell", or "chat"
 - DO NOT mix unrelated keywords in a single search
 
 ## Workflow Integration
@@ -154,7 +161,10 @@ Examples of broad search:
 
 ## Element Types
 
-**Recommendation**: Prefer `element_type: "any"` unless you are 100% certain about the target element's type. The `any` type searches all element categories in one call, reducing the need for multiple highlight requests.
+**Recommendation**:
+- Prefer `element_type: "clickable"` for buttons, links, tabs, and icon-only controls
+- Prefer `keywords` when the target has unique visible text
+- Use `element_type: "any"` for broad exploration only after the targeted strategies above fail
 
 ### any
 Combines all element types with OR logic. Returns elements matching any of the types. Elements matching multiple types are deduplicated and assigned the first matched type (priority: clickable > scrollable > inputable > hoverable > selectable).
