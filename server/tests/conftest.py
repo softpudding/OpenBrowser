@@ -5,6 +5,9 @@ import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+import requests
+
 # Ensure server/ is in path for imports
 _server_path = Path(__file__).resolve().parent.parent.parent / "server"
 if str(_server_path) not in sys.path:
@@ -54,3 +57,33 @@ sys.modules["openhands.tools.preset.default"] = preset_default_module
 # Parent modules (empty)
 sys.modules["openhands.tools"] = types.ModuleType("openhands.tools")
 sys.modules["openhands.tools.preset"] = types.ModuleType("openhands.tools.preset")
+
+
+@pytest.fixture(autouse=True)
+def disable_proxy_env_for_tests(monkeypatch: pytest.MonkeyPatch):
+    """Ensure test HTTP calls never inherit local proxy settings."""
+    proxy_env_vars = (
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+    )
+
+    for env_var in proxy_env_vars:
+        monkeypatch.delenv(env_var, raising=False)
+
+    original_init = requests.sessions.Session.__init__
+
+    def session_init_without_env(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self.trust_env = False
+
+    monkeypatch.setattr(
+        requests.sessions.Session,
+        "__init__",
+        session_init_without_env,
+    )
