@@ -48,5 +48,7 @@ describe('hit-test visibility helpers', () => {
     expect(script).toContain('getActiveTopLayerRoot');
     expect(script).toContain('.modal-overlay');
     expect(script).toContain('getElementHitTestVisibility');
+    expect(script).toContain('resolveTopLayerRoot');
+    expect(script).toContain('hasVisibleSiblingContent');
   });
 });
