@@ -32,7 +32,7 @@ const POINTER_ROLE_SET = new Set([
 ]);
 
 const CONTROL_TOKEN_REGEX =
-  /\b(action|back|btn|button|clear|close|comment|filter|follow|like|menu|more|next|pause|play|prev|previous|refresh|reload|reply|search|share|submit|tab|toggle)\b/i;
+  /\b(action|back|bookmark|btn|button|clear|close|collect|comment|favorite|favourite|filter|follow|like|menu|more|next|pause|play|prev|previous|refresh|reload|reply|save|search|share|star|submit|tab|toggle)\b/i;
 const SWIPE_LIBRARY_REGEX =
   /\b(swiper|carousel|slider|slides?|embla|splide|slick|flickity|glide|keen-slider|tns)\b/i;
 
@@ -326,7 +326,7 @@ function getControlAffinityScore(el) {
   }
 
   if (
-    /\b(button|btn|filter|follow|like|refresh|reload|reply|search|share|submit|toggle)\b/i.test(
+    /\b(bookmark|button|btn|collect|favorite|favourite|filter|follow|like|refresh|reload|reply|save|search|share|star|submit|toggle)\b/i.test(
       searchText,
     )
   ) {

@@ -190,4 +190,31 @@ describe('highlight-detection helpers', () => {
     expect(script).toContain('layoutStabilityConfig.maxTextCandidates');
     expect(script).toContain('isMetricsTimeBudgetExceeded(metricsStartTime)');
   });
+
+  test('buildHighlightDetectionScript treats collect wrappers as control roots', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const controlTokenStart = script.indexOf('const CONTROL_TOKEN_REGEX');
+    const controlTokenEnd = script.indexOf(
+      'const SWIPE_LIBRARY_REGEX',
+      controlTokenStart,
+    );
+    const controlTokenSource = script.slice(controlTokenStart, controlTokenEnd);
+    const affinityStart = script.indexOf('function getControlAffinityScore');
+    const affinityEnd = script.indexOf(
+      'function getSemanticClickableSignal',
+      affinityStart,
+    );
+    const affinitySource = script.slice(affinityStart, affinityEnd);
+
+    expect(controlTokenSource).toContain('collect');
+    expect(controlTokenSource).toContain('bookmark');
+    expect(controlTokenSource).toContain('favorite');
+    expect(controlTokenSource).toContain('save');
+    expect(controlTokenSource).toContain('star');
+    expect(affinitySource).toContain('collect');
+    expect(affinitySource).toContain('bookmark');
+    expect(affinitySource).toContain('favorite');
+    expect(affinitySource).toContain('save');
+    expect(affinitySource).toContain('star');
+  });
 });
