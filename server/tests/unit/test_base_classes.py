@@ -86,13 +86,15 @@ class TestOpenBrowserObservation:
         observation = OpenBrowserObservation(
             success=True,
             element_type="clickable",
-            highlighted_elements=[{"id": "abc123", "html": long_html}],
+            highlighted_elements=[
+                {"id": "abc123", "type": "clickable", "html": long_html}
+            ],
             total_elements=1,
         )
 
         text = _text_content(observation)
 
-        assert "abc123:" in text
+        assert "abc123(clickable):" in text
         assert "...(Truncated)" in text
 
     def test_selectable_elements_keep_full_html_so_options_remain_visible(self) -> None:
@@ -104,7 +106,9 @@ class TestOpenBrowserObservation:
         observation = OpenBrowserObservation(
             success=True,
             element_type="selectable",
-            highlighted_elements=[{"id": "sel999", "html": select_html}],
+            highlighted_elements=[
+                {"id": "sel999", "type": "selectable", "html": select_html}
+            ],
             total_elements=1,
         )
 
@@ -112,6 +116,49 @@ class TestOpenBrowserObservation:
 
         assert select_html in text
         assert "...(Truncated)" not in text
+
+    def test_highlighted_elements_include_detected_type_suffix(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="any",
+            highlighted_elements=[
+                {
+                    "id": "vrtbj5",
+                    "type": "clickable",
+                    "html": '<div class="search-icon"></div>',
+                },
+                {
+                    "id": "q4w08w",
+                    "type": "inputable",
+                    "html": '<input id="search-input" />',
+                },
+            ],
+            total_elements=2,
+        )
+
+        text = _text_content(observation)
+
+        assert "vrtbj5(clickable):" in text
+        assert "q4w08w(inputable):" in text
+
+    def test_highlighted_elements_include_interaction_hints_in_suffix(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="any",
+            highlighted_elements=[
+                {
+                    "id": "swp123",
+                    "type": "clickable",
+                    "interactionHints": ["swipable"],
+                    "html": '<div class="swiper-slide"></div>',
+                }
+            ],
+            total_elements=1,
+        )
+
+        text = _text_content(observation)
+
+        assert "swp123(clickable, swipable):" in text
 
     def test_pending_confirmation_includes_follow_up_command(self) -> None:
         observation = OpenBrowserObservation(
@@ -126,8 +173,24 @@ class TestOpenBrowserObservation:
         text = _text_content(observation)
 
         assert "## ⚠️ Action Pending Confirmation" in text
-        assert '"type": "confirm_click_element"' in text
+        assert "use the `element_interaction` tool" in text
+        assert '"action": "confirm_click"' in text
         assert '"element_id": "a1b2c3"' in text
+
+    def test_pending_swipe_confirmation_uses_matching_follow_up_command(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            pending_confirmation={
+                "element_id": "swp789",
+                "action_type": "swipe",
+                "full_html": '<div class="swiper"></div>',
+            },
+        )
+
+        text = _text_content(observation)
+
+        assert '"action": "confirm_swipe"' in text
+        assert '"element_id": "swp789"' in text
 
     def test_auto_accepted_dialogs_render_history_and_note(self) -> None:
         observation = OpenBrowserObservation(

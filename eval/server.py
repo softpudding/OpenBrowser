@@ -175,6 +175,8 @@ URL_MAPPINGS = {
     "/dataflow/index.html": ("/dataflow/index.html", "text/html"),
     "/finviz/": ("/finviz/index.html", "text/html"),
     "/finviz/index.html": ("/finviz/index.html", "text/html"),
+    "/bluebook/": ("/bluebook/index.html", "text/html"),
+    "/bluebook/index.html": ("/bluebook/index.html", "text/html"),
 }
 
 CSS_MIMETYPE = "text/css"
@@ -240,6 +242,12 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                         "url": "/finviz/",
                         "description": "Stock screener - test complex filters, selects, and data tables",
                     },
+                    {
+                        "name": "bluebook.life",
+                        "difficulty": "hard",
+                        "url": "/bluebook/",
+                        "description": "Xiaohongshu-like feed - test search, note modal, comment actions, and dense visual layouts",
+                    },
                 ]
             }
             self.send_json_response(sites)
@@ -259,6 +267,7 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                     "/cloudstack/": "CloudStack console mock (hard)",
                     "/dataflow/": "DataFlow analytics dashboard mock (medium)",
                     "/finviz/": "Finviz stock screener mock (hard)",
+                    "/bluebook/": "BlueBook lifestyle feed mock (hard)",
                 },
             }
             self.send_json_response(help_text)
@@ -307,6 +316,7 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             "cloudstack",
             "dataflow",
             "finviz",
+            "bluebook",
         ]:
             if path.startswith(f"/{site}/js/") and path.endswith(".js"):
                 self.send_file(path, JS_MIMETYPE)
@@ -319,6 +329,7 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             "cloudstack",
             "dataflow",
             "finviz",
+            "bluebook",
         ]:
             if path.startswith(f"/{site}/css/") and path.endswith(".css"):
                 self.send_file(path, CSS_MIMETYPE)
@@ -719,7 +730,9 @@ def print_startup_info(port):
     print(f"  - GBR (Easy):   http://localhost:{port}/gbr/")
     print(f"  - TechForum (Medium): http://localhost:{port}/techforum/")
     print(f"  - CloudStack (Hard):  http://localhost:{port}/cloudstack/")
+    print(f"  - DataFlow (Medium):  http://localhost:{port}/dataflow/")
     print(f"  - Finviz (Hard):  http://localhost:{port}/finviz/")
+    print(f"  - BlueBook (Hard): http://localhost:{port}/bluebook/")
     print(f"\nAPI Endpoints:")
     print(f"  - GET  http://localhost:{port}/api/events       - Get all tracked events")
     print(f"  - GET  http://localhost:{port}/api/events/clear - Clear all events")

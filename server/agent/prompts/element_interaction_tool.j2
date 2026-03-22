@@ -58,6 +58,14 @@ Inside one container:
 { "action": "confirm_scroll", "element_id": "d2f4a8", "tab_id": 123 }
 ```
 
+### swipe
+
+Carousel / slider / swiper region:
+```json
+{ "action": "swipe", "element_id": "d2f4a8", "direction": "next", "swipe_count": 1, "tab_id": 123 }
+{ "action": "confirm_swipe", "element_id": "d2f4a8", "tab_id": 123 }
+```
+
 ## Decision Rules
 
 - For buttons and links, use `click`
@@ -65,6 +73,8 @@ Inside one container:
 - For native `<select>`, use `select`
 - For hidden menus or tooltips, use `hover`
 - For more content, use `scroll`
+- For carousel / gallery / swiper regions marked `swipable`, use `swipe`
+  Use `direction: "next"` or `direction: "prev"` for swipe.
 
 ## Confirmation Rules
 
@@ -82,7 +92,7 @@ Safe element interaction with visual verification and fast paths.
 
 ## Overview
 
-The Element Interaction Tool handles click, hover, scroll, keyboard input, and select operations. This is the **ORANGE stage** of the color system: the default flow is visual verification before execution, but the system may use safe fast paths when confidence is already high.
+The Element Interaction Tool handles click, hover, scroll, swipe, keyboard input, and select operations. This is the **ORANGE stage** of the color system: the default flow is visual verification before execution, but the system may use safe fast paths when confidence is already high.
 
 ## Visual Color System - ORANGE Stage
 
@@ -109,7 +119,7 @@ Element interactions have 2 execution paths:
 
 ```
 Default confirmation flow
-└── Use action: click / hover / scroll(with element_id) / keyboard_input / select
+└── Use action: click / hover / scroll(with element_id) / swipe / keyboard_input / select
 └── Result: ORANGE preview screenshot + full HTML
 └── If correct: use `confirm_{action}`
 
@@ -185,74 +195,17 @@ Use this to:
 - Scroll within specific containers (when element_id is provided, requires confirmation)
 - Scroll the entire page (when element_id is omitted, executes immediately)
 
-**⚠️ Troubleshooting Whole-Page Scroll**:
+**If whole-page scroll has no effect**:
 
-If a whole-page scroll (without `element_id`) has no effect and you see the message:
-
-```
-⚠️ Page scroll had no effect - may already be at boundary
-```
-
-You need to diagnose **which of these two scenarios** applies:
-
----
-
-### Scenario 1: Content is in a Scrollable Container
-
-The main page cannot scroll, but the content you need is inside a **scrollable container** (e.g., a modal dialog, a sidebar, a scrollable list, or any element with its own scroll context).
-
-**How to identify**:
-- You see a visible container (modal, sidebar, panel) that might contain more content
-- The page layout suggests a nested scrollable area
-
-**What to do**:
-
-1. **Identify scrollable containers**: Call the **highlight tool** with `element_type="scrollable"`:
-   ```json
-   { "element_type": "scrollable" }
-   ```
-
-2. **Scroll within the container**: Use `scroll` with the `element_id` of the specific container:
-   ```json
-   { "action": "scroll", "element_id": "abc123", "direction": "down", "tab_id": 123 }
-   // → This requires 2PC confirmation
-   ```
-
-**Common examples**:
-- **Modal dialogs**: Content inside a modal often has its own scroll area
-- **Sidebars**: Navigation sidebars or chat panels typically have independent scrolling
-- **Lists and tables**: Long lists or data tables often use container scrolling
-- **Overflow containers**: Any element with `overflow: auto` or `overflow: scroll` CSS
-
----
-
-### Scenario 2: Page Uses Horizontal Scrolling
-
-Some modern pages (e.g., Xiaohongshu/小红书, Pinterest-style layouts) use **horizontal scrolling** instead of or in addition to vertical scrolling.
-
-**How to identify**:
-- Page layout shows cards/content arranged horizontally
-- Vertical scroll reaches boundary quickly or shows no effect
-- The page appears to be a "feed" or "carousel" style layout
-
-**What to do**:
-
-Try scrolling horizontally instead:
-```json
-{ "action": "scroll", "direction": "right", "scroll_amount": 1.0, "tab_id": 123 }
-{ "action": "scroll", "direction": "left", "scroll_amount": 1.0, "tab_id": 123 }
-```
-
-**Common examples**:
-- **Feed-style apps**: Xiaohongshu, Pinterest, Instagram explore
-- **Carousel layouts**: Product carousels, image galleries
-- **Tab-based navigation**: Horizontal tab strips that reveal more options
-
----
-
-**Key distinction**:
-- **Scenario 1** → You need to find and target a *specific container element* (use `element_id`)
-- **Scenario 2** → You need to change *scroll direction* (use `direction: "left"/"right"` without `element_id`)
+- First decide whether the page is actually scrollable or whether the content lives in a nested container
+- If a modal, sidebar, list, or panel seems to have its own scroll area, re-run `highlight` with `element_type="scrollable"` and scroll that specific `element_id`
+- If the layout is clearly horizontal, try `direction: "left"` or `direction: "right"`
+- If highlight shows the `swipable` hint, treat the region as a carousel/slider and prefer `swipe` over `scroll`
+{% if not disable_javascript %}
+- If scroll/swipe fails twice and the task still requires progress, use the JavaScript tool only as a last-resort fallback for this system
+{% else %}
+- If scroll/swipe fails repeatedly, re-orient around currently visible items because JavaScript fallback is disabled in this environment
+{% endif %}
 
 ### keyboard_input
 Type text into an input element by its visual ID.
@@ -320,10 +273,11 @@ Each action has a corresponding confirm action (use the same `element_interactio
 - `confirm_click` (for click action)
 - `confirm_hover` (for hover action)
 - `confirm_scroll` (for scroll action with element_id)
+- `confirm_swipe` (for swipe action)
 - `confirm_keyboard_input` (for keyboard_input action)
 - `confirm_select` (for select action)
 
-**Parameters**: Same as the initiating action (`element_id`, `tab_id`), plus any additional parameters like `text` for keyboard_input.
+**Parameters**: Use the same `element_id`. `tab_id` is optional. Values such as `text`, `value`, `direction`, and `scroll_amount` come from the pending confirmation created by the initiating action.
 
 **Behavior**: Executes the action after visual verification when the action entered confirmation mode.
 

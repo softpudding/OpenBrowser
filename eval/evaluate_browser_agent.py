@@ -1088,7 +1088,11 @@ class Evaluator:
         self, sse_events: List[Dict[str, Any]]
     ) -> Optional[float]:
         """Extract cost in RMB from SSE events (usage_metrics event)"""
-        for event in sse_events:
+        usage_metric_events = [
+            event for event in sse_events if event.get("type") == "usage_metrics"
+        ]
+
+        for event in reversed(usage_metric_events):
             event_type = event.get("type")
             if event_type == "usage_metrics":
                 logger.debug(f"Found usage_metrics event: {event}")
@@ -1133,7 +1137,9 @@ class Evaluator:
                         f"No accumulated_cost found in metrics. Available keys: {list(metrics.keys())}"
                     )
 
-        logger.debug(f"No usage_metrics event found in {len(sse_events)} SSE events")
+        logger.debug(
+            f"No valid usage_metrics event found in {len(sse_events)} SSE events"
+        )
         # Log event types for debugging
         event_types = [e.get("type") for e in sse_events]
         logger.debug(f"Event types found: {event_types}")

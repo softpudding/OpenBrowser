@@ -1,0 +1,36 @@
+id: bluebook_simple
+name: "BlueBook Search And Like Test"
+difficulty: medium
+description: "Search for a specific post in the BlueBook feed, open it, and like the note."
+start_url: "http://localhost:16605/bluebook/"
+instruction: "On the BlueBook home page, use the top search box to search for \"arigato\", open the note titled \"Arigato: this AI vision prompt template actually works\", and like that note."
+time_limit: 300.0
+cost_limit: 0.6
+
+criteria:
+  - type: execute_search
+    description: "Use the header search with the target keyword"
+    points: 1.5
+    expected:
+      event_type: search_execute
+      query: "arigato"
+      page: "/bluebook/"
+
+  - type: open_target_note
+    description: "Open the correct search result"
+    points: 2
+    expected:
+      event_type: note_open
+      noteId: "note-arigato-ai"
+      noteTitle: "Arigato: this AI vision prompt template actually works"
+      page: "/bluebook/"
+
+  - type: like_target_note
+    description: "Like the correct note"
+    points: 2.5
+    expected:
+      event_type: note_like_toggle
+      noteId: "note-arigato-ai"
+      noteTitle: "Arigato: this AI vision prompt template actually works"
+      liked: true
+      page: "/bluebook/"

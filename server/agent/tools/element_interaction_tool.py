@@ -58,29 +58,37 @@ class ElementInteractionAction(OpenBrowserAction):
         "click",
         "hover",
         "scroll",
+        "swipe",
         "keyboard_input",
         "select",
         "confirm_click",
         "confirm_hover",
         "confirm_scroll",
+        "confirm_swipe",
         "confirm_keyboard_input",
         "confirm_select",
     ] = Field(
-        description="Element interaction action (use 'click'/'hover'/'scroll'/'keyboard_input'/'select' for preview, 'confirm_*' to execute)"
+        description="Element interaction action (use 'click'/'hover'/'scroll'/'swipe'/'keyboard_input'/'select' for preview, 'confirm_*' to execute)"
     )
     element_id: Optional[str] = Field(
         default=None,
         description="Element ID (6-character hash) from highlight_elements",
     )
-    direction: Optional[Literal["up", "down", "left", "right"]] = Field(
+    direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",
-        description="Scroll direction (up, down, left, right)",
+        description="Movement direction for scroll/swipe. Use up/down/left/right for scroll, prefer next/prev for swipe.",
     )
     scroll_amount: Optional[float] = Field(
         default=0.5,
         ge=0.1,
         le=3.0,
         description="Scroll amount as fraction of viewport (0.1-3.0)",
+    )
+    swipe_count: Optional[int] = Field(
+        default=1,
+        ge=1,
+        le=5,
+        description="Number of swipe steps for carousel/swiper interactions (1-5)",
     )
     text: Optional[str] = Field(
         default=None,

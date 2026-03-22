@@ -122,6 +122,31 @@ def _conversation_worker(
                         logger.info(f"Worker {conv_id}: Received shutdown message")
                         break
 
+                if isinstance(message, dict) and "agent_message" in message:
+                    result = asyncio.run(
+                        bundle.execute_agent_message(
+                            message_text=message["agent_message"],
+                            event_queue=response_queue,
+                        )
+                    )
+
+                    if not result.get("success", False):
+                        logger.warning(
+                            "Worker %s: agent message execution failed: %s",
+                            conv_id,
+                            result.get("error"),
+                        )
+                    continue
+
+                if isinstance(message, dict) and message.get("control") == "pause":
+                    pause_success = asyncio.run(bundle.pause_conversation())
+                    if not pause_success:
+                        logger.warning(
+                            "Worker %s: pause request could not be applied",
+                            conv_id,
+                        )
+                    continue
+
                 if isinstance(message, dict) and "command" in message:
                     result = asyncio.run(bundle.execute_command(message["command"]))
 

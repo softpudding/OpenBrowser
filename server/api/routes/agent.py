@@ -204,13 +204,15 @@ async def agent_messages_stream(conversation_id: str, request: Request):
             )
             # Client disconnected - pause the conversation
             try:
-                conv_state = agent_manager.get_conversation(conversation_id)
-                if conv_state and conv_state.conversation:
+                if agent_manager.request_pause(conversation_id):
                     logger.info(
-                        f"Pausing conversation {conversation_id} due to client disconnect"
+                        f"Pause requested for conversation {conversation_id} due to client disconnect"
                     )
-                    conv_state.conversation.pause()
-                    logger.info(f"Conversation {conversation_id} paused successfully")
+                else:
+                    logger.debug(
+                        "No active conversation available to pause for %s",
+                        conversation_id,
+                    )
             except Exception as e:
                 logger.warning(f"Failed to pause conversation {conversation_id}: {e}")
             # Don't yield error on cancellation, just exit cleanly

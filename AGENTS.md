@@ -205,6 +205,16 @@ Elements are paginated to ensure **no visual overlap** in each screenshot:
 - AI calls `page=1, page=2, page=3...` to see all elements of that type
 - No offset/limit - pages are determined by collision geometry
 
+### Highlight Readiness Behavior
+
+- `highlight_elements` now uses a **snapshot-first** readiness check instead of page-side polling loops.
+- Reason: OpenBrowser intentionally keeps automated tabs in the browser background, and Chrome may heavily throttle hidden-tab timers. A page-side `setTimeout` stability loop can therefore take far longer than its nominal budget and become the main cause of highlight timeouts.
+- The extension samples viewport readiness signals once per attempt: document readiness, viewport text/media density, pending images, and loading placeholders such as skeleton/shimmer/spinner indicators.
+- Readiness is graded as `ready`, `provisionally_ready`, or `not_ready`.
+- If readiness is `not_ready`, the extension performs only a couple of short **background-side** retries before proceeding or returning the latest result.
+- After screenshot capture, highlight still runs a **consistency check**. This is a drift detector, not a loading detector: it verifies whether sampled highlighted elements moved or disappeared between detection and screenshot.
+- Design rule: prefer snapshot classification plus bounded retries; avoid depending on repeated timers inside the target page for highlight stability.
+
 ```
 # Highlight clickable elements (default)
 highlight_elements()                  → Page 1 of clickable elements

@@ -266,7 +266,7 @@ class HighlightElementsCommand(BaseCommand):
     )
     keywords: Optional[List[str]] = Field(
         default=None,
-        description="Keywords list to filter elements by HTML content. When provided, only matching elements are returned (no pagination). Example: ['button', 'submit', 'login']",
+        description="Keywords list to filter elements by detected semantic text (visible text, labels, roles, and stable element tokens). When provided, only matching elements are returned (no pagination). Example: ['button', 'submit', 'login']",
     )
 
 
@@ -317,6 +317,30 @@ class ScrollElementCommand(BaseCommand):
         ge=0.1,
         le=3.0,
         description="Scroll amount relative to page/element height (0.5 = half page, 1.0 = full page, 2.0 = two pages)",
+    )
+    tab_id: Optional[int] = Field(
+        default=None,
+        description="Target tab ID (optional, auto-resolved if not provided)",
+    )
+
+
+class SwipeElementCommand(BaseCommand):
+    """Swipe a highlighted element in a direction, typically for carousel/swiper regions.
+
+    tab_id is optional and will be auto-resolved to the current managed tab if not provided.
+    """
+
+    type: Literal["swipe_element"] = "swipe_element"
+    element_id: str = Field(description="Element ID from highlight response")
+    direction: Literal["next", "prev"] = Field(
+        default="next",
+        description="Swipe direction: 'next' or 'prev'",
+    )
+    swipe_count: int = Field(
+        default=1,
+        ge=1,
+        le=5,
+        description="Number of swipe steps to perform (1-5)",
     )
     tab_id: Optional[int] = Field(
         default=None,
@@ -423,6 +447,7 @@ Command = Union[
     ClickElementCommand,
     HoverElementCommand,
     ScrollElementCommand,
+    SwipeElementCommand,
     KeyboardInputCommand,
     SelectElementCommand,
     GetElementHtmlCommand | HighlightSingleElementCommand,
@@ -454,6 +479,7 @@ def parse_command(data: dict) -> Command:
         "click_element": ClickElementCommand,
         "hover_element": HoverElementCommand,
         "scroll_element": ScrollElementCommand,
+        "swipe_element": SwipeElementCommand,
         "keyboard_input": KeyboardInputCommand,
         "select_element": SelectElementCommand,
         "get_element_html": GetElementHtmlCommand,

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlueBook - Save what feels real</title>
+    <link rel="stylesheet" href="/bluebook/css/bluebook.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand-mark">
+                <div class="brand-logo">Blue</div>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="sidebar-item active" data-nav="discover">
+                    <span class="sidebar-icon">⌂</span>
+                    <span>Discover</span>
+                </button>
+                <button class="sidebar-item" data-nav="live">
+                    <span class="sidebar-icon">◉</span>
+                    <span>Live</span>
+                </button>
+                <button class="sidebar-item" data-nav="publish">
+                    <span class="sidebar-icon">＋</span>
+                    <span>Create</span>
+                </button>
+                <button class="sidebar-item" data-nav="notice">
+                    <span class="sidebar-icon">◌</span>
+                    <span>Inbox</span>
+                </button>
+                <button class="sidebar-item" data-nav="me">
+                    <span class="sidebar-icon">◍</span>
+                    <span>Me</span>
+                </button>
+            </nav>
+            <button class="sidebar-more">
+                <span class="sidebar-icon">☰</span>
+                <span>More</span>
+            </button>
+        </aside>
+
+        <div class="main-shell">
+            <header class="topbar">
+                <div class="search-shell">
+                    <div class="input-box">
+                        <input
+                            id="search-input"
+                            class="search-input"
+                            type="text"
+                            spellcheck="false"
+                            placeholder="Search BlueBook"
+                            autocomplete="off"
+                        >
+                        <div class="input-button">
+                            <div class="close-icon" id="search-clear" aria-label="Clear search" role="button" tabindex="0">
+                                <svg class="reds-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                    <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <div class="search-icon" id="search-submit" aria-label="Search" role="button" tabindex="0">
+                                <svg class="reds-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                    <circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.7"/>
+                                    <path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <nav class="top-links">
+                    <a href="#" class="top-link">Creator Hub</a>
+                    <a href="#" class="top-link">Brand Studio</a>
+                </nav>
+            </header>
+
+            <section class="channel-bar" id="channel-bar"></section>
+
+            <main class="feed-shell">
+                <div class="floating-btn-sets">
+                    <div id="image-note-filter-el" class="graphic-filter" role="button" tabindex="0" aria-label="Images only">
+                        <div class="btn-wrapper">
+                            <svg class="reds-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <rect x="3" y="4" width="14" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/>
+                                <path d="M6 13L9.2 9.8L11.8 12.4L14 10.2L16 12.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <div class="tip-container">
+                            <span class="tip-text">Images only</span>
+                        </div>
+                    </div>
+                    <div class="reload" id="feed-reload" role="button" tabindex="0" aria-label="Refresh feed">
+                        <div class="btn-wrapper">
+                            <svg class="reds-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <path d="M15.8 6.8V3.8M15.8 3.8H12.8M15.8 3.8L12.6 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M15 10A5.5 5.5 0 1 1 9.3 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <div class="tip-container">
+                            <span class="tip-text">Refresh</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feed-status" id="feed-status"></div>
+                <section class="note-grid" id="note-grid"></section>
+            </main>
+        </div>
+    </div>
+
+    <div class="note-detail-mask hidden" id="note-modal">
+        <div class="note-container" id="note-container">
+            <button class="modal-close" id="note-close" aria-label="Close note">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+            </button>
+
+            <section class="media-container" id="modal-media"></section>
+
+            <aside class="detail-panel">
+                <div class="author">
+                    <div class="author-wrapper">
+                        <div class="author-avatar" id="modal-author-avatar"></div>
+                        <div class="author-text">
+                            <div class="author-name-row">
+                                <span class="author-name" id="modal-author-name"></span>
+                                <button class="follow-btn" id="modal-follow-btn">Follow</button>
+                            </div>
+                            <div class="note-time" id="modal-note-time"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-content">
+                    <h1 class="detail-title" id="modal-title"></h1>
+                    <div class="detail-submeta">
+                        <span class="detail-location" id="modal-note-location"></span>
+                        <span class="detail-dot">·</span>
+                        <span class="detail-device" id="modal-note-device"></span>
+                    </div>
+                    <div class="detail-tags" id="modal-tags"></div>
+                    <p class="detail-desc" id="modal-desc"></p>
+                    <div class="detail-story" id="modal-story"></div>
+                </div>
+
+                <div class="detail-comments">
+                    <div class="comment-head">
+                        <span id="modal-comment-summary"></span>
+                    </div>
+                    <div class="comment-list" id="comment-list"></div>
+                </div>
+
+                <div class="detail-footer">
+                    <div class="detail-input-row">
+                        <input id="quick-comment-input" class="quick-comment-input" type="text" placeholder="Add a comment..." autocomplete="off">
+                        <button id="quick-comment-send" class="quick-comment-send">Post</button>
+                    </div>
+                    <div class="detail-actions" id="detail-actions"></div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/bluebook/js/bluebook.js"></script>
+</body>
+</html>

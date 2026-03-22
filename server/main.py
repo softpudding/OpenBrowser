@@ -6,6 +6,7 @@ Local Chrome Server - Main entry point
 import asyncio
 import click
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -37,8 +38,16 @@ def cli():
     default="INFO",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),
 )
-def serve(host, port, websocket_port, log_level):
+@click.option(
+    "--multi-process/--single-process",
+    default=None,
+    help="Run each conversation in its own worker process.",
+)
+def serve(host, port, websocket_port, log_level, multi_process):
     """Start the Local Chrome Server"""
+    if multi_process is not None:
+        os.environ["CHROME_SERVER_MULTI_PROCESS_MODE"] = "1" if multi_process else "0"
+
     import uvicorn
     from server.api.main import app
     from server.websocket.manager import ws_manager
@@ -57,6 +66,8 @@ def serve(host, port, websocket_port, log_level):
     click.echo(f"   HTTP API: http://{host}:{port}")
     click.echo(f"   WebSocket: ws://{host}:{websocket_port}")
     click.echo(f"   Log Level: {log_level}")
+    if multi_process is not None:
+        click.echo(f"   Multi Process: {multi_process}")
     click.echo("")
     click.echo("📚 Endpoints:")
     click.echo("   GET  /              - Server info")

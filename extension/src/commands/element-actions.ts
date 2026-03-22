@@ -96,7 +96,7 @@ export async function performElementClick(
   const escapedSelector = element.selector.replace(/"/g, '\\"');
 
   const script = `
-    (function() {
+    (async function() {
       const selector = "${escapedSelector}";
       ${buildHitTestVisibilityHelpersScript()}
       const el = document.querySelector(selector);
@@ -194,7 +194,7 @@ export async function performElementClick(
       conversationId,
       script,
       true,
-      false,
+      true,
       timeout,
     );
   } catch (error) {
@@ -204,6 +204,7 @@ export async function performElementClick(
       elementId,
       clicked: false,
       staleElement: false,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 
@@ -222,6 +223,7 @@ export async function performElementClick(
       elementId,
       clicked: false,
       staleElement: false,
+      error: jsResult.error || 'Click JavaScript execution failed',
     };
   }
 
@@ -264,10 +266,21 @@ export async function performElementClick(
 
   // Check result structure
   if (!jsResult.result?.value || typeof jsResult.result.value !== 'object') {
+    const invalidResultError =
+      jsResult.result?.subtype === 'promise'
+        ? 'Click JavaScript returned an unresolved Promise instead of a resolved result'
+        : 'Click JavaScript returned an invalid result structure';
     console.error(
       `❌ [ElementClick] Invalid JavaScript result.value structure:`,
       jsResult.result?.value,
     );
+    return {
+      success: false,
+      elementId,
+      clicked: false,
+      staleElement: false,
+      error: invalidResultError,
+    };
   }
 
   if (!clickResult?.clicked) {
@@ -281,6 +294,7 @@ export async function performElementClick(
       elementId,
       clicked: false,
       staleElement: isStale,
+      error: clickResult?.error,
     };
   }
 
@@ -529,6 +543,7 @@ export async function performElementHover(
  * Scroll direction type
  */
 export type ScrollDirection = 'up' | 'down' | 'left' | 'right';
+export type SwipeDirection = 'next' | 'prev' | 'left' | 'right' | 'up' | 'down';
 
 /**
  * Result type for element scroll operation
@@ -546,6 +561,15 @@ export interface ScrollResult extends ElementActionResult {
   error?: string;
 }
 
+export interface SwipeResult extends ElementActionResult {
+  swiped: boolean;
+  swipeEffective?: boolean;
+  warning?: string;
+  method?: string;
+  staleElement?: boolean;
+  error?: string;
+}
+
 /**
  * Perform a scroll on an element identified by its cached element_id
  *
@@ -556,7 +580,7 @@ export interface ScrollResult extends ElementActionResult {
  *
  * @param conversationId Session ID for element cache lookup
  * @param elementId Cached element ID (e.g., "scroll-1"). Optional - if not provided, scrolls the entire page
- * @param direction Scroll direction ('up', 'down', 'left', 'right')
+ * @param direction Swipe direction ('next' or 'prev')
  * @param tabId Target tab ID
  * @param timeout Maximum execution time in milliseconds (default: 30000)
  * @returns Scroll result with success status and scroll position
@@ -880,6 +904,755 @@ export async function performElementScroll(
   }
 
   return result;
+}
+
+/**
+ * Perform a swipe on an element identified by its cached element_id.
+ *
+ * This is designed for carousel / swiper / slider style regions. It first tries
+ * framework APIs (Swiper/Embla/Splide/etc.), then next/prev buttons, then a
+ * scrollBy fallback for scroll-snap style containers.
+ */
+export async function performElementSwipe(
+  conversationId: string,
+  elementId: string,
+  direction: SwipeDirection,
+  tabId: number,
+  swipeCount: number = 1,
+  timeout: number = 30000,
+): Promise<SwipeResult> {
+  console.log(
+    `🫳 [ElementSwipe] Swiping element ${elementId} ${direction} (count: ${swipeCount}) in conversation ${conversationId} on tab ${tabId}`,
+  );
+
+  const element = elementCache.getElementById(conversationId, tabId, elementId);
+  if (!element) {
+    console.log(`❌ [ElementSwipe] Element ${elementId} not found in cache`);
+    return {
+      success: false,
+      elementId,
+      swiped: false,
+      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+    };
+  }
+
+  console.log(
+    `✅ [ElementSwipe] Found element: selector="${element.selector}"`,
+  );
+
+  const escapedSelector = element.selector.replace(/"/g, '\\"');
+
+  const script = `
+    (async function() {
+      const selector = "${escapedSelector}";
+      const direction = "${direction}";
+      const swipeCount = ${swipeCount};
+      const el = document.querySelector(selector);
+
+      if (!el) {
+        return { swiped: false, error: "Element not found in DOM", stale: true };
+      }
+
+      const SWIPE_LIBRARY_REGEX =
+        /\\b(swiper|carousel|slider|slides?|embla|splide|slick|flickity|glide|keen-slider|tns)\\b/i;
+
+      function hasCallableMethod(value, methodNames) {
+        if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+          return false;
+        }
+
+        return methodNames.some((methodName) => typeof value[methodName] === 'function');
+      }
+
+      function isVisible(node) {
+        if (!(node instanceof HTMLElement) && !(node instanceof SVGElement)) {
+          return false;
+        }
+
+        const style = window.getComputedStyle(node);
+        if (
+          style.display === 'none' ||
+          style.visibility === 'hidden' ||
+          style.opacity === '0'
+        ) {
+          return false;
+        }
+
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      }
+
+      function getClassTokens(node) {
+        if (!(node instanceof HTMLElement)) {
+          return [];
+        }
+
+        return Array.from(node.classList)
+          .filter((token) => token.length > 1 && token.length <= 40)
+          .slice(0, 8);
+      }
+
+      function getAttributeTextTokens(node, attributeNames) {
+        const tokens = [];
+
+        for (const attributeName of attributeNames) {
+          const value = node.getAttribute(attributeName);
+          if (value) {
+            tokens.push(String(value));
+          }
+        }
+
+        return tokens;
+      }
+
+      function getMarkerText(node) {
+        if (!(node instanceof HTMLElement)) {
+          return '';
+        }
+
+        return [
+          node.tagName.toLowerCase(),
+          node.id || '',
+          ...getClassTokens(node),
+          ...getAttributeTextTokens(node, [
+            'role',
+            'aria-label',
+            'aria-roledescription',
+            'data-swiper',
+            'data-carousel',
+            'data-slider',
+            'data-testid',
+          ]),
+        ].join(' ').toLowerCase();
+      }
+
+      function getSwipeApi(node) {
+        if (!(node instanceof HTMLElement)) {
+          return null;
+        }
+
+        const candidates = [
+          node.swiper,
+          node.__swiper__,
+          node.embla,
+          node._splide,
+          node.flickity,
+          node.keenSlider,
+          node.glide,
+        ];
+
+        return candidates.find((candidate) =>
+          hasCallableMethod(candidate, [
+            'slideNext',
+            'slidePrev',
+            'slideTo',
+            'next',
+            'prev',
+            'scrollNext',
+            'scrollPrev',
+            'scrollTo',
+            'go',
+            'moveToIdx',
+          ]),
+        ) || null;
+      }
+
+      function hasSwipeLikeLayout(node, axis) {
+        if (!(node instanceof HTMLElement)) {
+          return false;
+        }
+
+        const rect = node.getBoundingClientRect();
+        if (rect.width < 120 || rect.height < 80) {
+          return false;
+        }
+
+        const style = window.getComputedStyle(node);
+        const overflowAxis =
+          axis === 'x'
+            ? \`\${style.overflow} \${style.overflowX}\`.toLowerCase()
+            : \`\${style.overflow} \${style.overflowY}\`.toLowerCase();
+        const constrainsOverflow =
+          overflowAxis.includes('hidden') ||
+          overflowAxis.includes('clip') ||
+          overflowAxis.includes('scroll') ||
+          overflowAxis.includes('auto');
+
+        const visibleChildren = Array.from(node.children).filter(
+          (child) => child instanceof HTMLElement && isVisible(child),
+        );
+        if (visibleChildren.length < 1) {
+          return false;
+        }
+
+        const primaryTrack =
+          visibleChildren.find((child) => {
+            if (!(child instanceof HTMLElement)) {
+              return false;
+            }
+            const childStyle = window.getComputedStyle(child);
+            return (
+              childStyle.transform !== 'none' ||
+              childStyle.display.includes('flex') ||
+              childStyle.whiteSpace === 'nowrap'
+            );
+          }) || (visibleChildren[0] instanceof HTMLElement ? visibleChildren[0] : null);
+
+        if (!(primaryTrack instanceof HTMLElement)) {
+          return false;
+        }
+
+        const trackChildren = Array.from(primaryTrack.children).filter(
+          (child) => child instanceof HTMLElement && isVisible(child),
+        );
+        if (trackChildren.length < 2) {
+          return false;
+        }
+
+        let progression = 0;
+        let aligned = 0;
+        let previousRect = null;
+
+        for (const child of trackChildren.slice(0, 6)) {
+          if (!(child instanceof HTMLElement)) {
+            continue;
+          }
+
+          const childRect = child.getBoundingClientRect();
+          if (previousRect) {
+            if (axis === 'x') {
+              if (childRect.left > previousRect.left + 12) {
+                progression += 1;
+              }
+              if (Math.abs(childRect.top - previousRect.top) <= Math.max(24, rect.height * 0.2)) {
+                aligned += 1;
+              }
+            } else {
+              if (childRect.top > previousRect.top + 12) {
+                progression += 1;
+              }
+              if (Math.abs(childRect.left - previousRect.left) <= Math.max(24, rect.width * 0.2)) {
+                aligned += 1;
+              }
+            }
+          }
+          previousRect = childRect;
+        }
+
+        const canScrollAxis =
+          axis === 'x'
+            ? primaryTrack.scrollWidth > node.clientWidth + 24
+            : primaryTrack.scrollHeight > node.clientHeight + 24;
+
+        return constrainsOverflow && canScrollAxis && progression >= 1 && aligned >= 1;
+      }
+
+      function findSwipeDescendant(root, axis, maxDepth = 3, maxNodes = 60) {
+        if (!(root instanceof HTMLElement)) {
+          return null;
+        }
+
+        const queue = Array.from(root.children).map((child) => ({
+          node: child,
+          depth: 1,
+        }));
+        let visited = 0;
+
+        while (queue.length > 0 && visited < maxNodes) {
+          const current = queue.shift();
+          if (!current || current.depth > maxDepth) {
+            continue;
+          }
+
+          const node = current.node;
+          if (!(node instanceof HTMLElement) || !isVisible(node)) {
+            continue;
+          }
+
+          visited += 1;
+
+          const api = getSwipeApi(node);
+          if (api) {
+            return { container: node, api };
+          }
+
+          const markerText = getMarkerText(node);
+          if (
+            SWIPE_LIBRARY_REGEX.test(markerText) &&
+            (hasSwipeLikeLayout(node, axis) || markerText.includes('swiper'))
+          ) {
+            return { container: node, api: null };
+          }
+
+          if (hasSwipeLikeLayout(node, axis)) {
+            return { container: node, api: null };
+          }
+
+          for (const child of Array.from(node.children)) {
+            queue.push({ node: child, depth: current.depth + 1 });
+          }
+        }
+
+        return null;
+      }
+
+      function findSwipeContext(start, axis, maxDepth = 4) {
+        let current =
+          start instanceof HTMLElement
+            ? start
+            : start instanceof SVGElement
+              ? start.parentElement
+              : null;
+        let depth = 0;
+
+        while (current && current !== document.body && depth <= maxDepth) {
+          const api = getSwipeApi(current);
+          if (api) {
+            return { container: current, api };
+          }
+
+          const markerText = getMarkerText(current);
+          if (
+            SWIPE_LIBRARY_REGEX.test(markerText) &&
+            (hasSwipeLikeLayout(current, axis) || markerText.includes('swiper'))
+          ) {
+            return { container: current, api: null };
+          }
+
+          if (hasSwipeLikeLayout(current, axis)) {
+            return { container: current, api: null };
+          }
+
+          const descendantMatch = findSwipeDescendant(current, axis);
+          if (descendantMatch) {
+            return descendantMatch;
+          }
+
+          current = current.parentElement;
+          depth += 1;
+        }
+
+        return null;
+      }
+
+      function getIndex(api) {
+        if (!api) {
+          return null;
+        }
+        if (typeof api.activeIndex === 'number') {
+          return api.activeIndex;
+        }
+        if (typeof api.selectedScrollSnap === 'function') {
+          return api.selectedScrollSnap();
+        }
+        if (typeof api.index === 'number') {
+          return api.index;
+        }
+        if (api.track && typeof api.track.details?.rel === 'number') {
+          return api.track.details.rel;
+        }
+        return null;
+      }
+
+      function isNavigationControl(node, forward, axis) {
+        if (!(node instanceof HTMLElement) || !isVisible(node)) {
+          return false;
+        }
+
+        const markerText = getMarkerText(node);
+        if (
+          markerText.includes('swiper-slide-next') ||
+          markerText.includes('swiper-slide-prev') ||
+          markerText.includes('swiper-slide-duplicate')
+        ) {
+          return false;
+        }
+
+        const directionTokens = forward
+          ? axis === 'x'
+            ? ['next', 'right', 'forward']
+            : ['next', 'down', 'forward']
+          : axis === 'x'
+            ? ['prev', 'previous', 'left', 'back']
+            : ['prev', 'previous', 'up', 'back'];
+
+        const hasDirectionToken = directionTokens.some((token) =>
+          markerText.includes(token),
+        );
+        if (!hasDirectionToken) {
+          return false;
+        }
+
+        const style = window.getComputedStyle(node);
+        const semanticControl =
+          node.tagName === 'BUTTON' ||
+          node.getAttribute('role') === 'button' ||
+          node.tabIndex >= 0 ||
+          style.cursor === 'pointer';
+        const explicitControlMarker =
+          markerText.includes('arrow') ||
+          markerText.includes('btn') ||
+          markerText.includes('button') ||
+          markerText.includes('controller');
+
+        return semanticControl || explicitControlMarker;
+      }
+
+      function getNavButton(container, forward, axis) {
+        const candidates = container.querySelectorAll(
+          '.swiper-button-next, .swiper-button-prev, .arrow-controller, .btn-wrapper, button, [role="button"], [aria-label], [class*="arrow" i], [class*="btn" i]',
+        );
+
+        for (const candidate of candidates) {
+          if (
+            candidate instanceof HTMLElement &&
+            isNavigationControl(candidate, forward, axis)
+          ) {
+            return candidate;
+          }
+        }
+
+        return null;
+      }
+
+      const axis = 'x';
+      const forward = direction === 'next';
+      const context = findSwipeContext(el, axis) || {
+        container: el instanceof HTMLElement ? el : el.parentElement,
+        api: null,
+      };
+
+      if (!context || !(context.container instanceof HTMLElement)) {
+        return {
+          swiped: false,
+          error: "No swipeable container found for element",
+          stale: false,
+        };
+      }
+
+      const container = context.container;
+      const api = context.api;
+
+      const fallbackScrollTarget =
+        axis === 'x'
+          ? container.scrollWidth > container.clientWidth
+            ? container
+            : container.parentElement && container.parentElement.scrollWidth > container.parentElement.clientWidth
+              ? container.parentElement
+              : container
+          : container.scrollHeight > container.clientHeight
+            ? container
+            : container.parentElement && container.parentElement.scrollHeight > container.parentElement.clientHeight
+              ? container.parentElement
+              : container;
+
+      function getActiveSlideSignature(currentContainer) {
+        if (!(currentContainer instanceof HTMLElement)) {
+          return null;
+        }
+
+        const activeSlide = currentContainer.querySelector(
+          '.swiper-slide-active, [aria-current="true"], .is-active, .active',
+        );
+        if (!(activeSlide instanceof HTMLElement)) {
+          return null;
+        }
+
+        return (
+          activeSlide.getAttribute('data-swiper-slide-index') ||
+          activeSlide.getAttribute('data-index') ||
+          activeSlide.getAttribute('aria-label') ||
+          activeSlide.textContent?.trim().slice(0, 80) ||
+          null
+        );
+      }
+
+      function getFractionText(currentContainer) {
+        if (!(currentContainer instanceof HTMLElement)) {
+          return null;
+        }
+
+        const fractionNode = currentContainer.querySelector('.fraction, .swiper-pagination-fraction');
+        if (!(fractionNode instanceof HTMLElement)) {
+          return null;
+        }
+
+        return fractionNode.textContent?.trim() || null;
+      }
+
+      function getTrackTransform(currentContainer) {
+        if (!(currentContainer instanceof HTMLElement)) {
+          return null;
+        }
+
+        const wrapper = currentContainer.querySelector('.swiper-wrapper');
+        if (!(wrapper instanceof HTMLElement)) {
+          return null;
+        }
+
+        return wrapper.style.transform || window.getComputedStyle(wrapper).transform || null;
+      }
+
+      function captureVisualState(currentContainer, currentApi, currentFallbackTarget) {
+        return {
+          apiIndex: getIndex(currentApi),
+          scrollLeft: currentFallbackTarget.scrollLeft,
+          scrollTop: currentFallbackTarget.scrollTop,
+          activeSlide: getActiveSlideSignature(currentContainer),
+          fractionText: getFractionText(currentContainer),
+          trackTransform: getTrackTransform(currentContainer),
+        };
+      }
+
+      const beforeState = captureVisualState(container, api, fallbackScrollTarget);
+
+      let invoked = 0;
+      let method = 'none';
+      let error = null;
+
+      function invokeSwipeApiStep(currentApi, moveForward) {
+        if (!currentApi) {
+          return null;
+        }
+
+        if (moveForward) {
+          if (typeof currentApi.slideNext === 'function') {
+            currentApi.slideNext();
+            return 'slideNext';
+          }
+          if (typeof currentApi.scrollNext === 'function') {
+            currentApi.scrollNext();
+            return 'scrollNext';
+          }
+          if (typeof currentApi.next === 'function') {
+            currentApi.next();
+            return 'next';
+          }
+        } else {
+          if (typeof currentApi.slidePrev === 'function') {
+            currentApi.slidePrev();
+            return 'slidePrev';
+          }
+          if (typeof currentApi.scrollPrev === 'function') {
+            currentApi.scrollPrev();
+            return 'scrollPrev';
+          }
+          if (typeof currentApi.prev === 'function') {
+            currentApi.prev();
+            return 'prev';
+          }
+        }
+
+        const currentIndex = getIndex(currentApi);
+        if (typeof currentApi.slideTo === 'function' && typeof currentIndex === 'number') {
+          currentApi.slideTo(Math.max(0, currentIndex + (moveForward ? 1 : -1)));
+          return 'slideTo';
+        }
+        if (typeof currentApi.scrollTo === 'function' && typeof currentIndex === 'number') {
+          currentApi.scrollTo(Math.max(0, currentIndex + (moveForward ? 1 : -1)));
+          return 'scrollTo';
+        }
+        if (typeof currentApi.moveToIdx === 'function' && typeof currentIndex === 'number') {
+          currentApi.moveToIdx(Math.max(0, currentIndex + (moveForward ? 1 : -1)));
+          return 'moveToIdx';
+        }
+        if (typeof currentApi.go === 'function') {
+          currentApi.go(moveForward ? '>' : '<');
+          return 'go';
+        }
+
+        return null;
+      }
+
+      for (let i = 0; i < swipeCount; i++) {
+        const apiMethod = invokeSwipeApiStep(api, forward);
+        if (apiMethod) {
+          method = apiMethod;
+          invoked += 1;
+          continue;
+        }
+
+        const navButton = getNavButton(container, forward, axis);
+        if (navButton) {
+          navButton.click();
+          method = 'navButton';
+          invoked += 1;
+          continue;
+        }
+
+        if (typeof fallbackScrollTarget.scrollBy === 'function') {
+          const distance =
+            axis === 'x'
+              ? Math.round((fallbackScrollTarget.clientWidth || window.innerWidth) * 0.85)
+              : Math.round((fallbackScrollTarget.clientHeight || window.innerHeight) * 0.85);
+          fallbackScrollTarget.scrollBy({
+            left: axis === 'x' ? distance * (forward ? 1 : -1) : 0,
+            top: axis === 'y' ? distance * (forward ? 1 : -1) : 0,
+            behavior: 'instant',
+          });
+          method = axis === 'x' ? 'scrollBy-x' : 'scrollBy-y';
+          invoked += 1;
+          continue;
+        }
+
+        error = 'No swipe API, navigation button, or swipe fallback found';
+        break;
+      }
+
+      function isBoundaryControl(node) {
+        if (!(node instanceof HTMLElement)) {
+          return false;
+        }
+
+        const markerText = getMarkerText(node);
+        return (
+          node.classList.contains('forbidden') ||
+          node.classList.contains('disabled') ||
+          node.getAttribute('aria-disabled') === 'true' ||
+          markerText.includes('forbidden') ||
+          markerText.includes('disabled')
+        );
+      }
+
+      const navButton = getNavButton(container, forward, axis);
+      const afterState = captureVisualState(container, api, fallbackScrollTarget);
+
+      const swipeEffective =
+        invoked > 0 &&
+        (
+          (beforeState.apiIndex !== null &&
+            afterState.apiIndex !== null &&
+            beforeState.apiIndex !== afterState.apiIndex) ||
+          beforeState.scrollLeft !== afterState.scrollLeft ||
+          beforeState.scrollTop !== afterState.scrollTop ||
+          beforeState.activeSlide !== afterState.activeSlide ||
+          beforeState.fractionText !== afterState.fractionText ||
+          beforeState.trackTransform !== afterState.trackTransform
+        );
+
+      if (invoked === 0) {
+        return {
+          swiped: false,
+          error: error || 'Swipe could not be performed',
+          stale: false,
+        };
+      }
+
+      return {
+        swiped: true,
+        swipeEffective,
+        method,
+        ...(swipeEffective
+          ? {}
+          : {
+              reason:
+                error ||
+                (method === 'navButton' && navButton && isBoundaryControl(navButton)
+                  ? 'Swipe reached the carousel boundary'
+                  : 'Swipe executed but no visible slide movement was detected'),
+            }),
+      };
+    })();
+  `;
+
+  let jsResult: JavaScriptResult;
+
+  try {
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      true,
+      timeout,
+    );
+  } catch (error) {
+    console.error(`❌ [ElementSwipe] JavaScript execution error:`, error);
+    return {
+      success: false,
+      elementId,
+      swiped: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (!jsResult.success) {
+    console.log(`❌ [ElementSwipe] Swipe execution failed: ${jsResult.error}`);
+    return {
+      success: false,
+      elementId,
+      swiped: false,
+      error: jsResult.error || 'Swipe JavaScript execution failed',
+    };
+  }
+
+  if (jsResult.dialog_opened) {
+    console.log(
+      `💬 [ElementSwipe] Dialog opened during swipe: ${jsResult.dialog?.type} - treating as successful swipe with dialog`,
+    );
+    const result: SwipeResult = {
+      success: true,
+      elementId,
+      swiped: true,
+      new_tabs_created: jsResult.new_tabs_created,
+    };
+    if (jsResult.dialog) {
+      result.dialogOpened = true;
+      result.dialog = {
+        type: jsResult.dialog.type as
+          | 'alert'
+          | 'confirm'
+          | 'prompt'
+          | 'beforeunload',
+        message: jsResult.dialog.message,
+      };
+    }
+    return result;
+  }
+
+  const swipeResult = jsResult.result?.value as
+    | {
+        swiped: boolean;
+        swipeEffective?: boolean;
+        reason?: string;
+        method?: string;
+        error?: string;
+        stale?: boolean;
+      }
+    | undefined;
+
+  if (!swipeResult?.swiped) {
+    const isStale = swipeResult?.stale === true;
+    const error = swipeResult?.error || 'Swipe could not be performed';
+    console.log(`❌ [ElementSwipe] Swipe failed: ${error}, stale=${isStale}`);
+    return {
+      success: false,
+      elementId,
+      swiped: false,
+      staleElement: isStale,
+      error,
+    };
+  }
+
+  const swipeEffective = swipeResult.swipeEffective !== false;
+  const warning = swipeResult.reason;
+
+  if (!swipeEffective) {
+    console.log(
+      `⚠️ [ElementSwipe] Swipe executed but had no immediate effect: ${warning}`,
+    );
+  } else {
+    console.log(`✅ [ElementSwipe] Swipe executed successfully`);
+  }
+
+  return {
+    success: true,
+    elementId,
+    swiped: true,
+    swipeEffective,
+    ...(warning ? { warning } : {}),
+    ...(swipeResult.method ? { method: swipeResult.method } : {}),
+  };
 }
 
 /**

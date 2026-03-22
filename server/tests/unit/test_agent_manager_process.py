@@ -39,6 +39,7 @@ sys.modules["openhands.tools.preset.default"] = preset_default_module
 sys.modules["openhands.tools"] = types.ModuleType("openhands.tools")
 sys.modules["openhands.tools.preset"] = types.ModuleType("openhands.tools.preset")
 
+from server.agent.conversation import ConversationState
 from server.agent.manager import OpenBrowserAgentManager
 from server.core.ipc_types import BrowserCommandMessage
 
@@ -263,6 +264,55 @@ class TestConversationCreationMultiProcess:
                 response_queue=mock_response_queue,
             )
 
+    def test_get_or_create_conversation_uses_process_mode(self) -> None:
+        """get_or_create_conversation should keep using worker processes."""
+        manager = OpenBrowserAgentManager(multi_process_mode=True)
+        conv_id = str(uuid.uuid4())
+
+        with (
+            patch("server.agent.manager.session_manager") as mock_session_manager,
+            patch("server.agent.manager.llm_config_manager") as mock_llm_config,
+            patch.object(
+                manager, "_create_conversation_process"
+            ) as mock_create_process,
+        ):
+            mock_llm_config.reload_config.return_value = MagicMock()
+            mock_llm_config.get_llm_config.return_value = MagicMock(
+                model="test-model",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+            mock_session_manager.get_session.return_value = MagicMock(
+                metadata={
+                    "model": "test-model",
+                    "base_url": "http://test.url",
+                    "model_alias": "default",
+                    "browser_id": "browser-123",
+                }
+            )
+
+            def _store_process_state(*args, **kwargs):
+                manager.conversations[conv_id] = ConversationState(
+                    conversation_id=conv_id,
+                    conversation=None,
+                    visualizer=None,
+                )
+                return conv_id
+
+            mock_create_process.side_effect = _store_process_state
+
+            conv_state = manager.get_or_create_conversation(conv_id, cwd="/tmp/demo")
+
+            assert conv_state.conversation_id == conv_id
+            mock_create_process.assert_called_once_with(
+                conv_id,
+                "/tmp/demo",
+                model="test-model",
+                base_url="http://test.url",
+                browser_id="browser-123",
+                model_alias="default",
+            )
+
 
 class TestConversationDeletionMultiProcess:
     """Tests for conversation deletion in multi-process mode."""
@@ -441,3 +491,65 @@ class TestProcessStatusMethods:
         result = manager.get_process_status("conv-123")
 
         assert result is None
+
+
+class TestPauseRequests:
+    """Tests for non-blocking pause requests."""
+
+    def test_request_pause_spawns_background_thread_in_single_process(self) -> None:
+        """Single-process pause requests should never block the caller."""
+        manager = OpenBrowserAgentManager(multi_process_mode=False)
+        conversation = MagicMock()
+        manager.conversations["conv-123"] = ConversationState(
+            conversation_id="conv-123",
+            conversation=conversation,
+            visualizer=None,
+        )
+        captured: dict[str, object] = {}
+
+        class FakeThread:
+            def __init__(
+                self,
+                target,
+                args=(),
+                kwargs=None,
+                name=None,
+                daemon=None,
+                group=None,
+            ) -> None:
+                captured["target"] = target
+                captured["args"] = args
+                captured["name"] = name
+                captured["daemon"] = daemon
+
+            def start(self) -> None:
+                captured["started"] = True
+
+        with patch("server.agent.manager.threading.Thread", FakeThread):
+            result = manager.request_pause("conv-123")
+
+        assert result is True
+        assert captured["started"] is True
+        assert captured["name"] == "pause-conv-123"
+        assert captured["daemon"] is True
+        conversation.pause.assert_not_called()
+
+        target = captured["target"]
+        args = captured["args"]
+        assert callable(target)
+        target(*args)
+        conversation.pause.assert_called_once_with()
+
+    def test_request_pause_queues_control_message_in_multi_process_mode(self) -> None:
+        """Multi-process pause requests should be sent via the worker queue."""
+        manager = OpenBrowserAgentManager(multi_process_mode=True)
+        command_queue = MagicMock()
+
+        with patch.object(
+            manager, "get_command_queue", return_value=command_queue
+        ) as mock_get_queue:
+            result = manager.request_pause("conv-456")
+
+        assert result is True
+        mock_get_queue.assert_called_once_with("conv-456")
+        command_queue.put.assert_called_once_with({"control": "pause"})

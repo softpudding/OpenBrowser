@@ -125,7 +125,7 @@ export interface HighlightElementsCommand extends BaseCommand {
   type: 'highlight_elements';
   element_type?: ElementType; // Single element type for stable pagination
   page?: number; // 1-indexed page number for collision-aware pagination
-  keywords?: string[]; // Keywords list to filter elements by HTML content (no pagination needed when provided)
+  keywords?: string[]; // Keywords list to filter elements by detected semantic text (no pagination needed when provided)
 }
 
 export interface ClickElementCommand extends BaseCommand {
@@ -157,6 +157,22 @@ export interface ScrollElementCommand extends BaseCommand {
   direction?: ScrollDirection;
   /** Scroll amount relative to page/element height (0.5 = half page, 1.0 = full page) */
   scroll_amount?: number;
+  /**
+   * Target tab ID (optional - auto-resolved from conversation if not provided)
+   * Note: Required in Python models, but optional here as extension auto-resolves it
+   */
+  tab_id?: number;
+}
+
+export type SwipeDirection = 'next' | 'prev';
+
+export interface SwipeElementCommand extends BaseCommand {
+  type: 'swipe_element';
+  /** Element ID from highlight response (6-char hash) */
+  element_id: string;
+  direction?: SwipeDirection;
+  /** Number of swipe steps for carousel/swiper interactions */
+  swipe_count?: number;
   /**
    * Target tab ID (optional - auto-resolved from conversation if not provided)
    * Note: Required in Python models, but optional here as extension auto-resolves it
@@ -235,6 +251,7 @@ export type Command =
   | ClickElementCommand
   | HoverElementCommand
   | ScrollElementCommand
+  | SwipeElementCommand
   | KeyboardInputCommand
   | SelectElementCommand
   | GetElementHtmlCommand
@@ -288,13 +305,17 @@ export type ElementType =
   | 'selectable'
   | 'any';
 
+export type InteractionHint = 'swipable';
+
 export interface InteractiveElement {
   id: string; // Element ID: 6-char hash from CSS path (e.g., "a3f2b1")
   type: ElementType; // Type of interactive element
+  interactionHints?: InteractionHint[]; // Extra interaction hints (e.g. swipable carousel region)
   tagName: string; // HTML tag name
   selector: string; // CSS selector to find element
   html?: string; // Optional: full HTML of the element (captured at highlight time)
   text?: string; // Visible text content
+  searchText?: string; // Normalized semantic search text used by keyword filtering
   bbox: {
     x: number;
     y: number;
@@ -310,7 +331,7 @@ export interface HighlightOptions {
   elementType?: ElementType; // Single type to highlight (for stable pagination)
   page?: number; // 1-indexed page number for collision-aware pagination
   scale?: number; // Device pixel ratio for coordinate scaling
-  keywords?: string[]; // Keywords list to filter elements by HTML content (no pagination needed when provided)
+  keywords?: string[]; // Keywords list to filter elements by detected semantic text (no pagination needed when provided)
 }
 
 export interface ElementActionResult {

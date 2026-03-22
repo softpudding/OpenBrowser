@@ -4,6 +4,8 @@ OpenBrowser Agent Manager
 Manages agent instances and conversations with optional multi-process support.
 """
 
+import os
+import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -37,6 +39,21 @@ from server.core.process_manager import ProcessManager
 from server.core.session_manager import session_manager, SessionStatus
 
 logger = get_logger(__name__)
+
+
+def _multi_process_mode_from_env() -> bool:
+    """Read multi-process mode from environment.
+
+    This is evaluated when the module-level ``agent_manager`` is created so the
+    server can opt into process isolation before FastAPI imports the routes.
+    """
+    raw_value = os.getenv("CHROME_SERVER_MULTI_PROCESS_MODE") or os.getenv(
+        "OPENBROWSER_MULTI_PROCESS"
+    )
+    if raw_value is None:
+        return False
+
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 class OpenBrowserAgentManager:
@@ -426,6 +443,8 @@ class OpenBrowserAgentManager:
             # Race condition: conversation was just created by another thread
             return self.conversations[conversation_id]
 
+        browser_id: Optional[str] = None
+
         # Check if session exists and has model metadata
         existing_session = session_manager.get_session(conversation_id)
         if existing_session:
@@ -433,6 +452,7 @@ class OpenBrowserAgentManager:
             session_model = existing_session.metadata.get("model")
             session_base_url = existing_session.metadata.get("base_url")
             session_model_alias = existing_session.metadata.get("model_alias")
+            session_browser_id = existing_session.metadata.get("browser_id")
 
             # If model was not provided as parameter, use session model
             if model is None and session_model:
@@ -441,11 +461,14 @@ class OpenBrowserAgentManager:
                 base_url = session_base_url
             if model_alias is None and session_model_alias:
                 model_alias = session_model_alias
+            if isinstance(session_browser_id, str) and session_browser_id:
+                browser_id = session_browser_id
 
             metadata = existing_session.metadata.copy()
             resolved_metadata = self._build_session_metadata(
                 model=model,
                 base_url=base_url,
+                browser_id=browser_id,
                 model_alias=model_alias,
             )
             for key, value in resolved_metadata.items():
@@ -462,6 +485,7 @@ class OpenBrowserAgentManager:
             metadata = self._build_session_metadata(
                 model=model,
                 base_url=base_url,
+                browser_id=browser_id,
                 model_alias=model_alias,
             )
 
@@ -470,6 +494,17 @@ class OpenBrowserAgentManager:
                 working_directory=cwd,
                 metadata=metadata,
             )
+
+        if self.multi_process_mode:
+            self._create_conversation_process(
+                conversation_id,
+                cwd,
+                model=model,
+                base_url=base_url,
+                browser_id=browser_id,
+                model_alias=model_alias,
+            )
+            return self.conversations[conversation_id]
 
         # Create new conversation with the given ID
         # Create agent with tools
@@ -765,6 +800,61 @@ class OpenBrowserAgentManager:
 
         return self._ipc_router.route_command(message)
 
+    def request_pause(self, conversation_id: str) -> bool:
+        """Request that a conversation pause without blocking the caller.
+
+        In single-process mode the actual ``conversation.pause()`` call is moved
+        to a background thread so the HTTP event loop never blocks waiting on
+        OpenHands' internal conversation lock.
+
+        In multi-process mode a pause control message is queued for the worker.
+        The worker can only observe it after the current turn returns to its
+        command loop, but the main process remains responsive.
+        """
+        if self.multi_process_mode:
+            try:
+                command_queue = self.get_command_queue(conversation_id)
+            except RuntimeError:
+                return False
+
+            if command_queue is None:
+                return False
+
+            command_queue.put({"control": "pause"})
+            logger.info("Queued pause request for conversation %s", conversation_id)
+            return True
+
+        conv_state = self.conversations.get(conversation_id)
+        if conv_state is None or conv_state.conversation is None:
+            return False
+
+        pause_thread = threading.Thread(
+            target=self._pause_conversation_blocking,
+            args=(conv_state.conversation, conversation_id),
+            name=f"pause-{conversation_id[:8]}",
+            daemon=True,
+        )
+        pause_thread.start()
+        logger.info(
+            "Started background pause request for conversation %s", conversation_id
+        )
+        return True
+
+    @staticmethod
+    def _pause_conversation_blocking(
+        conversation: Conversation, conversation_id: str
+    ) -> None:
+        """Run the blocking ``conversation.pause()`` call off the event loop."""
+        try:
+            conversation.pause()
+            logger.info("Conversation %s paused successfully", conversation_id)
+        except Exception as e:
+            logger.warning(
+                "Failed to pause conversation %s in background thread: %s",
+                conversation_id,
+                e,
+            )
+
     def get_response_queue(self, conversation_id: str):
         """Get the response queue for a conversation.
 
@@ -851,4 +941,6 @@ class OpenBrowserAgentManager:
 
 
 # Global agent manager instance
-agent_manager = OpenBrowserAgentManager()
+agent_manager = OpenBrowserAgentManager(
+    multi_process_mode=_multi_process_mode_from_env()
+)

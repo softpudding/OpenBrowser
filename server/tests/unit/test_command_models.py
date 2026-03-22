@@ -8,6 +8,7 @@ from server.models.commands import (
     HighlightElementsCommand,
     KeyboardInputCommand,
     ScrollElementCommand,
+    SwipeElementCommand,
     TabAction,
     TabCommand,
     parse_command,
@@ -67,6 +68,28 @@ class TestVisualInteractionContracts:
 
         assert command.text == ""
 
+    def test_swipe_defaults_match_carousel_workflow(self) -> None:
+        command = SwipeElementCommand(element_id="carousel1")
+
+        assert command.direction == "next"
+        assert command.swipe_count == 1
+
+    @pytest.mark.parametrize("count", [1, 5])
+    def test_swipe_accepts_documented_count_boundaries(self, count: int) -> None:
+        command = SwipeElementCommand(element_id="carousel1", swipe_count=count)
+
+        assert command.swipe_count == count
+
+    @pytest.mark.parametrize("count", [0, 6])
+    def test_swipe_rejects_out_of_range_counts(self, count: int) -> None:
+        with pytest.raises(ValidationError):
+            SwipeElementCommand(element_id="carousel1", swipe_count=count)
+
+    @pytest.mark.parametrize("direction", ["left", "right", "up", "down"])
+    def test_swipe_rejects_non_semantic_directions(self, direction: str) -> None:
+        with pytest.raises(ValidationError):
+            SwipeElementCommand(element_id="carousel1", direction=direction)
+
 
 class TestParseCommandContracts:
     @pytest.mark.parametrize(
@@ -100,6 +123,17 @@ class TestParseCommandContracts:
                     "browser_id": "browser-3",
                 },
                 HighlightElementsCommand,
+            ),
+            (
+                {
+                    "type": "swipe_element",
+                    "element_id": "carousel1",
+                    "direction": "prev",
+                    "swipe_count": 2,
+                    "conversation_id": "conv-4",
+                    "browser_id": "browser-4",
+                },
+                SwipeElementCommand,
             ),
         ],
     )

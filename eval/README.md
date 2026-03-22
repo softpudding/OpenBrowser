@@ -1,6 +1,6 @@
 # Mock Websites for AI Agent Evaluation
 
-This directory contains 5 mocked frontend websites designed to test browser-operating AI agents' capabilities.
+This directory contains mocked frontend websites designed to test browser-operating AI agents' capabilities.
 
 ## Websites
 
@@ -60,6 +60,18 @@ This directory contains 5 mocked frontend websites designed to test browser-oper
   - Pagination controls
   - Multiple view modes (Overview, Valuation, Financial, etc.)
   - Dark theme matching original finviz.com
+
+### 6. BlueBook Feed (Hard)
+- **URL**: `/bluebook/`
+- **Difficulty**: Hard
+- **Purpose**: Test Xiaohongshu-style visual browsing, search, dense card layouts, modal note reading, and comment interactions
+- **Features**:
+  - Dense masonry feed with 70+ mocked posts
+  - Search bar with separate clear/search icon buttons
+  - Floating "graphic only" and "reload" buttons
+  - Note detail modal with left media area and right comment panel
+  - Comment like / reply interactions with author-specific tracking
+  - Shared tracker integration plus site-specific events
 
 ## Event Tracking
 

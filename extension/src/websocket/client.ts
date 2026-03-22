@@ -185,6 +185,22 @@ export class WebSocketClient {
     });
   }
 
+  sendMessage(message: unknown): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        reject(new Error('WebSocket not connected'));
+        return;
+      }
+
+      try {
+        this.ws.send(JSON.stringify(message));
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
   onMessage(handler: (data: any) => void): void {
     this.messageHandlers.push(handler);
   }

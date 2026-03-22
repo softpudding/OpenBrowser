@@ -1,0 +1,64 @@
+id: bluebook_complex
+name: "BlueBook Multi-Image Reply Test"
+difficulty: hard
+description: "Search for the OpenClaw note, view all images in the post detail, and leave a quick comment based on the image content."
+start_url: "http://localhost:16605/bluebook/"
+instruction: "On the BlueBook home page, use the top search box to search for \"openclaw\", open the note titled \"Raise OpenClaw right: learn the config before you run it\", and view every image in the left-side carousel. Then leave a short comment in the bottom input naming the recommended skill mentioned in the images."
+time_limit: 500.0
+cost_limit: 1.2
+
+criteria:
+  - type: execute_search
+    description: "Use search to narrow to the target note"
+    points: 1.5
+    expected:
+      event_type: search_execute
+      normalizedQuery: "openclaw"
+      page: "/bluebook/"
+
+  - type: open_target_note
+    description: "Open the OpenClaw note"
+    points: 1.5
+    expected:
+      event_type: note_open
+      noteId: "note-openclaw-config"
+      noteTitle: "Raise OpenClaw right: learn the config before you run it"
+      page: "/bluebook/"
+
+  - type: render_note_images
+    description: "Render the note detail image swiper"
+    points: 1
+    expected:
+      event_type: note_media_render
+      noteId: "note-openclaw-config"
+      slideIndex: 0
+      slideCount: 2
+      page: "/bluebook/"
+
+  - type: view_second_image
+    description: "Swipe to the second image in the note"
+    points: 1.5
+    expected:
+      event_type: note_media_swipe
+      noteId: "note-openclaw-config"
+      slideIndex: 1
+      page: "/bluebook/"
+
+  - type: submit_quick_comment
+    description: "Submit a quick comment after viewing all images"
+    points: 3.5
+    expected:
+      event_type: quick_comment_submit
+      noteId: "note-openclaw-config"
+      noteTitle: "Raise OpenClaw right: learn the config before you run it"
+      value_length_min: 6
+      page: "/bluebook/"
+
+  - type: mention_browser
+    description: "The quick comment should include the browser skill cue from the images"
+    points: 3.0
+    expected:
+      event_type: quick_comment_submit
+      noteId: "note-openclaw-config"
+      value_contains: "browser"
+      page: "/bluebook/"

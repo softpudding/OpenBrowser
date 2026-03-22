@@ -3,10 +3,12 @@ Unit tests for BrowserExecutorBundle.
 """
 
 import pickle
+import queue
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from server.api.sse import SSEEvent
 from server.core.browser_executor_bundle import (
     BrowserExecutorBundle,
     BundleState,
@@ -165,6 +167,8 @@ class TestBrowserExecutorBundleInitialize:
             mock_agent_mgr.create_conversation.assert_called_once_with(
                 conversation_id="test-conv-6",
                 cwd=".",
+                model="test-model",
+                base_url=None,
                 browser_id="test-browser-6",
             )
 
@@ -364,6 +368,97 @@ class TestBrowserExecutorBundleExecuteCommand:
 
             assert result["success"] is False
             assert "Parse error" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_execute_agent_message_streams_events(self):
+        """execute_agent_message() should run the worker-local conversation."""
+        bundle = BrowserExecutorBundle(
+            conv_id="test-conv-12b",
+            browser_id="test-browser-12b",
+            llm_config={"model": "test-model", "api_key": "test-key"},
+        )
+
+        with (
+            patch(
+                "server.core.browser_executor_bundle.OpenBrowserAgentManager"
+            ) as mock_agent_mgr_class,
+            patch(
+                "server.core.browser_executor_bundle.CommandProcessor"
+            ) as mock_processor_class,
+        ):
+            mock_visualizer = MagicMock()
+            mock_conversation = MagicMock()
+            mock_conversation.run = MagicMock()
+            mock_conversation.conversation_stats = MagicMock()
+            mock_combined_metrics = MagicMock()
+            mock_combined_metrics.get.return_value = {"accumulated_cost": 0.5}
+            mock_combined_metrics.model_name = "test-model"
+            mock_conversation.conversation_stats.get_combined_metrics.return_value = (
+                mock_combined_metrics
+            )
+            mock_conv_state = MagicMock(
+                conversation=mock_conversation,
+                visualizer=mock_visualizer,
+            )
+
+            mock_agent_mgr = MagicMock()
+            mock_agent_mgr.create_conversation = MagicMock()
+            mock_agent_mgr.get_conversation.return_value = mock_conv_state
+            mock_agent_mgr_class.return_value = mock_agent_mgr
+
+            mock_processor_class.return_value = MagicMock()
+
+            await bundle.initialize()
+
+            event_queue: queue.Queue[SSEEvent] = queue.Queue()
+            result = await bundle.execute_agent_message("hello", event_queue)
+
+            assert result["success"] is True
+            mock_visualizer.set_event_queue.assert_called_once_with(event_queue)
+            mock_conversation.send_message.assert_called_once_with("hello")
+            mock_conversation.run.assert_called_once_with()
+
+            complete_event = event_queue.get_nowait()
+            usage_event = event_queue.get_nowait()
+            assert complete_event.event_type == "complete"
+            assert usage_event.event_type == "usage_metrics"
+            assert usage_event.data["metrics"]["model_name"] == "test-model"
+
+    @pytest.mark.asyncio
+    async def test_pause_conversation_requests_pause_on_worker_conversation(self):
+        """pause_conversation() should delegate to the worker-local conversation."""
+        bundle = BrowserExecutorBundle(
+            conv_id="test-conv-12c",
+            browser_id="test-browser-12c",
+            llm_config={"model": "test-model", "api_key": "test-key"},
+        )
+
+        with (
+            patch(
+                "server.core.browser_executor_bundle.OpenBrowserAgentManager"
+            ) as mock_agent_mgr_class,
+            patch(
+                "server.core.browser_executor_bundle.CommandProcessor"
+            ) as mock_processor_class,
+        ):
+            mock_conversation = MagicMock()
+            mock_conv_state = MagicMock(
+                conversation=mock_conversation,
+                visualizer=MagicMock(),
+            )
+
+            mock_agent_mgr = MagicMock()
+            mock_agent_mgr.create_conversation = MagicMock()
+            mock_agent_mgr.get_conversation.return_value = mock_conv_state
+            mock_agent_mgr_class.return_value = mock_agent_mgr
+
+            mock_processor_class.return_value = MagicMock()
+
+            await bundle.initialize()
+            result = await bundle.pause_conversation()
+
+            assert result is True
+            mock_conversation.pause.assert_called_once_with()
 
 
 class TestBrowserExecutorBundleShutdown:
