@@ -1,8 +1,20 @@
 window.tracker = new AgentTracker('bluebook.life', 'hard');
 
 (function () {
-  const CHANNELS = ['推荐', '穿搭', '美食', '彩妆', '职场', '情感', '家居', '游戏', '旅行', '健身'];
+  const CHANNELS = ['For You', 'Style', 'Food', 'Beauty', 'Work', 'Wellness', 'Home', 'Gaming', 'Travel', 'Fitness'];
   const STORAGE_KEY = 'bluebook_eval_state_v1';
+  const LEGACY_CHANNEL_MAP = {
+    '推荐': 'For You',
+    '穿搭': 'Style',
+    '美食': 'Food',
+    '彩妆': 'Beauty',
+    '职场': 'Work',
+    '情感': 'Wellness',
+    '家居': 'Home',
+    '游戏': 'Gaming',
+    '旅行': 'Travel',
+    '健身': 'Fitness',
+  };
 
   const coverThemes = [
     ['linear-gradient(135deg, #13243d, #2b5b96)', '#d9ecff'],
@@ -14,19 +26,24 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
   ];
 
   const avatarThemes = ['#4f7cff', '#ff6b6b', '#7a5cff', '#0ca678', '#e8590c', '#9c36b5'];
+  const detailLocations = ['Jingan, Shanghai', 'Chaoyang, Beijing', 'Binjiang, Hangzhou', 'Nanshan, Shenzhen', 'Jinjiang, Chengdu', 'Tianhe, Guangzhou', 'SIP, Suzhou'];
+  const detailDevices = ['iPhone 15 Pro', 'iPhone 14 Pro', 'Fujifilm X-S20', 'Sony ZV-E10', 'Canon G7X3', 'DJI Pocket 3'];
+  const detailMoods = ['This set came out better than expected', 'I keep coming back to this structure lately', 'I wanted to post this right away', 'This one feels worth saving for later'];
+  const detailScenes = ['subway exit', 'office corner', 'weekend coffee shop', 'hotel window seat', 'sunset street corner', 'gallery entrance'];
+  const detailTips = ['Lead with a strong first screen', 'Turn comment questions into page two', 'Keep comparison shots when possible', 'Do not over-explain the title'];
 
   const seedNotes = [
     {
       id: 'note-openclaw-config',
-      title: '养好 OpenClaw，先把配置文件啃明白',
-      author: 'jesse~自然智群',
-      avatar: '自',
-      category: '职场',
+      title: 'Raise OpenClaw right: learn the config before you run it',
+      author: 'Jesse / Natural Agent Lab',
+      avatar: 'J',
+      category: 'Work',
       type: 'video',
-      coverLabel: '视频 · 4:21',
-      coverHeadline: 'OpenClaw\n下载之后\n先看配置',
-      excerpt: '不少人装完直接开跑，结果卡在权限、路径和 hook 配置。把配置文件读明白，后面的稳定性会高很多。',
-      tags: ['#openclaw', '#智能体', '#配置文件'],
+      coverLabel: 'Video · 4:21',
+      coverHeadline: 'OpenClaw\ninstall first\nread config',
+      excerpt: 'A lot of people install it and start right away, then get stuck on permissions, paths, and hook settings. Reading the config first makes the whole setup calmer.',
+      tags: ['#openclaw', '#agents', '#config'],
       likedCount: 1346,
       collectCount: 3444,
       commentCount: 31,
@@ -34,40 +51,40 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       comments: [
         {
           id: 'comment-tutu-hook',
-          author: '涂涂',
-          avatar: '涂',
-          region: '03-08 广东',
-          text: '来自 OpenClaw 要维斯的问题！看到大家认真研究和配置真开心，真的很好，遇到问题欢迎随时交流，一起把数字管家养得更好！',
+          author: 'TuTu',
+          avatar: 'T',
+          region: '03-08 Guangdong',
+          text: 'Happy to see people seriously testing OpenClaw and comparing setups. If you run into issues, keep sharing details and we can make the workflow steadier together.',
           likes: 1,
           replies: [],
         },
         {
           id: 'comment-rm-rf',
-          author: '大王叫我来巡山',
-          avatar: '巡',
-          region: '03-10 浙江',
-          text: 'rm -rf 直接执行，不要问为什么。',
+          author: 'Night Patrol',
+          avatar: 'N',
+          region: '03-10 Zhejiang',
+          text: 'Please do not blindly run rm -rf. Ask once before you regret it.',
           likes: 8,
           replies: [],
         },
         {
           id: 'comment-hook-enable',
-          author: '坐标上海，找货代',
-          avatar: '沪',
-          region: '03-10 上海',
-          text: '钩子怎么启用？',
+          author: 'Shanghai Forwarder',
+          avatar: 'S',
+          region: '03-10 Shanghai',
+          text: 'How do you enable hooks in this setup?',
           likes: 1,
           replies: [
-            { author: '维护手册', text: '先检查 skills 和 hooks 目录，然后在配置里打开 enableHooks。' },
-            { author: '夜半敲代码', text: '注意路径要用绝对路径，不然加载不到。' },
+            { author: 'Maintainer Notes', text: 'Check the skills and hooks folders first, then enable enableHooks in the config.' },
+            { author: 'Midnight Commit', text: 'Use absolute paths or the loader may miss the files.' },
           ],
         },
         {
           id: 'comment-star-fire',
-          author: '须纵酒',
-          avatar: '须',
-          region: '03-09 江苏',
-          text: '这个项目 star 还没有你这帖子火，不太正常。',
+          author: 'Star Drifter',
+          avatar: 'S',
+          region: '03-09 Jiangsu',
+          text: 'It is funny that this post is getting more heat than the repo stars.',
           likes: 1,
           replies: [],
         },
@@ -75,15 +92,15 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     },
     {
       id: 'note-arigato-ai',
-      title: '阿里嘎多，这套 AI 识图提示词模板真顶',
-      author: 'Prompt 边角料',
-      avatar: '提',
-      category: '职场',
+      title: 'Arigato: this AI vision prompt template actually works',
+      author: 'Prompt Margins',
+      avatar: 'P',
+      category: 'Work',
       type: 'image',
-      coverLabel: '图文',
-      coverHeadline: '阿里嘎多\nPrompt 模板\n直接起飞',
-      excerpt: '把复杂 UI 拆成结构、动作和约束三段描述，比单纯问“帮我点一下”稳定很多。',
-      tags: ['#prompt', '#阿里嘎多', '#浏览器自动化'],
+      coverLabel: 'Image post',
+      coverHeadline: 'Arigato\nprompt stack\nthat ships',
+      excerpt: 'Breaking a complex UI into structure, action, and constraint blocks is much steadier than asking a model to just click something for you.',
+      tags: ['#prompt', '#arigato', '#browserautomation'],
       likedCount: 817,
       collectCount: 1522,
       commentCount: 18,
@@ -91,19 +108,19 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       comments: [
         {
           id: 'comment-template-1',
-          author: '极客Shane',
-          avatar: '极',
-          region: '03-07 上海',
-          text: '这种模板适合做表单和复杂列表任务，层次更清楚。',
+          author: 'Geek Shane',
+          avatar: 'G',
+          region: '03-07 Shanghai',
+          text: 'This format works especially well for forms and long lists because the layers stay clear.',
           likes: 6,
           replies: [],
         },
         {
           id: 'comment-template-2',
-          author: '夜航星',
-          avatar: '夜',
-          region: '03-08 深圳',
-          text: '比纯截图问答强，尤其是要结合 DOM 的时候。',
+          author: 'Night Voyager',
+          avatar: 'N',
+          region: '03-08 Shenzhen',
+          text: 'It beats plain screenshot Q&A, especially when you need DOM context too.',
           likes: 4,
           replies: [],
         },
@@ -111,15 +128,15 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     },
     {
       id: 'note-git-worktree',
-      title: '用 AI 写代码时，有一个工具退早了会出事：git worktree',
-      author: '鹿桃',
-      avatar: '鹿',
-      category: '职场',
+      title: 'When coding with AI, do not drop git worktree too early',
+      author: 'Lutao',
+      avatar: 'L',
+      category: 'Work',
       type: 'image',
-      coverLabel: '图文',
-      coverHeadline: 'AI 写代码\n别太早丢掉\nworktree',
-      excerpt: '多会话并行调试和对照修改时，worktree 很适合隔离上下文。很多问题不是模型差，是工作区管理差。',
-      tags: ['#gitworktree', '#工程效率'],
+      coverLabel: 'Image post',
+      coverHeadline: 'AI coding\nkeep your\nworktree',
+      excerpt: 'When you compare patches or run multiple agents in parallel, worktree is the cleanest way to isolate context. Many problems are workspace problems, not model problems.',
+      tags: ['#gitworktree', '#engineering'],
       likedCount: 265,
       collectCount: 905,
       commentCount: 12,
@@ -127,10 +144,10 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       comments: [
         {
           id: 'comment-worktree-1',
-          author: '摸鱼程序猿',
-          avatar: '摸',
-          region: '03-09 北京',
-          text: '同一个 repo 同时开两个 agent，worktree 不开真容易互相污染。',
+          author: 'Idle Dev',
+          avatar: 'I',
+          region: '03-09 Beijing',
+          text: 'If two agents touch the same repo at once without worktrees, things get messy fast.',
           likes: 11,
           replies: [],
         },
@@ -138,14 +155,14 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     },
     {
       id: 'note-claude-im',
-      title: 'Claude Code 都能连 IM 了，那 OpenClaw 还剩哪些独有优势？',
-      author: '泥鳅还玉',
-      avatar: '泥',
-      category: '职场',
+      title: 'Claude Code can plug into IM now, so what is still unique about OpenClaw?',
+      author: 'Loach Jade',
+      avatar: 'L',
+      category: 'Work',
       type: 'image',
-      coverLabel: '图文',
-      coverHeadline: 'Claude Code\n还能连 IM？\nOpenClaw 呢',
-      excerpt: '如果两边都能看图写代码，差异就会回到执行链路、浏览器能力和工程集成。',
+      coverLabel: 'Image post',
+      coverHeadline: 'Claude Code\nhas IM now?\nOpenClaw then',
+      excerpt: 'Once both tools can read screenshots and write code, the real difference goes back to execution flow, browser control, and engineering integration.',
       tags: ['#ClaudeCode', '#OpenClaw'],
       likedCount: 40,
       collectCount: 88,
@@ -154,10 +171,10 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       comments: [
         {
           id: 'comment-im-1',
-          author: '路过听听',
-          avatar: '路',
-          region: '03-11 杭州',
-          text: '浏览器交互和评测闭环还是差很多。',
+          author: 'Passing By',
+          avatar: 'P',
+          region: '03-11 Hangzhou',
+          text: 'Browser interaction and evaluation loops still feel pretty different.',
           likes: 3,
           replies: [],
         },
@@ -165,15 +182,15 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     },
     {
       id: 'note-monkey-durian',
-      title: '宁愿选择榴莲不放手',
+      title: 'The monkey would rather keep the durian than let go',
       author: 'CCTV',
-      avatar: '央',
-      category: '旅行',
+      avatar: 'C',
+      category: 'Travel',
       type: 'video',
-      coverLabel: '视频 · 0:42',
-      coverHeadline: '猴子分榴莲\n比我还认真',
-      excerpt: '真实自然状态下的小动物很有意思，这条视频循环看了很多遍。',
-      tags: ['#动物', '#旅行见闻'],
+      coverLabel: 'Video · 0:42',
+      coverHeadline: 'Monkey picks\ndurian pieces\nwith focus',
+      excerpt: 'Animals in natural settings are endlessly watchable. I looped this clip more times than I should admit.',
+      tags: ['#animals', '#travel'],
       likedCount: 8314,
       collectCount: 1201,
       commentCount: 52,
@@ -182,15 +199,15 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     },
     {
       id: 'note-entrance-carry',
-      title: '泄露可判刑 10 年？这瓜吃到法条层面了',
-      author: '路透桥',
-      avatar: '路',
-      category: '职场',
+      title: 'Ten years for leaking? This drama reached the legal-code level',
+      author: 'BridgeWire',
+      avatar: 'B',
+      category: 'Work',
       type: 'video',
-      coverLabel: '视频 · 1:13',
-      coverHeadline: '这瓜吃到\n法条层面了',
-      excerpt: '法规解读向内容，评论区吵得很热，卡点主要集中在证据链和责任边界。',
-      tags: ['#热点解读', '#合规'],
+      coverLabel: 'Video · 1:13',
+      coverHeadline: 'The gossip\nreached the\nlaw books',
+      excerpt: 'This one is half legal breakdown and half hot-topic debate. Most of the argument is about evidence and responsibility boundaries.',
+      tags: ['#hottopic', '#compliance'],
       likedCount: 40,
       collectCount: 93,
       commentCount: 9,
@@ -199,14 +216,14 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     },
     {
       id: 'note-cloudstack-skill',
-      title: 'CloudStack 本身很强，装上这些 skills 直接起飞',
-      author: '极客Shane',
-      avatar: '极',
-      category: '家居',
+      title: 'CloudStack is strong already, but these skills make it fly',
+      author: 'Geek Shane',
+      avatar: 'G',
+      category: 'Home',
       type: 'image',
-      coverLabel: '图文',
-      coverHeadline: 'CloudStack\n本身很强\n装上 Skills',
-      excerpt: '站内把复杂流程拆成 skill 之后，行为更稳定，复现也更容易。',
+      coverLabel: 'Image post',
+      coverHeadline: 'CloudStack\ngets better\nwith skills',
+      excerpt: 'Breaking a complex workflow into reusable skills makes the behavior steadier and much easier to reproduce.',
       tags: ['#skills', '#CloudStack'],
       likedCount: 504,
       collectCount: 1312,
@@ -216,15 +233,15 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     },
     {
       id: 'note-night-station',
-      title: '本人接到平顶山联合调查组通知',
-      author: '芝菲奥莱死因不明',
-      avatar: '芝',
-      category: '情感',
+      title: 'I just received a notice from the joint investigation team',
+      author: 'Night Signal',
+      avatar: 'N',
+      category: 'Wellness',
       type: 'image',
-      coverLabel: '图文',
-      coverHeadline: '平顶山\n联合调查组\n通知',
-      excerpt: '夜景配新闻截屏，标题党十足，但互动量很高。',
-      tags: ['#夜景', '#热点'],
+      coverLabel: 'Image post',
+      coverHeadline: 'Late night\ninvestigation\nnotice',
+      excerpt: 'A moody city shot paired with a dramatic screenshot. Very headline-driven, very high engagement.',
+      tags: ['#nightview', '#hottopic'],
       likedCount: 4817,
       collectCount: 404,
       commentCount: 13,
@@ -234,7 +251,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
   ];
 
   const state = {
-    activeChannel: '推荐',
+    activeChannel: 'For You',
     graphicOnly: false,
     query: '',
     notes: [],
@@ -246,6 +263,10 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     commentLikes: {},
     expandedReplies: {},
     openReplyEditors: {},
+    currentMediaIndex: 0,
+    swipeStartX: null,
+    swipeStartY: null,
+    swipePointerId: null,
   };
 
   const dom = {};
@@ -254,9 +275,18 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     return Math.max(0, Number(value) || 0);
   }
 
+  function normalizeChannel(channel) {
+    if (!channel) {
+      return 'For You';
+    }
+
+    const mapped = LEGACY_CHANNEL_MAP[channel] || channel;
+    return CHANNELS.includes(mapped) ? mapped : 'For You';
+  }
+
   function formatCount(value) {
-    if (value >= 10000) {
-      return `${(value / 10000).toFixed(value >= 100000 ? 0 : 1)}万`;
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}k`;
     }
     return `${value}`;
   }
@@ -278,19 +308,250 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     return avatarThemes[index % avatarThemes.length];
   }
 
+  function hashString(value) {
+    return Array.from(String(value)).reduce((hash, char) => hash + char.charCodeAt(0), 0);
+  }
+
+  function pickBySeed(items, seed, offset) {
+    return items[(seed + offset) % items.length];
+  }
+
+  function escapeSvg(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function wrapText(value, maxCharsPerLine, maxLines) {
+    const words = String(value).split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = '';
+
+    words.forEach((word) => {
+      const candidate = current ? `${current} ${word}` : word;
+      if (candidate.length <= maxCharsPerLine) {
+        current = candidate;
+        return;
+      }
+
+      if (current) {
+        lines.push(current);
+      }
+      current = word;
+    });
+
+    if (current) {
+      lines.push(current);
+    }
+
+    if (lines.length <= maxLines) {
+      return lines;
+    }
+
+    const trimmed = lines.slice(0, maxLines);
+    trimmed[maxLines - 1] = `${trimmed[maxLines - 1].slice(0, Math.max(0, maxCharsPerLine - 1))}…`;
+    return trimmed;
+  }
+
+  function truncateText(value, maxChars) {
+    const normalized = String(value).trim();
+    if (normalized.length <= maxChars) {
+      return normalized;
+    }
+    return `${normalized.slice(0, Math.max(0, maxChars - 1))}…`;
+  }
+
+  function buildSvgTextLines(lines, x, y, lineHeight, className) {
+    return lines.map((line, index) => (
+      `<text x="${x}" y="${y + index * lineHeight}" class="${className}">${escapeSvg(line)}</text>`
+    )).join('');
+  }
+
+  function createSlideImageDataUrl(note, detailView, slide, index) {
+    const headlineLines = wrapText(slide.headline, 18, 3);
+    const titleLines = wrapText(slide.bodyTitle, 26, 1);
+    const copyLines = wrapText(slide.bodyCopy, 34, 2);
+    const bullets = slide.bullets.slice(0, 2);
+    const authorChipLabel = truncateText(note.author, 20);
+    const stickerLabels = slide.stickers.slice(0, 3).map((sticker) =>
+      truncateText(sticker.replace(/^#/, '#'), 12),
+    );
+    const stickerMarkup = stickerLabels.map((sticker, stickerIndex) => `
+      <g transform="translate(${60 + stickerIndex * 184}, 712)">
+        <rect width="128" height="38" rx="18" fill="rgba(255,255,255,0.18)" />
+        <text x="64" y="24" text-anchor="middle" class="sticker">${escapeSvg(sticker)}</text>
+      </g>
+    `).join('');
+    const bulletMarkup = bullets.map((bullet, bulletIndex) => {
+      const lines = wrapText(bullet, 40, 2);
+      return `
+        <circle cx="90" cy="${1036 + bulletIndex * 84}" r="6" fill="#ff5c7c" />
+        ${buildSvgTextLines(lines, 112, 1044 + bulletIndex * 84, 24, 'bullet')}
+      `;
+    }).join('');
+
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="900" height="1440" viewBox="0 0 900 1440">
+        <defs>
+          <linearGradient id="bg${index}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="${escapeSvg(note.coverColor)}" stop-opacity="0.22" />
+            <stop offset="100%" stop-color="#101725" stop-opacity="0.04" />
+          </linearGradient>
+          <filter id="shadow${index}" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="rgba(14,18,28,0.28)" />
+          </filter>
+        </defs>
+        <rect width="900" height="1440" rx="58" fill="#f8fbff" />
+        <rect x="34" y="34" width="832" height="1372" rx="52" fill="${escapeSvg(note.gradient)}" />
+        <rect x="34" y="34" width="832" height="1372" rx="52" fill="url(#bg${index})" />
+        <g transform="translate(62 60)">
+          <rect width="182" height="56" rx="28" fill="rgba(255,255,255,0.18)" />
+          <circle cx="34" cy="28" r="16" fill="rgba(255,255,255,0.22)" />
+          <text x="34" y="34" text-anchor="middle" class="avatar">${escapeSvg(note.avatar)}</text>
+          <text x="64" y="34" class="chip">${escapeSvg(authorChipLabel)}</text>
+        </g>
+        <g transform="translate(666 60)">
+          <rect width="168" height="56" rx="28" fill="rgba(255,255,255,0.18)" />
+          <text x="84" y="34" text-anchor="middle" class="chip">${escapeSvg(slide.pageLabel)}</text>
+        </g>
+        <rect x="56" y="150" width="788" height="620" rx="40" fill="rgba(255,255,255,0.14)" />
+        <g transform="translate(74 188)">
+          <rect width="190" height="48" rx="24" fill="rgba(12,18,29,0.18)" />
+          <text x="95" y="30" text-anchor="middle" class="eyebrow">${escapeSvg(slide.eyebrow)}</text>
+        </g>
+        ${buildSvgTextLines(headlineLines, 74, 314, 68, 'headline')}
+        ${stickerMarkup}
+        <g filter="url(#shadow${index})">
+          <rect x="56" y="806" width="788" height="540" rx="44" fill="rgba(255,255,255,0.92)" />
+        </g>
+        ${buildSvgTextLines(titleLines, 86, 888, 40, 'bodyTitle')}
+        ${buildSvgTextLines(copyLines, 86, 958, 28, 'bodyCopy')}
+        ${bulletMarkup}
+        <text x="86" y="1298" class="meta">${escapeSvg(detailView.location)} · ${escapeSvg(detailView.publishTime)}</text>
+        <text x="814" y="1298" text-anchor="end" class="meta">♡ ${escapeSvg(formatCount(clampNumber(note.likedCount) + (state.likedNotes[note.id] ? 1 : 0)))}   ☆ ${escapeSvg(formatCount(clampNumber(note.collectCount) + (state.collectedNotes[note.id] ? 1 : 0)))}</text>
+        <style>
+          .avatar { fill: #ffffff; font: 700 16px 'Arial'; }
+          .chip { fill: #ffffff; font: 600 17px 'Arial'; }
+          .eyebrow { fill: #ffffff; font: 700 18px 'Arial'; letter-spacing: 0.08em; }
+          .headline { fill: #ffffff; font: 800 54px 'Arial'; letter-spacing: -0.03em; }
+          .sticker { fill: #ffffff; font: 600 14px 'Arial'; }
+          .bodyTitle { fill: #1f2430; font: 800 28px 'Arial'; }
+          .bodyCopy { fill: #475165; font: 400 22px 'Arial'; }
+          .bullet { fill: #334155; font: 400 20px 'Arial'; }
+          .meta { fill: #5d6777; font: 500 18px 'Arial'; }
+        </style>
+      </svg>
+    `;
+
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  }
+
+  function buildNoteDetailView(note) {
+    const seed = hashString(note.id);
+    const location = pickBySeed(detailLocations, seed, 1);
+    const device = pickBySeed(detailDevices, seed, 3);
+    const mood = pickBySeed(detailMoods, seed, 5);
+    const scene = pickBySeed(detailScenes, seed, 7);
+    const publishMonth = String((seed % 3) + 1).padStart(2, '0');
+    const publishDay = String((seed % 19) + 8).padStart(2, '0');
+    const publishTime = `${publishMonth}-${publishDay}`;
+    const mediaSlides = Array.from({ length: note.type === 'video' ? 2 : 3 }, (_, index) => ({
+      id: `${note.id}-slide-${index + 1}`,
+      pageLabel: `Page ${index + 1}`,
+      eyebrow: index === 0 ? note.category : index === 1 ? 'Close look' : 'Comment takeaways',
+      headline:
+        index === 0
+          ? note.coverHeadline.replace(/\n/g, ' · ')
+          : index === 1
+            ? `These are the details I zoomed in on from the ${scene}`
+            : 'The most repeated comment questions, cleaned up on one page',
+      bodyTitle:
+        index === 0
+          ? `${note.title} cover breakdown`
+          : index === 1
+            ? 'If I only had one extra page, I would keep these details'
+            : 'A short checklist worth saving',
+      bodyCopy:
+        index === 0
+          ? `${mood}. I like putting the strongest idea on the first screen, then using later pages to add detail and context.`
+          : index === 1
+            ? `Like a real lifestyle carousel, this page should feel worth pausing on. The title, tags, and scene notes all need to work together.`
+            : `For searchable content, the last page should end with a clean takeaway so people keep scrolling and then read the comments.`,
+      stickers: [note.tags[index % note.tags.length], `@${note.author}`, pickBySeed(detailTips, seed, index)],
+      bullets:
+        index === 0
+          ? [
+              `Lead with the conclusion: ${note.excerpt}`,
+              `The scene is ${scene}, so it feels like a real post instead of a banner.`,
+              `Keep a strong hook on the ${note.type === 'video' ? 'video cover' : 'first image'}.`,
+            ]
+          : index === 1
+            ? [
+              'The left panel can be dense, but the reading rhythm should still feel loose.',
+              'Zoomed details, sticker tags, and summary copy should appear in layers.',
+              `A light device note like ${device} is enough.`,
+            ]
+          : [
+              'Do not cram everything into the title. Leave room for the comment section to carry follow-up questions.',
+              'High-like comments usually ask how or why, so answer that directly.',
+              'Save-worthy posts often end best with a short checklist.',
+            ],
+    }));
+
+    if (note.id === 'note-openclaw-config' && mediaSlides[1]) {
+      mediaSlides[1].eyebrow = 'Recommended skills';
+      mediaSlides[1].headline = 'Recommended OpenClaw skill: open-browser';
+      mediaSlides[1].bodyTitle = 'Skill stack shown in the post images';
+      mediaSlides[1].bodyCopy = 'If you only remember one thing from the image set, remember the recommended skill callout: open-browser.';
+      mediaSlides[1].stickers = ['#open-browser', '#skill', '#browser'];
+      mediaSlides[1].bullets = [
+        'Recommended OpenClaw skill: open-browser.',
+        'This page explicitly points people to the browser skill for rendered-page workflows.',
+        'If you leave a comment after reading the images, mention which skill you saw here.',
+      ];
+    }
+
+    const storyBlocks = [
+      {
+        label: 'Note body',
+        copy: `${mood}. I split the ${note.category} topic into three layers: the hook on page one, the information layer in the middle, and the comment handoff at the end. Once the post is open, the left side should feel like browsing a carousel while the right side still reads like a real note.`,
+      },
+      {
+        label: 'What to check after opening',
+        items: [
+          `Start with the main visual and sticker stack on the ${scene} page.`,
+          `A small device or location note such as ${device} / ${location} makes the post feel more real.`,
+          'Keep a high-like comment plus reply structure so interaction tasks still feel natural.',
+        ],
+      },
+    ];
+
+    return {
+      location,
+      device,
+      mood,
+      publishTime,
+      mediaSlides,
+      storyBlocks,
+    };
+  }
+
   function createGeneratedNotes() {
     const topics = [
-      { title: '浏览器自动化', tags: ['#浏览器', '#自动化', '#效率'], category: '职场' },
-      { title: 'vibe coding', tags: ['#AI编程', '#工程实践'], category: '职场' },
-      { title: '厨房改造', tags: ['#家居', '#收纳'], category: '家居' },
-      { title: '出差背包', tags: ['#旅行', '#装备'], category: '旅行' },
-      { title: '健身饮食', tags: ['#健身', '#饮食'], category: '健身' },
-      { title: '拍照修图', tags: ['#图文', '#修图'], category: '彩妆' },
-      { title: '情绪整理', tags: ['#情感', '#自我管理'], category: '情感' },
-      { title: '客厅配色', tags: ['#家居', '#氛围'], category: '家居' },
-      { title: '代码审查', tags: ['#工程', '#Review'], category: '职场' },
+      { title: 'Browser automation', tags: ['#browser', '#automation', '#workflow'], category: 'Work' },
+      { title: 'Vibe coding', tags: ['#aicoding', '#engineering'], category: 'Work' },
+      { title: 'Kitchen makeover', tags: ['#home', '#storage'], category: 'Home' },
+      { title: 'Travel backpack', tags: ['#travel', '#gear'], category: 'Travel' },
+      { title: 'Fitness meals', tags: ['#fitness', '#food'], category: 'Fitness' },
+      { title: 'Photo retouching', tags: ['#imagepost', '#editing'], category: 'Beauty' },
+      { title: 'Mood reset', tags: ['#wellness', '#selfcare'], category: 'Wellness' },
+      { title: 'Living-room palette', tags: ['#home', '#ambience'], category: 'Home' },
+      { title: 'Code review', tags: ['#engineering', '#review'], category: 'Work' },
     ];
-    const authors = ['早睡早起', '软糖布丁', '骑猪看代码', '极北旅人', '蓝调少女', '步履不停', '云朵仓鼠', '晚风小日记', '一口西瓜冰'];
+    const authors = ['Early Bird', 'Soft Pudding', 'Boar Rider Dev', 'Northbound', 'Blue Mood', 'Still Moving', 'Cloud Hamster', 'Late Wind', 'Watermelon Pop'];
     const notes = [];
 
     for (let i = 0; i < 64; i += 1) {
@@ -299,14 +560,14 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       const isVideo = i % 5 === 0;
       notes.push({
         id: `note-generated-${i + 1}`,
-        title: `${topic.title} 第 ${i + 1} 条实战观察`,
+        title: `${topic.title}: field note ${i + 1}`,
         author,
         avatar: author.slice(0, 1),
         category: topic.category,
         type: isVideo ? 'video' : 'image',
-        coverLabel: isVideo ? `视频 · 0:${String((i % 49) + 10).padStart(2, '0')}` : '图文',
-        coverHeadline: `${topic.title}\n第 ${i + 1} 条`,
-        excerpt: `围绕 ${topic.title} 的日常记录，第 ${i + 1} 条样本。为了模拟真实 feed，这里保留了不同长度标题、不同互动数和不同媒体样式。`,
+        coverLabel: isVideo ? `Video · 0:${String((i % 49) + 10).padStart(2, '0')}` : 'Image post',
+        coverHeadline: `${topic.title}\nNote ${i + 1}`,
+        excerpt: `A daily observation about ${topic.title}, sample ${i + 1}. The feed intentionally keeps mixed title lengths, interaction counts, and media styles.`,
         tags: topic.tags,
         likedCount: 80 + i * 37,
         collectCount: 20 + i * 19,
@@ -315,10 +576,10 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
         comments: [
           {
             id: `generated-comment-${i + 1}-1`,
-            author: `${author}同城`,
+            author: `${author} Local`,
             avatar: author.slice(0, 1),
-            region: `03-${String((i % 20) + 1).padStart(2, '0')} 上海`,
-            text: `第 ${i + 1} 条内容的第一条评论，用来模拟真实列表高度。`,
+            region: `03-${String((i % 20) + 1).padStart(2, '0')} Shanghai`,
+            text: `First comment for note ${i + 1}, mainly here to make the list feel realistic.`,
             likes: i % 8,
             replies: [],
           },
@@ -340,6 +601,18 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     }));
   }
 
+  function keepNoteAwayFromTop(notes, noteId, minIndex) {
+    const noteIndex = notes.findIndex((note) => note.id === noteId);
+    if (noteIndex === -1 || noteIndex >= minIndex) {
+      return notes;
+    }
+
+    const [targetNote] = notes.splice(noteIndex, 1);
+    const insertIndex = Math.min(Math.max(minIndex, 0), notes.length);
+    notes.splice(insertIndex, 0, targetNote);
+    return notes;
+  }
+
   function loadPersistedState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -353,7 +626,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       state.followedAuthors = saved.followedAuthors || {};
       state.commentLikes = saved.commentLikes || {};
       state.graphicOnly = Boolean(saved.graphicOnly);
-      state.activeChannel = saved.activeChannel || '推荐';
+      state.activeChannel = normalizeChannel(saved.activeChannel);
     } catch (_error) {
       // Ignore malformed local state.
     }
@@ -368,7 +641,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
         followedAuthors: state.followedAuthors,
         commentLikes: state.commentLikes,
         graphicOnly: state.graphicOnly,
-        activeChannel: state.activeChannel,
+        activeChannel: normalizeChannel(state.activeChannel),
       }),
     );
   }
@@ -395,7 +668,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
   function applyFilters() {
     const normalizedQuery = state.query.trim().toLowerCase();
     state.filteredNotes = state.notes.filter((note) => {
-      if (state.activeChannel !== '推荐' && note.category !== state.activeChannel) {
+      if (state.activeChannel !== 'For You' && note.category !== state.activeChannel) {
         return false;
       }
 
@@ -442,16 +715,16 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
   function renderFeed() {
     applyFilters();
 
-    const queryPart = state.query ? `“${state.query}”` : '全部内容';
-    const graphicPart = state.graphicOnly ? '，已开启只看图文' : '';
-    dom.feedStatus.textContent = `当前显示 ${state.filteredNotes.length} 条内容，筛选：${queryPart}${graphicPart}`;
+    const queryPart = state.query ? `"${state.query}"` : 'all posts';
+    const graphicPart = state.graphicOnly ? ', images only enabled' : '';
+    dom.feedStatus.textContent = `Showing ${state.filteredNotes.length} posts. Filter: ${queryPart}${graphicPart}`;
     dom.graphicFilter.classList.toggle('active', state.graphicOnly);
 
     if (state.filteredNotes.length === 0) {
       dom.noteGrid.innerHTML = `
         <div class="empty-state">
-          <h3>没有找到相关内容</h3>
-          <p>试试更短的关键词，或者点击右侧“刷新”换一批内容。</p>
+          <h3>No matching posts found</h3>
+          <p>Try a shorter keyword, or hit Refresh on the right to load a new mix.</p>
         </div>
       `;
       return;
@@ -459,28 +732,172 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
 
     dom.noteGrid.innerHTML = state.filteredNotes.map((note) => `
       <article class="note-card" data-note-id="${note.id}">
-        ${createCoverMarkup(note)}
-        <div class="note-body">
-          <h2 class="note-title">${escapeHtml(note.title)}</h2>
-          <div class="note-meta">
-            <div class="note-author">
-              <span class="avatar-dot" style="background:${note.avatarColor};">${escapeHtml(note.avatar)}</span>
-              <span>${escapeHtml(note.author)}</span>
-            </div>
-            <div class="meta-actions">
-              <button class="meta-action card-like-btn ${state.likedNotes[note.id] ? 'active' : ''}" data-note-id="${note.id}" data-action="like">
-                <span>♡</span>
-                <span>${formatCount(note.likedCount + (state.likedNotes[note.id] ? 1 : 0))}</span>
-              </button>
-              <button class="meta-action card-comment-btn" data-note-id="${note.id}" data-action="comment">
-                <span>◔</span>
-                <span>${formatCount(note.commentCount)}</span>
-              </button>
-            </div>
+        <button
+          class="note-card-open"
+          type="button"
+          data-note-id="${note.id}"
+          data-action="open-note"
+          aria-label="Open ${escapeHtml(note.title)}"
+        >
+          ${createCoverMarkup(note)}
+          <div class="note-body">
+            <h2 class="note-title">${escapeHtml(note.title)}</h2>
+          </div>
+        </button>
+        <div class="note-meta">
+          <div class="note-author">
+            <span class="avatar-dot" style="background:${note.avatarColor};">${escapeHtml(note.avatar)}</span>
+            <span>${escapeHtml(note.author)}</span>
+          </div>
+          <div class="meta-actions">
+            <button class="meta-action card-like-btn ${state.likedNotes[note.id] ? 'active' : ''}" data-note-id="${note.id}" data-action="like">
+              <span>♡</span>
+              <span>${formatCount(note.likedCount + (state.likedNotes[note.id] ? 1 : 0))}</span>
+            </button>
+            <button class="meta-action card-comment-btn" data-note-id="${note.id}" data-action="comment">
+              <span>◔</span>
+              <span>${formatCount(note.commentCount)}</span>
+            </button>
           </div>
         </div>
       </article>
     `).join('');
+  }
+
+  function renderModalMedia(note, detailView) {
+    const totalSlides = detailView.mediaSlides.length;
+    const activeIndex = Math.max(0, Math.min(state.currentMediaIndex, totalSlides - 1));
+    const activeSlide = detailView.mediaSlides[activeIndex];
+
+    dom.modalMedia.innerHTML = `
+      <div
+        class="media-swiper swiper"
+        data-note-id="${note.id}"
+        data-swiper="bluebook"
+        data-carousel="note-images"
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Note images"
+      >
+        <button
+          class="media-nav prev swiper-button-prev"
+          data-media-nav="prev"
+          aria-label="Previous image"
+        >‹</button>
+        <div class="media-viewport swiper-viewport">
+          <div class="media-track swiper-wrapper" style="transform: translateX(-${activeIndex * 100}%);">
+            ${detailView.mediaSlides.map((slide, index) => `
+              <article
+                class="media-slide swiper-slide ${index === activeIndex ? 'swiper-slide-active active' : ''}"
+                data-slide-index="${index}"
+                aria-current="${index === activeIndex ? 'true' : 'false'}"
+              >
+                <div class="media-frame">
+                  <img
+                    class="media-image"
+                    src="${createSlideImageDataUrl(note, detailView, slide, index)}"
+                    alt="${escapeHtml(slide.bodyTitle)}"
+                    draggable="false"
+                  >
+                  ${note.type === 'video' && index === 0 ? '<div class="media-play">▶</div>' : ''}
+                </div>
+              </article>
+            `).join('')}
+          </div>
+        </div>
+        <button
+          class="media-nav next swiper-button-next"
+          data-media-nav="next"
+          aria-label="Next image"
+        >›</button>
+        <div class="media-progress">
+          <div class="media-dots">
+            ${detailView.mediaSlides.map((slide, index) => `
+              <button
+                class="media-dot ${index === activeIndex ? 'active' : ''}"
+                data-media-dot="${index}"
+                aria-label="Open ${escapeHtml(slide.pageLabel)}"
+              ></button>
+            `).join('')}
+          </div>
+          <div class="media-counter fraction swiper-pagination-fraction">${activeIndex + 1} / ${totalSlides}</div>
+        </div>
+      </div>
+    `;
+
+    tracker.track('note_media_render', {
+      noteId: note.id,
+      slideIndex: activeIndex,
+      slideCount: totalSlides,
+      slideTitle: activeSlide.bodyTitle,
+    });
+  }
+
+  function renderDetailStory(detailView) {
+    dom.modalStory.innerHTML = detailView.storyBlocks.map((block) => `
+      <div class="detail-story-block">
+        <div class="detail-story-label">${escapeHtml(block.label)}</div>
+        ${block.copy ? `<div class="detail-story-copy">${escapeHtml(block.copy)}</div>` : ''}
+        ${block.items ? `
+          <div class="detail-story-list">
+            ${block.items.map((item) => `<div class="detail-story-item">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+  }
+
+  function setMediaIndex(note, nextIndex, source) {
+    const detailView = buildNoteDetailView(note);
+    const totalSlides = detailView.mediaSlides.length;
+    const normalizedIndex = (nextIndex + totalSlides) % totalSlides;
+    if (normalizedIndex === state.currentMediaIndex && source !== 'open') {
+      return;
+    }
+
+    state.currentMediaIndex = normalizedIndex;
+    renderModalMedia(note, detailView);
+
+    if (source && source !== 'open') {
+      tracker.track('note_media_swipe', {
+        noteId: note.id,
+        source,
+        slideIndex: normalizedIndex,
+      });
+    }
+  }
+
+  function beginSwipe(clientX, clientY, pointerId) {
+    state.swipeStartX = clientX;
+    state.swipeStartY = clientY;
+    state.swipePointerId = pointerId ?? null;
+  }
+
+  function resetSwipe() {
+    state.swipeStartX = null;
+    state.swipeStartY = null;
+    state.swipePointerId = null;
+  }
+
+  function finishSwipe(note, clientX, clientY, source) {
+    if (!note || state.swipeStartX === null || state.swipeStartY === null) {
+      resetSwipe();
+      return;
+    }
+
+    const deltaX = clientX - state.swipeStartX;
+    const deltaY = clientY - state.swipeStartY;
+    resetSwipe();
+
+    if (Math.abs(deltaX) < 48) {
+      return;
+    }
+
+    if (Math.abs(deltaY) > Math.abs(deltaX) * 0.75) {
+      return;
+    }
+
+    setMediaIndex(note, state.currentMediaIndex + (deltaX < 0 ? 1 : -1), source);
   }
 
   function openNote(noteId, source, focusComments) {
@@ -489,29 +906,27 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       return;
     }
 
+    const detailView = buildNoteDetailView(note);
+
     state.currentNoteId = noteId;
+    state.currentMediaIndex = 0;
     dom.modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 
-    dom.modalMedia.innerHTML = `
-      <div class="media-card">
-        <div class="media-gradient" style="background:${note.gradient}; color:${note.coverColor};">
-          <h2>${escapeHtml(note.coverHeadline).replace(/\n/g, '<br>')}</h2>
-          <p>${escapeHtml(note.excerpt)}</p>
-        </div>
-        ${note.type === 'video' ? '<div class="media-play">▶</div>' : ''}
-      </div>
-    `;
+    renderModalMedia(note, detailView);
 
     dom.modalAuthorAvatar.textContent = note.avatar;
     dom.modalAuthorAvatar.style.background = note.avatarColor;
     dom.modalAuthorName.textContent = note.author;
-    dom.modalNoteTime.textContent = `${note.category} · ${note.type === 'video' ? '视频笔记' : '图文笔记'} · 03-21 发布`;
-    dom.modalFollowBtn.textContent = state.followedAuthors[note.author] ? '已关注' : '关注';
+    dom.modalNoteTime.textContent = `${detailView.publishTime} · ${note.type === 'video' ? 'video note' : 'image note'}`;
+    dom.modalFollowBtn.textContent = state.followedAuthors[note.author] ? 'Following' : 'Follow';
     dom.modalTitle.textContent = note.title;
+    dom.modalNoteLocation.textContent = detailView.location;
+    dom.modalNoteDevice.textContent = detailView.device;
     dom.modalDesc.textContent = note.excerpt;
     dom.modalTags.innerHTML = note.tags.map((tag) => `<span class="detail-tag">${escapeHtml(tag)}</span>`).join('');
-    dom.modalCommentSummary.textContent = `共 ${note.commentCount} 条评论`;
+    renderDetailStory(detailView);
+    dom.modalCommentSummary.textContent = `${note.commentCount} comments`;
 
     renderComments(note);
     renderDetailActions(note);
@@ -532,6 +947,8 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
 
   function closeNote() {
     state.currentNoteId = null;
+    state.currentMediaIndex = 0;
+    resetSwipe();
     dom.modal.classList.add('hidden');
     document.body.style.overflow = '';
   }
@@ -561,13 +978,13 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
                 <span>♡</span>
                 <span>${clampNumber(comment.likes) + (liked ? 1 : 0)}</span>
               </button>
-              <button class="reply-btn" data-action="comment-reply" data-comment-id="${comment.id}">回复</button>
-              ${comment.replies && comment.replies.length > 0 ? `<button class="show-replies-btn" data-action="toggle-replies" data-comment-id="${comment.id}">${repliesOpen ? '收起回复' : `展开 ${comment.replies.length} 条回复`}</button>` : ''}
+              <button class="reply-btn" data-action="comment-reply" data-comment-id="${comment.id}">Reply</button>
+              ${comment.replies && comment.replies.length > 0 ? `<button class="show-replies-btn" data-action="toggle-replies" data-comment-id="${comment.id}">${repliesOpen ? 'Hide replies' : `Show ${comment.replies.length} replies`}</button>` : ''}
             </div>
             ${replyOpen ? `
               <div class="reply-editor">
-                <input class="reply-input" data-reply-input="${comment.id}" placeholder="回复 ${escapeHtml(comment.author)}...">
-                <button class="reply-submit" data-action="submit-reply" data-comment-id="${comment.id}">回复</button>
+                <input class="reply-input" data-reply-input="${comment.id}" placeholder="Reply to ${escapeHtml(comment.author)}...">
+                <button class="reply-submit" data-action="submit-reply" data-comment-id="${comment.id}">Reply</button>
               </div>
             ` : ''}
             ${repliesOpen && comment.replies && comment.replies.length > 0 ? `
@@ -677,6 +1094,8 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       state.notes[index] = state.notes[swapIndex];
       state.notes[swapIndex] = temp;
     }
+
+    keepNoteAwayFromTop(state.notes, 'note-openclaw-config', 18);
   }
 
   function handleFeedReload() {
@@ -770,7 +1189,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       comment.replies = [];
     }
     comment.replies.push({
-      author: '小蓝书用户',
+      author: 'BlueBook User',
       text: value,
     });
 
@@ -829,9 +1248,9 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
 
     note.comments.unshift({
       id: `quick-comment-${Date.now()}`,
-      author: '小蓝书用户',
-      avatar: '蓝',
-      region: '刚刚',
+      author: 'BlueBook User',
+      avatar: 'B',
+      region: 'Just now',
       text: value,
       likes: 0,
       replies: [],
@@ -857,7 +1276,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
         return;
       }
 
-      state.activeChannel = target.dataset.channel;
+      state.activeChannel = normalizeChannel(target.dataset.channel);
       persistState();
       renderChannels();
       renderFeed();
@@ -879,6 +1298,10 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
         if (action === 'comment') {
           openNote(noteId, 'card_comment', true);
           tracker.track('card_comment_open', { noteId });
+        }
+
+        if (action === 'open-note') {
+          openNote(noteId, 'feed_card', false);
         }
         return;
       }
@@ -908,6 +1331,71 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       }
     });
 
+    dom.modalMedia.addEventListener('click', (event) => {
+      const note = getCurrentNote();
+      if (!note) {
+        return;
+      }
+
+      const navButton = event.target.closest('[data-media-nav]');
+      if (navButton) {
+        const direction = navButton.dataset.mediaNav === 'next' ? 1 : -1;
+        setMediaIndex(note, state.currentMediaIndex + direction, navButton.dataset.mediaNav);
+        return;
+      }
+
+      const dotButton = event.target.closest('[data-media-dot]');
+      if (dotButton) {
+        setMediaIndex(note, Number(dotButton.dataset.mediaDot), 'dot');
+      }
+    });
+
+    dom.modalMedia.addEventListener('pointerdown', (event) => {
+      const viewport = event.target.closest('.media-viewport');
+      if (!viewport || event.button > 0) {
+        return;
+      }
+
+      beginSwipe(event.clientX, event.clientY, event.pointerId);
+      if (typeof viewport.setPointerCapture === 'function') {
+        viewport.setPointerCapture(event.pointerId);
+      }
+    });
+
+    dom.modalMedia.addEventListener('pointerup', (event) => {
+      const note = getCurrentNote();
+      if (state.swipePointerId !== null && event.pointerId !== state.swipePointerId) {
+        return;
+      }
+
+      finishSwipe(note, event.clientX, event.clientY, 'swipe');
+    });
+
+    dom.modalMedia.addEventListener('pointercancel', () => {
+      resetSwipe();
+    });
+
+    dom.modalMedia.addEventListener('touchstart', (event) => {
+      const viewport = event.target.closest('.media-viewport');
+      const touch = event.changedTouches[0];
+      if (!viewport || !touch) {
+        return;
+      }
+
+      beginSwipe(touch.clientX, touch.clientY, null);
+    }, { passive: true });
+
+    dom.modalMedia.addEventListener('touchend', (event) => {
+      const note = getCurrentNote();
+      const touch = event.changedTouches[0];
+      if (!touch) {
+        resetSwipe();
+        return;
+      }
+
+      finishSwipe(note, touch.clientX, touch.clientY, 'swipe');
+    });
+
     dom.noteClose.addEventListener('click', closeNote);
 
     dom.modalFollowBtn.addEventListener('click', () => {
@@ -919,7 +1407,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       const followed = !state.followedAuthors[note.author];
       state.followedAuthors[note.author] = followed;
       persistState();
-      dom.modalFollowBtn.textContent = followed ? '已关注' : '关注';
+      dom.modalFollowBtn.textContent = followed ? 'Following' : 'Follow';
 
       tracker.track('author_follow_toggle', {
         noteId: note.id,
@@ -1005,8 +1493,11 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     dom.modalFollowBtn = document.getElementById('modal-follow-btn');
     dom.modalNoteTime = document.getElementById('modal-note-time');
     dom.modalTitle = document.getElementById('modal-title');
+    dom.modalNoteLocation = document.getElementById('modal-note-location');
+    dom.modalNoteDevice = document.getElementById('modal-note-device');
     dom.modalTags = document.getElementById('modal-tags');
     dom.modalDesc = document.getElementById('modal-desc');
+    dom.modalStory = document.getElementById('modal-story');
     dom.modalCommentSummary = document.getElementById('modal-comment-summary');
     dom.commentList = document.getElementById('comment-list');
     dom.detailActions = document.getElementById('detail-actions');
@@ -1017,6 +1508,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
   function initialize() {
     loadPersistedState();
     state.notes = buildNotes();
+    keepNoteAwayFromTop(state.notes, 'note-openclaw-config', 18);
     state.query = getSearchQueryFromUrl();
 
     cacheDom();

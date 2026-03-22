@@ -3,7 +3,7 @@ name: "BlueBook Search And Like Test"
 difficulty: medium
 description: "Search for a specific post in the BlueBook feed, open it, and like the note."
 start_url: "http://localhost:16605/bluebook/"
-instruction: "在小蓝书首页，使用顶部搜索框搜索“阿里嘎多”，打开标题为“阿里嘎多，这套 AI 识图提示词模板真顶”的笔记，并点赞这篇笔记。"
+instruction: "On the BlueBook home page, use the top search box to search for \"arigato\", open the note titled \"Arigato: this AI vision prompt template actually works\", and like that note."
 time_limit: 300.0
 cost_limit: 0.6
 
@@ -13,7 +13,7 @@ criteria:
     points: 1.5
     expected:
       event_type: search_execute
-      query: "阿里嘎多"
+      query: "arigato"
       page: "/bluebook/"
 
   - type: open_target_note
@@ -22,7 +22,7 @@ criteria:
     expected:
       event_type: note_open
       noteId: "note-arigato-ai"
-      noteTitle: "阿里嘎多，这套 AI 识图提示词模板真顶"
+      noteTitle: "Arigato: this AI vision prompt template actually works"
       page: "/bluebook/"
 
   - type: like_target_note
@@ -31,6 +31,6 @@ criteria:
     expected:
       event_type: note_like_toggle
       noteId: "note-arigato-ai"
-      noteTitle: "阿里嘎多，这套 AI 识图提示词模板真顶"
+      noteTitle: "Arigato: this AI vision prompt template actually works"
       liked: true
       page: "/bluebook/"

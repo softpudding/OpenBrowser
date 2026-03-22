@@ -1,9 +1,9 @@
 id: bluebook_complex
-name: "BlueBook Comment Interaction Test"
+name: "BlueBook Multi-Image Reply Test"
 difficulty: hard
-description: "Search for the OpenClaw note, open it, locate TuTu's comment, like it, and reply with a short hook/config suggestion."
+description: "Search for the OpenClaw note, view all images in the post detail, and leave a quick comment based on the image content."
 start_url: "http://localhost:16605/bluebook/"
-instruction: "在小蓝书首页，先用顶部搜索框搜索“openclaw”，打开标题为“养好 OpenClaw，先把配置文件啃明白”的笔记。在评论区找到作者为“涂涂”的评论，先给这条评论点赞，再点击回复并提交一句简短建议，内容里要包含“hook”或者“配置”两个词中的至少一个。"
+instruction: "On the BlueBook home page, use the top search box to search for \"openclaw\", open the note titled \"Raise OpenClaw right: learn the config before you run it\", and view every image in the left-side carousel. Then leave a short comment in the bottom input naming the recommended skill mentioned in the images."
 time_limit: 500.0
 cost_limit: 1.2
 
@@ -22,41 +22,43 @@ criteria:
     expected:
       event_type: note_open
       noteId: "note-openclaw-config"
-      noteTitle: "养好 OpenClaw，先把配置文件啃明白"
+      noteTitle: "Raise OpenClaw right: learn the config before you run it"
       page: "/bluebook/"
 
-  - type: like_target_comment
-    description: "Like TuTu's comment"
-    points: 2
+  - type: render_note_images
+    description: "Render the note detail image swiper"
+    points: 1
     expected:
-      event_type: comment_like_toggle
+      event_type: note_media_render
       noteId: "note-openclaw-config"
-      commentId: "comment-tutu-hook"
-      commentAuthor: "涂涂"
-      liked: true
+      slideIndex: 0
+      slideCount: 2
       page: "/bluebook/"
 
-  - type: open_reply_editor
-    description: "Open the reply editor for TuTu's comment"
+  - type: view_second_image
+    description: "Swipe to the second image in the note"
     points: 1.5
     expected:
-      event_type: comment_reply_open
+      event_type: note_media_swipe
       noteId: "note-openclaw-config"
-      commentId: "comment-tutu-hook"
-      commentAuthor: "涂涂"
-      open: true
+      slideIndex: 1
       page: "/bluebook/"
 
-  - type: submit_reply
-    description: "Submit a short reply mentioning hook or config"
+  - type: submit_quick_comment
+    description: "Submit a quick comment after viewing all images"
     points: 3.5
     expected:
-      event_type: comment_reply_submit
+      event_type: quick_comment_submit
       noteId: "note-openclaw-config"
-      commentId: "comment-tutu-hook"
-      commentAuthor: "涂涂"
-      value_contains_any:
-        - "hook"
-        - "配置"
-      value_length_min: 4
+      noteTitle: "Raise OpenClaw right: learn the config before you run it"
+      value_length_min: 6
+      page: "/bluebook/"
+
+  - type: mention_browser
+    description: "The quick comment should include the browser skill cue from the images"
+    points: 3.0
+    expected:
+      event_type: quick_comment_submit
+      noteId: "note-openclaw-config"
+      value_contains: "browser"
       page: "/bluebook/"
