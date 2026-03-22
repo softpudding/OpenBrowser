@@ -60,7 +60,7 @@ class HighlightAction(OpenBrowserAction):
     )
     keywords: Optional[List[str]] = Field(
         default=None,
-        description="Keywords list to filter elements by detected semantic text (visible text, labels, roles, and stable element tokens). When provided, returns all matching elements (no pagination). Example: ['button', 'submit', 'login']",
+        description="Exact observed text or stable tokens to filter elements by detected semantic text (visible text, labels, roles, and stable element tokens). Use only for wording already seen in the screenshot or returned HTML. When provided, returns all matching elements (no pagination). Example: ['Continue with Email', 'View comments']",
     )
 
 

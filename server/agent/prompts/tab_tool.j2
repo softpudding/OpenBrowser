@@ -73,6 +73,7 @@ Close an unused tab.
 - Start with `tab init`
 - If you need to inspect the page, use `tab view`
 - Then use the highlight tool to find the next target
+- If highlight page 1 does not show the target, continue pagination before switching to `keywords`
 {% else %}
 # Tab Tool
 
@@ -242,6 +243,7 @@ Navigate forward in the browser history (equivalent to clicking the browser's fo
 2. **Navigate to other pages**: `tab open https://other.com`
 3. **Switch between tabs**: `tab switch` with appropriate tab_id
 4. **After tab operations**, use the highlight tool to discover interactive elements.
+5. Treat highlight pagination as reliable. If page 1 misses the target, continue the relevant pages before changing strategy.
 
 ## Notes
 

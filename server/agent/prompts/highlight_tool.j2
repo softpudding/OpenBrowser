@@ -5,11 +5,12 @@ Find elements before interacting.
 
 ## Core Rules
 
-1. Prefer `element_type: "any"` first.
-2. Use `keywords` only when you already have concrete visible text, labels, role text, or distinctive stable element tokens to search for.
-3. For icon-only toolbar or header controls, use `element_type: "clickable"` only as a targeted fallback, not as the default.
-4. If the target is not visible, keep the same `element_type` and increment `page`.
-5. Do not guess an `element_id` without a highlight result.
+1. Start with `element_type: "any"` for general exploration.
+2. Treat highlight pagination as reliable. If the target is not on the current page, keep the same `element_type` and increment `page`.
+3. Do not switch to `keywords` just because page 1 did not show the target.
+4. Use `keywords` only for exact visible text, labels, role text, or stable tokens you already observed in the screenshot or returned HTML.
+5. For icon-only toolbar or header controls, use `element_type: "clickable"` only as a targeted fallback, and paginate through it.
+6. Do not guess an `element_id` without a highlight result.
 
 ## Command
 
@@ -20,15 +21,17 @@ Find elements before interacting.
 { "element_type": "scrollable" }
 { "element_type": "selectable" }
 { "page": 2 }
-{ "keywords": ["Submit", "提交"] }
+{ "keywords": ["Continue with Email"] }
 ```
 
 ## Selection Strategy
 
 - Start with `element_type: "any"` for general exploration
-- If you can already see or reliably know the target text, try `keywords`
+- If the target is not on the first page, continue `page=2,3...` in the same highlight mode before changing strategy
+- Exhaust the relevant highlight pages unless the page state changed or you already have exact observed text
+- If you can already see exact target text in the screenshot or highlight HTML, try `keywords`
 - If the target is an icon-only toolbar or header control, use `element_type: "clickable"` and continue `page=1,2,3...`
-- Do not use `keywords` such as `"settings"`, `"gear"`, or `"bell"` to find icon-only SVG toolbar icons
+- Do not use guessed `keywords` such as `"settings"`, `"gear"`, `"bell"`, `"next"`, `"prev"`, or `"close"` to probe icon-only or ambiguous controls
 - If a composite control is split across pages by collisions, such as an icon button next to a count or badge, stay on the same `element_type` and try the next page before switching to `keywords`
 - If many elements overlap across pages, stay on the same `element_type` and increment `page`
 
@@ -91,74 +94,64 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 { "element_type": "selectable" } // Select dropdowns
 { "element_type": "any" }        // All interactive elements combined
 { "page": 2 }                 // Next page of any interactive elements
-{ "keywords": ["Submit", "提交"] }      // Filter by keyword list (no pagination needed)
+{ "keywords": ["Continue with Email"] } // Exact observed text only
 ```
 
 **Parameters**:
 - `element_type`: Single type to highlight - "any" (default), "clickable", "scrollable", "inputable", "hoverable", or "selectable"
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
-- `keywords`: Keywords list to filter elements by detected semantic text. Matching uses visible text, labels, roles, and stable element tokens. When provided, only matching elements are returned without pagination. Example: ["button", "submit", "login"]
+- `keywords`: Exact observed text or stable tokens to filter by detected semantic text. Matching uses visible text, labels, roles, and stable element tokens. When provided, only matching elements are returned without pagination. Example: ["Continue with Email", "View comments"]
 
 **When to Use Pagination**:
 - If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements
-- Continue to the next page until you find the most appropriate element for your task
+- Treat pages as reliable collision-free slices of the same candidate set, not random samples
+- Continue to the next page until you find the most appropriate element for your task or exhaust the relevant pages
 - Stay on the same `element_type` across pages to browse through all elements of that category
+- Do not jump from a first-page miss to `keywords`
+- Exhaust relevant highlight pages before switching strategies unless the page state changed or you already have exact observed text
 - For icon-only controls (gear, close, bell, avatar menu, toolbar icons), prefer pagination over broad keyword search
 - If you can see a related count, badge, or neighboring text from the target control but not the control itself, prefer the next page first; collision-aware pagination often separates adjacent clickable pieces of the same UI
 
 **When to Use Keywords**:
-- When you know what text/attribute you're looking for (e.g., "Submit", "Login", "search")
-- Use keywords only for concrete text you can already see or reliably know exists on the page
-- More efficient than pagination when target is visually identifiable
+- When you know the exact text/attribute you're looking for because you already observed it
+- Use keywords only for exact text or stable tokens you can already see in the screenshot, highlight HTML, or prior observation from the same task
+- More efficient than pagination when the target is text-identified and you can quote it precisely
 - No need for pagination - all matching elements are returned at once
 - Weak for icon-only controls because SVG meaning often is not represented in searchable text
 - Do not use keywords as your first attempt for toolbar icons like settings, history, notifications, chat, or avatar menus
 - Do not guess a semantic word from appearance alone and search for it
+- Do not use keywords as a fallback just because page 1 did not contain the target
 
-**Keyword Search Strategies (Two-Phase Approach)**:
+**Exact-Text Search Only**:
 
-**Phase 1: Precise Search (Primary Strategy)**
-Use this when you can clearly identify the target element's unique characteristics:
-- You see the element's distinctive text clearly (e.g., a button with a unique label)
-- The element has a distinctive label or identifier
-- You know exactly what distinguishes this element from others
+Use keyword search only when you can clearly identify the target element's exact text or exact stable token:
+- You see the element's distinctive text clearly in the screenshot
+- The highlight response already exposed the target's exact label, `aria-label`, or other stable token
+- You want to narrow to a specific post, comment, button, or menu item whose text you can quote verbatim
 
-For precise search:
-- Use **ONE UNIQUE keyword** that distinguishes the target from all other elements
-- Focus on what makes the element unique on this page
-- Avoid common words that might match multiple elements
+For exact-text search:
+- Prefer **ONE exact phrase** that distinguishes the target from all other elements
+- Reuse the exact wording you already observed
+- Avoid generic action words that could match multiple controls
 
-Examples of precise search:
+Examples of exact-text search:
 - **Specific button label already visible**: If you can see a button labeled "Continue with Email", search `{"keywords": ["Continue with Email"]}` instead of just `["Continue"]`.
 - **Specific user's comment**: Page shows multiple user comments. If targeting "John's reply", search `{"keywords": ["John's reply"]}` to narrow down to that specific comment.
-
-**Phase 2: Broad Search (Fallback Strategy)**
-Use this when Phase 1 fails or when the target is less clear:
-- Phase 1 returned no results
-- You're unsure of exact text or it might vary
-- The element might have multiple possible labels
-
-For broad search:
-- Provide **multiple related keywords** to increase matching probability
-- Include Chinese and English variants together
-- Include synonyms and related terms
-
-Examples of broad search:
-- Looking for a close button after precise search failed: `{"keywords": ["关闭", "close", "×", "dismiss", "cancel"]}`
-- Looking for a submit action: `{"keywords": ["submit", "提交", "confirm", "确认", "save", "保存"]}`
-- Looking for a search function: `{"keywords": ["search", "搜索", "query", "查询", "find", "查找"]}`
+- **Specific post title already visible**: If you can see a post titled "春季穿搭合集", search `{"keywords": ["春季穿搭合集"]}`.
 
 **Anti-Patterns**:
 - DO NOT use overly broad keywords like ["x"] that match everything
-- DO NOT start with broad search when you can see exact text
+- DO NOT switch to keywords after only checking page 1 of highlight results
+- DO NOT replace pagination with speculative keyword probing
 - DO NOT infer a guessed semantic label from shape, iconography, color, or position and search for that guess
-- DO NOT search for unlabeled toolbar icons with guessed words like "settings", "gear", "bell", or "chat"
+- DO NOT search for unlabeled toolbar icons or ambiguous controls with guessed words like "settings", "gear", "bell", "chat", "next", "prev", or "close"
 - DO NOT switch to keywords just because a nearby count like "57" is visible; in collision-aware pagination, the actual button may simply be on the next page
+- DO NOT use synonym bundles like `["close", "dismiss", "cancel"]` or `["search", "find", "query"]`
 - DO NOT mix unrelated keywords in a single search
 
 ## Workflow Integration
 
-1. **Start with Highlight**: Always begin element interaction by calling the highlight tool to discover available elements.
+1. **Start with Highlight**: Always begin element interaction by calling the highlight tool to discover available elements. Treat highlight as the authoritative inventory of currently reachable interactive elements.
 2. **Visual + Semantic Verification**: At the BLUE stage, verify using BOTH visual AND semantic information:
    - **Visual Check**: Is the blue box where you expect?
    - **Semantic Check**: Does the HTML match your goal?
@@ -171,8 +164,9 @@ Examples of broad search:
 
 **Recommendation**:
 - Prefer `element_type: "any"` as the default first pass
-- Prefer `keywords` when the target has unique visible text you already know
+- Trust pagination and continue the same highlight mode across pages before changing strategy
 - Use `element_type: "clickable"` as a targeted fallback for icon-only controls, dense toolbars, or when `any` is too broad
+- Prefer `keywords` only when the target has exact observed text you can quote verbatim
 
 ### any
 Combines all element types with OR logic. Returns elements matching any of the types. Elements matching multiple types are deduplicated and assigned the first matched type (priority: clickable > scrollable > inputable > hoverable > selectable).

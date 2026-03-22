@@ -250,8 +250,8 @@ class HighlightElementsCommand(BaseCommand):
     Each page returns a maximal set of non-colliding elements.
     Only one element type per call for stable, predictable pagination.
 
-    When keywords is provided, only elements whose HTML contains the keywords
-    are returned (no pagination needed - all matching elements are returned).
+    When keywords is provided, use exact observed text or stable tokens only.
+    Matching elements are returned without pagination.
     """
 
     type: Literal["highlight_elements"] = "highlight_elements"
@@ -266,7 +266,7 @@ class HighlightElementsCommand(BaseCommand):
     )
     keywords: Optional[List[str]] = Field(
         default=None,
-        description="Keywords list to filter elements by detected semantic text (visible text, labels, roles, and stable element tokens). When provided, only matching elements are returned (no pagination). Example: ['button', 'submit', 'login']",
+        description="Exact observed text or stable tokens to filter by detected semantic text (visible text, labels, roles, and stable element tokens). Use only for wording already seen in the screenshot or returned HTML. When provided, only matching elements are returned (no pagination). Example: ['Continue with Email', 'View comments']",
     )
 
 
