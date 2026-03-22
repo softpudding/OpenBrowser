@@ -12,6 +12,10 @@ export interface LayoutStabilityMetrics {
   placeholderAreaRatio: number;
 }
 
+// Highlight runs against background tabs in this project. Page-side timer polling
+// is unreliable there because Chrome may heavily throttle hidden-tab timers.
+// Keep readiness checks snapshot-based so Runtime.evaluate can finish without
+// depending on repeated setTimeout scheduling in the page context.
 export const HIGHLIGHT_LAYOUT_STABILITY_CONFIG = {
   metricsTimeBudgetMs: 120,
   maxTextCandidates: 250,
@@ -92,6 +96,10 @@ export function evaluateLayoutReadiness(
   metrics: LayoutStabilityMetrics,
   options: { pageReady: boolean; visibilityState: string },
 ): LayoutReadinessResult {
+  // This is intentionally a single-snapshot classifier. It answers
+  // "does the current viewport look mature enough to highlight right now?"
+  // and leaves short retries to the extension background, where scheduling is
+  // more predictable than in a hidden page context.
   const reasons: string[] = [];
   const contentScore = getLayoutContentScore(metrics);
 

@@ -1507,6 +1507,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             );
           }
 
+          // Do not wait inside the page for "stability". Hidden/background tabs
+          // can throttle page timers hard enough that page-side polling becomes
+          // the dominant source of highlight timeouts. Instead, classify the
+          // current snapshot and do at most a couple of short background-side
+          // retries when the viewport still looks like a loading/skeleton state.
           const pageState: HighlightPageState =
             layoutStability?.state || 'ready';
           const readinessReasons = Array.isArray(layoutStability?.reasons)
