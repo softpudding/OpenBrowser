@@ -55,6 +55,8 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
         'Do not use `keywords` such as `"settings"`, `"gear"`, or `"bell"`'
         in description
     )
+    assert "concrete visible text" in description
+    assert "icon button next to a count or badge" in description
     assert "Phase 1: Precise Search" not in description
     assert "Collision-Aware Pagination" not in description
 
@@ -78,10 +80,16 @@ def test_large_model_highlight_prompt_keeps_detailed_search_and_pagination_guida
     assert "Phase 2: Broad Search" in description
     assert "icon-only controls" in description
     assert (
-        'Prefer `element_type: "clickable"` for buttons, links, tabs, and icon-only controls'
+        'Prefer `element_type: "any"` as the default first pass'
+        in description
+    )
+    assert (
+        'Use `element_type: "clickable"` as a targeted fallback for icon-only controls'
         in description
     )
     assert (
         'DO NOT search for unlabeled toolbar icons with guessed words like "settings", "gear", "bell", or "chat"'
         in description
     )
+    assert "Use keywords only for concrete text you can already see" in description
+    assert "the actual button may simply be on the next page" in description

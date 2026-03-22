@@ -60,6 +60,7 @@ class TestPromptContracts:
 
         assert "icon-only controls" in description
         assert "Stay on the same `element_type` across pages" in description
+        assert "actual button may simply be on the next page" in description
 
     def test_tab_prompt_points_agents_to_tab_view_for_clean_screenshots(self) -> None:
         description = get_tab_tool_description()

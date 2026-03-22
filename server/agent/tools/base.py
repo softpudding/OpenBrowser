@@ -363,10 +363,12 @@ class OpenBrowserObservation(Observation):
             text_parts.append(full_html)
             text_parts.append("```")
             text_parts.append("")
-            text_parts.append("**To confirm this action, use:**")
+            text_parts.append("**To confirm this action, use the `element_interaction` tool with:**")
             action_type = self.pending_confirmation.get("action_type", "")
             element_id = self.pending_confirmation.get("element_id", "")
-            confirm_cmd = f'{{"type": "confirm_{action_type}_element", "element_id": "{element_id}"}}'
+            confirm_cmd = (
+                f'{{"action": "confirm_{action_type}", "element_id": "{element_id}"}}'
+            )
             text_parts.append(f"```json\n{confirm_cmd}\n```")
             text_parts.append("")
             text_parts.append(
