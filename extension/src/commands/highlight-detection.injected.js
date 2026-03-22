@@ -959,6 +959,42 @@ function compareCandidates(a, b) {
   return a.rect.x - b.rect.x;
 }
 
+function isProminentScrollableCandidate(candidate) {
+  if (candidate.type !== 'scrollable') {
+    return false;
+  }
+
+  const viewportArea = window.innerWidth * window.innerHeight;
+  if (viewportArea <= 0) {
+    return false;
+  }
+
+  return (
+    candidate.area >= viewportArea * 0.12 ||
+    candidate.rect.height >= window.innerHeight * 0.35 ||
+    candidate.rect.width >= window.innerWidth * 0.5
+  );
+}
+
+function compareDisplayCandidates(a, b) {
+  const aProminentScrollable = isProminentScrollableCandidate(a);
+  const bProminentScrollable = isProminentScrollableCandidate(b);
+
+  if (aProminentScrollable !== bProminentScrollable) {
+    return aProminentScrollable ? -1 : 1;
+  }
+
+  if (a.type === 'scrollable' && a.element.contains(b.element)) {
+    return -1;
+  }
+
+  if (b.type === 'scrollable' && b.element.contains(a.element)) {
+    return 1;
+  }
+
+  return compareCandidates(a, b);
+}
+
 function getOverlapArea(a, b) {
   const xOverlap = Math.max(
     0,
@@ -985,7 +1021,16 @@ function shouldDropCandidate(candidate, kept) {
   const smallerArea = Math.min(candidate.area, kept.area);
   const overlapRatio = smallerArea > 0 ? overlapArea / smallerArea : 0;
 
-  if (candidate.element.contains(kept.element) && overlapRatio >= 0.6) {
+  // Preserve scrollable containers in "any" mode even when they overlap
+  // with nested controls; otherwise modal/list scrollers disappear entirely.
+  const preserveScrollableContainer =
+    candidate.type === 'scrollable' && kept.type !== 'scrollable';
+
+  if (
+    !preserveScrollableContainer &&
+    candidate.element.contains(kept.element) &&
+    overlapRatio >= 0.6
+  ) {
     return true;
   }
 
@@ -1373,7 +1418,9 @@ function collectHighlightCandidates(requestedType, trace) {
     }
   }
 
-  const sortedCandidates = Array.from(registry.values()).sort(compareCandidates);
+  const sortedCandidates = Array.from(registry.values()).sort(
+    compareDisplayCandidates,
+  );
   const prunedCandidates = [];
 
   for (const candidate of sortedCandidates) {

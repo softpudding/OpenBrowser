@@ -104,6 +104,45 @@ describe('highlight-detection helpers', () => {
     expect(resolveElementCandidateSource).toContain('return candidates[0];');
   });
 
+  test("buildHighlightDetectionScript preserves scrollable containers in 'any' mode", () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const start = script.indexOf('function shouldDropCandidate');
+    const end = script.indexOf('function toInteractiveElement', start);
+    const shouldDropCandidateSource = script.slice(start, end);
+
+    expect(shouldDropCandidateSource).toContain(
+      "candidate.type === 'scrollable' && kept.type !== 'scrollable'",
+    );
+    expect(shouldDropCandidateSource).toContain(
+      '!preserveScrollableContainer &&',
+    );
+    expect(shouldDropCandidateSource).toContain(
+      'candidate.element.contains(kept.element)',
+    );
+  });
+
+  test("buildHighlightDetectionScript prioritizes prominent scrollable containers for display", () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const start = script.indexOf('function isProminentScrollableCandidate');
+    const end = script.indexOf('function getOverlapArea', start);
+    const displayOrderingSource = script.slice(start, end);
+
+    expect(displayOrderingSource).toContain(
+      "candidate.type !== 'scrollable'",
+    );
+    expect(displayOrderingSource).toContain('candidate.area >= viewportArea * 0.12');
+    expect(displayOrderingSource).toContain(
+      'candidate.rect.height >= window.innerHeight * 0.35',
+    );
+    expect(displayOrderingSource).toContain(
+      'candidate.rect.width >= window.innerWidth * 0.5',
+    );
+    expect(displayOrderingSource).toContain('function compareDisplayCandidates');
+    expect(displayOrderingSource).toContain(
+      "a.type === 'scrollable' && a.element.contains(b.element)",
+    );
+  });
+
   test('buildHighlightDetectionScript uses bounded tree walking for text metrics', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
 

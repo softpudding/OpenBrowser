@@ -2,6 +2,7 @@ import { describe, test, expect } from 'bun:test';
 
 import {
   LabelPosition,
+  bboxContains,
   bboxesIntersect,
   getLabelBBox,
   elementsCollide,
@@ -304,6 +305,24 @@ describe('Highlight Integration', () => {
       expect(page1).toHaveLength(2);
       expect(page2).toHaveLength(1);
       expect(totalPages).toBe(2);
+    });
+
+    test('should allow nested controls to share a page with a containing scrollable', () => {
+      const elements = [
+        createElement('modal', 'scrollable', 564, 154, 600, 648),
+        createElement('like', 'clickable', 1042, 483, 52, 30),
+        createElement('reply', 'clickable', 1105, 483, 58, 30),
+      ];
+
+      const page1 = selectCollisionFreePage(elements, 1, 1728, 891);
+
+      expect(page1.map((e) => e.id)).toEqual(['modal', 'like', 'reply']);
+      expect(page1[0].labelPosition).toBeDefined();
+      expect(page1[1].labelPosition).toBeDefined();
+      expect(page1[2].labelPosition).toBeDefined();
+      expect(calculateTotalPages(elements, 1728, 891)).toBe(1);
+      expect(bboxContains(page1[0].bbox, page1[1].bbox)).toBe(true);
+      expect(bboxContains(page1[0].bbox, page1[2].bbox)).toBe(true);
     });
 
     test('should handle element near left edge', () => {

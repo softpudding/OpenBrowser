@@ -35,6 +35,15 @@ export function bboxesIntersect(a: BBox, b: BBox): boolean {
   );
 }
 
+export function bboxContains(outer: BBox, inner: BBox): boolean {
+  return (
+    outer.x <= inner.x &&
+    outer.y <= inner.y &&
+    outer.x + outer.width >= inner.x + inner.width &&
+    outer.y + outer.height >= inner.y + inner.height
+  );
+}
+
 /**
  * Get the bounding box of just the label (not including the element)
  * Used for label-label collision detection
@@ -244,18 +253,20 @@ function buildCollisionFreePages(
             s.labelPosition ?? 'above',
             s.id,
           );
+          const nested =
+            bboxContains(s.bbox, elem.bbox) || bboxContains(elem.bbox, s.bbox);
 
           if (bboxesIntersect(labelBBox, sLabelBBox)) {
             hasCollision = true;
             break;
           }
 
-          if (bboxesIntersect(labelBBox, s.bbox)) {
+          if (!nested && bboxesIntersect(labelBBox, s.bbox)) {
             hasCollision = true;
             break;
           }
 
-          if (bboxesIntersect(elem.bbox, sLabelBBox)) {
+          if (!nested && bboxesIntersect(elem.bbox, sLabelBBox)) {
             hasCollision = true;
             break;
           }
