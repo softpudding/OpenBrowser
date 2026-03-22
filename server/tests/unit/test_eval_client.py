@@ -130,3 +130,40 @@ def test_resolve_targets_rejects_unknown_alias() -> None:
 
     with pytest.raises(ValueError, match="Unknown model alias"):
         evaluator.resolve_targets([LLMTarget(name="flash", alias="flash")])
+
+
+def test_extract_cost_uses_latest_usage_metrics_event() -> None:
+    """Eval cost extraction should use the final accumulated usage snapshot."""
+    evaluator = Evaluator(chrome_uuid="browser-uuid-123")
+
+    sse_events = [
+        {
+            "type": "usage_metrics",
+            "data": {
+                "metrics": {
+                    "accumulated_cost": 0.0306296,
+                    "model_name": "dashscope/qwen3.5-plus",
+                    "accumulated_token_usage": {
+                        "model": "dashscope/qwen3.5-plus",
+                    },
+                }
+            },
+        },
+        {"type": "message", "data": {"content": "intermediate event"}},
+        {
+            "type": "usage_metrics",
+            "data": {
+                "metrics": {
+                    "accumulated_cost": 0.9652088,
+                    "model_name": "dashscope/qwen3.5-plus",
+                    "accumulated_token_usage": {
+                        "model": "dashscope/qwen3.5-plus",
+                    },
+                }
+            },
+        },
+    ]
+
+    assert evaluator._extract_cost_from_sse_events(sse_events) == pytest.approx(
+        0.9652088
+    )
