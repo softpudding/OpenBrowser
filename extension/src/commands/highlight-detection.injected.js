@@ -41,7 +41,9 @@ function hasCallableMethod(value, methodNames) {
     return false;
   }
 
-  return methodNames.some((methodName) => typeof value[methodName] === 'function');
+  return methodNames.some(
+    (methodName) => typeof value[methodName] === 'function',
+  );
 }
 
 function createHighlightTrace() {
@@ -147,9 +149,7 @@ function getClassTokens(el) {
   return Array.from(el.classList)
     .filter(
       (token) =>
-        token.length > 1 &&
-        token.length <= 40 &&
-        /^[a-z0-9_-]+$/i.test(token),
+        token.length > 1 && token.length <= 40 && /^[a-z0-9_-]+$/i.test(token),
     )
     .slice(0, 8);
 }
@@ -267,7 +267,10 @@ function getTabIndexValue(el) {
 }
 
 function isDisabledForDetection(el) {
-  if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') {
+  if (
+    el.hasAttribute('disabled') ||
+    el.getAttribute('aria-disabled') === 'true'
+  ) {
     return true;
   }
 
@@ -322,7 +325,11 @@ function getControlAffinityScore(el) {
     score += Math.min(40, text.length);
   }
 
-  if (/\b(button|btn|filter|follow|like|refresh|reload|reply|search|share|submit|toggle)\b/i.test(searchText)) {
+  if (
+    /\b(button|btn|filter|follow|like|refresh|reload|reply|search|share|submit|toggle)\b/i.test(
+      searchText,
+    )
+  ) {
     score += 12;
   }
 
@@ -430,7 +437,10 @@ function getStructuralClickableSignal(el) {
     return null;
   }
 
-  if (hasExplicitClickableAncestor(el) || hasStructuredInteractiveDescendant(el)) {
+  if (
+    hasExplicitClickableAncestor(el) ||
+    hasStructuredInteractiveDescendant(el)
+  ) {
     return null;
   }
 
@@ -760,7 +770,10 @@ function isHoverableCandidate(el) {
     return false;
   }
 
-  if (hasExplicitClickableAncestor(el) || hasStructuredInteractiveDescendant(el)) {
+  if (
+    hasExplicitClickableAncestor(el) ||
+    hasStructuredInteractiveDescendant(el)
+  ) {
     return false;
   }
 
@@ -812,7 +825,8 @@ function hasHorizontalSwipeLayout(el) {
     overflowX.includes('auto');
 
   const visibleChildren = Array.from(el.children).filter(
-    (child) => child instanceof HTMLElement && isElementVisibleForDetection(child),
+    (child) =>
+      child instanceof HTMLElement && isElementVisibleForDetection(child),
   );
 
   if (visibleChildren.length === 0) {
@@ -831,14 +845,16 @@ function hasHorizontalSwipeLayout(el) {
         childStyle.display.includes('flex') ||
         childStyle.whiteSpace === 'nowrap'
       );
-    }) || (visibleChildren[0] instanceof HTMLElement ? visibleChildren[0] : null);
+    }) ||
+    (visibleChildren[0] instanceof HTMLElement ? visibleChildren[0] : null);
 
   if (!(primaryTrack instanceof HTMLElement)) {
     return false;
   }
 
   const trackChildren = Array.from(primaryTrack.children).filter(
-    (child) => child instanceof HTMLElement && isElementVisibleForDetection(child),
+    (child) =>
+      child instanceof HTMLElement && isElementVisibleForDetection(child),
   );
 
   if (trackChildren.length < 2) {
@@ -863,7 +879,10 @@ function hasHorizontalSwipeLayout(el) {
       if (childRect.left > previousRect.left + 12) {
         horizontalSteps += 1;
       }
-      if (Math.abs(childRect.top - previousRect.top) <= Math.max(24, rect.height * 0.2)) {
+      if (
+        Math.abs(childRect.top - previousRect.top) <=
+        Math.max(24, rect.height * 0.2)
+      ) {
         verticalAligned += 1;
       }
     }
@@ -949,7 +968,10 @@ function findSwipeContext(el, maxDepth = 4) {
       return current;
     }
 
-    if (hasHorizontalSwipeLayout(current) && current.getBoundingClientRect().width >= 180) {
+    if (
+      hasHorizontalSwipeLayout(current) &&
+      current.getBoundingClientRect().width >= 180
+    ) {
       return current;
     }
 
@@ -1066,7 +1088,9 @@ function generateSelector(el) {
 
 function getCandidateSignal(type, signalSource) {
   if (type === 'clickable') {
-    return HIGHLIGHT_SIGNAL_SCORE[signalSource] || HIGHLIGHT_SIGNAL_SCORE.pointer;
+    return (
+      HIGHLIGHT_SIGNAL_SCORE[signalSource] || HIGHLIGHT_SIGNAL_SCORE.pointer
+    );
   }
 
   return HIGHLIGHT_SIGNAL_SCORE[type] || 0;
@@ -1430,7 +1454,9 @@ function isRectInViewport(rect) {
 }
 
 function isMetricsTimeBudgetExceeded(startTime) {
-  return performance.now() - startTime >= layoutStabilityConfig.metricsTimeBudgetMs;
+  return (
+    performance.now() - startTime >= layoutStabilityConfig.metricsTimeBudgetMs
+  );
 }
 
 function countPendingViewportImages(metricsStartTime) {
@@ -1568,11 +1594,12 @@ function getPageMetrics() {
   const metricsStartTime = performance.now();
   const viewportText = collectViewportTextMetrics(metricsStartTime);
   const viewportMedia = countViewportMedia(metricsStartTime);
-  const placeholderSignals =
-    countViewportPlaceholderSignals(metricsStartTime);
+  const placeholderSignals = countViewportPlaceholderSignals(metricsStartTime);
 
   return {
-    bodyHeight: document.body ? document.body.getBoundingClientRect().height : 0,
+    bodyHeight: document.body
+      ? document.body.getBoundingClientRect().height
+      : 0,
     scrollHeight: document.documentElement
       ? document.documentElement.scrollHeight
       : 0,

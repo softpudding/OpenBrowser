@@ -79,10 +79,7 @@ def test_large_model_highlight_prompt_keeps_detailed_search_and_pagination_guida
     assert "Phase 1: Precise Search" in description
     assert "Phase 2: Broad Search" in description
     assert "icon-only controls" in description
-    assert (
-        'Prefer `element_type: "any"` as the default first pass'
-        in description
-    )
+    assert 'Prefer `element_type: "any"` as the default first pass' in description
     assert (
         'Use `element_type: "clickable"` as a targeted fallback for icon-only controls'
         in description

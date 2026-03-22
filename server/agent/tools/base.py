@@ -312,7 +312,9 @@ class OpenBrowserObservation(Observation):
             for el in self.highlighted_elements:
                 el_id = el.get("id", "unknown")
                 el_type = el.get("type")
-                raw_hints = el.get("interactionHints") or el.get("interaction_hints") or []
+                raw_hints = (
+                    el.get("interactionHints") or el.get("interaction_hints") or []
+                )
                 interaction_hints = [
                     hint
                     for hint in raw_hints
@@ -323,9 +325,7 @@ class OpenBrowserObservation(Observation):
                     suffix_parts.append(el_type)
                 suffix_parts.extend(interaction_hints)
                 display_id = (
-                    f"{el_id}({', '.join(suffix_parts)})"
-                    if suffix_parts
-                    else el_id
+                    f"{el_id}({', '.join(suffix_parts)})" if suffix_parts else el_id
                 )
                 html = (el.get("html") or "").strip()
                 # Skip truncation for selectable elements (show full options)
@@ -363,7 +363,9 @@ class OpenBrowserObservation(Observation):
             text_parts.append(full_html)
             text_parts.append("```")
             text_parts.append("")
-            text_parts.append("**To confirm this action, use the `element_interaction` tool with:**")
+            text_parts.append(
+                "**To confirm this action, use the `element_interaction` tool with:**"
+            )
             action_type = self.pending_confirmation.get("action_type", "")
             element_id = self.pending_confirmation.get("element_id", "")
             confirm_cmd = (

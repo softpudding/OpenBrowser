@@ -1,5 +1,7 @@
 """Regression tests for agent BrowserExecutor result handling."""
 
+import server.agent.tools.browser_executor as browser_executor_module
+
 from server.agent.tools.browser_executor import BrowserExecutor
 from server.agent.tools.element_interaction_tool import ElementInteractionAction
 from server.models.commands import SwipeElementCommand
@@ -21,7 +23,8 @@ def test_execute_command_sync_promotes_nested_error_to_top_level(monkeypatch) ->
     executor.conversation_id = "conv-swipe-error"
 
     monkeypatch.setattr(
-        "server.agent.tools.browser_executor.requests.post",
+        browser_executor_module.requests,
+        "post",
         lambda *args, **kwargs: _FakeResponse(
             {
                 "success": False,
@@ -71,6 +74,8 @@ def test_confirm_swipe_reports_nested_extension_error(monkeypatch) -> None:
     )
 
     assert observation.success is False
-    assert observation.error == "Failed to swipe element: No swipeable container found for element"
+    assert (
+        observation.error
+        == "Failed to swipe element: No swipeable container found for element"
+    )
     assert "None" not in observation.message
-

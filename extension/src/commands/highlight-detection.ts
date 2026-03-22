@@ -50,7 +50,9 @@ export function getHighlightKeywordHaystack(
   }
 
   return [element.text, element.selector, element.tagName, element.html]
-    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .filter(
+      (value): value is string => typeof value === 'string' && value.length > 0,
+    )
     .join(' ')
     .toLowerCase();
 }

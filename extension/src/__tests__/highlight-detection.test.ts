@@ -111,7 +111,9 @@ describe('highlight-detection helpers', () => {
     const end = script.indexOf('function compareCandidates', start);
     const resolveElementCandidateSource = script.slice(start, end);
 
-    expect(resolveElementCandidateSource).toContain("if (requestedType === 'any')");
+    expect(resolveElementCandidateSource).toContain(
+      "if (requestedType === 'any')",
+    );
     expect(resolveElementCandidateSource).toContain(
       "candidates.push(buildResolvedCandidate(el, 'scrollable', 'scrollable'));",
     );
@@ -141,23 +143,25 @@ describe('highlight-detection helpers', () => {
     );
   });
 
-  test("buildHighlightDetectionScript prioritizes prominent scrollable containers for display", () => {
+  test('buildHighlightDetectionScript prioritizes prominent scrollable containers for display', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
     const start = script.indexOf('function isProminentScrollableCandidate');
     const end = script.indexOf('function getOverlapArea', start);
     const displayOrderingSource = script.slice(start, end);
 
+    expect(displayOrderingSource).toContain("candidate.type !== 'scrollable'");
     expect(displayOrderingSource).toContain(
-      "candidate.type !== 'scrollable'",
+      'candidate.area >= viewportArea * 0.12',
     );
-    expect(displayOrderingSource).toContain('candidate.area >= viewportArea * 0.12');
     expect(displayOrderingSource).toContain(
       'candidate.rect.height >= window.innerHeight * 0.35',
     );
     expect(displayOrderingSource).toContain(
       'candidate.rect.width >= window.innerWidth * 0.5',
     );
-    expect(displayOrderingSource).toContain('function compareDisplayCandidates');
+    expect(displayOrderingSource).toContain(
+      'function compareDisplayCandidates',
+    );
     expect(displayOrderingSource).toContain(
       "a.type === 'scrollable' && a.element.contains(b.element)",
     );

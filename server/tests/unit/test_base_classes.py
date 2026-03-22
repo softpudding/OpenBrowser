@@ -173,7 +173,7 @@ class TestOpenBrowserObservation:
         text = _text_content(observation)
 
         assert "## ⚠️ Action Pending Confirmation" in text
-        assert 'use the `element_interaction` tool' in text
+        assert "use the `element_interaction` tool" in text
         assert '"action": "confirm_click"' in text
         assert '"element_id": "a1b2c3"' in text
 

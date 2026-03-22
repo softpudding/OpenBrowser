@@ -596,9 +596,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 if not result_dict or not result_dict.get("success"):
                     ext_error = self._extract_result_error(result_dict)
                     raise RuntimeError(f"Failed to swipe element: {ext_error}")
-                message = (
-                    f"Swiped element (previously confirmed): {action.element_id}"
-                )
+                message = f"Swiped element (previously confirmed): {action.element_id}"
                 return self._build_observation_from_result(
                     result_dict, message, element_id=action.element_id
                 )

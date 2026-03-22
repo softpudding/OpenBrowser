@@ -46,9 +46,7 @@ def cli():
 def serve(host, port, websocket_port, log_level, multi_process):
     """Start the Local Chrome Server"""
     if multi_process is not None:
-        os.environ["CHROME_SERVER_MULTI_PROCESS_MODE"] = (
-            "1" if multi_process else "0"
-        )
+        os.environ["CHROME_SERVER_MULTI_PROCESS_MODE"] = "1" if multi_process else "0"
 
     import uvicorn
     from server.api.main import app

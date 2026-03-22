@@ -268,12 +268,14 @@ class CommandQueueManager {
           timestamp: Date.now(),
         };
 
-        wsClient.sendMessage({
-          type: 'command_response',
-          ...responseWithId,
-        }).catch((error) => {
-          console.error('Failed to send response:', error);
-        });
+        wsClient
+          .sendMessage({
+            type: 'command_response',
+            ...responseWithId,
+          })
+          .catch((error) => {
+            console.error('Failed to send response:', error);
+          });
       }
 
       return response;

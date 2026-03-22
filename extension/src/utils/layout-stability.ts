@@ -117,13 +117,15 @@ export function evaluateLayoutReadiness(
   }
 
   if (
-    metrics.skeletonLikeCount >= HIGHLIGHT_LAYOUT_STABILITY_CONFIG.skeletonLikeThreshold
+    metrics.skeletonLikeCount >=
+    HIGHLIGHT_LAYOUT_STABILITY_CONFIG.skeletonLikeThreshold
   ) {
     reasons.push('skeleton-placeholders');
   }
 
   if (
-    metrics.spinnerLikeCount >= HIGHLIGHT_LAYOUT_STABILITY_CONFIG.spinnerLikeThreshold
+    metrics.spinnerLikeCount >=
+    HIGHLIGHT_LAYOUT_STABILITY_CONFIG.spinnerLikeThreshold
   ) {
     reasons.push('loading-spinner');
   }
@@ -157,13 +159,13 @@ export function evaluateLayoutReadiness(
   if (
     !hasHardBlocker &&
     contentScore >= HIGHLIGHT_LAYOUT_STABILITY_CONFIG.readyContentScore &&
-    metrics.pendingImages <= HIGHLIGHT_LAYOUT_STABILITY_CONFIG.readyPendingImages
+    metrics.pendingImages <=
+      HIGHLIGHT_LAYOUT_STABILITY_CONFIG.readyPendingImages
   ) {
     state = 'ready';
   } else if (
     !hasHardBlocker &&
-    contentScore >=
-      HIGHLIGHT_LAYOUT_STABILITY_CONFIG.provisionalContentScore &&
+    contentScore >= HIGHLIGHT_LAYOUT_STABILITY_CONFIG.provisionalContentScore &&
     metrics.pendingImages <=
       HIGHLIGHT_LAYOUT_STABILITY_CONFIG.provisionalPendingImages
   ) {

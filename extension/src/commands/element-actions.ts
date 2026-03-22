@@ -543,13 +543,7 @@ export async function performElementHover(
  * Scroll direction type
  */
 export type ScrollDirection = 'up' | 'down' | 'left' | 'right';
-export type SwipeDirection =
-  | 'next'
-  | 'prev'
-  | 'left'
-  | 'right'
-  | 'up'
-  | 'down';
+export type SwipeDirection = 'next' | 'prev' | 'left' | 'right' | 'up' | 'down';
 
 /**
  * Result type for element scroll operation
@@ -1630,9 +1624,7 @@ export async function performElementSwipe(
   if (!swipeResult?.swiped) {
     const isStale = swipeResult?.stale === true;
     const error = swipeResult?.error || 'Swipe could not be performed';
-    console.log(
-      `❌ [ElementSwipe] Swipe failed: ${error}, stale=${isStale}`,
-    );
+    console.log(`❌ [ElementSwipe] Swipe failed: ${error}, stale=${isStale}`);
     return {
       success: false,
       elementId,
