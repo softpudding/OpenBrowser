@@ -1247,10 +1247,89 @@ function countViewportMedia(metricsStartTime) {
   return { total, complete };
 }
 
+const PLACEHOLDER_SIGNAL_SELECTOR = [
+  '[class*="skeleton" i]',
+  '[class*="placeholder" i]',
+  '[class*="shimmer" i]',
+  '[class*="loading" i]',
+  '[class*="spinner" i]',
+  '[id*="skeleton" i]',
+  '[id*="placeholder" i]',
+  '[id*="shimmer" i]',
+  '[id*="loading" i]',
+  '[id*="spinner" i]',
+  '[aria-busy="true"]',
+  '[role="progressbar"]',
+].join(', ');
+
+function countViewportPlaceholderSignals(metricsStartTime) {
+  const viewportArea = Math.max(1, window.innerWidth * window.innerHeight);
+  let skeletonLikeCount = 0;
+  let spinnerLikeCount = 0;
+  let placeholderArea = 0;
+  let processedCount = 0;
+
+  const candidates = document.querySelectorAll(PLACEHOLDER_SIGNAL_SELECTOR);
+  for (const element of candidates) {
+    if (processedCount >= layoutStabilityConfig.maxPlaceholderCandidates) {
+      break;
+    }
+    if (isMetricsTimeBudgetExceeded(metricsStartTime)) {
+      break;
+    }
+
+    processedCount += 1;
+    if (!isElementVisibleForDetection(element)) {
+      continue;
+    }
+
+    if (!isElementInViewportForDetection(element)) {
+      continue;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const clampedWidth = Math.min(window.innerWidth, Math.max(0, rect.width));
+    const clampedHeight = Math.min(
+      window.innerHeight,
+      Math.max(0, rect.height),
+    );
+    const candidateArea = clampedWidth * clampedHeight;
+    const tokenText = normalizeWhitespace(
+      [
+        element.id || '',
+        element.className || '',
+        element.getAttribute('role') || '',
+        element.getAttribute('aria-label') || '',
+        element.getAttribute('aria-busy') || '',
+      ].join(' '),
+      200,
+    ).toLowerCase();
+
+    if (
+      tokenText.includes('spinner') ||
+      element.getAttribute('role') === 'progressbar'
+    ) {
+      spinnerLikeCount += 1;
+    } else {
+      skeletonLikeCount += 1;
+    }
+
+    placeholderArea += candidateArea;
+  }
+
+  return {
+    skeletonLikeCount,
+    spinnerLikeCount,
+    placeholderAreaRatio: Math.min(1, placeholderArea / viewportArea),
+  };
+}
+
 function getPageMetrics() {
   const metricsStartTime = performance.now();
   const viewportText = collectViewportTextMetrics(metricsStartTime);
   const viewportMedia = countViewportMedia(metricsStartTime);
+  const placeholderSignals =
+    countViewportPlaceholderSignals(metricsStartTime);
 
   return {
     bodyHeight: document.body ? document.body.getBoundingClientRect().height : 0,
@@ -1263,103 +1342,25 @@ function getPageMetrics() {
     textBlockCount: viewportText.textBlockCount,
     textCharCount: viewportText.textCharCount,
     visibleClickableCount: countVisibleClickableCandidates(metricsStartTime),
+    skeletonLikeCount: placeholderSignals.skeletonLikeCount,
+    spinnerLikeCount: placeholderSignals.spinnerLikeCount,
+    placeholderAreaRatio: placeholderSignals.placeholderAreaRatio,
   };
 }
 
-async function waitForLayoutStability(trace) {
-  const startTime = performance.now();
-  let previousMetrics = getPageMetrics();
-  let lastChangeTime = performance.now();
-  let lastSampleTime = performance.now();
+function evaluateReadinessSnapshot(trace) {
+  const metrics = getPageMetrics();
+  const readiness = evaluateLayoutReadiness(metrics, {
+    pageReady: document.readyState === 'complete',
+    visibilityState: document.visibilityState,
+  });
 
-  while (performance.now() - startTime < layoutStabilityConfig.maxWaitMs) {
-    await new Promise((resolve) =>
-      setTimeout(resolve, layoutStabilityConfig.pollIntervalMs),
-    );
+  trace(
+    'readiness:snapshot',
+    `state=${readiness.state} contentScore=${readiness.contentScore} reasons=${readiness.reasons.join('|') || 'none'}`,
+  );
 
-    const currentTime = performance.now();
-    if (
-      currentTime - lastSampleTime <
-      layoutStabilityConfig.metricsSampleIntervalMs
-    ) {
-      continue;
-    }
-
-    lastSampleTime = currentTime;
-    const currentMetrics = getPageMetrics();
-
-    if (didLayoutStabilityMetricsChange(previousMetrics, currentMetrics)) {
-      previousMetrics = currentMetrics;
-      lastChangeTime = currentTime;
-    }
-
-    const waitedMs = currentTime - startTime;
-    const quietForMs = currentTime - lastChangeTime;
-    const meaningfulContent = hasMeaningfulViewportContent(currentMetrics);
-    const pageReady = document.readyState === 'complete';
-    const viewportImagesReady = currentMetrics.pendingImages === 0;
-    const graceExpired =
-      waitedMs >= layoutStabilityConfig.meaningfulContentGraceMs;
-    const contentReady = meaningfulContent || graceExpired;
-    const imagesReady = viewportImagesReady || graceExpired;
-
-    if (
-      waitedMs >= layoutStabilityConfig.minWaitMs &&
-      quietForMs >= layoutStabilityConfig.quietWindowMs &&
-      pageReady &&
-      imagesReady &&
-      contentReady
-    ) {
-      trace(
-        'layoutStability:quiet',
-        `waitedMs=${Math.round(waitedMs)} quietForMs=${Math.round(quietForMs)} graceExpired=${graceExpired}`,
-      );
-
-      return {
-        stabilized: true,
-        waitedMs: Math.round(waitedMs),
-        quietForMs: Math.round(quietForMs),
-        meaningfulContent,
-        contentScore: getLayoutContentScore(currentMetrics),
-        pendingViewportImages: currentMetrics.pendingImages,
-        bodyHeight: currentMetrics.bodyHeight,
-        scrollHeight: currentMetrics.scrollHeight,
-        viewportMediaCount: currentMetrics.viewportMediaCount,
-        completeViewportMediaCount: currentMetrics.completeViewportMediaCount,
-        textBlockCount: currentMetrics.textBlockCount,
-        textCharCount: currentMetrics.textCharCount,
-        visibleClickableCount: currentMetrics.visibleClickableCount,
-        pageReady,
-      };
-    }
-  }
-
-  const finalMetrics = getPageMetrics();
-  const pageReady = document.readyState === 'complete';
-  const viewportImagesReady = finalMetrics.pendingImages === 0;
-  const meaningfulContent = hasMeaningfulViewportContent(finalMetrics);
-  const graceExpired =
-    performance.now() - startTime >= layoutStabilityConfig.meaningfulContentGraceMs;
-
-  return {
-    stabilized:
-      pageReady &&
-      (viewportImagesReady || graceExpired) &&
-      (meaningfulContent || graceExpired),
-    waitedMs: Math.round(performance.now() - startTime),
-    quietForMs: 0,
-    meaningfulContent,
-    contentScore: getLayoutContentScore(finalMetrics),
-    pendingViewportImages: finalMetrics.pendingImages,
-    bodyHeight: finalMetrics.bodyHeight,
-    scrollHeight: finalMetrics.scrollHeight,
-    viewportMediaCount: finalMetrics.viewportMediaCount,
-    completeViewportMediaCount: finalMetrics.completeViewportMediaCount,
-    textBlockCount: finalMetrics.textBlockCount,
-    textCharCount: finalMetrics.textCharCount,
-    visibleClickableCount: finalMetrics.visibleClickableCount,
-    pageReady,
-  };
+  return readiness;
 }
 
 function collectHighlightCandidates(requestedType, trace) {
@@ -1461,12 +1462,7 @@ async function runOpenBrowserHighlightDetection(config) {
   const trace = createHighlightTrace();
   trace('start', `elementType=${config.elementType}`);
 
-  trace('layoutStability:start');
-  const layoutStability = await waitForLayoutStability(trace);
-  trace(
-    'layoutStability:end',
-    `stabilized=${layoutStability.stabilized} waitedMs=${layoutStability.waitedMs}`,
-  );
+  const layoutStability = evaluateReadinessSnapshot(trace);
 
   const { elements, counts } = collectHighlightCandidates(
     config.elementType,

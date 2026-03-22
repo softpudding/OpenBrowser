@@ -83,6 +83,26 @@ describe('highlight-detection helpers', () => {
     expect(script).toContain('isTightClickableWrapper');
     expect(script).toContain('countDirectClickableChildren');
     expect(script).toContain('getBaseClickableSignal');
+    expect(script).toContain('evaluateReadinessSnapshot');
+    expect(script).toContain('evaluateLayoutReadiness');
+  });
+
+  test('buildHighlightDetectionScript uses readiness snapshot instead of wait loop', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+
+    expect(script).toContain('function evaluateReadinessSnapshot');
+    expect(script).toContain('readiness:snapshot');
+    expect(script).not.toContain('function waitForLayoutStability');
+  });
+
+  test('buildHighlightDetectionScript captures placeholder and skeleton signals', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+
+    expect(script).toContain('PLACEHOLDER_SIGNAL_SELECTOR');
+    expect(script).toContain('countViewportPlaceholderSignals');
+    expect(script).toContain('placeholderAreaRatio');
+    expect(script).toContain('skeletonLikeCount');
+    expect(script).toContain('spinnerLikeCount');
   });
 
   test("buildHighlightDetectionScript keeps 'any' candidate selection across all element types", () => {

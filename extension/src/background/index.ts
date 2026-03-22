@@ -52,6 +52,10 @@ import {
   evaluateHighlightConsistency,
 } from '../utils/highlight-consistency';
 import {
+  getHighlightReadinessRetryDelay,
+  type HighlightPageState,
+} from '../utils/layout-stability';
+import {
   HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
   TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
 } from '../utils/highlight-screenshot';
@@ -263,7 +267,10 @@ class CommandQueueManager {
           timestamp: Date.now(),
         };
 
-        wsClient.sendCommand(responseWithId as any).catch((error) => {
+        wsClient.sendMessage({
+          type: 'command_response',
+          ...responseWithId,
+        }).catch((error) => {
           console.error('Failed to send response:', error);
         });
       }
@@ -282,7 +289,9 @@ class CommandQueueManager {
       };
 
       if (wsClient.isConnected()) {
-        wsClient.sendCommand(errorResponse as any).catch(console.error);
+        wsClient
+          .sendMessage({ type: 'command_response', ...errorResponse })
+          .catch(console.error);
       }
 
       if (commandDuration > 10000) {
@@ -431,7 +440,7 @@ class WatchdogTimer {
     if (wsClient.isConnected()) {
       try {
         // Try to send immediate ping
-        wsClient.sendCommand({ type: 'ping' } as any).catch(() => {
+        wsClient.sendMessage({ type: 'ping' }).catch(() => {
           // Ignore errors during emergency
         });
       } catch (error) {
@@ -543,7 +552,9 @@ wsClient.onMessage(async (data) => {
           error: error instanceof Error ? error.message : 'Unknown error',
           timestamp: Date.now(),
         };
-        wsClient.sendCommand(errorResponse as any).catch(console.error);
+        wsClient
+          .sendMessage({ type: 'command_response', ...errorResponse })
+          .catch(console.error);
       }
     }
   }
@@ -1492,18 +1503,20 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               : 0;
           if (layoutStability) {
             console.log(
-              `⏳ [HighlightElements] Layout stability: ${JSON.stringify(layoutStability)}`,
+              `⏳ [HighlightElements] Readiness snapshot: ${JSON.stringify(layoutStability)}`,
             );
           }
 
-          if (
-            layoutStability &&
-            !layoutStability.stabilized &&
-            attempt < maxHighlightAttempts
-          ) {
-            const retryDelayMs = 250 * attempt;
+          const pageState: HighlightPageState =
+            layoutStability?.state || 'ready';
+          const readinessReasons = Array.isArray(layoutStability?.reasons)
+            ? layoutStability.reasons
+            : [];
+
+          if (pageState === 'not_ready' && attempt < maxHighlightAttempts) {
+            const retryDelayMs = getHighlightReadinessRetryDelay(attempt);
             console.warn(
-              `⚠️ [HighlightElements] Quick stability check says page is still settling, retrying in ${retryDelayMs}ms (attempt ${attempt}/${maxHighlightAttempts})`,
+              `⚠️ [HighlightElements] Readiness state is not_ready (${readinessReasons.join(', ') || 'no reasons'}), retrying in ${retryDelayMs}ms (attempt ${attempt}/${maxHighlightAttempts})`,
             );
             await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
             continue;
@@ -1720,6 +1733,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               totalElements: filteredElements.length,
               totalPages: totalPages,
               page: currentPage,
+              pageState,
+              readinessReasons,
               screenshot: compressedScreenshot,
               ...(screenshotResult?.dialog_auto_accepted
                 ? {
@@ -2310,7 +2325,7 @@ async function sendTabSwitchedEvent(
     console.log(
       `🔄 [TabEvent] Sending tab_switched event: ${conversationId} -> ${tabId}`,
     );
-    await wsClient.sendCommand(event as any);
+    await wsClient.sendMessage(event);
     console.log(`✅ [TabEvent] Tab switched event sent successfully`);
   } catch (error) {
     console.error('❌ [TabEvent] Failed to send tab switched event:', error);
