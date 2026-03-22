@@ -194,7 +194,7 @@ export async function performElementClick(
       conversationId,
       script,
       true,
-      false,
+      true,
       timeout,
     );
   } catch (error) {
@@ -204,6 +204,7 @@ export async function performElementClick(
       elementId,
       clicked: false,
       staleElement: false,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 
@@ -222,6 +223,7 @@ export async function performElementClick(
       elementId,
       clicked: false,
       staleElement: false,
+      error: jsResult.error || 'Click JavaScript execution failed',
     };
   }
 
@@ -264,10 +266,21 @@ export async function performElementClick(
 
   // Check result structure
   if (!jsResult.result?.value || typeof jsResult.result.value !== 'object') {
+    const invalidResultError =
+      jsResult.result?.subtype === 'promise'
+        ? 'Click JavaScript returned an unresolved Promise instead of a resolved result'
+        : 'Click JavaScript returned an invalid result structure';
     console.error(
       `❌ [ElementClick] Invalid JavaScript result.value structure:`,
       jsResult.result?.value,
     );
+    return {
+      success: false,
+      elementId,
+      clicked: false,
+      staleElement: false,
+      error: invalidResultError,
+    };
   }
 
   if (!clickResult?.clicked) {
@@ -281,6 +294,7 @@ export async function performElementClick(
       elementId,
       clicked: false,
       staleElement: isStale,
+      error: clickResult?.error,
     };
   }
 
