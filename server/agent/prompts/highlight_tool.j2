@@ -157,7 +157,9 @@ Examples of broad search:
    - **Visual Check**: Is the blue box where you expect?
    - **Semantic Check**: Does the HTML match your goal?
 3. **Select Element**: Note the `element_id` of your target.
-4. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, keyboard_input, or select) and the selected element_id.
+   - Returned IDs can include the primary type plus extra hints, for example `abc123(clickable, swipable)`.
+   - `swipable` means the element is in a carousel/slider/swiper-like region. Do not assume normal page/container scroll will move it.
+4. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and the selected element_id.
 
 ## Element Types
 
@@ -184,6 +186,7 @@ When used with keywords, pagination is skipped and all matching elements are ret
 | Elements with `cursor: pointer` | `hover` then `click` | Reveal menus, custom buttons | Purple (#9966FF) |
 
 **Decision flow**: Check `tagName` and attributes in the returned HTML to determine the correct action.
+If the element suffix includes `swipable`, prefer `swipe` for moving the region: visible items may still be clickable, but changing slides often requires carousel/swiper behavior rather than normal scroll.
 
 ### clickable
 Buttons, links, and any element that responds to clicks. Use when your intent is to **open** or **trigger** something.
@@ -193,6 +196,7 @@ Text inputs, textareas, checkboxes, radio buttons.
 
 ### scrollable
 Scrollable containers and the entire page.
+This is different from `swipable`, which is an extra hint for carousel/slider regions that may ignore ordinary `scroll` operations.
 
 ### hoverable
 Elements that reveal tooltips, dropdowns, or change state on hover.
@@ -206,7 +210,7 @@ Native `<select>` dropdown elements (look for ▼ arrow indicator). Use when you
 
 ## Screenshot Behavior
 
-The highlight tool always returns a screenshot with blue overlays.
+The highlight tool always returns a screenshot with overlays. In `element_type="any"` mode, overlay colors can differ by detected element type.
 
 ## Error Handling
 

@@ -311,15 +311,31 @@ class OpenBrowserObservation(Observation):
             element_descriptions = []
             for el in self.highlighted_elements:
                 el_id = el.get("id", "unknown")
+                el_type = el.get("type")
+                raw_hints = el.get("interactionHints") or el.get("interaction_hints") or []
+                interaction_hints = [
+                    hint
+                    for hint in raw_hints
+                    if isinstance(hint, str) and len(hint) > 0
+                ]
+                suffix_parts = []
+                if isinstance(el_type, str) and el_type:
+                    suffix_parts.append(el_type)
+                suffix_parts.extend(interaction_hints)
+                display_id = (
+                    f"{el_id}({', '.join(suffix_parts)})"
+                    if suffix_parts
+                    else el_id
+                )
                 html = (el.get("html") or "").strip()
                 # Skip truncation for selectable elements (show full options)
                 if len(html) > 200 and self.element_type != "selectable":
                     html = html[:190] + "...(Truncated)"
                 if html:
-                    element_descriptions.append(f"{el_id}: {html}")
+                    element_descriptions.append(f"{display_id}: {html}")
                 else:
                     tag = el.get("tagName", "").upper()
-                    element_descriptions.append(f"{el_id} ({tag})")
+                    element_descriptions.append(f"{display_id} ({tag})")
             text_parts.append("\n".join(element_descriptions))
             text_parts.append("")
 

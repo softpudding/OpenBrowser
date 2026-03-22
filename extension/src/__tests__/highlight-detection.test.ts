@@ -163,6 +163,21 @@ describe('highlight-detection helpers', () => {
     );
   });
 
+  test('buildHighlightDetectionScript exposes swipable interaction hints', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const start = script.indexOf('const SWIPE_LIBRARY_REGEX');
+    const end = script.indexOf('function generateSelectorSegment', start);
+    const swipeHintSource = script.slice(start, end);
+
+    expect(swipeHintSource).toContain('const SWIPE_LIBRARY_REGEX');
+    expect(swipeHintSource).toContain("hints.push('swipable');");
+    expect(swipeHintSource).toContain('function findSwipeContext');
+    expect(swipeHintSource).toContain('function findSwipeDescendant');
+    expect(swipeHintSource).toContain('function hasSwipeApi');
+    expect(swipeHintSource).toContain('function hasHorizontalSwipeLayout');
+    expect(script).toContain('interactionHints');
+  });
+
   test('buildHighlightDetectionScript uses bounded tree walking for text metrics', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
 

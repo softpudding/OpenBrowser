@@ -33,6 +33,7 @@ from server.models.commands import (
     ClickElementCommand,
     HoverElementCommand,
     ScrollElementCommand,
+    SwipeElementCommand,
     KeyboardInputCommand,
     GetElementHtmlCommand,
     HighlightSingleElementCommand,
@@ -569,6 +570,80 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 message = f"Scrolled page: {action.direction}"
                 return self._build_observation_from_result(result_dict, message)
 
+        elif action_type == "swipe":
+            if not action.element_id:
+                raise ValueError("swipe requires element_id parameter")
+
+            swipe_direction = "next"
+            if "direction" in action.model_fields_set:
+                if action.direction not in {"next", "prev"}:
+                    raise ValueError("swipe direction must be 'next' or 'prev'")
+                swipe_direction = action.direction
+            swipe_count = action.swipe_count or 1
+
+            if self._is_element_confirmed(action.element_id):
+                logger.debug(
+                    f"DEBUG: Element {action.element_id} already confirmed, executing swipe directly"
+                )
+                command = SwipeElementCommand(
+                    element_id=action.element_id,
+                    direction=swipe_direction,
+                    swipe_count=swipe_count,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                if not result_dict or not result_dict.get("success"):
+                    ext_error = self._extract_result_error(result_dict)
+                    raise RuntimeError(f"Failed to swipe element: {ext_error}")
+                message = (
+                    f"Swiped element (previously confirmed): {action.element_id}"
+                )
+                return self._build_observation_from_result(
+                    result_dict, message, element_id=action.element_id
+                )
+
+            command_kwargs = {
+                "direction": swipe_direction,
+                "swipe_count": swipe_count,
+            }
+            if action.tab_id is not None:
+                command_kwargs["tab_id"] = action.tab_id
+            result_dict = self._try_execute_via_single_element_candidate(
+                element_id=action.element_id,
+                command_class=SwipeElementCommand,
+                command_kwargs=command_kwargs,
+                action_type="swipe",
+            )
+            if result_dict:
+                message = f"Swiped element: {action.element_id}"
+                return self._build_observation_from_result(
+                    result_dict, message, element_id=action.element_id
+                )
+
+            full_html, screenshot = self._get_element_full_html(action.element_id)
+            self._set_pending_confirmation(
+                element_id=action.element_id,
+                action_type="swipe",
+                full_html=full_html,
+                extra_data={
+                    "direction": swipe_direction,
+                    "swipe_count": swipe_count,
+                    "tab_id": action.tab_id,
+                },
+                screenshot_data_url=screenshot,
+            )
+            result_dict = {"success": True, "data": {}}
+            message = (
+                f"Swipe action pending confirmation for element: {action.element_id}"
+            )
+            return self._build_observation_from_result(
+                result_dict,
+                message,
+                screenshot_data_url=screenshot,
+                element_id=action.element_id,
+            )
+
         elif action_type == "keyboard_input":
             if not action.element_id:
                 raise ValueError("keyboard_input requires element_id parameter")
@@ -794,6 +869,32 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             self._clear_pending_confirmation()
             return self._build_observation_from_result(result_dict, message)
 
+        elif action_type == "confirm_swipe":
+            pending = self._get_pending_confirmation()
+            if not pending or pending["action_type"] != "swipe":
+                raise ValueError(
+                    "No pending swipe confirmation found. Please call swipe first."
+                )
+            if pending["element_id"] != action.element_id:
+                raise ValueError(
+                    f"Element ID mismatch. Expected {pending['element_id']}, got {action.element_id}"
+                )
+            command = SwipeElementCommand(
+                element_id=action.element_id,
+                direction=pending["extra_data"].get("direction", "next"),
+                swipe_count=pending["extra_data"].get("swipe_count", 1),
+                conversation_id=self.conversation_id,
+                tab_id=action.tab_id or pending["extra_data"].get("tab_id"),
+            )
+            result_dict = self._execute_command_sync(command)
+            if not result_dict or not result_dict.get("success"):
+                ext_error = self._extract_result_error(result_dict)
+                raise RuntimeError(f"Failed to swipe element: {ext_error}")
+            message = f"Confirmed and swiped element: {action.element_id}"
+            self._add_confirmed_element(action.element_id)
+            self._clear_pending_confirmation()
+            return self._build_observation_from_result(result_dict, message)
+
         elif action_type == "confirm_keyboard_input":
             pending = self._get_pending_confirmation()
             if not pending or pending["action_type"] != "keyboard_input":
@@ -973,6 +1074,33 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         if self.conversation_id in self.confirmed_elements:
             del self.confirmed_elements[self.conversation_id]
 
+    def _extract_result_error(
+        self, result_dict: Optional[Dict[str, Any]], default: str = "Unknown error"
+    ) -> str:
+        """Extract a usable error message from extension responses."""
+        if not result_dict:
+            return "No response"
+
+        error = result_dict.get("error")
+        if isinstance(error, str) and error.strip():
+            return error
+        if error not in (None, ""):
+            return str(error)
+
+        data = result_dict.get("data")
+        if isinstance(data, dict):
+            nested_error = data.get("error")
+            if isinstance(nested_error, str) and nested_error.strip():
+                return nested_error
+            if nested_error not in (None, ""):
+                return str(nested_error)
+
+        message = result_dict.get("message")
+        if isinstance(message, str) and message.strip():
+            return message
+
+        return default
+
     def _try_execute_via_single_element_candidate(
         self, element_id: str, command_class, command_kwargs, action_type: str
     ) -> Optional[Dict[str, Any]]:
@@ -996,11 +1124,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             )
             result_dict = self._execute_command_sync(command)
             if not result_dict or not result_dict.get("success"):
-                ext_error = (
-                    result_dict.get("error", "Unknown error")
-                    if result_dict
-                    else "No response"
-                )
+                ext_error = self._extract_result_error(result_dict)
                 raise RuntimeError(f"Failed to {action_type} element: {ext_error}")
 
             # Add to confirmed cache since agent explicitly chose this single element
@@ -1073,13 +1197,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         console_output = None
         scroll_effective = None
         scroll_warning = None
+        swipe_effective = None
+        swipe_warning = None
 
         if result_dict:
             success = result_dict.get("success", False)
             if "error" in result_dict:
                 error = result_dict["error"]
-            elif "message" in result_dict and "error" in result_dict.get("data", {}):
-                error = result_dict["data"]["error"]
 
             # Extract dialog info if present
             if "dialog_opened" in result_dict:
@@ -1122,6 +1246,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if "data" in result_dict:
                 if isinstance(result_dict["data"], dict):
                     data = result_dict["data"]
+                    if error is None and "error" in data:
+                        error = data["error"]
                     if not dialog_auto_accepted and "dialog_auto_accepted" in data:
                         dialog_auto_accepted = data["dialog_auto_accepted"]
                     elif not dialog_auto_accepted and "dialogAutoAccepted" in data:
@@ -1165,6 +1291,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                         scroll_effective = data["scrollEffective"]
                     if "warning" in data:
                         scroll_warning = data["warning"]
+                    if "swipeEffective" in data:
+                        swipe_effective = data["swipeEffective"]
+                        if "warning" in data:
+                            swipe_warning = data["warning"]
 
                     # Extract JavaScript execution result if present
                     if "result" in data or "value" in data or "consoleOutput" in data:
@@ -1205,6 +1335,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
 
             if scroll_warning and scroll_effective is False:
                 message = f"{message} ⚠️ {scroll_warning}"
+            if swipe_warning and swipe_effective is False:
+                message = f"{message} ⚠️ {swipe_warning}"
 
         # Get pending confirmation (may have been cleared if action wasn't a confirmation)
         pending_confirmation = self._get_pending_confirmation()
@@ -1263,6 +1395,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             )
             response.raise_for_status()
             result = response.json()
+            if isinstance(result, dict) and not result.get("success", False):
+                normalized_error = self._extract_result_error(result, default="")
+                if normalized_error:
+                    result["error"] = normalized_error
             logger.debug(
                 f"DEBUG: _execute_command_sync returned: success={result.get('success')}"
             )

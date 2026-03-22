@@ -58,6 +58,14 @@ Inside one container:
 { "action": "confirm_scroll", "element_id": "d2f4a8", "tab_id": 123 }
 ```
 
+### swipe
+
+Carousel / slider / swiper region:
+```json
+{ "action": "swipe", "element_id": "d2f4a8", "direction": "next", "swipe_count": 1, "tab_id": 123 }
+{ "action": "confirm_swipe", "element_id": "d2f4a8", "tab_id": 123 }
+```
+
 ## Decision Rules
 
 - For buttons and links, use `click`
@@ -65,6 +73,8 @@ Inside one container:
 - For native `<select>`, use `select`
 - For hidden menus or tooltips, use `hover`
 - For more content, use `scroll`
+- For carousel / gallery / swiper regions marked `swipable`, use `swipe`
+  Use `direction: "next"` or `direction: "prev"` for swipe.
 
 ## Confirmation Rules
 
@@ -82,7 +92,7 @@ Safe element interaction with visual verification and fast paths.
 
 ## Overview
 
-The Element Interaction Tool handles click, hover, scroll, keyboard input, and select operations. This is the **ORANGE stage** of the color system: the default flow is visual verification before execution, but the system may use safe fast paths when confidence is already high.
+The Element Interaction Tool handles click, hover, scroll, swipe, keyboard input, and select operations. This is the **ORANGE stage** of the color system: the default flow is visual verification before execution, but the system may use safe fast paths when confidence is already high.
 
 ## Visual Color System - ORANGE Stage
 
@@ -109,7 +119,7 @@ Element interactions have 2 execution paths:
 
 ```
 Default confirmation flow
-└── Use action: click / hover / scroll(with element_id) / keyboard_input / select
+└── Use action: click / hover / scroll(with element_id) / swipe / keyboard_input / select
 └── Result: ORANGE preview screenshot + full HTML
 └── If correct: use `confirm_{action}`
 
@@ -250,9 +260,31 @@ Try scrolling horizontally instead:
 
 ---
 
+### Scenario 3: Region Is Swipable, Not Truly Scrollable
+
+If highlight output labels an element like `abc123(clickable, swipable)` or `xyz789(scrollable, swipable)`, you are likely looking at a **carousel / swiper / slider**. These regions often move by JavaScript transforms, not by changing `scrollTop`/`scrollLeft`.
+
+**How to identify**:
+- The highlight result includes the `swipable` hint
+- Horizontal `scroll` has little or no effect
+- The UI looks like an image gallery, story rail, card carousel, or fullscreen photo viewer
+
+**What to do**:
+- If the currently visible card/image is already the target, interact with it directly using `click`
+- If you need to move the carousel, use `swipe` first. Do **not** assume `scroll` will work just because the region looks horizontally scrollable
+- Prefer `direction: "next"` and `direction: "prev"` for swipe.
+{% if not disable_javascript %}
+- If `swipe` fails twice, prefer the JavaScript tool as a fallback to call the swiper/carousel API (for example `slideNext`, `slidePrev`, `scrollNext`, or framework-specific next/prev methods), then take a screenshot or re-run highlight
+{% else %}
+- If `swipe` fails repeatedly, re-orient around currently visible items, because JavaScript fallback is disabled in this environment
+{% endif %}
+
+---
+
 **Key distinction**:
 - **Scenario 1** → You need to find and target a *specific container element* (use `element_id`)
 - **Scenario 2** → You need to change *scroll direction* (use `direction: "left"/"right"` without `element_id`)
+- **Scenario 3** → The region is carousel-driven, so movement should start with `swipe`, not `scroll`
 
 ### keyboard_input
 Type text into an input element by its visual ID.
@@ -320,6 +352,7 @@ Each action has a corresponding confirm action (use the same `element_interactio
 - `confirm_click` (for click action)
 - `confirm_hover` (for hover action)
 - `confirm_scroll` (for scroll action with element_id)
+- `confirm_swipe` (for swipe action)
 - `confirm_keyboard_input` (for keyboard_input action)
 - `confirm_select` (for select action)
 

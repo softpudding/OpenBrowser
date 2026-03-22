@@ -25,6 +25,7 @@ from server.models.commands import (
     ClickElementCommand,
     HoverElementCommand,
     ScrollElementCommand,
+    SwipeElementCommand,
     KeyboardInputCommand,
     GetElementHtmlCommand,
     HighlightSingleElementCommand,
@@ -237,6 +238,8 @@ class CommandProcessor:
                 return await self._execute_hover_element(command)
             elif isinstance(command, ScrollElementCommand):
                 return await self._execute_scroll_element(command)
+            elif isinstance(command, SwipeElementCommand):
+                return await self._execute_swipe_element(command)
             elif isinstance(command, KeyboardInputCommand):
                 return await self._execute_keyboard_input(command)
             elif isinstance(command, GetElementHtmlCommand):
@@ -395,6 +398,12 @@ class CommandProcessor:
         self, command: ScrollElementCommand
     ) -> CommandResponse:
         """Scroll a highlighted element in a direction"""
+        return await self._send_prepared_command(command)
+
+    async def _execute_swipe_element(
+        self, command: SwipeElementCommand
+    ) -> CommandResponse:
+        """Swipe a highlighted element in a direction"""
         return await self._send_prepared_command(command)
 
     async def _execute_keyboard_input(

@@ -33,6 +33,16 @@ const POINTER_ROLE_SET = new Set([
 
 const CONTROL_TOKEN_REGEX =
   /\b(action|back|btn|button|clear|close|comment|filter|follow|like|menu|more|next|pause|play|prev|previous|refresh|reload|reply|search|share|submit|tab|toggle)\b/i;
+const SWIPE_LIBRARY_REGEX =
+  /\b(swiper|carousel|slider|slides?|embla|splide|slick|flickity|glide|keen-slider|tns)\b/i;
+
+function hasCallableMethod(value, methodNames) {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return false;
+  }
+
+  return methodNames.some((methodName) => typeof value[methodName] === 'function');
+}
 
 function createHighlightTrace() {
   const traceStart = performance.now();
@@ -142,6 +152,26 @@ function getClassTokens(el) {
         /^[a-z0-9_-]+$/i.test(token),
     )
     .slice(0, 8);
+}
+
+function getSwipeMarkerText(el) {
+  return normalizeWhitespace(
+    [
+      el.tagName.toLowerCase(),
+      el.id,
+      ...getClassTokens(el),
+      ...getAttributeTextTokens(el, [
+        'role',
+        'aria-label',
+        'aria-roledescription',
+        'data-swiper',
+        'data-carousel',
+        'data-slider',
+        'data-testid',
+      ]),
+    ].join(' '),
+    320,
+  ).toLowerCase();
 }
 
 function getElementTextForDetection(el) {
@@ -737,6 +767,214 @@ function isHoverableCandidate(el) {
   return true;
 }
 
+function hasSwipeApi(el) {
+  const candidates = [
+    el.swiper,
+    el.__swiper__,
+    el.embla,
+    el._splide,
+    el.flickity,
+    el.keenSlider,
+    el.glide,
+  ];
+
+  return candidates.some((candidate) =>
+    hasCallableMethod(candidate, [
+      'slideNext',
+      'slidePrev',
+      'slideTo',
+      'next',
+      'prev',
+      'scrollNext',
+      'scrollPrev',
+      'go',
+      'moveToIdx',
+    ]),
+  );
+}
+
+function hasHorizontalSwipeLayout(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+
+  const rect = el.getBoundingClientRect();
+  if (rect.width < 140 || rect.height < 80) {
+    return false;
+  }
+
+  const style = window.getComputedStyle(el);
+  const overflowX = `${style.overflow} ${style.overflowX}`.toLowerCase();
+  const constrainsOverflowX =
+    overflowX.includes('hidden') ||
+    overflowX.includes('clip') ||
+    overflowX.includes('scroll') ||
+    overflowX.includes('auto');
+
+  const visibleChildren = Array.from(el.children).filter(
+    (child) => child instanceof HTMLElement && isElementVisibleForDetection(child),
+  );
+
+  if (visibleChildren.length === 0) {
+    return false;
+  }
+
+  const primaryTrack =
+    visibleChildren.find((child) => {
+      if (!(child instanceof HTMLElement)) {
+        return false;
+      }
+
+      const childStyle = window.getComputedStyle(child);
+      return (
+        childStyle.transform !== 'none' ||
+        childStyle.display.includes('flex') ||
+        childStyle.whiteSpace === 'nowrap'
+      );
+    }) || (visibleChildren[0] instanceof HTMLElement ? visibleChildren[0] : null);
+
+  if (!(primaryTrack instanceof HTMLElement)) {
+    return false;
+  }
+
+  const trackChildren = Array.from(primaryTrack.children).filter(
+    (child) => child instanceof HTMLElement && isElementVisibleForDetection(child),
+  );
+
+  if (trackChildren.length < 2) {
+    return false;
+  }
+
+  let horizontalSteps = 0;
+  let verticalAligned = 0;
+  let previousRect = null;
+
+  for (const child of trackChildren.slice(0, 6)) {
+    if (!(child instanceof HTMLElement)) {
+      continue;
+    }
+
+    const childRect = child.getBoundingClientRect();
+    if (childRect.width < 40 || childRect.height < 40) {
+      continue;
+    }
+
+    if (previousRect) {
+      if (childRect.left > previousRect.left + 12) {
+        horizontalSteps += 1;
+      }
+      if (Math.abs(childRect.top - previousRect.top) <= Math.max(24, rect.height * 0.2)) {
+        verticalAligned += 1;
+      }
+    }
+
+    previousRect = childRect;
+  }
+
+  return (
+    constrainsOverflowX &&
+    primaryTrack.scrollWidth > el.clientWidth + 24 &&
+    horizontalSteps >= 1 &&
+    verticalAligned >= 1
+  );
+}
+
+function findSwipeDescendant(root, maxDepth = 3, maxNodes = 48) {
+  if (!(root instanceof HTMLElement)) {
+    return null;
+  }
+
+  const queue = Array.from(root.children).map((child) => ({
+    node: child,
+    depth: 1,
+  }));
+  let visited = 0;
+
+  while (queue.length > 0 && visited < maxNodes) {
+    const current = queue.shift();
+    if (!current || current.depth > maxDepth) {
+      continue;
+    }
+
+    const node = current.node;
+    if (!(node instanceof HTMLElement) || !isElementVisibleForDetection(node)) {
+      continue;
+    }
+
+    visited += 1;
+
+    const markerText = getSwipeMarkerText(node);
+    if (hasSwipeApi(node)) {
+      return node;
+    }
+
+    if (
+      SWIPE_LIBRARY_REGEX.test(markerText) &&
+      (hasHorizontalSwipeLayout(node) || markerText.includes('swiper'))
+    ) {
+      return node;
+    }
+
+    if (hasHorizontalSwipeLayout(node)) {
+      return node;
+    }
+
+    for (const child of Array.from(node.children)) {
+      queue.push({ node: child, depth: current.depth + 1 });
+    }
+  }
+
+  return null;
+}
+
+function findSwipeContext(el, maxDepth = 4) {
+  let current =
+    el instanceof HTMLElement
+      ? el
+      : el instanceof SVGElement
+        ? el.parentElement
+        : null;
+  let depth = 0;
+
+  while (current && current !== document.body && depth <= maxDepth) {
+    const markerText = getSwipeMarkerText(current);
+    if (hasSwipeApi(current)) {
+      return current;
+    }
+
+    if (
+      SWIPE_LIBRARY_REGEX.test(markerText) &&
+      (hasHorizontalSwipeLayout(current) || markerText.includes('swiper'))
+    ) {
+      return current;
+    }
+
+    if (hasHorizontalSwipeLayout(current) && current.getBoundingClientRect().width >= 180) {
+      return current;
+    }
+
+    const descendantMatch = findSwipeDescendant(current);
+    if (descendantMatch) {
+      return descendantMatch;
+    }
+
+    current = current.parentElement;
+    depth += 1;
+  }
+
+  return null;
+}
+
+function getInteractionHints(el) {
+  const hints = [];
+
+  if (findSwipeContext(el)) {
+    hints.push('swipable');
+  }
+
+  return hints;
+}
+
 function generateSelectorSegment(el) {
   const tag = el.tagName.toLowerCase();
 
@@ -1047,10 +1285,12 @@ function shouldDropCandidate(candidate, kept) {
 
 function toInteractiveElement(candidate) {
   const text = getElementTextForDetection(candidate.element);
+  const interactionHints = getInteractionHints(candidate.element);
 
   return {
     id: '',
     type: candidate.type,
+    ...(interactionHints.length > 0 ? { interactionHints } : {}),
     tagName: candidate.element.tagName.toLowerCase(),
     selector: generateSelector(candidate.element),
     html: candidate.element.outerHTML

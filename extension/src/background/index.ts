@@ -33,6 +33,7 @@ import {
   performElementClick,
   performElementHover,
   performElementScroll,
+  performElementSwipe,
   performKeyboardInput,
   performElementSelect,
 } from '../commands/element-actions';
@@ -1927,6 +1928,55 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               : {}),
           },
           error: scrollResult.error,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'swipe_element': {
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
+        const swipeTabId = command.tab_id;
+        if (swipeTabId === undefined || swipeTabId === null)
+          throw new Error('tab_id is required');
+
+        const swipeResult = await performElementSwipe(
+          command.conversation_id,
+          command.element_id,
+          command.direction || 'next',
+          swipeTabId,
+          command.swipe_count || 1,
+        );
+        const swipeScreenshotResult = await captureScreenshot(
+          swipeTabId,
+          command.conversation_id,
+          true,
+          90,
+          false,
+          400,
+        );
+        const compressedSwipeScreenshotResult = await compressScreenshotResult(
+          swipeScreenshotResult,
+        );
+
+        return {
+          success: swipeResult.success,
+          data: {
+            ...swipeResult,
+            screenshot: compressedSwipeScreenshotResult?.imageData,
+            ...(compressedSwipeScreenshotResult?.dialog_auto_accepted
+              ? {
+                  dialog_auto_accepted:
+                    compressedSwipeScreenshotResult.dialog_auto_accepted,
+                }
+              : {}),
+            ...(compressedSwipeScreenshotResult?.dialog_auto_accepted_list
+              ? {
+                  dialog_auto_accepted_list:
+                    compressedSwipeScreenshotResult.dialog_auto_accepted_list,
+                }
+              : {}),
+          },
+          error: swipeResult.error,
           timestamp: Date.now(),
         };
       }

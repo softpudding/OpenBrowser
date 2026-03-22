@@ -164,6 +164,22 @@ export interface ScrollElementCommand extends BaseCommand {
   tab_id?: number;
 }
 
+export type SwipeDirection = 'next' | 'prev';
+
+export interface SwipeElementCommand extends BaseCommand {
+  type: 'swipe_element';
+  /** Element ID from highlight response (6-char hash) */
+  element_id: string;
+  direction?: SwipeDirection;
+  /** Number of swipe steps for carousel/swiper interactions */
+  swipe_count?: number;
+  /**
+   * Target tab ID (optional - auto-resolved from conversation if not provided)
+   * Note: Required in Python models, but optional here as extension auto-resolves it
+   */
+  tab_id?: number;
+}
+
 export interface KeyboardInputCommand extends BaseCommand {
   type: 'keyboard_input';
   /** Element ID from highlight response (6-char hash) */
@@ -235,6 +251,7 @@ export type Command =
   | ClickElementCommand
   | HoverElementCommand
   | ScrollElementCommand
+  | SwipeElementCommand
   | KeyboardInputCommand
   | SelectElementCommand
   | GetElementHtmlCommand
@@ -288,9 +305,12 @@ export type ElementType =
   | 'selectable'
   | 'any';
 
+export type InteractionHint = 'swipable';
+
 export interface InteractiveElement {
   id: string; // Element ID: 6-char hash from CSS path (e.g., "a3f2b1")
   type: ElementType; // Type of interactive element
+  interactionHints?: InteractionHint[]; // Extra interaction hints (e.g. swipable carousel region)
   tagName: string; // HTML tag name
   selector: string; // CSS selector to find element
   html?: string; // Optional: full HTML of the element (captured at highlight time)

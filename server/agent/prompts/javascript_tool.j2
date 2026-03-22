@@ -13,6 +13,7 @@ The JavaScript Tool executes arbitrary JavaScript code in the browser context. U
 2. element_interaction tool with hover action → element_interaction tool with confirm_hover
 3. element_interaction tool with keyboard_input action → element_interaction tool with confirm_keyboard_input
 4. element_interaction tool with scroll action → element_interaction tool with confirm_scroll
+5. element_interaction tool with swipe action → element_interaction tool with confirm_swipe
 
 **Switch to JavaScript only when**:
 - Complex DOM manipulation needed
@@ -72,6 +73,47 @@ For complex interactions not covered by visual commands:
     const el = document.querySelector('.target');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
     return 'scrolled';
+})()
+```
+
+### Carousel / Swiper next slide
+```javascript
+(() => {
+    const container =
+        document.querySelector('.swiper, [class*="swiper"], [data-swiper], [class*="carousel"], [class*="slider"]');
+    if (!container) return { ok: false, error: 'carousel container not found' };
+
+    const api =
+        container.swiper ||
+        container.__swiper__ ||
+        container.embla ||
+        container._splide ||
+        container.flickity ||
+        container.keenSlider ||
+        container.glide;
+
+    if (api?.slideNext) {
+        api.slideNext();
+        return { ok: true, method: 'slideNext' };
+    }
+    if (api?.scrollNext) {
+        api.scrollNext();
+        return { ok: true, method: 'scrollNext' };
+    }
+    if (api?.next) {
+        api.next();
+        return { ok: true, method: 'next' };
+    }
+
+    const nextButton = container.querySelector(
+        '.swiper-button-next, [aria-label*="next" i], [class*="next" i]'
+    );
+    if (nextButton instanceof HTMLElement) {
+        nextButton.click();
+        return { ok: true, method: 'next button' };
+    }
+
+    return { ok: false, error: 'no swipe API or next button found' };
 })()
 ```
 
