@@ -6,7 +6,7 @@ Find elements before interacting.
 ## Core Rules
 
 1. Prefer `element_type: "any"` first.
-2. Use `keywords` when the target has visible text or distinctive HTML text.
+2. Use `keywords` when the target has visible text, labels, role text, or distinctive stable element tokens.
 3. For icon-only toolbar or header controls, use `element_type: "clickable"` only as a targeted fallback, not as the default.
 4. If the target is not visible, keep the same `element_type` and increment `page`.
 5. Do not guess an `element_id` without a highlight result.
@@ -96,7 +96,7 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 **Parameters**:
 - `element_type`: Single type to highlight - "any" (default), "clickable", "scrollable", "inputable", "hoverable", or "selectable"
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
-- `keywords`: Keywords list to filter elements by HTML content. When provided, only matching elements are returned without pagination. Example: ["button", "submit", "login"]
+- `keywords`: Keywords list to filter elements by detected semantic text. Matching uses visible text, labels, roles, and stable element tokens. When provided, only matching elements are returned without pagination. Example: ["button", "submit", "login"]
 
 **When to Use Pagination**:
 - If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements

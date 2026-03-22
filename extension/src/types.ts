@@ -125,7 +125,7 @@ export interface HighlightElementsCommand extends BaseCommand {
   type: 'highlight_elements';
   element_type?: ElementType; // Single element type for stable pagination
   page?: number; // 1-indexed page number for collision-aware pagination
-  keywords?: string[]; // Keywords list to filter elements by HTML content (no pagination needed when provided)
+  keywords?: string[]; // Keywords list to filter elements by detected semantic text (no pagination needed when provided)
 }
 
 export interface ClickElementCommand extends BaseCommand {
@@ -295,6 +295,7 @@ export interface InteractiveElement {
   selector: string; // CSS selector to find element
   html?: string; // Optional: full HTML of the element (captured at highlight time)
   text?: string; // Visible text content
+  searchText?: string; // Normalized semantic search text used by keyword filtering
   bbox: {
     x: number;
     y: number;
@@ -310,7 +311,7 @@ export interface HighlightOptions {
   elementType?: ElementType; // Single type to highlight (for stable pagination)
   page?: number; // 1-indexed page number for collision-aware pagination
   scale?: number; // Device pixel ratio for coordinate scaling
-  keywords?: string[]; // Keywords list to filter elements by HTML content (no pagination needed when provided)
+  keywords?: string[]; // Keywords list to filter elements by detected semantic text (no pagination needed when provided)
 }
 
 export interface ElementActionResult {

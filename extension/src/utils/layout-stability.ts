@@ -16,6 +16,11 @@ export const HIGHLIGHT_LAYOUT_STABILITY_CONFIG = {
   pollIntervalMs: 100,
   metricsSampleIntervalMs: 250,
   meaningfulContentGraceMs: 1200,
+  metricsTimeBudgetMs: 120,
+  maxTextCandidates: 250,
+  maxClickableCandidates: 60,
+  maxPendingImages: 24,
+  maxViewportMedia: 48,
 } as const;
 
 export function didLayoutStabilityMetricsChange(

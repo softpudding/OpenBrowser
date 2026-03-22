@@ -97,5 +97,10 @@ describe('Highlight Layout Stability', () => {
     expect(HIGHLIGHT_LAYOUT_STABILITY_CONFIG.meaningfulContentGraceMs).toBe(
       1200,
     );
+    expect(HIGHLIGHT_LAYOUT_STABILITY_CONFIG.metricsTimeBudgetMs).toBe(120);
+    expect(HIGHLIGHT_LAYOUT_STABILITY_CONFIG.maxTextCandidates).toBe(250);
+    expect(HIGHLIGHT_LAYOUT_STABILITY_CONFIG.maxClickableCandidates).toBe(60);
+    expect(HIGHLIGHT_LAYOUT_STABILITY_CONFIG.maxPendingImages).toBe(24);
+    expect(HIGHLIGHT_LAYOUT_STABILITY_CONFIG.maxViewportMedia).toBe(48);
   });
 });

@@ -266,7 +266,7 @@ class HighlightElementsCommand(BaseCommand):
     )
     keywords: Optional[List[str]] = Field(
         default=None,
-        description="Keywords list to filter elements by HTML content. When provided, only matching elements are returned (no pagination). Example: ['button', 'submit', 'login']",
+        description="Keywords list to filter elements by detected semantic text (visible text, labels, roles, and stable element tokens). When provided, only matching elements are returned (no pagination). Example: ['button', 'submit', 'login']",
     )
 
 

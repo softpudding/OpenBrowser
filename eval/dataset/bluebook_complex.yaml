@@ -1,0 +1,62 @@
+id: bluebook_complex
+name: "BlueBook Comment Interaction Test"
+difficulty: hard
+description: "Search for the OpenClaw note, open it, locate TuTu's comment, like it, and reply with a short hook/config suggestion."
+start_url: "http://localhost:16605/bluebook/"
+instruction: "在小蓝书首页，先用顶部搜索框搜索“openclaw”，打开标题为“养好 OpenClaw，先把配置文件啃明白”的笔记。在评论区找到作者为“涂涂”的评论，先给这条评论点赞，再点击回复并提交一句简短建议，内容里要包含“hook”或者“配置”两个词中的至少一个。"
+time_limit: 500.0
+cost_limit: 1.2
+
+criteria:
+  - type: execute_search
+    description: "Use search to narrow to the target note"
+    points: 1.5
+    expected:
+      event_type: search_execute
+      normalizedQuery: "openclaw"
+      page: "/bluebook/"
+
+  - type: open_target_note
+    description: "Open the OpenClaw note"
+    points: 1.5
+    expected:
+      event_type: note_open
+      noteId: "note-openclaw-config"
+      noteTitle: "养好 OpenClaw，先把配置文件啃明白"
+      page: "/bluebook/"
+
+  - type: like_target_comment
+    description: "Like TuTu's comment"
+    points: 2
+    expected:
+      event_type: comment_like_toggle
+      noteId: "note-openclaw-config"
+      commentId: "comment-tutu-hook"
+      commentAuthor: "涂涂"
+      liked: true
+      page: "/bluebook/"
+
+  - type: open_reply_editor
+    description: "Open the reply editor for TuTu's comment"
+    points: 1.5
+    expected:
+      event_type: comment_reply_open
+      noteId: "note-openclaw-config"
+      commentId: "comment-tutu-hook"
+      commentAuthor: "涂涂"
+      open: true
+      page: "/bluebook/"
+
+  - type: submit_reply
+    description: "Submit a short reply mentioning hook or config"
+    points: 3.5
+    expected:
+      event_type: comment_reply_submit
+      noteId: "note-openclaw-config"
+      commentId: "comment-tutu-hook"
+      commentAuthor: "涂涂"
+      value_contains_any:
+        - "hook"
+        - "配置"
+      value_length_min: 4
+      page: "/bluebook/"
