@@ -1,4 +1,4 @@
-"""Shared state management for 2PC pending confirmations.
+"""Shared state management for pending element confirmations.
 
 This module provides state isolation for multi-conversation browser automation.
 Each conversation can have at most one pending element interaction confirmation.
@@ -14,14 +14,14 @@ class PendingConfirmation:
 
     Attributes:
         element_id: The 6-character hash ID of the target element.
-        action_type: The type of action being confirmed ('click', 'hover', 'scroll', 'keyboard_input').
+        action_type: The type of action being confirmed ('click' or 'keyboard_input').
         full_html: The HTML content of the element for confirmation.
-        extra_data: Additional data needed for the action (e.g., 'text' for keyboard_input, 'direction' for scroll).
+        extra_data: Additional data needed for the action (for example, 'text' for keyboard_input).
         screenshot_data_url: Base64-encoded screenshot showing the highlighted element.
     """
 
     element_id: str
-    action_type: str  # 'click', 'hover', 'scroll', 'keyboard_input'
+    action_type: str  # 'click' or 'keyboard_input'
     full_html: str
     extra_data: Dict[str, Any] = field(default_factory=dict)
     screenshot_data_url: Optional[str] = None
@@ -51,7 +51,7 @@ class OpenBrowserState:
         Args:
             conversation_id: The unique identifier for the conversation.
             element_id: The 6-character hash ID of the target element.
-            action_type: The type of action ('click', 'hover', 'scroll', 'keyboard_input').
+            action_type: The type of action ('click' or 'keyboard_input').
             full_html: The HTML content of the element.
             extra_data: Optional additional data for the action.
             screenshot_data_url: Optional base64-encoded screenshot.

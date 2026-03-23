@@ -177,20 +177,20 @@ class TestOpenBrowserObservation:
         assert '"action": "confirm_click"' in text
         assert '"element_id": "a1b2c3"' in text
 
-    def test_pending_swipe_confirmation_uses_matching_follow_up_command(self) -> None:
+    def test_pending_keyboard_confirmation_uses_matching_follow_up_command(self) -> None:
         observation = OpenBrowserObservation(
             success=True,
             pending_confirmation={
-                "element_id": "swp789",
-                "action_type": "swipe",
-                "full_html": '<div class="swiper"></div>',
+                "element_id": "inp789",
+                "action_type": "keyboard_input",
+                "full_html": '<input type="text" />',
             },
         )
 
         text = _text_content(observation)
 
-        assert '"action": "confirm_swipe"' in text
-        assert '"element_id": "swp789"' in text
+        assert '"action": "confirm_keyboard_input"' in text
+        assert '"element_id": "inp789"' in text
 
     def test_auto_accepted_dialogs_render_history_and_note(self) -> None:
         observation = OpenBrowserObservation(

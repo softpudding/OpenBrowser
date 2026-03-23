@@ -25,13 +25,13 @@ class OpenBrowserToolSet(ToolDefinition):
 
     This toolset provides a unified interface for registering all OpenBrowser
     tools while ensuring they share the same executor instance. This is critical
-    for the 2PC (Two-Phase Commit) flow where ElementInteractionTool needs to
-    access shared pending_confirmations state.
+    for selective 2PC flows where ElementInteractionTool needs shared
+    pending_confirmations state.
 
     Tools included:
         - TabTool: Browser tab management (init, open, close, switch, list, refresh, view)
         - HighlightTool: Element discovery with collision-free visual overlays
-        - ElementInteractionTool: Click, hover, scroll, keyboard input with 2PC confirmations
+        - ElementInteractionTool: Click/input with 2PC, hover/scroll/swipe/select direct
         - DialogTool: Browser dialog (alert/confirm/prompt/beforeunload) handling
         - JavaScriptTool: Custom JavaScript execution for complex interactions
 
@@ -63,7 +63,7 @@ class OpenBrowserToolSet(ToolDefinition):
 
         Note:
             The executor must be shared across all tools to enable:
-            - 2PC state sharing (pending_confirmations)
+            - Shared pending confirmation state for 2PC actions
             - Conversation isolation (conversation_id → tab_id mapping)
             - Consistent state management across all operations
         """

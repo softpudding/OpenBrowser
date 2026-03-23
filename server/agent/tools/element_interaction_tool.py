@@ -1,9 +1,8 @@
 """
-ElementInteractionTool - Tool for element interactions with 2PC safety mechanism.
+ElementInteractionTool - Tool for visual element interactions.
 
-This tool provides element interaction operations including click, hover, scroll,
-and keyboard input, with a two-phase commit (2PC) safety mechanism to prevent
-accidental interactions.
+Click and keyboard input use a two-phase commit (2PC) confirmation flow.
+Hover, scroll, swipe, and select execute directly.
 """
 
 import os
@@ -52,7 +51,7 @@ def get_element_interaction_tool_description(conv_state=None) -> str:
 
 
 class ElementInteractionAction(OpenBrowserAction):
-    """Action for element interactions with 2PC safety mechanism."""
+    """Action for element interactions."""
 
     action: Literal[
         "click",
@@ -62,13 +61,9 @@ class ElementInteractionAction(OpenBrowserAction):
         "keyboard_input",
         "select",
         "confirm_click",
-        "confirm_hover",
-        "confirm_scroll",
-        "confirm_swipe",
         "confirm_keyboard_input",
-        "confirm_select",
     ] = Field(
-        description="Element interaction action (use 'click'/'hover'/'scroll'/'swipe'/'keyboard_input'/'select' for preview, 'confirm_*' to execute)"
+        description="Element interaction action (click and keyboard_input require confirm_* follow-up; hover/scroll/swipe/select execute directly)"
     )
     element_id: Optional[str] = Field(
         default=None,
@@ -107,7 +102,7 @@ class ElementInteractionAction(OpenBrowserAction):
 class ElementInteractionTool(
     ToolDefinition[ElementInteractionAction, OpenBrowserObservation]
 ):
-    """Tool for element interactions with 2PC safety mechanism."""
+    """Tool for element interactions with selective 2PC safety."""
 
     name = "element_interaction"
 
