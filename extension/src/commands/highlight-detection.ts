@@ -12,6 +12,10 @@ export interface KeywordFilterResult {
   elements: InteractiveElement[];
 }
 
+function normalizeHighlightKeywordValue(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, '');
+}
+
 export function buildHighlightDetectionScript(
   config: HighlightDetectionScriptConfig,
 ): string {
@@ -32,7 +36,7 @@ export function normalizeHighlightKeywords(
   return Array.from(
     new Set(
       (keywords ?? [])
-        .map((keyword) => keyword.trim().toLowerCase())
+        .map((keyword) => normalizeHighlightKeywordValue(keyword))
         .filter((keyword) => keyword.length > 0),
     ),
   );
@@ -44,7 +48,9 @@ export function getHighlightKeywordHaystack(
     'searchText' | 'text' | 'selector' | 'tagName' | 'html'
   >,
 ): string {
-  const primary = element.searchText?.trim().toLowerCase();
+  const primary = element.searchText
+    ? normalizeHighlightKeywordValue(element.searchText)
+    : '';
   if (primary) {
     return primary;
   }
@@ -54,7 +60,8 @@ export function getHighlightKeywordHaystack(
       (value): value is string => typeof value === 'string' && value.length > 0,
     )
     .join(' ')
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/\s+/g, '');
 }
 
 export function filterHighlightElementsByKeywords(

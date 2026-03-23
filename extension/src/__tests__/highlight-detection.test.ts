@@ -27,14 +27,13 @@ function createElement(
 }
 
 describe('highlight-detection helpers', () => {
-  test('normalizeHighlightKeywords trims, lowercases, and deduplicates', () => {
-    expect(normalizeHighlightKeywords([' Like ', 'like', ' REPLY '])).toEqual([
-      'like',
-      'reply',
-    ]);
+  test('normalizeHighlightKeywords trims, lowercases, removes whitespace, and deduplicates', () => {
+    expect(
+      normalizeHighlightKeywords([' Like ', 'like', ' REPLY ', " John's   reply "]),
+    ).toEqual(['like', 'reply', "john'sreply"]);
   });
 
-  test('keyword haystack prefers searchText over raw html', () => {
+  test('keyword haystack prefers normalized searchText over raw html', () => {
     const haystack = getHighlightKeywordHaystack(
       createElement({
         searchText: 'comment actions',
@@ -42,7 +41,7 @@ describe('highlight-detection helpers', () => {
       }),
     );
 
-    expect(haystack).toBe('comment actions');
+    expect(haystack).toBe('commentactions');
   });
 
   test('filterHighlightElementsByKeywords matches semantic control tokens', () => {
@@ -66,6 +65,31 @@ describe('highlight-detection helpers', () => {
     expect(result.elements.map((element) => element.selector)).toEqual([
       'span.like-wrapper',
     ]);
+  });
+
+  test('filterHighlightElementsByKeywords ignores whitespace differences', () => {
+    const result = filterHighlightElementsByKeywords(
+      [
+        createElement({
+          id: 'reply123',
+          selector: 'button.reply-target',
+          text: "John's reply",
+          searchText: "john ' s    reply",
+          html: '<button>John <span>\'s</span> reply</button>',
+        }),
+        createElement({
+          id: 'reply456',
+          selector: 'button.other-reply',
+          text: "Jane's reply",
+          searchText: "jane's reply",
+          html: '<button>Jane&apos;s reply</button>',
+        }),
+      ],
+      ["John's reply"],
+    );
+
+    expect(result.keywords).toEqual(["john'sreply"]);
+    expect(result.elements.map((element) => element.id)).toEqual(['reply123']);
   });
 
   test('buildHighlightDetectionScript wires injected source with config', () => {
