@@ -78,6 +78,32 @@ export function pickTopLayerCandidate<T extends TopLayerCandidate>(
 export function buildHitTestVisibilityHelpersScript(): string {
   return `
     const TOP_LAYER_SELECTORS = ${JSON.stringify(TOP_LAYER_SELECTORS)};
+    const INPUT_PLACEHOLDER_TOKEN_REGEX =
+      /\\b(placeholder|empty|hint|tip|tips|draft|compose|editor|textarea|input|comment|reply|search|inner-when-not-active|not-active)\\b/i;
+    const HIT_TEST_TEXT_INPUT_TYPES = new Set([
+      'text',
+      'email',
+      'password',
+      'search',
+      'tel',
+      'url',
+      'number',
+    ]);
+    const HIT_TEST_INTERACTIVE_ROLES = new Set([
+      'button',
+      'checkbox',
+      'combobox',
+      'link',
+      'menuitem',
+      'menuitemcheckbox',
+      'menuitemradio',
+      'option',
+      'radio',
+      'switch',
+      'tab',
+      'textbox',
+      'treeitem',
+    ]);
 
     function normalizeHitTestElement(node) {
       return node instanceof Element ? node : null;
@@ -199,11 +225,179 @@ export function buildHitTestVisibilityHelpersScript(): string {
       return !activeRoot || activeRoot === el || activeRoot.contains(el);
     }
 
+    function isTextInputControl(el) {
+      if (!(el instanceof Element)) {
+        return false;
+      }
+
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'textarea') {
+        return true;
+      }
+
+      if (tag === 'input') {
+        const inputType = (el.getAttribute('type') || 'text').toLowerCase();
+        return HIT_TEST_TEXT_INPUT_TYPES.has(inputType);
+      }
+
+      return el.isContentEditable;
+    }
+
+    function isStructuredInteractiveElement(el) {
+      if (!(el instanceof Element)) {
+        return false;
+      }
+
+      const tag = el.tagName.toLowerCase();
+      if (['button', 'summary', 'select', 'textarea'].includes(tag)) {
+        return true;
+      }
+
+      if (tag === 'a' && (el.getAttribute('href') || el.hasAttribute('target'))) {
+        return true;
+      }
+
+      if (tag === 'input') {
+        return true;
+      }
+
+      const role = (el.getAttribute('role') || '').toLowerCase();
+      if (HIT_TEST_INTERACTIVE_ROLES.has(role)) {
+        return true;
+      }
+
+      return el.hasAttribute('onclick');
+    }
+
+    function getRectOverlapArea(a, b) {
+      const xOverlap = Math.max(
+        0,
+        Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left),
+      );
+      const yOverlap = Math.max(
+        0,
+        Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top),
+      );
+
+      return xOverlap * yOverlap;
+    }
+
+    function getInputSurfaceRoot(hit, target) {
+      let current = target.parentElement;
+      let depth = 0;
+
+      while (current && current !== document.body && depth < 5) {
+        if (!current.contains(hit)) {
+          current = current.parentElement;
+          depth += 1;
+          continue;
+        }
+
+        const textControls = Array.from(
+          current.querySelectorAll('input, textarea, [contenteditable], [role="textbox"]'),
+        ).filter((node) => node instanceof Element && isTextInputControl(node));
+
+        if (textControls.length === 1 && textControls[0] === target) {
+          return current;
+        }
+
+        current = current.parentElement;
+        depth += 1;
+      }
+
+      return null;
+    }
+
+    function hasPlaceholderAffinity(el) {
+      if (!(el instanceof Element)) {
+        return false;
+      }
+
+      const tokenText = [
+        el.id || '',
+        typeof el.className === 'string' ? el.className : '',
+        el.getAttribute('aria-label') || '',
+        el.getAttribute('data-placeholder') || '',
+        el.getAttribute('placeholder') || '',
+        el.textContent || '',
+      ]
+        .join(' ')
+        .trim();
+
+      return (
+        tokenText.length > 0 && INPUT_PLACEHOLDER_TOKEN_REGEX.test(tokenText)
+      );
+    }
+
+    function isTextInputEmpty(target) {
+      if (!(target instanceof Element)) {
+        return false;
+      }
+
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        return target.value.trim().length === 0;
+      }
+
+      return (target.textContent || '').trim().length === 0;
+    }
+
+    function isPlaceholderCoverForInput(hit, target) {
+      if (!(hit instanceof Element) || !(target instanceof Element)) {
+        return false;
+      }
+
+      if (!isTextInputControl(target) || isStructuredInteractiveElement(hit)) {
+        return false;
+      }
+
+      const root = getInputSurfaceRoot(hit, target);
+      if (!(root instanceof HTMLElement)) {
+        return false;
+      }
+
+      const targetRect = target.getBoundingClientRect();
+      const hitRect = hit.getBoundingClientRect();
+      const overlapArea = getRectOverlapArea(targetRect, hitRect);
+      if (overlapArea <= 0) {
+        return false;
+      }
+
+      const overlapRatio =
+        overlapArea / Math.max(1, Math.min(targetRect.width * targetRect.height, hitRect.width * hitRect.height));
+      if (overlapRatio < 0.35) {
+        return false;
+      }
+
+      const rootRect = root.getBoundingClientRect();
+      const rootArea = Math.max(1, rootRect.width * rootRect.height);
+      const hitArea = Math.max(1, hitRect.width * hitRect.height);
+      const hitStyle = window.getComputedStyle(hit);
+
+      if (hitStyle.pointerEvents === 'none') {
+        return true;
+      }
+
+      if (hasPlaceholderAffinity(hit)) {
+        return true;
+      }
+
+      return (
+        isTextInputEmpty(target) &&
+        hitArea <= rootArea * 1.05 &&
+        hit.childElementCount <= 6
+      );
+    }
+
     function isRelatedHitTarget(hit, target) {
       if (!(hit instanceof Element) || !(target instanceof Element)) {
         return false;
       }
-      return hit === target || hit.contains(target) || target.contains(hit);
+      return (
+        hit === target ||
+        hit.contains(target) ||
+        target.contains(hit) ||
+        isPlaceholderCoverForInput(hit, target)
+      );
     }
 
     function getHitTestSamplePoints(rect) {

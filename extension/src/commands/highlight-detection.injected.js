@@ -542,7 +542,7 @@ function isInputableCandidate(el) {
     ].includes(inputType);
   }
 
-  return el.getAttribute('contenteditable') === 'true';
+  return el.isContentEditable;
 }
 
 function isSelectableCandidate(el) {

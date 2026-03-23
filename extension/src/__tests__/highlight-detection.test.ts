@@ -129,6 +129,13 @@ describe('highlight-detection helpers', () => {
     expect(script).toContain('spinnerLikeCount');
   });
 
+  test('buildHighlightDetectionScript uses isContentEditable for inputable detection', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'inputable' });
+
+    expect(script).toContain('return el.isContentEditable;');
+    expect(script).not.toContain("return el.getAttribute('contenteditable') === 'true';");
+  });
+
   test("buildHighlightDetectionScript keeps 'any' candidate selection across all element types", () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
     const start = script.indexOf('function resolveElementCandidate');
