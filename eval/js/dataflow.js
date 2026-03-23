@@ -24,9 +24,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const quarterClose = document.getElementById('quarter-close');
     const quarterModalTitle = document.getElementById('quarter-modal-title');
     const quarterRevenue = document.getElementById('quarter-revenue');
+    const pageTitle = document.getElementById('page-title');
+    const breadcrumbCurrent = document.getElementById('breadcrumb-current');
+    const reportsHub = document.getElementById('reports-hub');
+    const openQ4ReportBtn = document.getElementById('open-q4-report-btn');
 
     const tabs = document.querySelectorAll('.tab');
     const tabContents = document.querySelectorAll('.tab-content');
+    let activeTab = 'overview';
+    let activeWorkspace = 'dashboard';
 
     tabs[0]?.classList.add('active');
     tabContents[0]?.classList.add('active');
@@ -137,6 +143,31 @@ document.addEventListener('DOMContentLoaded', function() {
     const quarterProducts = document.getElementById('quarter-products');
     const quarterInsights = document.getElementById('quarter-insights');
     const quarterExport = document.getElementById('quarter-export');
+
+    function syncWorkspaceChrome() {
+        const showReportsHub = activeWorkspace === 'reports' && activeTab === 'overview';
+        if (reportsHub) {
+            reportsHub.hidden = !showReportsHub;
+        }
+        if (pageTitle) {
+            pageTitle.textContent = activeWorkspace === 'reports' ? 'Reports' : 'Dashboard';
+        }
+        if (breadcrumbCurrent) {
+            breadcrumbCurrent.textContent = activeWorkspace === 'reports' ? 'Reports' : 'Dashboard';
+        }
+    }
+
+    function switchWorkspace(workspace) {
+        activeWorkspace = workspace;
+        syncWorkspaceChrome();
+
+        if (workspace === 'reports') {
+            switchTab('overview');
+            tracker.track('reports_workspace_open', {
+                source: 'sidebar'
+            });
+        }
+    }
 
     function openSettingsModal() {
         settingsModal.style.display = 'flex';
@@ -328,6 +359,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    if (openQ4ReportBtn) {
+        openQ4ReportBtn.addEventListener('click', function() {
+            tracker.track('reports_shortcut_click', {
+                target: 'q4_report'
+            });
+            openQuarterModal('Q4');
+        });
+    }
+
     if (quarterModal) {
         quarterModal.addEventListener('click', function(e) {
             if (e.target === quarterModal) {
@@ -337,6 +377,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function switchTab(tabName) {
+        activeTab = tabName;
         tabs.forEach(function(t) {
             t.classList.remove('active');
         });
@@ -346,6 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
             content.classList.remove('active');
         });
         document.getElementById('content-' + tabName)?.classList.add('active');
+        syncWorkspaceChrome();
     }
 
     tabs.forEach(function(tab) {
@@ -402,14 +444,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (helpBtn) {
-        helpBtn.addEventListener('click', function() {
-            tracker.track('help_click', {
-                location: 'header'
-            });
-        });
-    }
-
     navItems.forEach(function(item) {
         item.addEventListener('click', function(e) {
             if (this.getAttribute('href') === '#') {
@@ -423,6 +457,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 text: this.textContent.trim(),
                 location: 'sidebar'
             });
+
+            if (this.dataset.view === 'dashboard') {
+                switchWorkspace('dashboard');
+            } else if (this.dataset.view === 'reports') {
+                switchWorkspace('reports');
+            }
         });
     });
 
@@ -444,10 +484,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (quarterModal.style.display === 'flex') {
                 closeQuarterModal('escape_key');
             }
-            if (notificationPanel.style.display === 'block') {
-                notificationPanel.style.display = 'none';
-                tracker.track('notification_panel_close', { method: 'escape_key' });
-            }
         }
     });
+
+    syncWorkspaceChrome();
 });
