@@ -73,6 +73,12 @@ class TestPromptContracts:
         assert "Examples of broad search" not in description
         assert "Phase 2: Broad Search" not in description
 
+    def test_highlight_prompt_requires_rehighlight_after_significant_page_change(self) -> None:
+        description = get_highlight_tool_description()
+
+        assert "After any significant page-state change" in description
+        assert 'call `highlight` with `element_type: "any"` again before choosing the next element' in description
+
     def test_small_model_highlight_prompt_bans_keywords_for_generic_controls(self) -> None:
         with patch.object(
             highlight_tool_module,

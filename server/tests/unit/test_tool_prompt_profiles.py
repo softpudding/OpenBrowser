@@ -50,6 +50,7 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     assert "## Core Rules" in description
     assert 'Start with `element_type: "any"` for general exploration.' in description
     assert "Treat highlight pagination as reliable" in description
+    assert "After any significant page-state change" in description
     assert "Do not switch to `keywords` just because page 1 did not show the target" in description
     assert "icon-only toolbar or header control" in description
     assert 'use `element_type: "clickable"` only as a targeted fallback' in description
@@ -82,6 +83,7 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
         description = get_highlight_tool_description()
 
     assert "Collision-Aware Pagination" in description
+    assert "After any significant page-state change, restart with `highlight` on `element_type: \"any\"`" in description
     assert "Exact-Text Search Only" in description
     assert "icon-only controls" in description
     assert 'Prefer `element_type: "any"` as the default first pass' in description

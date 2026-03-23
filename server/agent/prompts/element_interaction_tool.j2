@@ -19,6 +19,8 @@ If the right `element_id` is missing, return to highlight and continue paginatio
 
 If the target control has exact visible readable text, you may re-run `highlight` with that exact text. If it is icon-only or the text is not clearly readable, re-run `highlight` with `element_type: "clickable"` and continue pagination instead.
 
+After any significant page-state change caused by your last action, such as navigation, tab switch, modal expansion, or opening a detail view, call `highlight` with `element_type: "any"` before selecting the next element.
+
 ## Commands
 
 ### click

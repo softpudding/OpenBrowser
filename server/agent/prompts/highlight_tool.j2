@@ -6,12 +6,13 @@ Find elements before interacting.
 ## Core Rules
 
 1. Start with `element_type: "any"` for general exploration.
-2. Treat highlight pagination as reliable. If the target is not on the current page, keep the same `element_type` and increment `page`.
-3. Do not switch to `keywords` just because page 1 did not show the target.
-4. Use `keywords` only when copying exact observed readable text you can quote exactly from the screenshot or highlight HTML.
-5. For icon-only toolbar or header controls, use `element_type: "clickable"` only as a targeted fallback, and paginate through it.
-6. Do not guess an `element_id` without a highlight result.
-7. Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`.
+2. After any significant page-state change, immediately call `highlight` with `element_type: "any"` before choosing the next element. Significant changes include navigation to a different page or tab, opening a modal or expanded detail view, or any major layout change.
+3. Treat highlight pagination as reliable. If the target is not on the current page, keep the same `element_type` and increment `page`.
+4. Do not switch to `keywords` just because page 1 did not show the target.
+5. Use `keywords` only when copying exact observed readable text you can quote exactly from the screenshot or highlight HTML.
+6. For icon-only toolbar or header controls, use `element_type: "clickable"` only as a targeted fallback, and paginate through it.
+7. Do not guess an `element_id` without a highlight result.
+8. Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`.
 
 ## Command
 
@@ -28,6 +29,7 @@ Find elements before interacting.
 ## Selection Strategy
 
 - Start with `element_type: "any"` for general exploration
+- After any significant page-state change, restart discovery with `highlight` and `element_type: "any"` before selecting the next target
 - If the target is not on the first page, continue `page=2,3...` in the same highlight mode before changing strategy
 - Exhaust the relevant highlight pages unless the page state changed or you already have exact observed text
 - If you can already see exact observed readable text in the screenshot or highlight HTML, try `keywords`
@@ -41,6 +43,7 @@ Find elements before interacting.
 - For exit controls in a detail view or modal, highlight `clickable` and paginate to find the exit control
 - If the current detail view came from a normal navigation step and exit controls are unstable, use `tab back`
 - If highlight shows `swipable`, use `swipe`
+- After opening a post, expanding a detail view, switching tabs, or navigating to a different page, highlight `any` again before picking the next element
 - Use `keywords` only for exact observed readable text you can quote exactly, not guessed labels or icon tokens
 
 ## After Highlight
@@ -111,6 +114,7 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 - `keywords`: Exact observed readable text to filter by detected semantic text. Matching uses visible text, labels, roles, and stable element tokens. When provided, only matching elements are returned without pagination. Example: ["Continue with Email", "View comments"]
 
 **When to Use Pagination**:
+- After any significant page-state change, restart with `highlight` on `element_type: "any"` before selecting the next target
 - If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements
 - Treat pages as reliable collision-free slices of the same candidate set, not random samples
 - Continue to the next page until you find the most appropriate element for your task or exhaust the relevant pages
@@ -162,13 +166,14 @@ Examples of exact-text search:
 ## Workflow Integration
 
 1. **Start with Highlight**: Always begin element interaction by calling the highlight tool to discover available elements. Treat highlight as the authoritative inventory of currently reachable interactive elements.
-2. **Visual + Semantic Verification**: At the BLUE stage, verify using BOTH visual AND semantic information:
+2. **Re-Highlight After Big Changes**: If the page significantly changed after your last action, such as navigation, tab switch, modal expansion, or opening a detail view, call `highlight` with `element_type: "any"` again before choosing the next element.
+3. **Visual + Semantic Verification**: At the BLUE stage, verify using BOTH visual AND semantic information:
    - **Visual Check**: Is the blue box where you expect?
    - **Semantic Check**: Does the HTML match your goal?
-3. **Select Element**: Note the `element_id` of your target.
+4. **Select Element**: Note the `element_id` of your target.
    - Returned IDs can include the primary type plus extra hints, for example `abc123(clickable, swipable)`.
    - `swipable` means the element is in a carousel/slider/swiper-like region. Do not assume normal page/container scroll will move it.
-4. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and the selected element_id.
+5. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and the selected element_id.
 
 ## Element Types
 
