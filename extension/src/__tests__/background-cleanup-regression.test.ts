@@ -21,4 +21,9 @@ describe('Background cleanup regressions', () => {
     expect(backgroundSource).toContain('tabManager.addTabClosedListener');
     expect(backgroundSource).toContain('cleanupTabState(conversationId, tabId);');
   });
+
+  test('swipe screenshots use extended render wait without settle retries', () => {
+    expect(backgroundSource).toContain("case 'swipe_element': {");
+    expect(backgroundSource).toContain('          900,');
+  });
 });

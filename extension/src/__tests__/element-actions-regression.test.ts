@@ -21,4 +21,10 @@ describe('Element action regressions', () => {
       'Click JavaScript returned an unresolved Promise instead of a resolved result',
     );
   });
+
+  test('performElementSwipe includes gesture fallback and settle wait', () => {
+    expect(elementActionsSource).toContain('async function performGestureSwipe');
+    expect(elementActionsSource).toContain('await waitForSwipeToSettle(');
+    expect(elementActionsSource).toContain("stepMethod = 'gesture';");
+  });
 });

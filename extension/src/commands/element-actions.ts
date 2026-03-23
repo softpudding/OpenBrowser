@@ -1057,6 +1057,11 @@ export async function performElementSwipe(
         ) || null;
       }
 
+      async function waitForMicrotaskCheckpoint() {
+        await Promise.resolve();
+        await Promise.resolve();
+      }
+
       function hasSwipeLikeLayout(node, axis) {
         if (!(node instanceof HTMLElement)) {
           return false;
@@ -1404,9 +1409,293 @@ export async function performElementSwipe(
         };
       }
 
+      function hasVisualStateChanged(previousState, nextState) {
+        return (
+          (previousState.apiIndex !== null &&
+            nextState.apiIndex !== null &&
+            previousState.apiIndex !== nextState.apiIndex) ||
+          previousState.scrollLeft !== nextState.scrollLeft ||
+          previousState.scrollTop !== nextState.scrollTop ||
+          previousState.activeSlide !== nextState.activeSlide ||
+          previousState.fractionText !== nextState.fractionText ||
+          previousState.trackTransform !== nextState.trackTransform
+        );
+      }
+
+      function isRectInViewport(rect) {
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.bottom > 0 &&
+          rect.right > 0 &&
+          rect.top < window.innerHeight &&
+          rect.left < window.innerWidth
+        );
+      }
+
+      function countPendingMedia(currentContainer) {
+        if (!(currentContainer instanceof HTMLElement)) {
+          return 0;
+        }
+
+        let pending = 0;
+        for (const media of currentContainer.querySelectorAll('img, video')) {
+          if (!(media instanceof HTMLElement)) {
+            continue;
+          }
+
+          const rect = media.getBoundingClientRect();
+          if (!isRectInViewport(rect) || !isVisible(media)) {
+            continue;
+          }
+
+          if (media.tagName === 'IMG') {
+            const image = media;
+            if ('complete' in image && !image.complete) {
+              pending += 1;
+              continue;
+            }
+            if ('naturalWidth' in image && image.naturalWidth === 0) {
+              pending += 1;
+              continue;
+            }
+          }
+
+          if (media.tagName === 'VIDEO' && 'readyState' in media && media.readyState < 2) {
+            pending += 1;
+          }
+        }
+
+        return pending;
+      }
+
+      function countLoadingPlaceholders(currentContainer) {
+        if (!(currentContainer instanceof HTMLElement)) {
+          return 0;
+        }
+
+        return currentContainer.querySelectorAll(
+          '[class*="skeleton" i], [class*="shimmer" i], [class*="placeholder" i], [class*="loading" i], [data-loading="true"]',
+        ).length;
+      }
+
+      async function waitForSwipeToSettle(
+        previousState,
+        currentContainer,
+        currentApi,
+        currentFallbackTarget,
+      ) {
+        await waitForMicrotaskCheckpoint();
+
+        let currentState = captureVisualState(
+          currentContainer,
+          currentApi,
+          currentFallbackTarget,
+        );
+        let pendingMedia = countPendingMedia(currentContainer);
+        let placeholders = countLoadingPlaceholders(currentContainer);
+
+        if (
+          !hasVisualStateChanged(previousState, currentState) ||
+          pendingMedia > 0 ||
+          placeholders > 0
+        ) {
+          await waitForMicrotaskCheckpoint();
+          currentState = captureVisualState(
+            currentContainer,
+            currentApi,
+            currentFallbackTarget,
+          );
+          pendingMedia = countPendingMedia(currentContainer);
+          placeholders = countLoadingPlaceholders(currentContainer);
+        }
+
+        return currentState;
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+      }
+
+      function dispatchPointerEvent(target, type, clientX, clientY, pointerId) {
+        if (!(target instanceof Element) || typeof PointerEvent !== 'function') {
+          return false;
+        }
+
+        target.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            pointerId,
+            pointerType: 'mouse',
+            isPrimary: true,
+            buttons: type === 'pointerup' ? 0 : 1,
+            clientX,
+            clientY,
+          }),
+        );
+        return true;
+      }
+
+      function dispatchMouseEvent(target, type, clientX, clientY) {
+        if (!(target instanceof Element)) {
+          return false;
+        }
+
+        target.dispatchEvent(
+          new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            buttons: type === 'mouseup' ? 0 : 1,
+            button: 0,
+            clientX,
+            clientY,
+          }),
+        );
+        return true;
+      }
+
+      function dispatchTouchEvent(target, type, clientX, clientY) {
+        if (
+          !(target instanceof Element) ||
+          typeof Touch !== 'function' ||
+          typeof TouchEvent !== 'function'
+        ) {
+          return false;
+        }
+
+        const touch = new Touch({
+          identifier: 1,
+          target,
+          clientX,
+          clientY,
+          pageX: clientX + window.scrollX,
+          pageY: clientY + window.scrollY,
+          screenX: window.screenX + clientX,
+          screenY: window.screenY + clientY,
+          radiusX: 12,
+          radiusY: 12,
+          rotationAngle: 0,
+          force: type === 'touchend' ? 0 : 0.5,
+        });
+
+        const activeTouches = type === 'touchend' ? [] : [touch];
+        target.dispatchEvent(
+          new TouchEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            touches: activeTouches,
+            targetTouches: activeTouches,
+            changedTouches: [touch],
+          }),
+        );
+        return true;
+      }
+
+      function getGestureTarget(currentContainer) {
+        if (!(currentContainer instanceof HTMLElement)) {
+          return null;
+        }
+
+        const explicitTrack = currentContainer.querySelector(
+          '.swiper-wrapper, .swiper, [class*="track" i], [class*="slider" i], [class*="carousel" i]',
+        );
+        if (explicitTrack instanceof HTMLElement && isVisible(explicitTrack)) {
+          return explicitTrack;
+        }
+
+        return currentContainer;
+      }
+
+      async function performGestureSwipe(target, moveForward, axis) {
+        if (!(target instanceof HTMLElement)) {
+          return false;
+        }
+
+        const rect = target.getBoundingClientRect();
+        if (!isRectInViewport(rect) || rect.width < 60 || rect.height < 60) {
+          return false;
+        }
+
+        const pointerId = 1;
+        const horizontal = axis === 'x';
+        const travelDistance = Math.round(
+          clamp(
+            (horizontal ? rect.width : rect.height) * 0.42,
+            72,
+            horizontal ? Math.min(rect.width - 24, 320) : Math.min(rect.height - 24, 240),
+          ),
+        );
+
+        const centerX = clamp(rect.left + rect.width / 2, 12, window.innerWidth - 12);
+        const centerY = clamp(rect.top + rect.height / 2, 12, window.innerHeight - 12);
+
+        const startX = horizontal
+          ? clamp(
+              centerX + (moveForward ? travelDistance / 2 : -travelDistance / 2),
+              12,
+              window.innerWidth - 12,
+            )
+          : centerX;
+        const endX = horizontal
+          ? clamp(
+              centerX + (moveForward ? -travelDistance / 2 : travelDistance / 2),
+              12,
+              window.innerWidth - 12,
+            )
+          : centerX;
+        const startY = horizontal
+          ? centerY
+          : clamp(
+              centerY + (moveForward ? travelDistance / 2 : -travelDistance / 2),
+              12,
+              window.innerHeight - 12,
+            );
+        const endY = horizontal
+          ? centerY
+          : clamp(
+              centerY + (moveForward ? -travelDistance / 2 : travelDistance / 2),
+              12,
+              window.innerHeight - 12,
+            );
+
+        const startTarget = document.elementFromPoint(startX, startY);
+        const initialTarget = startTarget instanceof Element ? startTarget : target;
+        dispatchPointerEvent(initialTarget, 'pointerdown', startX, startY, pointerId);
+        dispatchMouseEvent(initialTarget, 'mousedown', startX, startY);
+        dispatchTouchEvent(initialTarget, 'touchstart', startX, startY);
+
+        const steps = 6;
+        for (let step = 1; step <= steps; step++) {
+          const progress = step / steps;
+          const x = startX + (endX - startX) * progress;
+          const y = startY + (endY - startY) * progress;
+          const moveTarget = document.elementFromPoint(x, y);
+          const activeTarget = moveTarget instanceof Element ? moveTarget : target;
+
+          dispatchPointerEvent(activeTarget, 'pointermove', x, y, pointerId);
+          dispatchMouseEvent(activeTarget, 'mousemove', x, y);
+          dispatchTouchEvent(activeTarget, 'touchmove', x, y);
+          await waitForMicrotaskCheckpoint();
+        }
+
+        const endTarget = document.elementFromPoint(endX, endY);
+        const finalTarget = endTarget instanceof Element ? endTarget : target;
+        dispatchPointerEvent(finalTarget, 'pointerup', endX, endY, pointerId);
+        dispatchMouseEvent(finalTarget, 'mouseup', endX, endY);
+        dispatchTouchEvent(finalTarget, 'touchend', endX, endY);
+
+        await waitForMicrotaskCheckpoint();
+        return true;
+      }
+
       const beforeState = captureVisualState(container, api, fallbackScrollTarget);
 
       let invoked = 0;
+      let effectiveSteps = 0;
       let method = 'none';
       let error = null;
 
@@ -1465,22 +1754,57 @@ export async function performElementSwipe(
       }
 
       for (let i = 0; i < swipeCount; i++) {
+        const stepBeforeState = captureVisualState(container, api, fallbackScrollTarget);
+        let stepMethod = null;
+        let stepChanged = false;
+
         const apiMethod = invokeSwipeApiStep(api, forward);
         if (apiMethod) {
-          method = apiMethod;
-          invoked += 1;
-          continue;
+          stepMethod = apiMethod;
+          const settledState = await waitForSwipeToSettle(
+            stepBeforeState,
+            container,
+            api,
+            fallbackScrollTarget,
+          );
+          stepChanged = hasVisualStateChanged(stepBeforeState, settledState);
         }
 
-        const navButton = getNavButton(container, forward, axis);
-        if (navButton) {
-          navButton.click();
-          method = 'navButton';
-          invoked += 1;
-          continue;
+        if (!stepChanged) {
+          const navButton = getNavButton(container, forward, axis);
+          if (navButton) {
+            navButton.click();
+            stepMethod = 'navButton';
+            const settledState = await waitForSwipeToSettle(
+              stepBeforeState,
+              container,
+              api,
+              fallbackScrollTarget,
+            );
+            stepChanged = hasVisualStateChanged(stepBeforeState, settledState);
+          }
         }
 
-        if (typeof fallbackScrollTarget.scrollBy === 'function') {
+        if (!stepChanged) {
+          const gestureTarget = getGestureTarget(container);
+          const gestureInvoked = await performGestureSwipe(
+            gestureTarget,
+            forward,
+            axis,
+          );
+          if (gestureInvoked) {
+            stepMethod = 'gesture';
+            const settledState = await waitForSwipeToSettle(
+              stepBeforeState,
+              container,
+              api,
+              fallbackScrollTarget,
+            );
+            stepChanged = hasVisualStateChanged(stepBeforeState, settledState);
+          }
+        }
+
+        if (!stepChanged && typeof fallbackScrollTarget.scrollBy === 'function') {
           const distance =
             axis === 'x'
               ? Math.round((fallbackScrollTarget.clientWidth || window.innerWidth) * 0.85)
@@ -1490,13 +1814,26 @@ export async function performElementSwipe(
             top: axis === 'y' ? distance * (forward ? 1 : -1) : 0,
             behavior: 'instant',
           });
-          method = axis === 'x' ? 'scrollBy-x' : 'scrollBy-y';
-          invoked += 1;
-          continue;
+          stepMethod = axis === 'x' ? 'scrollBy-x' : 'scrollBy-y';
+          const settledState = await waitForSwipeToSettle(
+            stepBeforeState,
+            container,
+            api,
+            fallbackScrollTarget,
+          );
+          stepChanged = hasVisualStateChanged(stepBeforeState, settledState);
         }
 
-        error = 'No swipe API, navigation button, or swipe fallback found';
-        break;
+        if (!stepMethod) {
+          error = 'No swipe API, navigation button, gesture fallback, or swipe fallback found';
+          break;
+        }
+
+        method = stepMethod;
+        invoked += 1;
+        if (stepChanged) {
+          effectiveSteps += 1;
+        }
       }
 
       function isBoundaryControl(node) {
@@ -1519,16 +1856,7 @@ export async function performElementSwipe(
 
       const swipeEffective =
         invoked > 0 &&
-        (
-          (beforeState.apiIndex !== null &&
-            afterState.apiIndex !== null &&
-            beforeState.apiIndex !== afterState.apiIndex) ||
-          beforeState.scrollLeft !== afterState.scrollLeft ||
-          beforeState.scrollTop !== afterState.scrollTop ||
-          beforeState.activeSlide !== afterState.activeSlide ||
-          beforeState.fractionText !== afterState.fractionText ||
-          beforeState.trackTransform !== afterState.trackTransform
-        );
+        (effectiveSteps > 0 || hasVisualStateChanged(beforeState, afterState));
 
       if (invoked === 0) {
         return {

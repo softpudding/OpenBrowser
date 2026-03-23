@@ -1969,7 +1969,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           true,
           90,
           false,
-          400,
+          900,
         );
         const compressedSwipeScreenshotResult = await compressScreenshotResult(
           swipeScreenshotResult,
