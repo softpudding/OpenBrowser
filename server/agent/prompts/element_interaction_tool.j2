@@ -17,6 +17,8 @@ Never skip from intent directly to action without a matching `element_id` from h
 
 If the right `element_id` is missing, return to highlight and continue pagination instead of guessing a keyword or control name.
 
+If the target control has exact visible readable text, you may re-run `highlight` with that exact text. If it is icon-only or the text is not clearly readable, re-run `highlight` with `element_type: "clickable"` and continue pagination instead.
+
 ## Commands
 
 ### click
@@ -88,6 +90,7 @@ Carousel / slider / swiper region:
 
 - If one action fails, retry once with a better target
 - If it fails twice, change strategy instead of repeating the same action
+- For failed close or back-like controls inside a detail view, prefer exact visible text, `clickable` pagination, or `tab back` over guessed keyword probing
 {% else %}
 # Element Interaction Tool
 

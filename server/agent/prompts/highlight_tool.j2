@@ -8,9 +8,10 @@ Find elements before interacting.
 1. Start with `element_type: "any"` for general exploration.
 2. Treat highlight pagination as reliable. If the target is not on the current page, keep the same `element_type` and increment `page`.
 3. Do not switch to `keywords` just because page 1 did not show the target.
-4. Use `keywords` only for exact visible text, labels, role text, or stable tokens you already observed in the screenshot or returned HTML.
+4. Use `keywords` only when copying exact observed readable text you can quote exactly from the screenshot or highlight HTML.
 5. For icon-only toolbar or header controls, use `element_type: "clickable"` only as a targeted fallback, and paginate through it.
 6. Do not guess an `element_id` without a highlight result.
+7. Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`.
 
 ## Command
 
@@ -29,11 +30,18 @@ Find elements before interacting.
 - Start with `element_type: "any"` for general exploration
 - If the target is not on the first page, continue `page=2,3...` in the same highlight mode before changing strategy
 - Exhaust the relevant highlight pages unless the page state changed or you already have exact observed text
-- If you can already see exact target text in the screenshot or highlight HTML, try `keywords`
+- If you can already see exact observed readable text in the screenshot or highlight HTML, try `keywords`
 - If the target is an icon-only toolbar or header control, use `element_type: "clickable"` and continue `page=1,2,3...`
+- If a control has visible readable text, you may use that exact text with `keywords`; if it is icon-only or the text is not clearly readable, use `clickable` pagination instead
 - Do not use guessed `keywords` such as `"settings"`, `"gear"`, `"bell"`, `"next"`, `"prev"`, or `"close"` to probe icon-only or ambiguous controls
 - If a composite control is split across pages by collisions, such as an icon button next to a count or badge, stay on the same `element_type` and try the next page before switching to `keywords`
 - If many elements overlap across pages, stay on the same `element_type` and increment `page`
+
+- For search, highlight `inputable`, type into the search box, then highlight `clickable` and paginate to find the submit control
+- For exit controls in a detail view or modal, highlight `clickable` and paginate to find the exit control
+- If the current detail view came from a normal navigation step and exit controls are unstable, use `tab back`
+- If highlight shows `swipable`, use `swipe`
+- Use `keywords` only for exact observed readable text you can quote exactly, not guessed labels or icon tokens
 
 ## After Highlight
 
@@ -94,13 +102,13 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 { "element_type": "selectable" } // Select dropdowns
 { "element_type": "any" }        // All interactive elements combined
 { "page": 2 }                 // Next page of any interactive elements
-{ "keywords": ["Continue with Email"] } // Exact observed text only
+{ "keywords": ["Continue with Email"] } // Exact observed readable text only
 ```
 
 **Parameters**:
 - `element_type`: Single type to highlight - "any" (default), "clickable", "scrollable", "inputable", "hoverable", or "selectable"
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
-- `keywords`: Exact observed text or stable tokens to filter by detected semantic text. Matching uses visible text, labels, roles, and stable element tokens. When provided, only matching elements are returned without pagination. Example: ["Continue with Email", "View comments"]
+- `keywords`: Exact observed readable text to filter by detected semantic text. Matching uses visible text, labels, roles, and stable element tokens. When provided, only matching elements are returned without pagination. Example: ["Continue with Email", "View comments"]
 
 **When to Use Pagination**:
 - If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements
@@ -108,26 +116,28 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 - Continue to the next page until you find the most appropriate element for your task or exhaust the relevant pages
 - Stay on the same `element_type` across pages to browse through all elements of that category
 - Do not jump from a first-page miss to `keywords`
-- Exhaust relevant highlight pages before switching strategies unless the page state changed or you already have exact observed text
+- Exhaust relevant highlight pages before switching strategies unless the page state changed or you already have exact observed readable text
 - For icon-only controls (gear, close, bell, avatar menu, toolbar icons), prefer pagination over broad keyword search
 - If you can see a related count, badge, or neighboring text from the target control but not the control itself, prefer the next page first; collision-aware pagination often separates adjacent clickable pieces of the same UI
 
 **When to Use Keywords**:
-- When you know the exact text/attribute you're looking for because you already observed it
-- Use keywords only for exact text or stable tokens you can already see in the screenshot, highlight HTML, or prior observation from the same task
+- When you know the exact readable text/attribute you're looking for because you already observed it
+- Use keywords only for exact observed readable text or stable tokens you can already see in the screenshot, highlight HTML, or prior observation from the same task
 - More efficient than pagination when the target is text-identified and you can quote it precisely
 - No need for pagination - all matching elements are returned at once
 - Weak for icon-only controls because SVG meaning often is not represented in searchable text
 - Do not use keywords as your first attempt for toolbar icons like settings, history, notifications, chat, or avatar menus
+- If a generic control has visible readable text, you may use that exact text; if it is icon-only, use pagination instead
 - Do not guess a semantic word from appearance alone and search for it
 - Do not use keywords as a fallback just because page 1 did not contain the target
 
 **Exact-Text Search Only**:
 
-Use keyword search only when you can clearly identify the target element's exact text or exact stable token:
+Use keyword search only when you can clearly identify the target element's exact observed readable text or exact stable token:
 - You see the element's distinctive text clearly in the screenshot
 - The highlight response already exposed the target's exact label, `aria-label`, or other stable token
 - You want to narrow to a specific post, comment, button, or menu item whose text you can quote verbatim
+- If the target is a control, its visible readable text is clear enough to quote exactly rather than guess
 
 For exact-text search:
 - Prefer **ONE exact phrase** that distinguishes the target from all other elements

@@ -4,6 +4,7 @@ import importlib.util
 import sys
 import types
 from pathlib import Path
+from unittest.mock import patch
 
 from openhands.sdk import TextContent
 
@@ -67,10 +68,27 @@ class TestPromptContracts:
 
         assert "Treat pages as reliable collision-free slices of the same candidate set" in description
         assert "Do not jump from a first-page miss to `keywords`" in description
-        assert "Use keywords only for exact text or stable tokens" in description
+        assert "Use keywords only for exact observed readable text or stable tokens" in description
         assert "DO NOT use synonym bundles like" in description
         assert "Examples of broad search" not in description
         assert "Phase 2: Broad Search" not in description
+
+    def test_small_model_highlight_prompt_bans_keywords_for_generic_controls(self) -> None:
+        with patch.object(
+            highlight_tool_module,
+            "get_prompt_render_context",
+            return_value={
+                "model_name": "dashscope/qwen3.5-flash",
+                "model_profile": "small",
+                "small_model": True,
+            },
+        ):
+            description = get_highlight_tool_description()
+
+        assert (
+            "Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`"
+            in description
+        )
 
     def test_tab_prompt_points_agents_to_tab_view_for_clean_screenshots(self) -> None:
         description = get_tab_tool_description()

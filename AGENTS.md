@@ -177,6 +177,11 @@ When disabled:
 - **Clean output**: `trim_blocks=True` and `lstrip_blocks=True` remove extra whitespace
 - **Caching**: Templates are cached after first load for performance
 
+### Keyword Discipline
+- Highlight pagination remains the default discovery flow for controls and dense UI
+- `keywords` are allowed only when copying exact observed readable text or exact stable tokens already visible in the screenshot/highlight HTML
+- Do not use guessed labels, unread text, or icon-only tokens such as `×` or `🔍` as keyword probes
+
 ## ANTI-PATTERNS (THIS PROJECT)
 
 - **NEVER use pixel-based mouse/keyboard simulation** - All operations via JavaScript execution

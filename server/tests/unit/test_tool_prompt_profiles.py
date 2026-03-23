@@ -53,11 +53,15 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     assert "Do not switch to `keywords` just because page 1 did not show the target" in description
     assert "icon-only toolbar or header control" in description
     assert 'use `element_type: "clickable"` only as a targeted fallback' in description
+    assert "Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`" in description
+    assert "highlight `inputable`" in description
+    assert "highlight `clickable` and paginate to find the submit control" in description
+    assert "use `tab back`" in description
     assert (
         'Do not use guessed `keywords` such as `"settings"`, `"gear"`, `"bell"`, `"next"`, `"prev"`, or `"close"`'
         in description
     )
-    assert "exact visible text" in description
+    assert "copying exact observed readable text" in description
     assert "icon button next to a count or badge" in description
     assert "Phase 1: Precise Search" not in description
     assert "Collision-Aware Pagination" not in description
@@ -91,7 +95,7 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
         'DO NOT search for unlabeled toolbar icons or ambiguous controls with guessed words like "settings", "gear", "bell", "chat", "next", "prev", or "close"'
         in description
     )
-    assert "Use keywords only for exact text or stable tokens you can already see" in description
+    assert "Use keywords only for exact observed readable text or stable tokens you can already see" in description
     assert "the actual button may simply be on the next page" in description
     assert "Phase 2: Broad Search" not in description
     assert "Examples of broad search" not in description
