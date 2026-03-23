@@ -22,8 +22,9 @@ describe('Background cleanup regressions', () => {
     expect(backgroundSource).toContain('cleanupTabState(conversationId, tabId);');
   });
 
-  test('swipe screenshots use extended render wait without settle retries', () => {
+  test('swipe screenshots reuse tab-view warmup capture options', () => {
     expect(backgroundSource).toContain("case 'swipe_element': {");
     expect(backgroundSource).toContain('          900,');
+    expect(backgroundSource).toContain('          TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,');
   });
 });

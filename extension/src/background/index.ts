@@ -1970,6 +1970,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           90,
           false,
           900,
+          TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
         );
         const compressedSwipeScreenshotResult = await compressScreenshotResult(
           swipeScreenshotResult,
