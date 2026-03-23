@@ -20,6 +20,7 @@ import { debuggerSessionManager } from '../commands/debugger-manager';
 import { dialogManager } from '../commands/dialog';
 import { extractGroundedElements } from '../commands/grounded-elements';
 import { handleGetAccessibilityTree } from '../commands/accessibility';
+import { clearScreenshotCache } from '../commands/computer';
 
 import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
@@ -125,6 +126,12 @@ function buildHighlightConsistencyScript(
       };
     })();
   `;
+}
+
+function cleanupTabState(conversationId: string, tabId: number): void {
+  elementCache.invalidate(conversationId, tabId);
+  dialogManager.disableForTab(tabId);
+  clearScreenshotCache(tabId);
 }
 
 // ============================================================================
@@ -1069,6 +1076,15 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         console.log(
           `🧹 [Cleanup Session] Cleaning up session ${cleanupConversationId}`,
         );
+        const managedTabs = tabManager.getManagedTabs(cleanupConversationId);
+
+        for (const managedTab of managedTabs) {
+          cleanupTabState(cleanupConversationId, managedTab.tabId);
+        }
+
+        // Clear any conversation-scoped cache entries that may remain after
+        // tabs are closed or the session has already partially cleaned up.
+        elementCache.invalidate(cleanupConversationId);
 
         // 清理 tab manager 会话
         await tabManager.cleanupSession(cleanupConversationId);
@@ -2395,6 +2411,10 @@ tabManager.addTabSwitchedListener((conversationId: string, tabId: number) => {
   );
   // Send event to server asynchronously (don't await)
   sendTabSwitchedEvent(conversationId, tabId).catch(console.error);
+});
+
+tabManager.addTabClosedListener((conversationId: string, tabId: number) => {
+  cleanupTabState(conversationId, tabId);
 });
 
 console.log('✅ OpenBrowser extension loaded (Strict Mode)');
