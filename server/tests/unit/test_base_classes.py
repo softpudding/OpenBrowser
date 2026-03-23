@@ -148,7 +148,7 @@ class TestOpenBrowserObservation:
             highlighted_elements=[
                 {
                     "id": "swp123",
-                    "type": "clickable",
+                    "type": "scrollable",
                     "interactionHints": ["swipable"],
                     "html": '<div class="swiper-slide"></div>',
                 }
@@ -158,7 +158,7 @@ class TestOpenBrowserObservation:
 
         text = _text_content(observation)
 
-        assert "swp123(clickable, swipable):" in text
+        assert "swp123(scrollable, swipable):" in text
 
     def test_pending_confirmation_includes_follow_up_command(self) -> None:
         observation = OpenBrowserObservation(

@@ -182,6 +182,24 @@ describe('highlight-detection helpers', () => {
     expect(script).toContain('interactionHints');
   });
 
+  test('buildHighlightDetectionScript hides clickable when swipe or scroll affordances are present', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const start = script.indexOf('function toInteractiveElement');
+    const end = script.indexOf('function countVisibleClickableCandidates', start);
+    const toInteractiveElementSource = script.slice(start, end);
+
+    expect(toInteractiveElementSource).toContain(
+      "candidate.type === 'clickable'",
+    );
+    expect(toInteractiveElementSource).toContain(
+      "interactionHints.includes('swipable')",
+    );
+    expect(toInteractiveElementSource).toContain(
+      "isScrollableCandidate(candidate.element)",
+    );
+    expect(toInteractiveElementSource).toContain("? 'scrollable'");
+  });
+
   test('buildHighlightDetectionScript uses bounded tree walking for text metrics', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
 

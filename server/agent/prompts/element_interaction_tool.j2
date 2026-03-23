@@ -19,7 +19,7 @@ If the right `element_id` is missing, return to highlight and continue paginatio
 
 After any significant page-state change caused by your last action, such as navigation, tab switch, modal expansion, or opening a detail view, the next discovery step must be `highlight` with `element_type: "any"` because it exposes extension-derived page insight you cannot infer reliably from intent alone.
 
-If the page did not significantly change and the target control has exact visible readable text, you may re-run `highlight` with that exact text. If the page did not significantly change, the remaining target is still icon-only, and the current `any` pages were not enough, re-run `highlight` with `element_type: "clickable"` and continue pagination.
+If the page did not significantly change and the target control has exact visible readable text, you may re-run `highlight` with that exact text. Otherwise, stay on the current `any` inventory and continue pagination until the target appears.
 
 ## Commands
 
@@ -89,7 +89,7 @@ Carousel / slider / swiper region:
 
 - If one action fails, retry once with a better target
 - If it fails twice, change strategy instead of repeating the same action
-- For failed close or back-like controls inside a detail view, re-highlight that changed page with `any` first, then use exact visible text, `clickable` pagination as a fallback, or `tab back`
+- For failed close or back-like controls inside a detail view, re-highlight that changed page with `any` first, then use exact visible text, continue `any` pagination, or use `tab back`
 {% else %}
 # Element Interaction Tool
 
@@ -135,7 +135,7 @@ Direct-execution actions
 
 **Practical rule**: Expect a confirmation step only for `click` and `keyboard_input`.
 
-**Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` before picking the next element, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `clickable` or `keywords` on that changed page.
+**Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` before picking the next element, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `keywords` or another narrower type on that changed page.
 
 ## Commands
 
@@ -150,7 +150,7 @@ Initiate a click on an element by its visual ID.
 { "action": "confirm_click", "element_id": "c8e4d2", "tab_id": 123 }
 ```
 
-Use this for buttons, links, and any clickable element you identified from the highlight tool.
+Use this for buttons, links, and other trigger controls you identified from the highlight tool.
 
 ### hover
 Initiate a hover over an element by its visual ID.
@@ -193,7 +193,7 @@ Scroll within an element by its visual ID, or scroll the entire page if no eleme
   - Range: 0.1 to 3.0
 
 Use this to:
-- Scroll within specific containers (when element_id is provided, requires confirmation)
+- Scroll within specific containers (when element_id is provided, executes immediately)
 - Scroll the entire page (when element_id is omitted, executes immediately)
 
 **If whole-page scroll has no effect**:
@@ -227,9 +227,9 @@ Select an option from a native `<select>` dropdown element by its visual ID.
 
 **Native `<select>` elements only** - This command works with standard HTML `<select>` dropdowns, not custom dropdown components built with `<div>`, `<ul>`, or other elements.
 
-**How to distinguish `selectable` from `clickable`**:
+**How to distinguish `select` from `click`**:
 
-| Aspect | `clickable` | `selectable` |
+| Aspect | `click` | `select` |
 |--------|-------------|--------------|
 | **Visual cue** | Buttons, links, icons | Dropdown with ▼ arrow indicator |
 | **Intent** | "Open" something (navigate, trigger action) | "Change" a value (pick an option) |

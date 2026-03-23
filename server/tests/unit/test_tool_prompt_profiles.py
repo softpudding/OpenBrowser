@@ -52,10 +52,9 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     assert 'extension-derived page insight across element types' in description
     assert "Treat highlight pagination as reliable" in description
     assert "After any significant page-state change" in description
-    assert "Do not start a newly changed page with `element_type: \"clickable\"` or `keywords`" in description
-    assert "only narrow after `any` pages were not enough" in description
+    assert "Do not jump away from `element_type: \"any\"` on a newly changed page" in description
     assert "icon-only toolbar or header control" in description
-    assert 'Use `element_type: "clickable"` only as a targeted fallback after the current page state' in description
+    assert "continue `any` pagination and inspect the next pages instead of switching modes" in description
     assert "Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`" in description
     assert "highlight `inputable`" in description
     assert "then continue discovery with `any`" in description
@@ -67,6 +66,7 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     )
     assert "copying exact observed readable text" in description
     assert "icon button next to a count or badge" in description
+    assert '`clickable`' not in description
     assert "Phase 1: Precise Search" not in description
     assert "Collision-Aware Pagination" not in description
 
@@ -90,21 +90,19 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
     assert 'default first pass for each new page state' in description
     assert 'extension-derived page insight across element types' in description
     assert "After any significant page-state change, restart with `highlight` on `element_type: \"any\"`" in description
-    assert "Do not start that newly changed page with `clickable` or `keywords`" in description
+    assert "Do not jump away from `element_type: \"any\"` on that changed page" in description
     assert "Exact-Text Search Only" in description
     assert "icon-only controls" in description
     assert 'Prefer `element_type: "any"` as the default first pass' in description
     assert "Treat pages as reliable collision-free slices of the same candidate set" in description
     assert "Do not jump from a first-page miss to `keywords`" in description
-    assert (
-        'Use `element_type: "clickable"` as a targeted fallback for icon-only controls or dense toolbars only after the current page state'
-        in description
-    )
+    assert "prefer more `any` pages over broad keyword search or a narrower generic-control mode" in description
     assert (
         'DO NOT search for unlabeled toolbar icons or ambiguous controls with guessed words like "settings", "gear", "bell", "chat", "next", "prev", or "close"'
         in description
     )
     assert "Use keywords only for exact observed readable text or stable tokens you can already see" in description
     assert "the actual button may simply be on the next page" in description
+    assert '`clickable`' not in description
     assert "Phase 2: Broad Search" not in description
     assert "Examples of broad search" not in description

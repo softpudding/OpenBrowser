@@ -1458,8 +1458,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         }
 
         const keywords = command.keywords;
-        const elementType =
-          command.element_type || (keywords ? 'any' : 'clickable');
+        const elementType = command.element_type || 'any';
         const page = command.page || 1;
 
         const detectionScript = buildHighlightDetectionScript({

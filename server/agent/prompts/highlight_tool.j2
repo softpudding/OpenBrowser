@@ -7,9 +7,9 @@ Find elements before interacting.
 
 1. `element_type: "any"` is the default first pass for each new page state because it exposes extension-derived page insight across element types, neighboring controls, and other actionable structure that you cannot reliably infer from intent alone.
 2. After any significant page-state change, immediately call `highlight` with `element_type: "any"` before choosing the next element. Significant changes include navigation to a different page or tab, opening a modal or expanded detail view, or any major layout change.
-3. Do not start a newly changed page with `element_type: "clickable"` or `keywords`.
+3. Do not jump away from `element_type: "any"` on a newly changed page before rebuilding the mixed-type inventory.
 4. Treat highlight pagination as reliable. If the target is not on the current page, keep the same `element_type` and increment `page`.
-5. Use `element_type: "clickable"` only as a targeted fallback after the current page state's `any` inventory was not enough and the remaining target is still icon-only.
+5. Buttons, links, icon-only controls, and dense toolbars should still be discovered through `any` pagination.
 6. Use `keywords` only when copying exact observed readable text you can quote exactly from the screenshot or highlight HTML.
 7. Do not guess an `element_id` without a highlight result.
 8. Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`.
@@ -31,20 +31,20 @@ Find elements before interacting.
 - Start with `element_type: "any"` for general exploration
 - Treat `any` as the authoritative first-pass inventory for the current page state because it reflects extension-derived structure you do not know in advance
 - After any significant page-state change, restart discovery with `highlight` and `element_type: "any"` before selecting the next target
-- Do not begin a newly changed page with `clickable` just because you expect a button, submit control, close control, or toolbar icon
+- Do not narrow a newly changed page just because you expect a button, submit control, close control, or toolbar icon
 - If the target is not on the first page, continue `page=2,3...` in the same highlight mode before changing strategy
 - Exhaust the relevant highlight pages unless the page state changed or you already have exact observed text
-- Stay with `any` while building inventory on the current page state; only narrow after `any` pages were not enough
+- Stay with `any` while building inventory on the current page state; generic controls should remain in that mixed inventory instead of moving to a dedicated control-only mode
 - If you can already see exact observed readable text in the screenshot or highlight HTML, try `keywords`
-- If the current page state is unchanged and the remaining target is an icon-only toolbar or header control, use `element_type: "clickable"` and continue `page=1,2,3...`
-- If a control has visible readable text, you may use that exact text with `keywords`; if it is icon-only or the text is not clearly readable, use `clickable` pagination only after `any` was not enough
+- If the current page state is unchanged and the remaining target is an icon-only toolbar or header control, continue `any` pagination and inspect the next pages instead of switching modes
+- If a control has visible readable text, you may use that exact text with `keywords`; if it is icon-only or the text is not clearly readable, continue `any` pagination
 - Do not use guessed `keywords` such as `"settings"`, `"gear"`, `"bell"`, `"next"`, `"prev"`, or `"close"` to probe icon-only or ambiguous controls
 - If a composite control is split across pages by collisions, such as an icon button next to a count or badge, stay on the same `element_type` and try the next page before switching to `keywords`
 - If many elements overlap across pages, stay on the same `element_type` and increment `page`
 
-- For search, highlight `inputable`, type into the search box, then continue discovery with `any`; switch to `clickable` only if the submit control remains icon-only after the current `any` pages
+- For search, highlight `inputable`, type into the search box, then continue discovery with `any`; keep paging the current `any` inventory until the submit control appears
 - When a search results page loads, call `highlight` with `element_type: "any"` before choosing a result
-- For exit controls in a detail view or modal, first highlight `any` on that changed page state; switch to `clickable` only if the exit control remains icon-only after the current `any` pages
+- For exit controls in a detail view or modal, first highlight `any` on that changed page state; continue `any` pagination on that page or use `tab back`
 - If the current detail view came from a normal navigation step and exit controls are unstable, use `tab back`
 - If highlight shows `swipable`, use `swipe`
 - After opening a post, expanding a detail view, switching tabs, or navigating to a different page, highlight `any` again before picking the next element
@@ -68,8 +68,8 @@ The Highlight Tool discovers interactive elements on a web page and marks them w
 
 - `element_type: "any"` is the default first pass for each new page state because it exposes extension-derived page insight across element types, neighboring controls, and other actionable structure that you cannot reliably infer from intent alone
 - After any significant page-state change, restart with `highlight` on `element_type: "any"` before choosing the next element
-- Do not start that newly changed page with `clickable` or `keywords`
-- Narrow to `clickable`, another specific type, or `keywords` only after the current page state's `any` inventory was not enough
+- Do not jump away from `element_type: "any"` on that changed page before rebuilding the mixed-type inventory
+- Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`; only narrow to another specific type or `keywords` when the task directly targets that affordance and the current page state's `any` inventory was not enough
 
 ## Visual Color System - BLUE Stage
 
@@ -120,13 +120,13 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 ```
 
 **Parameters**:
-- `element_type`: Single type to highlight - "any" (default), "clickable", "scrollable", "inputable", "hoverable", or "selectable"
+- `element_type`: Single type to highlight - "any" (default), "scrollable", "inputable", "hoverable", or "selectable"
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
 - `keywords`: Exact observed readable text to filter by detected semantic text. Matching uses visible text, labels, roles, and stable element tokens. When provided, only matching elements are returned without pagination. Example: ["Continue with Email", "View comments"]
 
 **When to Use Pagination**:
 - After any significant page-state change, restart with `highlight` on `element_type: "any"` before selecting the next target
-- Do not start that newly changed page with `clickable` or `keywords`
+- Do not jump away from `element_type: "any"` on that changed page before rebuilding the mixed-type inventory
 - Use `any` first because it captures extension-derived structure and cross-type context that a narrower pass can hide
 - If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements
 - Treat pages as reliable collision-free slices of the same candidate set, not random samples
@@ -135,8 +135,8 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 - Do not jump from a first-page miss to `keywords`
 - Exhaust relevant highlight pages before switching strategies unless the page state changed or you already have exact observed readable text
 - Use `any` to inventory the changed page first, then use type-specific pagination only if you have a narrower reason on the same unchanged page state
-- For icon-only controls (gear, close, bell, avatar menu, toolbar icons), prefer pagination over broad keyword search
-- If you can see a related count, badge, or neighboring text from the target control but not the control itself, prefer the next page first; collision-aware pagination often separates adjacent clickable pieces of the same UI
+- For icon-only controls (gear, close, bell, avatar menu, toolbar icons), prefer more `any` pages over broad keyword search or a narrower generic-control mode
+- If you can see a related count, badge, or neighboring text from the target control but not the control itself, prefer the next page first; collision-aware pagination often separates adjacent pieces of the same UI
 
 **When to Use Keywords**:
 - When you know the exact readable text/attribute you're looking for because you already observed it
@@ -180,12 +180,12 @@ Examples of exact-text search:
 ## Workflow Integration
 
 1. **Start with Highlight**: Always begin element interaction by calling the highlight tool to discover available elements. Treat highlight as the authoritative inventory of currently reachable interactive elements.
-2. **Re-Highlight After Big Changes**: If the page significantly changed after your last action, such as navigation, tab switch, modal expansion, or opening a detail view, call `highlight` with `element_type: "any"` again before choosing the next element. Use `any` here because it exposes extension-derived page insight that a narrower pass may miss. Do not jump straight to `clickable` or `keywords` on that changed page.
+2. **Re-Highlight After Big Changes**: If the page significantly changed after your last action, such as navigation, tab switch, modal expansion, or opening a detail view, call `highlight` with `element_type: "any"` again before choosing the next element. Use `any` here because it exposes extension-derived page insight that a narrower pass may miss. Do not jump straight to `keywords` or another narrower type on that changed page.
 3. **Visual + Semantic Verification**: At the BLUE stage, verify using BOTH visual AND semantic information:
    - **Visual Check**: Is the blue box where you expect?
    - **Semantic Check**: Does the HTML match your goal?
 4. **Select Element**: Note the `element_id` of your target.
-   - Returned IDs can include the primary type plus extra hints, for example `abc123(clickable, swipable)`.
+   - Returned IDs can include the primary type plus extra hints, for example `abc123(scrollable, swipable)`.
    - `swipable` means the element is in a carousel/slider/swiper-like region. Do not assume normal page/container scroll will move it.
 5. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and the selected element_id.
 
@@ -194,11 +194,11 @@ Examples of exact-text search:
 **Recommendation**:
 - Prefer `element_type: "any"` as the default first pass
 - Trust pagination and continue the same highlight mode across pages before changing strategy
-- Use `element_type: "clickable"` as a targeted fallback for icon-only controls or dense toolbars only after the current page state's `any` inventory was not enough
+- Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any` instead of moving to a dedicated control-only mode
 - Prefer `keywords` only when the target has exact observed text you can quote verbatim
 
 ### any
-Combines all element types with OR logic. Returns elements matching any of the types. Elements matching multiple types are deduplicated and assigned the first matched type (priority: clickable > scrollable > inputable > hoverable > selectable).
+Combines all element types with OR logic. Returns elements matching any of the supported types. Elements matching multiple types are deduplicated and assigned one display type plus any extra interaction hints.
 
 When used with keywords, pagination is skipped and all matching elements are returned.
 
@@ -215,10 +215,7 @@ When used with keywords, pagination is skipped and all matching elements are ret
 | Elements with `cursor: pointer` | `hover` then `click` | Reveal menus, custom buttons | Purple (#9966FF) |
 
 **Decision flow**: Check `tagName` and attributes in the returned HTML to determine the correct action.
-If the element suffix includes `swipable`, prefer `swipe` for moving the region: visible items may still be clickable, but changing slides often requires carousel/swiper behavior rather than normal scroll.
-
-### clickable
-Buttons, links, and any element that responds to clicks. Use when your intent is to **open** or **trigger** something.
+If the element suffix includes `swipable`, prefer `swipe` for moving the region: visible items may still trigger actions, but changing slides often requires carousel/swiper behavior rather than normal scroll.
 
 ### inputable
 Text inputs, textareas, checkboxes, radio buttons.
@@ -233,8 +230,8 @@ Elements that reveal tooltips, dropdowns, or change state on hover.
 ### selectable
 Native `<select>` dropdown elements (look for ▼ arrow indicator). Use when your intent is to **pick a value** from options.
 
-**clickable vs selectable**:
-- `clickable`: Intent is to **open/navigate/trigger** (e.g., "Submit", "Learn More")
+**click-triggering controls vs selectable**:
+- Most controls you discover in `any` are click-triggering controls: the intent is to **open/navigate/trigger** (e.g., "Submit", "Learn More")
 - `selectable`: Intent is to **choose a value** (e.g., country selector, quantity dropdown)
 
 ## Screenshot Behavior

@@ -74,4 +74,5 @@ reference/
 
 # eval
 eval/.server_port
+eval/.locks/
 eval/output

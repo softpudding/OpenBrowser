@@ -1308,12 +1308,18 @@ function shouldDropCandidate(candidate, kept) {
 }
 
 function toInteractiveElement(candidate) {
-  const text = getElementTextForDetection(candidate.element);
   const interactionHints = getInteractionHints(candidate.element);
+  const displayType =
+    candidate.type === 'clickable' &&
+    (interactionHints.includes('swipable') ||
+      isScrollableCandidate(candidate.element))
+      ? 'scrollable'
+      : candidate.type;
+  const text = getElementTextForDetection(candidate.element);
 
   return {
     id: '',
-    type: candidate.type,
+    type: displayType,
     ...(interactionHints.length > 0 ? { interactionHints } : {}),
     tagName: candidate.element.tagName.toLowerCase(),
     selector: generateSelector(candidate.element),
@@ -1710,8 +1716,9 @@ function collectHighlightCandidates(requestedType, trace) {
   };
 
   const elements = prunedCandidates.map((candidate) => {
-    counts[candidate.type] += 1;
-    return toInteractiveElement(candidate);
+    const element = toInteractiveElement(candidate);
+    counts[element.type] += 1;
+    return element;
   });
 
   trace(

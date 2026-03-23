@@ -257,7 +257,7 @@ class HighlightElementsCommand(BaseCommand):
     type: Literal["highlight_elements"] = "highlight_elements"
     element_type: Optional[str] = Field(
         default="any",
-        description="Single element type to highlight: 'any', 'clickable', 'scrollable', 'inputable', 'hoverable', or 'selectable'",
+        description="Single element type to highlight for agent-visible guidance: 'any', 'scrollable', 'inputable', 'hoverable', or 'selectable'",
     )
     page: Optional[int] = Field(
         default=1,

@@ -58,13 +58,14 @@ class TestPromptContracts:
         assert "extension-derived page insight across element types" in description
         assert '"clickable" (default without keywords)' not in description
 
-    def test_highlight_prompt_guides_icon_targets_to_clickable_pagination(self) -> None:
+    def test_highlight_prompt_keeps_icon_targets_on_any_pagination(self) -> None:
         description = get_highlight_tool_description()
 
         assert "icon-only controls" in description
         assert "Stay on the same `element_type` across pages" in description
         assert "actual button may simply be on the next page" in description
-        assert "only after the current page state's `any` inventory was not enough" in description
+        assert "Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`" in description
+        assert '`clickable`' not in description
 
     def test_highlight_prompt_requires_exact_text_keywords_and_pagination_before_guessing(self) -> None:
         description = get_highlight_tool_description()
@@ -81,13 +82,12 @@ class TestPromptContracts:
 
         assert "After any significant page-state change" in description
         assert 'call `highlight` with `element_type: "any"` again before choosing the next element' in description
-        assert "Do not jump straight to `clickable` or `keywords` on that changed page" in description
+        assert "Do not jump straight to `keywords` or another narrower type on that changed page" in description
 
-    def test_highlight_prompt_does_not_offer_clickable_first_recipes_for_changed_pages(self) -> None:
+    def test_highlight_prompt_omits_clickable_mode_from_agent_guidance(self) -> None:
         description = get_highlight_tool_description()
 
-        assert "highlight `clickable` and paginate to find the submit control" not in description
-        assert "For exit controls in a detail view or modal, highlight `clickable`" not in description
+        assert '`clickable`' not in description
 
     def test_small_model_highlight_prompt_bans_keywords_for_generic_controls(self) -> None:
         with patch.object(
