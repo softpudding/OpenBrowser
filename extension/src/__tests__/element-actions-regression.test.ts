@@ -27,4 +27,18 @@ describe('Element action regressions', () => {
     expect(elementActionsSource).toContain('await waitForSwipeToSettle(');
     expect(elementActionsSource).toContain("stepMethod = 'gesture';");
   });
+
+  test('performElementSwipe refuses generic horizontal scroll fallback for non-swipable containers', () => {
+    expect(elementActionsSource).toContain('const canUseScrollFallback =');
+    expect(elementActionsSource).toContain(
+      'Selected element does not appear to be a swipeable carousel; use scroll_element or re-highlight a swipable region',
+    );
+  });
+
+  test('performElementSwipe prefers zero-animation library transitions', () => {
+    expect(elementActionsSource).toContain('currentApi.slideNext(0)');
+    expect(elementActionsSource).toContain('currentApi.slidePrev(0)');
+    expect(elementActionsSource).toContain('currentApi.scrollNext(true)');
+    expect(elementActionsSource).toContain('currentApi.slideTo(targetIndex, 0)');
+  });
 });

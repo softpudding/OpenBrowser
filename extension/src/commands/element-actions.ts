@@ -1350,6 +1350,17 @@ export async function performElementSwipe(
             : container.parentElement && container.parentElement.scrollHeight > container.parentElement.clientHeight
               ? container.parentElement
               : container;
+      const containerMarkerText = getMarkerText(container);
+      const fallbackMarkerText =
+        fallbackScrollTarget instanceof HTMLElement
+          ? getMarkerText(fallbackScrollTarget)
+          : '';
+      const canUseScrollFallback =
+        hasSwipeLikeLayout(container, axis) ||
+        (fallbackScrollTarget instanceof HTMLElement &&
+          hasSwipeLikeLayout(fallbackScrollTarget, axis)) ||
+        SWIPE_LIBRARY_REGEX.test(containerMarkerText) ||
+        SWIPE_LIBRARY_REGEX.test(fallbackMarkerText);
 
       function getActiveSlideSignature(currentContainer) {
         if (!(currentContainer instanceof HTMLElement)) {
@@ -1699,6 +1710,15 @@ export async function performElementSwipe(
       let method = 'none';
       let error = null;
 
+      function tryInvoke(method) {
+        try {
+          method();
+          return true;
+        } catch (_error) {
+          return false;
+        }
+      }
+
       function invokeSwipeApiStep(currentApi, moveForward) {
         if (!currentApi) {
           return null;
@@ -1706,11 +1726,15 @@ export async function performElementSwipe(
 
         if (moveForward) {
           if (typeof currentApi.slideNext === 'function') {
-            currentApi.slideNext();
+            if (!tryInvoke(() => currentApi.slideNext(0))) {
+              currentApi.slideNext();
+            }
             return 'slideNext';
           }
           if (typeof currentApi.scrollNext === 'function') {
-            currentApi.scrollNext();
+            if (!tryInvoke(() => currentApi.scrollNext(true))) {
+              currentApi.scrollNext();
+            }
             return 'scrollNext';
           }
           if (typeof currentApi.next === 'function') {
@@ -1719,11 +1743,15 @@ export async function performElementSwipe(
           }
         } else {
           if (typeof currentApi.slidePrev === 'function') {
-            currentApi.slidePrev();
+            if (!tryInvoke(() => currentApi.slidePrev(0))) {
+              currentApi.slidePrev();
+            }
             return 'slidePrev';
           }
           if (typeof currentApi.scrollPrev === 'function') {
-            currentApi.scrollPrev();
+            if (!tryInvoke(() => currentApi.scrollPrev(true))) {
+              currentApi.scrollPrev();
+            }
             return 'scrollPrev';
           }
           if (typeof currentApi.prev === 'function') {
@@ -1734,11 +1762,17 @@ export async function performElementSwipe(
 
         const currentIndex = getIndex(currentApi);
         if (typeof currentApi.slideTo === 'function' && typeof currentIndex === 'number') {
-          currentApi.slideTo(Math.max(0, currentIndex + (moveForward ? 1 : -1)));
+          const targetIndex = Math.max(0, currentIndex + (moveForward ? 1 : -1));
+          if (!tryInvoke(() => currentApi.slideTo(targetIndex, 0))) {
+            currentApi.slideTo(targetIndex);
+          }
           return 'slideTo';
         }
         if (typeof currentApi.scrollTo === 'function' && typeof currentIndex === 'number') {
-          currentApi.scrollTo(Math.max(0, currentIndex + (moveForward ? 1 : -1)));
+          const targetIndex = Math.max(0, currentIndex + (moveForward ? 1 : -1));
+          if (!tryInvoke(() => currentApi.scrollTo(targetIndex, true))) {
+            currentApi.scrollTo(targetIndex);
+          }
           return 'scrollTo';
         }
         if (typeof currentApi.moveToIdx === 'function' && typeof currentIndex === 'number') {
@@ -1804,7 +1838,11 @@ export async function performElementSwipe(
           }
         }
 
-        if (!stepChanged && typeof fallbackScrollTarget.scrollBy === 'function') {
+        if (
+          !stepChanged &&
+          canUseScrollFallback &&
+          typeof fallbackScrollTarget.scrollBy === 'function'
+        ) {
           const distance =
             axis === 'x'
               ? Math.round((fallbackScrollTarget.clientWidth || window.innerWidth) * 0.85)
@@ -1825,7 +1863,9 @@ export async function performElementSwipe(
         }
 
         if (!stepMethod) {
-          error = 'No swipe API, navigation button, gesture fallback, or swipe fallback found';
+          error = canUseScrollFallback
+            ? 'No swipe API, navigation button, gesture fallback, or swipe fallback found'
+            : 'Selected element does not appear to be a swipeable carousel; use scroll_element or re-highlight a swipable region';
           break;
         }
 
@@ -1967,10 +2007,12 @@ export async function performElementSwipe(
 
   if (!swipeEffective) {
     console.log(
-      `⚠️ [ElementSwipe] Swipe executed but had no immediate effect: ${warning}`,
+      `⚠️ [ElementSwipe] Swipe executed via ${swipeResult.method || 'unknown'} but had no immediate effect: ${warning}`,
     );
   } else {
-    console.log(`✅ [ElementSwipe] Swipe executed successfully`);
+    console.log(
+      `✅ [ElementSwipe] Swipe executed successfully via ${swipeResult.method || 'unknown'}`,
+    );
   }
 
   return {
