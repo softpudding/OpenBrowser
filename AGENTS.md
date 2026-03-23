@@ -179,6 +179,7 @@ When disabled:
 
 ### Keyword Discipline
 - Highlight pagination remains the default discovery flow for controls and dense UI
+- After any significant page-state change, restart discovery with `highlight_elements(element_type="any")` before choosing the next element
 - `keywords` are allowed only when copying exact observed readable text or exact stable tokens already visible in the screenshot/highlight HTML
 - Do not use guessed labels, unread text, or icon-only tokens such as `×` or `🔍` as keyword probes
 
@@ -196,10 +197,11 @@ OpenBrowser uses a visual-first approach where the AI sees elements before inter
 
 ### Workflow
 ```
-1. highlight_elements(page=1) → Returns collision-free elements with IDs
+1. highlight_elements(element_type="any", page=1) → Returns mixed interactive elements with IDs
 2. screenshot → AI sees numbered overlays on elements (no overlap)
 3. click_element(id="click-3") → Interact with specific element
-4. highlight_elements(page=2) → Get next batch of non-colliding elements
+4. If the page changed significantly, highlight_elements(element_type="any", page=1) again before choosing the next element
+5. If the current page state is unchanged and the target is still missing, continue highlight_elements(element_type="any", page=2)
 ```
 
 ### Collision-Aware Pagination (Single-Type Design)
@@ -221,15 +223,17 @@ Elements are paginated to ensure **no visual overlap** in each screenshot:
 - Design rule: prefer snapshot classification plus bounded retries; avoid depending on repeated timers inside the target page for highlight stability.
 
 ```
-# Highlight clickable elements (default)
-highlight_elements()                  → Page 1 of clickable elements
-highlight_elements(page=2)             → Page 2 of clickable elements
+# Highlight mixed elements first (default)
+highlight_elements()                              → Page 1 of any interactive elements
+highlight_elements(page=2)                         → Page 2 of the same any inventory
+highlight_elements(element_type="any", page=1)    → Explicit any-first discovery
 
 # Highlight other types (one at a time)
 highlight_elements(element_type="inputable")   → Input fields
 highlight_elements(element_type="scrollable")  → Scrollable areas
 highlight_elements(element_type="hoverable")   → Hoverable elements
 highlight_elements(element_type="selectable")  → Native select dropdowns
+highlight_elements(element_type="clickable")   → Targeted fallback for icon-only controls after any-first discovery
 ```
 
 ### Element ID Format

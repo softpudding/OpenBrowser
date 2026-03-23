@@ -17,9 +17,9 @@ Never skip from intent directly to action without a matching `element_id` from h
 
 If the right `element_id` is missing, return to highlight and continue pagination instead of guessing a keyword or control name.
 
-If the target control has exact visible readable text, you may re-run `highlight` with that exact text. If it is icon-only or the text is not clearly readable, re-run `highlight` with `element_type: "clickable"` and continue pagination instead.
+After any significant page-state change caused by your last action, such as navigation, tab switch, modal expansion, or opening a detail view, the next discovery step must be `highlight` with `element_type: "any"` because it exposes extension-derived page insight you cannot infer reliably from intent alone.
 
-After any significant page-state change caused by your last action, such as navigation, tab switch, modal expansion, or opening a detail view, call `highlight` with `element_type: "any"` before selecting the next element.
+If the page did not significantly change and the target control has exact visible readable text, you may re-run `highlight` with that exact text. If the page did not significantly change, the remaining target is still icon-only, and the current `any` pages were not enough, re-run `highlight` with `element_type: "clickable"` and continue pagination.
 
 ## Commands
 
@@ -92,7 +92,7 @@ Carousel / slider / swiper region:
 
 - If one action fails, retry once with a better target
 - If it fails twice, change strategy instead of repeating the same action
-- For failed close or back-like controls inside a detail view, prefer exact visible text, `clickable` pagination, or `tab back` over guessed keyword probing
+- For failed close or back-like controls inside a detail view, re-highlight that changed page with `any` first, then use exact visible text, `clickable` pagination as a fallback, or `tab back`
 {% else %}
 # Element Interaction Tool
 
@@ -138,7 +138,7 @@ Fast paths
 
 **Practical rule**: Expect a confirmation step on first interaction, but be prepared for direct execution when the system already has strong evidence about the target.
 
-**Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords.
+**Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` before picking the next element, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `clickable` or `keywords` on that changed page.
 
 ## Commands
 
