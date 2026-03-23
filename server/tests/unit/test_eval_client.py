@@ -9,6 +9,7 @@ from eval.evaluate_browser_agent import (
     EvaluationRunLock,
     Evaluator,
     LLMTarget,
+    MessageRunResult,
     OpenBrowserClient,
 )
 
@@ -167,3 +168,110 @@ def test_extract_cost_uses_latest_usage_metrics_event() -> None:
     assert evaluator._extract_cost_from_sse_events(sse_events) == pytest.approx(
         0.9652088
     )
+
+
+def test_cleanup_managed_tabs_closes_all_tabs() -> None:
+    """Eval client should close every managed tab for the conversation."""
+    client = OpenBrowserClient(
+        base_url="http://example.test", chrome_uuid="browser-uuid-123"
+    )
+    client.session = MagicMock()
+
+    get_response = MagicMock()
+    get_response.status_code = 200
+    get_response.json.return_value = {
+        "success": True,
+        "data": {
+            "tabs": [
+                {"tabId": 11, "url": "https://example.com/a"},
+                {"tabId": 22, "url": "https://example.com/b"},
+            ]
+        },
+    }
+    close_response = MagicMock()
+    close_response.status_code = 200
+    close_response.json.return_value = {"success": True}
+
+    client.session.get.return_value = get_response
+    client.session.post.return_value = close_response
+
+    assert client.cleanup_managed_tabs("conv-123") is True
+
+    client.session.get.assert_called_once_with(
+        "http://example.test/tabs",
+        params={
+            "browser_id": "browser-uuid-123",
+            "conversation_id": "conv-123",
+            "managed_only": "true",
+        },
+        timeout=5,
+    )
+    assert client.session.post.call_count == 2
+    assert client.session.post.call_args_list[0].kwargs == {
+        "params": {
+            "action": "close",
+            "browser_id": "browser-uuid-123",
+            "conversation_id": "conv-123",
+            "tab_id": 11,
+        },
+        "timeout": 5,
+    }
+    assert client.session.post.call_args_list[1].kwargs == {
+        "params": {
+            "action": "close",
+            "browser_id": "browser-uuid-123",
+            "conversation_id": "conv-123",
+            "tab_id": 22,
+        },
+        "timeout": 5,
+    }
+
+
+def test_run_test_cleans_managed_tabs_before_delete(tmp_path) -> None:
+    """Test teardown should close managed tabs before deleting the conversation."""
+    evaluator = Evaluator(chrome_uuid="browser-uuid-123")
+    evaluator.output_dir = tmp_path
+    evaluator.current_model = "dashscope/qwen3.5-plus"
+    evaluator.current_target = LLMTarget(
+        name="dashscope/qwen3.5-plus",
+        alias="plus",
+        model_name="dashscope/qwen3.5-plus",
+    )
+    evaluator.eval_server = MagicMock()
+    evaluator.eval_server.clear_events.return_value = True
+    evaluator.eval_server.get_events.return_value = []
+    evaluator._save_track_events = MagicMock(return_value=None)
+    evaluator._extract_images = MagicMock(return_value=[])
+    evaluator._save_sse_events = MagicMock(return_value=None)
+    evaluator._extract_cost_from_sse_events = MagicMock(return_value=0.0)
+    evaluator._evaluate_criteria = MagicMock(return_value=(True, 1.0, 1.0))
+
+    teardown_calls: list[str] = []
+
+    evaluator.openbrowser = MagicMock()
+    evaluator.openbrowser.create_conversation.return_value = "conv-123"
+    evaluator.openbrowser.send_message.return_value = MessageRunResult(events=[])
+    evaluator.openbrowser.cleanup_managed_tabs.side_effect = (
+        lambda conversation_id: teardown_calls.append(
+            f"cleanup:{conversation_id}"
+        )
+        or False
+    )
+    evaluator.openbrowser.delete_conversation.side_effect = (
+        lambda conversation_id: teardown_calls.append(f"delete:{conversation_id}")
+        or True
+    )
+
+    test_case = eval_module.TestCase(
+        id="demo",
+        name="Demo",
+        description="",
+        instruction="Do the thing",
+        start_url="",
+        criteria=[],
+    )
+
+    result = evaluator.run_test(test_case)
+
+    assert result.conversation_id == "conv-123"
+    assert teardown_calls == ["cleanup:conv-123", "delete:conv-123"]

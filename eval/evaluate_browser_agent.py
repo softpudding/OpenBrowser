@@ -435,6 +435,116 @@ class OpenBrowserClient:
         except Exception:
             return False
 
+    def get_managed_tabs(self, conversation_id: str) -> List[Dict[str, Any]]:
+        """Return managed tabs for a conversation."""
+        if not self.chrome_uuid:
+            return []
+
+        try:
+            response = self.session.get(
+                f"{self.base_url}/tabs",
+                params={
+                    "browser_id": self.chrome_uuid,
+                    "conversation_id": conversation_id,
+                    "managed_only": "true",
+                },
+                timeout=5,
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "Failed to fetch managed tabs for %s: status=%s body=%s",
+                    conversation_id,
+                    response.status_code,
+                    response.text,
+                )
+                return []
+
+            data = response.json()
+            if not data.get("success"):
+                logger.warning(
+                    "Managed tab fetch was unsuccessful for %s: %s",
+                    conversation_id,
+                    data,
+                )
+                return []
+
+            tabs = data.get("data", {}).get("tabs", [])
+            return tabs if isinstance(tabs, list) else []
+        except Exception as e:
+            logger.warning(
+                "Failed to fetch managed tabs for %s: %s", conversation_id, e
+            )
+            return []
+
+    def close_tab(self, conversation_id: str, tab_id: int) -> bool:
+        """Close a managed tab for a conversation."""
+        if not self.chrome_uuid:
+            return False
+
+        try:
+            response = self.session.post(
+                f"{self.base_url}/tabs",
+                params={
+                    "action": "close",
+                    "browser_id": self.chrome_uuid,
+                    "conversation_id": conversation_id,
+                    "tab_id": tab_id,
+                },
+                timeout=5,
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "Failed to close tab %s for %s: status=%s body=%s",
+                    tab_id,
+                    conversation_id,
+                    response.status_code,
+                    response.text,
+                )
+                return False
+
+            data = response.json()
+            success = bool(data.get("success"))
+            if not success:
+                logger.warning(
+                    "Close tab command failed for tab %s in %s: %s",
+                    tab_id,
+                    conversation_id,
+                    data,
+                )
+            return success
+        except Exception as e:
+            logger.warning(
+                "Failed to close tab %s for %s: %s",
+                tab_id,
+                conversation_id,
+                e,
+            )
+            return False
+
+    def cleanup_managed_tabs(self, conversation_id: str) -> bool:
+        """Close all managed tabs opened for a conversation."""
+        tabs = self.get_managed_tabs(conversation_id)
+        if not tabs:
+            return True
+
+        all_closed = True
+        for tab in tabs:
+            tab_id = tab.get("tabId")
+            if not isinstance(tab_id, int):
+                tab_id = tab.get("tab_id")
+            if not isinstance(tab_id, int):
+                logger.warning(
+                    "Skipping managed tab cleanup for %s due to missing tab id: %s",
+                    conversation_id,
+                    tab,
+                )
+                all_closed = False
+                continue
+
+            if not self.close_tab(conversation_id, tab_id):
+                all_closed = False
+
+        return all_closed
 
 class EvalServerClient:
     """Client for evaluation server tracking API"""
@@ -700,6 +810,19 @@ class Evaluator:
 
         return True
 
+    def _cleanup_openbrowser_conversation(self, conversation_id: Optional[str]) -> None:
+        """Close managed tabs and delete the OpenBrowser conversation."""
+        if not conversation_id:
+            return
+
+        cleaned_up = self.openbrowser.cleanup_managed_tabs(conversation_id)
+        if not cleaned_up:
+            logger.warning(
+                "Managed tab cleanup did not fully succeed for conversation %s",
+                conversation_id,
+            )
+        self.openbrowser.delete_conversation(conversation_id)
+
     def load_test_cases(self) -> List[TestCase]:
         """Load all test cases from dataset directory"""
         test_cases = []
@@ -912,7 +1035,7 @@ class Evaluator:
                 model=self.current_model,
             )
         finally:
-            self.openbrowser.delete_conversation(conversation_id)
+            self._cleanup_openbrowser_conversation(conversation_id)
 
     def _extract_images(
         self,
