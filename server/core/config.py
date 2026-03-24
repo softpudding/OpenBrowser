@@ -11,7 +11,7 @@ class ServerConfig(BaseSettings):
     websocket_port: int = 8766
     max_command_queue: int = 100
     command_timeout: float = (
-        15.0  # Reduced from 30.0 to 15.0 seconds for better heartbeat responsiveness
+        30.0  # Keep above extension-side highlight retries and screenshot capture time
     )
     screenshot_dir: str = "./screenshots"
     log_level: str = "INFO"

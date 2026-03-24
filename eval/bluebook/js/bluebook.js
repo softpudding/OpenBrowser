@@ -2,7 +2,6 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
 
 (function () {
   const CHANNELS = ['For You', 'Style', 'Food', 'Beauty', 'Work', 'Wellness', 'Home', 'Gaming', 'Travel', 'Fitness'];
-  const STORAGE_KEY = 'bluebook_eval_state_v1';
   const LEGACY_CHANNEL_MAP = {
     '推荐': 'For You',
     '穿搭': 'Style',
@@ -613,39 +612,6 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     return notes;
   }
 
-  function loadPersistedState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        return;
-      }
-
-      const saved = JSON.parse(raw);
-      state.likedNotes = saved.likedNotes || {};
-      state.collectedNotes = saved.collectedNotes || {};
-      state.followedAuthors = saved.followedAuthors || {};
-      state.commentLikes = saved.commentLikes || {};
-      state.graphicOnly = Boolean(saved.graphicOnly);
-      state.activeChannel = normalizeChannel(saved.activeChannel);
-    } catch (_error) {
-      // Ignore malformed local state.
-    }
-  }
-
-  function persistState() {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        likedNotes: state.likedNotes,
-        collectedNotes: state.collectedNotes,
-        followedAuthors: state.followedAuthors,
-        commentLikes: state.commentLikes,
-        graphicOnly: state.graphicOnly,
-        activeChannel: normalizeChannel(state.activeChannel),
-      }),
-    );
-  }
-
   function getCurrentNote() {
     return state.notes.find((note) => note.id === state.currentNoteId) || null;
   }
@@ -1029,7 +995,6 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
 
     const nextLiked = !state.likedNotes[noteId];
     state.likedNotes[noteId] = nextLiked;
-    persistState();
     renderFeed();
 
     if (state.currentNoteId === noteId) {
@@ -1052,7 +1017,6 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
 
     const nextCollected = !state.collectedNotes[noteId];
     state.collectedNotes[noteId] = nextCollected;
-    persistState();
     renderDetailActions(note);
 
     tracker.track('note_collect_toggle', {
@@ -1110,7 +1074,6 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
 
   function toggleGraphicOnly() {
     state.graphicOnly = !state.graphicOnly;
-    persistState();
     renderFeed();
     tracker.track('filter_toggle', {
       filter: 'graphic_only',
@@ -1132,7 +1095,6 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     const key = getCommentLikeKey(noteId, commentId);
     const liked = !state.commentLikes[key];
     state.commentLikes[key] = liked;
-    persistState();
     renderComments(note);
 
     tracker.track('comment_like_toggle', {
@@ -1277,7 +1239,6 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       }
 
       state.activeChannel = normalizeChannel(target.dataset.channel);
-      persistState();
       renderChannels();
       renderFeed();
       tracker.track('channel_switch', {
@@ -1406,7 +1367,6 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
 
       const followed = !state.followedAuthors[note.author];
       state.followedAuthors[note.author] = followed;
-      persistState();
       dom.modalFollowBtn.textContent = followed ? 'Following' : 'Follow';
 
       tracker.track('author_follow_toggle', {
@@ -1506,7 +1466,6 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
   }
 
   function initialize() {
-    loadPersistedState();
     state.notes = buildNotes();
     keepNoteAwayFromTop(state.notes, 'note-openclaw-config', 18);
     state.query = getSearchQueryFromUrl();

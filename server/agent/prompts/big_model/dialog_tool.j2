@@ -1,0 +1,62 @@
+# Dialog Tool
+
+Handle browser modal dialogs that block automation.
+
+## Overview
+
+The Dialog Tool handles browser modal dialogs (alert, confirm, prompt, beforeunload) that appear during browser automation. When a dialog opens, the browser pauses execution until you handle it with this tool.
+
+## When to Use
+
+Use this tool when you see dialog opened.
+
+**Dialog types you need to handle**:
+
+| Type | When It Appears | Your Action |
+|------|----------------|------------|
+| confirm | User confirmation required | Accept or dismiss |
+| prompt | Text input required | Accept with text, or dismiss |
+| beforeunload | Leaving page with unsaved changes | Accept (leave) or dismiss (stay) |
+
+**Note**: `alert` dialogs are auto-accepted by the system - no action needed.
+
+## Commands
+
+### dialog
+Handle the currently open dialog.
+
+**For confirm dialogs** (accept = Yes, dismiss = No):
+```json
+{ "dialog_action": "accept" }
+{ "dialog_action": "dismiss" }
+```
+
+**For prompt dialogs** (provide input text):
+```json
+{ "dialog_action": "accept", "prompt_text": "my response" }
+```
+
+**For beforeunload dialogs** (accept = leave page, dismiss = stay):
+```json
+{ "dialog_action": "accept" }
+{ "dialog_action": "dismiss" }
+```
+
+**Parameters**:
+- `dialog_action`: "accept" or "dismiss" (required)
+- `prompt_text`: Text for prompt dialogs when accepting (optional)
+
+## Important Notes
+
+- **Handle immediately**: Automation is blocked until you handle the dialog
+- **One at a time**: After handling, check if another dialog appeared (cascading dialogs)
+- **Returns screenshot**: You'll see the page state after dialog is handled
+
+## Screenshot Behavior
+
+The dialog tool returns a screenshot after handling the dialog, showing the resulting page state.
+
+## Error Handling
+
+- Returns error if no dialog is currently open
+- Returns error if accepting a prompt without `prompt_text`

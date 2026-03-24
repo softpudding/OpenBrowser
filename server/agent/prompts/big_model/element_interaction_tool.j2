@@ -1,0 +1,247 @@
+# Element Interaction Tool
+
+Element interaction with selective visual verification.
+
+## Overview
+
+The Element Interaction Tool handles click, hover, scroll, swipe, keyboard input, and select operations. Only `click` and `keyboard_input` use the **ORANGE stage** and require confirmation before execution. `hover`, `scroll`, `swipe`, and `select` execute immediately and return the post-action screenshot.
+
+## Visual Color System - ORANGE Stage
+
+When a `click` or `keyboard_input` action enters confirmation mode, you get a **zoomed-in confirmation screenshot** with an **ORANGE box** on ONE element:
+
+**Purpose**: Verify you're about to act on the CORRECT element before execution.
+
+**You see**:
+- Zoomed-in screenshot centered on the target region
+- **ONE orange box** (3px border, #FF6600)
+- Full HTML of the target element
+
+**Your task**:
+1. **LOOK** - Is the orange box on the EXACT element you intended?
+2. **READ** - Does the HTML match your goal?
+3. **DECIDE** - Confirm or cancel
+
+**To CONFIRM**: Use `confirm_click` for `click` or `confirm_keyboard_input` for `keyboard_input`
+**To CANCEL**: Simply call a different action or different `element_id`
+
+## Interaction Modes
+
+Element interactions have 2 execution modes:
+
+```
+Confirmation-required actions
+└── Use action: click / keyboard_input
+└── Result: ORANGE preview screenshot + full HTML
+└── If correct: use the matching confirm action
+
+Direct-execution actions
+└── Use action: hover / scroll / swipe / select
+└── Result: Action executes immediately and returns the resulting screenshot
+```
+
+**Practical rule**: Expect a confirmation step only for `click` and `keyboard_input`.
+**Hard rule for inputable targets**: Always `click` the target first and complete that confirmation before `keyboard_input`.
+
+**Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. On the same unchanged page state, your default next step is another `highlight` call with `element_type: "any"` and the next page. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` before picking the next element, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `keywords` or another narrower type on that changed page. Use `keywords` only when you already see the target's exact literal text on the target itself in the current screenshot and can copy it verbatim. If a control itself shows an icon plus `52`, the literal keyword is `52`, not guessed icon words like `star`, `favorite`, or `bookmark`.
+
+## Commands
+
+### click
+Initiate a click on an element by its visual ID.
+
+```json
+{ "action": "click", "element_id": "c8e4d2", "tab_id": 123 }
+// → Returns an ORANGE preview screenshot
+// → Review the orange highlight + HTML
+// → Then confirm:
+{ "action": "confirm_click", "element_id": "c8e4d2", "tab_id": 123 }
+```
+
+Use this for buttons, links, and other trigger controls you identified from the highlight tool.
+If the target is an input field, use this click step first to focus it before typing.
+
+### hover
+Initiate a hover over an element by its visual ID.
+
+```json
+{ "action": "hover", "element_id": "a3f2b1", "tab_id": 123 }
+// → Executes immediately and returns the post-hover screenshot
+```
+
+Use this to reveal tooltips, dropdown menus, or hover states.
+
+**⚠️ IMPORTANT**: Hover is for revealing interactive element behavior (tooltips, dropdowns, hover states), NOT for disambiguating between similar elements. To disambiguate, use semantic clues (class, id, aria-label) from the highlight tool response.
+
+### scroll
+Scroll within an element by its visual ID, or scroll the entire page if no element_id is provided.
+
+**Two scenarios**:
+
+1. **Scroll within specific element** (executes immediately):
+   ```json
+   { "action": "scroll", "element_id": "d2f4a8", "direction": "down", "tab_id": 123 }
+   // → Executes immediately and returns the resulting screenshot
+   ```
+
+2. **Scroll entire page** (executes immediately, no confirmation):
+   ```json
+   { "action": "scroll", "direction": "down", "scroll_amount": 1.0, "tab_id": 123 }  // Full page
+   { "action": "scroll", "direction": "down", "scroll_amount": 0.2, "tab_id": 123 }  // 20% of page
+   { "action": "scroll", "direction": "down", "scroll_amount": 2.0, "tab_id": 123 }  // Two pages
+   ```
+
+**Parameters**:
+- `element_id`: (optional) Element ID from highlight tool response. If not provided, scrolls the entire page.
+- `direction`: "up", "down", "left", or "right" (default: "down")
+- `scroll_amount`: Relative amount to scroll based on page/element height (default: 0.5)
+  - `0.5` = half page (default)
+  - `1.0` = full page
+  - `2.0` = two pages
+  - `0.2` = 20% of page
+  - Range: 0.1 to 3.0
+
+Use this to:
+- Scroll within specific containers (when element_id is provided, executes immediately)
+- Scroll the entire page (when element_id is omitted, executes immediately)
+
+**If whole-page scroll has no effect**:
+
+- First decide whether the page is actually scrollable or whether the content lives in a nested container
+- If a modal, sidebar, list, or panel seems to have its own scroll area, re-run `highlight` with `element_type="scrollable"` and scroll that specific `element_id`
+- If the layout is clearly horizontal, try `direction: "left"` or `direction: "right"`
+- If highlight shows a target `scrollable` region, use `scroll` on that region rather than clicking nearby paging controls
+- If highlight shows the `swipable` hint, treat the region as a carousel/slider and use `swipe` over `scroll`
+- Do not compensate for a missing highlight target by guessing `next`, `prev`, `close`, or similar keywords
+{% if not disable_javascript %}
+- If scroll/swipe fails twice and the task still requires progress, use the JavaScript tool only as a last-resort fallback for this system
+{% else %}
+- If scroll/swipe fails repeatedly, re-orient around currently visible items because JavaScript fallback is disabled in this environment
+{% endif %}
+
+### swipe
+Swipe a carousel / gallery / swiper region by its visual ID.
+
+```json
+{ "action": "swipe", "element_id": "d2f4a8", "direction": "next", "swipe_count": 1, "tab_id": 123 }
+{ "action": "swipe", "element_id": "d2f4a8", "direction": "prev", "swipe_count": 1, "tab_id": 123 }
+// → Executes immediately and returns the post-swipe screenshot
+```
+
+**Parameters**:
+- `direction`: `"next"` or `"prev"` only
+  - `direction: "next"` means show the next picture or next carousel item
+  - `direction: "prev"` means show the previous picture or previous carousel item
+  - These are semantic content directions, not finger or gesture directions. Do not reinterpret swipe as `left` or `right`.
+- `swipe_count`: Number of swipe steps to perform (default: 1, range: 1-5)
+
+Use this when highlight marks a region as `swipable` and your goal is to move through carousel content rather than scroll the page.
+
+### keyboard_input
+Type text into an input element by its visual ID.
+
+```json
+{ "action": "keyboard_input", "element_id": "b7c9e5", "text": "hello@example.com", "tab_id": 123 }
+// → Returns an ORANGE preview screenshot
+// → Review the orange highlight + HTML
+// → Then confirm:
+{ "action": "confirm_keyboard_input", "element_id": "b7c9e5", "tab_id": 123 }
+```
+
+Use this for text inputs, textareas, and search boxes, but only after you already clicked the same input target and completed that click confirmation.
+
+### select
+Select an option from a native `<select>` dropdown element by its visual ID.
+
+**Native `<select>` elements only** - This command works with standard HTML `<select>` dropdowns, not custom dropdown components built with `<div>`, `<ul>`, or other elements.
+
+**How to distinguish `select` from `click`**:
+
+| Aspect | `click` | `select` |
+|--------|-------------|--------------|
+| **Visual cue** | Buttons, links, icons | Dropdown with ▼ arrow indicator |
+| **Intent** | "Open" something (navigate, trigger action) | "Change" a value (pick an option) |
+| **HTML tag** | `<button>`, `<a>`, `<div onclick>` | `<select>` |
+| **Behavior** | Single action | Choose from multiple options |
+
+**Decision guide**:
+- If your goal is to **navigate** or **trigger an action** → use `click`
+- If your goal is to **pick a value** from a list of options → use `select`
+
+```json
+{ "action": "select", "element_id": "f3a8c2", "value": "option1", "tab_id": 123 }
+// → Executes immediately and returns the resulting screenshot
+```
+
+**Parameters**:
+- `element_id`: (required) Element ID from highlight tool response
+- `value`: (required) Option value to select (matches `value` attribute of `<option>`)
+
+**Multi-select Support**:
+For `<select multiple>` elements, pass an array of values:
+
+```json
+{ "action": "select", "element_id": "f3a8c2", "value": ["opt1", "opt2"], "tab_id": 123 }
+```
+
+**Examples**:
+```json
+// Single select
+{ "action": "select", "element_id": "abc123", "value": "us", "tab_id": 123 }
+
+// Multi-select
+{ "action": "select", "element_id": "abc123", "value": ["red", "blue"], "tab_id": 123 }
+```
+
+## Confirm Commands
+
+Each action has a corresponding confirm action (use the same `element_interaction` tool):
+
+- `confirm_click` (for click action)
+- `confirm_keyboard_input` (for keyboard_input action)
+
+**Parameters**: Use the same `element_id`. `tab_id` is optional. For `confirm_keyboard_input`, the `text` comes from the pending confirmation created by the initiating action.
+
+**Behavior**: Executes the action after visual verification.
+
+## Visual + Semantic Verification (ORANGE Stage)
+
+**CRITICAL**: At the ORANGE stage, you must verify using BOTH visual AND semantic information:
+
+| | Visual Check | Semantic Check |
+|---|---|---|
+| **ORANGE (Confirmation)** | Is the orange box on the right element? | Does the full HTML confirm your intent? |
+
+### What to Check in HTML
+- **Tag name**: button, a, input, etc.
+- **Attributes**: class, type, href, aria-label, data-*
+- **Text content**: What text does it display?
+- **Context**: Where is it in the DOM?
+
+### Decision Rules
+**✅ Proceed IF**:
+- Visual position matches your intent
+- HTML semantics match your goal (class, type, text)
+- You're confident about the target
+
+**❌ Cancel IF**:
+- Visual or semantic mismatch
+- Multiple similar elements exist
+- You're uncertain
+
+## Screenshot Behavior
+
+- `click` and `keyboard_input` return an ORANGE preview screenshot before execution.
+- `hover`, `scroll`, `swipe`, and `select` return the post-action screenshot from the browser.
+- For `swipe`, remember that `"next"` means the next picture/item in the UI and `"prev"` means the previous picture/item, not the physical finger movement direction.
+
+## tab_id Auto-Resolution
+
+If `tab_id` is not provided, the system automatically uses the conversation's active tab (from `tab init` or `tab switch`). This simplifies command syntax while maintaining session isolation.
+
+## Error Handling
+
+- **Element not found**: Returns error with screenshot showing current page.
+- **Invalid element_id**: Returns error.
+- **No active tab**: Returns error if tab_id not provided and no active tab exists.
+- **Action failed**: Returns error with details.

@@ -4,6 +4,7 @@ import importlib.util
 import sys
 import types
 from pathlib import Path
+from unittest.mock import patch
 
 from openhands.sdk import TextContent
 
@@ -35,11 +36,19 @@ _import_module("server.agent.tools.prompt_context", "prompt_context.py")
 highlight_tool_module = _import_module(
     "server.agent.tools.highlight_tool", "highlight_tool.py"
 )
+element_interaction_tool_module = _import_module(
+    "server.agent.tools.element_interaction_tool", "element_interaction_tool.py"
+)
 tab_tool_module = _import_module("server.agent.tools.tab_tool", "tab_tool.py")
 
 OpenBrowserObservation = base_module.OpenBrowserObservation
 HighlightAction = highlight_tool_module.HighlightAction
+get_highlight_action_type = highlight_tool_module.get_highlight_action_type
 get_highlight_tool_description = highlight_tool_module.get_highlight_tool_description
+get_element_interaction_tool_description = (
+    element_interaction_tool_module.get_element_interaction_tool_description
+)
+ElementInteractionAction = element_interaction_tool_module.ElementInteractionAction
 get_tab_tool_description = tab_tool_module.get_tab_tool_description
 
 
@@ -53,20 +62,103 @@ class TestPromptContracts:
 
         assert "Default: any interactive elements, page 1" in description
         assert '"any" (default)' in description
+        assert "default first pass for each new page state" in description
+        assert "extension-derived page insight across element types" in description
         assert '"clickable" (default without keywords)' not in description
 
-    def test_highlight_prompt_guides_icon_targets_to_clickable_pagination(self) -> None:
+    def test_highlight_prompt_keeps_icon_targets_on_any_pagination(self) -> None:
         description = get_highlight_tool_description()
 
         assert "icon-only controls" in description
         assert "Stay on the same `element_type` across pages" in description
         assert "actual button may simply be on the next page" in description
+        assert "Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`" in description
+        assert '`clickable`' not in description
+
+    def test_highlight_prompt_requires_exact_text_keywords_and_pagination_before_guessing(self) -> None:
+        description = get_highlight_tool_description()
+
+        assert "Treat pages as reliable collision-free slices of the same candidate set" in description
+        assert "Do not jump from a first-page miss to `keywords`" in description
+        assert "Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot" in description
+        assert '`{"keywords": ["52"]}`' in description
+        assert '`["star"]`, `["favorite"]`, or `["bookmark"]`' in description
+        assert "DO NOT use synonym bundles like" in description
+        assert "Examples of broad search" not in description
+        assert "Phase 2: Broad Search" not in description
+
+    def test_highlight_prompt_requires_rehighlight_after_significant_page_change(self) -> None:
+        description = get_highlight_tool_description()
+
+        assert "After any significant page-state change" in description
+        assert 'call `highlight` with `element_type: "any"` again before choosing the next element' in description
+        assert "Do not jump straight to `keywords` or another narrower type on that changed page" in description
+
+    def test_highlight_prompt_omits_clickable_mode_from_agent_guidance(self) -> None:
+        description = get_highlight_tool_description()
+
+        assert '`clickable`' not in description
+
+    def test_highlight_prompt_requires_click_before_keyboard_input_for_inputable_targets(self) -> None:
+        description = get_highlight_tool_description()
+
+        assert "always `click` it first and complete that confirmation before `keyboard_input`" in description
+
+    def test_small_model_highlight_prompt_omits_keywords_guidance(self) -> None:
+        with patch.object(
+            highlight_tool_module,
+            "get_prompt_render_context",
+            return_value={
+                "model_name": "dashscope/qwen3.5-flash",
+                "model_profile": "small",
+                "small_model": True,
+            },
+        ):
+            description = get_highlight_tool_description()
+
+        assert "`keywords`" not in description
+        assert '{ "keywords": ["Continue with Email"] }' not in description
+
+    def test_small_model_highlight_action_omits_keywords_field(self) -> None:
+        with patch.object(
+            highlight_tool_module,
+            "get_prompt_render_context",
+            return_value={
+                "model_name": "dashscope/qwen3.5-flash",
+                "model_profile": "small",
+                "small_model": True,
+            },
+        ):
+            action_type = get_highlight_action_type()
+
+        assert "keywords" not in action_type.model_fields
 
     def test_tab_prompt_points_agents_to_tab_view_for_clean_screenshots(self) -> None:
         description = get_tab_tool_description()
 
         assert "tab view" in description
         assert "clean screenshot" in description.lower()
+
+    def test_element_interaction_prompt_requires_click_before_keyboard_input(self) -> None:
+        description = get_element_interaction_tool_description()
+
+        assert "Always `click` the target first and complete that confirmation before `keyboard_input`." in description
+        assert "only after you already clicked the same input target and completed that click confirmation" in description
+
+    def test_element_interaction_prompt_explains_swipe_semantics(self) -> None:
+        description = get_element_interaction_tool_description()
+
+        assert '`direction: "next"` means show the next picture' in description
+        assert '`direction: "prev"` means show the previous picture' in description
+        assert "not finger or gesture directions" in description
+
+    def test_element_interaction_action_schema_explains_swipe_semantics(self) -> None:
+        description = ElementInteractionAction.model_fields["direction"].description
+
+        assert description is not None
+        assert "next picture/item" in description
+        assert "previous picture/item" in description
+        assert "Do not reinterpret swipe as left/right" in description
 
     def test_dialog_guidance_uses_dialog_tool_name(self) -> None:
         observation = OpenBrowserObservation(

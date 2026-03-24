@@ -5,45 +5,28 @@ This tool allows an AI agent to respond to JavaScript dialogs that block browser
 execution. Dialogs must be handled before any further browser operations can proceed.
 """
 
-import os
-import jinja2
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Optional, Literal
 
 from pydantic import Field
 from openhands.sdk.tool import (
     ToolDefinition,
     ToolAnnotations,
-    ToolExecutor,
     register_tool,
 )
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.agent.tools.prompt_context import get_prompt_render_context
-
-# Setup Jinja2 template environment for prompts
-_TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
-    autoescape=jinja2.select_autoescape(["html", "xml"]),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-
-# Template cache
-_DIALOG_TOOL_TEMPLATE = None
+from server.agent.tools.prompt_loader import render_tool_prompt
 
 
 def get_dialog_tool_description(conv_state=None) -> str:
     """Get the DialogTool description, rendered from Jinja2 template."""
-    global _DIALOG_TOOL_TEMPLATE
-
-    # Load template if not cached
-    if _DIALOG_TOOL_TEMPLATE is None:
-        _DIALOG_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template("dialog_tool.j2")
-
-    # Render template with context
-    return _DIALOG_TOOL_TEMPLATE.render(**get_prompt_render_context(conv_state))
+    return render_tool_prompt(
+        "dialog_tool.j2",
+        conv_state,
+        context=get_prompt_render_context(conv_state),
+    )
 
 
 class DialogHandleAction(OpenBrowserAction):

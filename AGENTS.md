@@ -177,6 +177,12 @@ When disabled:
 - **Clean output**: `trim_blocks=True` and `lstrip_blocks=True` remove extra whitespace
 - **Caching**: Templates are cached after first load for performance
 
+### Keyword Discipline
+- Highlight pagination remains the default discovery flow for controls and dense UI
+- After any significant page-state change, restart discovery with `highlight_elements(element_type="any")` before choosing the next element
+- `keywords` are allowed only when copying exact observed readable text or exact stable tokens already visible in the screenshot/highlight HTML
+- Do not use guessed labels, unread text, or icon-only tokens such as `×` or `🔍` as keyword probes
+
 ## ANTI-PATTERNS (THIS PROJECT)
 
 - **NEVER use pixel-based mouse/keyboard simulation** - All operations via JavaScript execution
@@ -191,10 +197,11 @@ OpenBrowser uses a visual-first approach where the AI sees elements before inter
 
 ### Workflow
 ```
-1. highlight_elements(page=1) → Returns collision-free elements with IDs
+1. highlight_elements(element_type="any", page=1) → Returns mixed interactive elements with IDs
 2. screenshot → AI sees numbered overlays on elements (no overlap)
 3. click_element(id="click-3") → Interact with specific element
-4. highlight_elements(page=2) → Get next batch of non-colliding elements
+4. If the page changed significantly, highlight_elements(element_type="any", page=1) again before choosing the next element
+5. If the current page state is unchanged and the target is still missing, continue highlight_elements(element_type="any", page=2)
 ```
 
 ### Collision-Aware Pagination (Single-Type Design)
@@ -216,15 +223,17 @@ Elements are paginated to ensure **no visual overlap** in each screenshot:
 - Design rule: prefer snapshot classification plus bounded retries; avoid depending on repeated timers inside the target page for highlight stability.
 
 ```
-# Highlight clickable elements (default)
-highlight_elements()                  → Page 1 of clickable elements
-highlight_elements(page=2)             → Page 2 of clickable elements
+# Highlight mixed elements first (default)
+highlight_elements()                              → Page 1 of any interactive elements
+highlight_elements(page=2)                         → Page 2 of the same any inventory
+highlight_elements(element_type="any", page=1)    → Explicit any-first discovery
 
 # Highlight other types (one at a time)
 highlight_elements(element_type="inputable")   → Input fields
 highlight_elements(element_type="scrollable")  → Scrollable areas
 highlight_elements(element_type="hoverable")   → Hoverable elements
 highlight_elements(element_type="selectable")  → Native select dropdowns
+highlight_elements(element_type="clickable")   → Targeted fallback for icon-only controls after any-first discovery
 ```
 
 ### Element ID Format
@@ -244,7 +253,7 @@ The visual interaction workflow is implemented across 5 focused tools:
 |------|----------|---------|
 | `tab` | `tab init`, `tab open`, `tab close`, `tab switch`, `tab list`, `tab refresh`, `tab view`, `tab back`, `tab forward` | Session and tab management |
 | `highlight` | `highlight_elements` | Element discovery with blue overlays |
-| `element_interaction` | `click_element`, `confirm_click_element`, `hover_element`, `confirm_hover_element`, `scroll_element`, `confirm_scroll_element`, `keyboard_input`, `confirm_keyboard_input`, `select_element`, `confirm_select_element` | Element interaction with orange 2PC confirmations |
+| `element_interaction` | `click_element`, `confirm_click_element`, `hover_element`, `scroll_element`, `keyboard_input`, `confirm_keyboard_input`, `select_element` | Element interaction with 2PC only for click and keyboard input |
 | `dialog` | `handle_dialog` | Dialog handling (accept/dismiss) |
 | `javascript` | `javascript_execute` | JavaScript fallback execution |
 
@@ -278,21 +287,10 @@ If operation fails twice:
 
 ## PERFORMANCE OPTIMIZATIONS
 
-### 2PC Confirmation Cache
-To reduce redundant confirmations for frequently interacted elements, BrowserExecutor maintains a conversation-scoped cache of confirmed element IDs.
-
-- **Cache Scope**: Per conversation (`conversation_id`), stored in `BrowserExecutor.confirmed_elements`
-- **When Added**: Element IDs are added after successful confirmation (`confirm_click`, `confirm_hover`, etc.) or when a cached element is successfully interacted with
-- **When Used**: When `click`, `hover`, `scroll` (with element_id), or `keyboard_input` is called, if the element ID is in the cache, the action executes directly without 2PC confirmation flow
-- **Benefits**: Reduces interaction latency for elements the AI has already verified, improving efficiency in repetitive workflows
-- **Limitations**: Cache is not invalidated on page navigation or DOM changes (simple implementation)
-
-Example flow:
-```
-1. click_element(id="abc123") → Requires confirmation (first time)
-2. confirm_click(id="abc123") → Success, adds "abc123" to cache
-3. click_element(id="abc123") → Cache hit, executes directly without confirmation
-```
+### Selective 2PC
+- `click_element` and `keyboard_input` require an ORANGE confirmation preview followed by `confirm_click_element` or `confirm_keyboard_input`
+- `hover_element`, `scroll_element`, `swipe_element`, and `select_element` execute immediately and return the post-action screenshot
+- Starting a different action clears any pending confirmation from a previous `click_element` or `keyboard_input`
 
 ## SISYPHUS MODE
 

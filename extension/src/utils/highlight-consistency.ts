@@ -23,6 +23,11 @@ export const HIGHLIGHT_CONSISTENCY_CONFIG = {
   missingRatioThreshold: 0.25,
 } as const;
 
+export const HIGHLIGHT_CONSISTENCY_REPEAT_CONFIG = {
+  maxCenterShiftDelta: 16,
+  maxSizeDeltaDelta: 6,
+} as const;
+
 function getCenterShift(
   a: InteractiveElement['bbox'],
   b: InteractiveElement['bbox'],
@@ -89,4 +94,24 @@ export function evaluateHighlightConsistency(
       (shiftedRatio >= HIGHLIGHT_CONSISTENCY_CONFIG.shiftedRatioThreshold ||
         missingRatio >= HIGHLIGHT_CONSISTENCY_CONFIG.missingRatioThreshold),
   };
+}
+
+export function isRepeatedHighlightDrift(
+  current: HighlightConsistencyResult,
+  previous: HighlightConsistencyResult | null,
+): boolean {
+  if (!previous || !current.shouldRetry || !previous.shouldRetry) {
+    return false;
+  }
+
+  return (
+    current.checkedCount === previous.checkedCount &&
+    current.matchedCount === previous.matchedCount &&
+    current.missingCount === previous.missingCount &&
+    current.shiftedCount === previous.shiftedCount &&
+    Math.abs(current.maxCenterShift - previous.maxCenterShift) <=
+      HIGHLIGHT_CONSISTENCY_REPEAT_CONFIG.maxCenterShiftDelta &&
+    Math.abs(current.maxSizeDelta - previous.maxSizeDelta) <=
+      HIGHLIGHT_CONSISTENCY_REPEAT_CONFIG.maxSizeDeltaDelta
+  );
 }

@@ -92,7 +92,7 @@ class OpenBrowserAgentManager:
         self.browser_tools = [
             Tool(name="tab"),  # Tab management
             Tool(name="highlight"),  # Element discovery with visual overlays
-            Tool(name="element_interaction"),  # Click, hover, scroll, keyboard with 2PC
+            Tool(name="element_interaction"),  # Click/input with 2PC, others direct
             Tool(name="dialog"),  # Browser dialog handling
             Tool(name="javascript"),  # JavaScript execution fallback
         ]

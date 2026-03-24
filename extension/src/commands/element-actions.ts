@@ -11,9 +11,159 @@ import type { ElementActionResult } from '../types';
  * - Handles dialog events using the same pattern as javascript.ts
  */
 
-import { elementCache } from './element-cache';
+import { ELEMENT_CACHE_TTL_DESCRIPTION, elementCache } from './element-cache';
 import { executeJavaScript, type JavaScriptResult } from './javascript';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
+
+function buildElementCacheMissMessage(
+  elementId: string,
+  refreshHint: string = 'Call highlight_elements() first.',
+): string {
+  return `Element '${elementId}' not found in cache. Cache expires after ${ELEMENT_CACHE_TTL_DESCRIPTION}. ${refreshHint}`;
+}
+
+function buildEditableActivationHelpersScript(): string {
+  return `
+    ${buildHitTestVisibilityHelpersScript()}
+
+    function getInteractiveActivationTarget(target) {
+      if (!(target instanceof Element)) {
+        return { target: null, point: null };
+      }
+
+      const rect = target.getBoundingClientRect();
+      const samplePoints = getHitTestSamplePoints(rect);
+
+      for (const point of samplePoints) {
+        const stack = document.elementsFromPoint(point.x, point.y);
+        for (const candidate of stack) {
+          const normalized = normalizeHitTestElement(candidate);
+          if (isRelatedHitTarget(normalized, target)) {
+            return { target: normalized || target, point };
+          }
+        }
+      }
+
+      const fallbackPoint =
+        samplePoints[0] || {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
+
+      return { target, point: fallbackPoint };
+    }
+
+    function getActivationEventPoint(target, point) {
+      if (
+        point &&
+        Number.isFinite(point.x) &&
+        Number.isFinite(point.y)
+      ) {
+        return point;
+      }
+
+      const rect = target.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+    }
+
+    function dispatchPointerEventForActivation(target, type, point) {
+      if (!(target instanceof Element) || typeof PointerEvent !== 'function') {
+        return;
+      }
+
+      target.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          isPrimary: true,
+          button: 0,
+          buttons: type === 'pointerup' ? 0 : 1,
+          clientX: point.x,
+          clientY: point.y,
+          view: window,
+        }),
+      );
+    }
+
+    function dispatchMouseEventForActivation(target, type, point) {
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      target.dispatchEvent(
+        new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          button: 0,
+          buttons: type === 'mouseup' || type === 'click' ? 0 : 1,
+          clientX: point.x,
+          clientY: point.y,
+          view: window,
+        }),
+      );
+    }
+
+    function dispatchActivationPress(target, point) {
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const eventPoint = getActivationEventPoint(target, point);
+      dispatchPointerEventForActivation(target, 'pointerdown', eventPoint);
+      dispatchMouseEventForActivation(target, 'mousedown', eventPoint);
+    }
+
+    function dispatchActivationRelease(target, point) {
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const eventPoint = getActivationEventPoint(target, point);
+      dispatchPointerEventForActivation(target, 'pointerup', eventPoint);
+      dispatchMouseEventForActivation(target, 'mouseup', eventPoint);
+      dispatchMouseEventForActivation(target, 'click', eventPoint);
+    }
+
+    function focusInteractionTarget(target) {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      try {
+        target.focus({ preventScroll: true });
+      } catch (focusWithOptionsError) {
+        try {
+          target.focus();
+        } catch (focusError) {
+          return false;
+        }
+      }
+
+      if (target.isContentEditable) {
+        const selection = window.getSelection();
+        if (selection) {
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+
+      return (
+        document.activeElement === target ||
+        target.contains(document.activeElement)
+      );
+    }
+  `;
+}
 
 /**
  * Result type for element click operation
@@ -81,7 +231,10 @@ export async function performElementClick(
       elementId,
       clicked: false,
       staleElement: false,
-      error: `Element '${elementId}' not found in cache. The element cache expires after 2 minutes. Call highlight_elements() first to refresh the cache and get updated element IDs.`,
+      error: buildElementCacheMissMessage(
+        elementId,
+        'Call highlight_elements() first to refresh the cache and get updated element IDs.',
+      ),
     };
   }
 
@@ -98,7 +251,7 @@ export async function performElementClick(
   const script = `
     (async function() {
       const selector = "${escapedSelector}";
-      ${buildHitTestVisibilityHelpersScript()}
+      ${buildEditableActivationHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
@@ -138,45 +291,22 @@ export async function performElementClick(
         };
       }
 
-      // Full event sequence for React/Vue compatibility
-      // NOTE: Synthetic events have isTrusted=false, which some frameworks check
-      const eventOptions = {
-        bubbles: true,
-        cancelable: true,
-        composed: true,  // Allow events to cross shadow DOM boundaries
-        view: window,
-        button: 0,
-        buttons: 1,
-      };
-
       try {
-        // Focus the element BEFORE events (important for React/Vue form validation)
-        if (typeof el.focus === 'function') {
-          el.focus();
-          // Dispatch focus event for frameworks
-          el.dispatchEvent(new FocusEvent('focus', { bubbles: true, composed: true }));
-        }
+        const activation = getInteractiveActivationTarget(el);
+        const activationTarget =
+          activation.target instanceof Element ? activation.target : el;
 
-        // Pointer events sequence
-        const pointerEvents = ['pointerdown', 'pointerup'];
-        for (const eventType of pointerEvents) {
-          const event = new PointerEvent(eventType, {
-            ...eventOptions,
-            pointerType: 'mouse',
-            isPrimary: true,
-          });
-          el.dispatchEvent(event);
-        }
+        dispatchActivationPress(activationTarget, activation.point);
+        const focused = focusInteractionTarget(
+          el instanceof HTMLElement ? el : activationTarget,
+        );
+        dispatchActivationRelease(activationTarget, activation.point);
 
-        // Native click as fallback - some frameworks only respond to native clicks
-        // This is a no-op if synthetic events already triggered the action
-        try {
-          el.click();
-        } catch (nativeClickError) {
-          // Ignore native click errors, synthetic events may have already worked
-        }
-
-        return { clicked: true };
+        return {
+          clicked: true,
+          focused,
+          activationTarget: describeElement(activationTarget),
+        };
       } catch (e) {
         return { clicked: false, error: e.message || String(e) };
       }
@@ -362,7 +492,7 @@ export async function performElementHover(
       elementId,
       hovered: false,
       staleElement: false,
-      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+      error: buildElementCacheMissMessage(elementId),
     };
   }
 
@@ -628,7 +758,7 @@ export async function performElementScroll(
         success: false,
         elementId,
         scrolled: false,
-        error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+        error: buildElementCacheMissMessage(elementId),
       };
     }
 
@@ -932,7 +1062,7 @@ export async function performElementSwipe(
       success: false,
       elementId,
       swiped: false,
-      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+      error: buildElementCacheMissMessage(elementId),
     };
   }
 
@@ -1055,6 +1185,11 @@ export async function performElementSwipe(
             'moveToIdx',
           ]),
         ) || null;
+      }
+
+      async function waitForMicrotaskCheckpoint() {
+        await Promise.resolve();
+        await Promise.resolve();
       }
 
       function hasSwipeLikeLayout(node, axis) {
@@ -1345,6 +1480,17 @@ export async function performElementSwipe(
             : container.parentElement && container.parentElement.scrollHeight > container.parentElement.clientHeight
               ? container.parentElement
               : container;
+      const containerMarkerText = getMarkerText(container);
+      const fallbackMarkerText =
+        fallbackScrollTarget instanceof HTMLElement
+          ? getMarkerText(fallbackScrollTarget)
+          : '';
+      const canUseScrollFallback =
+        hasSwipeLikeLayout(container, axis) ||
+        (fallbackScrollTarget instanceof HTMLElement &&
+          hasSwipeLikeLayout(fallbackScrollTarget, axis)) ||
+        SWIPE_LIBRARY_REGEX.test(containerMarkerText) ||
+        SWIPE_LIBRARY_REGEX.test(fallbackMarkerText);
 
       function getActiveSlideSignature(currentContainer) {
         if (!(currentContainer instanceof HTMLElement)) {
@@ -1404,11 +1550,304 @@ export async function performElementSwipe(
         };
       }
 
+      function hasVisualStateChanged(previousState, nextState) {
+        return (
+          (previousState.apiIndex !== null &&
+            nextState.apiIndex !== null &&
+            previousState.apiIndex !== nextState.apiIndex) ||
+          previousState.scrollLeft !== nextState.scrollLeft ||
+          previousState.scrollTop !== nextState.scrollTop ||
+          previousState.activeSlide !== nextState.activeSlide ||
+          previousState.fractionText !== nextState.fractionText ||
+          previousState.trackTransform !== nextState.trackTransform
+        );
+      }
+
+      function isRectInViewport(rect) {
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.bottom > 0 &&
+          rect.right > 0 &&
+          rect.top < window.innerHeight &&
+          rect.left < window.innerWidth
+        );
+      }
+
+      function countPendingMedia(currentContainer) {
+        if (!(currentContainer instanceof HTMLElement)) {
+          return 0;
+        }
+
+        let pending = 0;
+        for (const media of currentContainer.querySelectorAll('img, video')) {
+          if (!(media instanceof HTMLElement)) {
+            continue;
+          }
+
+          const rect = media.getBoundingClientRect();
+          if (!isRectInViewport(rect) || !isVisible(media)) {
+            continue;
+          }
+
+          if (media.tagName === 'IMG') {
+            const image = media;
+            if ('complete' in image && !image.complete) {
+              pending += 1;
+              continue;
+            }
+            if ('naturalWidth' in image && image.naturalWidth === 0) {
+              pending += 1;
+              continue;
+            }
+          }
+
+          if (media.tagName === 'VIDEO' && 'readyState' in media && media.readyState < 2) {
+            pending += 1;
+          }
+        }
+
+        return pending;
+      }
+
+      function countLoadingPlaceholders(currentContainer) {
+        if (!(currentContainer instanceof HTMLElement)) {
+          return 0;
+        }
+
+        return currentContainer.querySelectorAll(
+          '[class*="skeleton" i], [class*="shimmer" i], [class*="placeholder" i], [class*="loading" i], [data-loading="true"]',
+        ).length;
+      }
+
+      async function waitForSwipeToSettle(
+        previousState,
+        currentContainer,
+        currentApi,
+        currentFallbackTarget,
+      ) {
+        await waitForMicrotaskCheckpoint();
+
+        let currentState = captureVisualState(
+          currentContainer,
+          currentApi,
+          currentFallbackTarget,
+        );
+        let pendingMedia = countPendingMedia(currentContainer);
+        let placeholders = countLoadingPlaceholders(currentContainer);
+
+        if (
+          !hasVisualStateChanged(previousState, currentState) ||
+          pendingMedia > 0 ||
+          placeholders > 0
+        ) {
+          await waitForMicrotaskCheckpoint();
+          currentState = captureVisualState(
+            currentContainer,
+            currentApi,
+            currentFallbackTarget,
+          );
+          pendingMedia = countPendingMedia(currentContainer);
+          placeholders = countLoadingPlaceholders(currentContainer);
+        }
+
+        return currentState;
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+      }
+
+      function dispatchPointerEvent(target, type, clientX, clientY, pointerId) {
+        if (!(target instanceof Element) || typeof PointerEvent !== 'function') {
+          return false;
+        }
+
+        target.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            pointerId,
+            pointerType: 'mouse',
+            isPrimary: true,
+            buttons: type === 'pointerup' ? 0 : 1,
+            clientX,
+            clientY,
+          }),
+        );
+        return true;
+      }
+
+      function dispatchMouseEvent(target, type, clientX, clientY) {
+        if (!(target instanceof Element)) {
+          return false;
+        }
+
+        target.dispatchEvent(
+          new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            buttons: type === 'mouseup' ? 0 : 1,
+            button: 0,
+            clientX,
+            clientY,
+          }),
+        );
+        return true;
+      }
+
+      function dispatchTouchEvent(target, type, clientX, clientY) {
+        if (
+          !(target instanceof Element) ||
+          typeof Touch !== 'function' ||
+          typeof TouchEvent !== 'function'
+        ) {
+          return false;
+        }
+
+        const touch = new Touch({
+          identifier: 1,
+          target,
+          clientX,
+          clientY,
+          pageX: clientX + window.scrollX,
+          pageY: clientY + window.scrollY,
+          screenX: window.screenX + clientX,
+          screenY: window.screenY + clientY,
+          radiusX: 12,
+          radiusY: 12,
+          rotationAngle: 0,
+          force: type === 'touchend' ? 0 : 0.5,
+        });
+
+        const activeTouches = type === 'touchend' ? [] : [touch];
+        target.dispatchEvent(
+          new TouchEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            touches: activeTouches,
+            targetTouches: activeTouches,
+            changedTouches: [touch],
+          }),
+        );
+        return true;
+      }
+
+      function getGestureTarget(currentContainer) {
+        if (!(currentContainer instanceof HTMLElement)) {
+          return null;
+        }
+
+        const explicitTrack = currentContainer.querySelector(
+          '.swiper-wrapper, .swiper, [class*="track" i], [class*="slider" i], [class*="carousel" i]',
+        );
+        if (explicitTrack instanceof HTMLElement && isVisible(explicitTrack)) {
+          return explicitTrack;
+        }
+
+        return currentContainer;
+      }
+
+      async function performGestureSwipe(target, moveForward, axis) {
+        if (!(target instanceof HTMLElement)) {
+          return false;
+        }
+
+        const rect = target.getBoundingClientRect();
+        if (!isRectInViewport(rect) || rect.width < 60 || rect.height < 60) {
+          return false;
+        }
+
+        const pointerId = 1;
+        const horizontal = axis === 'x';
+        const travelDistance = Math.round(
+          clamp(
+            (horizontal ? rect.width : rect.height) * 0.42,
+            72,
+            horizontal ? Math.min(rect.width - 24, 320) : Math.min(rect.height - 24, 240),
+          ),
+        );
+
+        const centerX = clamp(rect.left + rect.width / 2, 12, window.innerWidth - 12);
+        const centerY = clamp(rect.top + rect.height / 2, 12, window.innerHeight - 12);
+
+        const startX = horizontal
+          ? clamp(
+              centerX + (moveForward ? travelDistance / 2 : -travelDistance / 2),
+              12,
+              window.innerWidth - 12,
+            )
+          : centerX;
+        const endX = horizontal
+          ? clamp(
+              centerX + (moveForward ? -travelDistance / 2 : travelDistance / 2),
+              12,
+              window.innerWidth - 12,
+            )
+          : centerX;
+        const startY = horizontal
+          ? centerY
+          : clamp(
+              centerY + (moveForward ? travelDistance / 2 : -travelDistance / 2),
+              12,
+              window.innerHeight - 12,
+            );
+        const endY = horizontal
+          ? centerY
+          : clamp(
+              centerY + (moveForward ? -travelDistance / 2 : travelDistance / 2),
+              12,
+              window.innerHeight - 12,
+            );
+
+        const startTarget = document.elementFromPoint(startX, startY);
+        const initialTarget = startTarget instanceof Element ? startTarget : target;
+        dispatchPointerEvent(initialTarget, 'pointerdown', startX, startY, pointerId);
+        dispatchMouseEvent(initialTarget, 'mousedown', startX, startY);
+        dispatchTouchEvent(initialTarget, 'touchstart', startX, startY);
+
+        const steps = 6;
+        for (let step = 1; step <= steps; step++) {
+          const progress = step / steps;
+          const x = startX + (endX - startX) * progress;
+          const y = startY + (endY - startY) * progress;
+          const moveTarget = document.elementFromPoint(x, y);
+          const activeTarget = moveTarget instanceof Element ? moveTarget : target;
+
+          dispatchPointerEvent(activeTarget, 'pointermove', x, y, pointerId);
+          dispatchMouseEvent(activeTarget, 'mousemove', x, y);
+          dispatchTouchEvent(activeTarget, 'touchmove', x, y);
+          await waitForMicrotaskCheckpoint();
+        }
+
+        const endTarget = document.elementFromPoint(endX, endY);
+        const finalTarget = endTarget instanceof Element ? endTarget : target;
+        dispatchPointerEvent(finalTarget, 'pointerup', endX, endY, pointerId);
+        dispatchMouseEvent(finalTarget, 'mouseup', endX, endY);
+        dispatchTouchEvent(finalTarget, 'touchend', endX, endY);
+
+        await waitForMicrotaskCheckpoint();
+        return true;
+      }
+
       const beforeState = captureVisualState(container, api, fallbackScrollTarget);
 
       let invoked = 0;
+      let effectiveSteps = 0;
       let method = 'none';
       let error = null;
+
+      function tryInvoke(method) {
+        try {
+          method();
+          return true;
+        } catch (_error) {
+          return false;
+        }
+      }
 
       function invokeSwipeApiStep(currentApi, moveForward) {
         if (!currentApi) {
@@ -1417,11 +1856,15 @@ export async function performElementSwipe(
 
         if (moveForward) {
           if (typeof currentApi.slideNext === 'function') {
-            currentApi.slideNext();
+            if (!tryInvoke(() => currentApi.slideNext(0))) {
+              currentApi.slideNext();
+            }
             return 'slideNext';
           }
           if (typeof currentApi.scrollNext === 'function') {
-            currentApi.scrollNext();
+            if (!tryInvoke(() => currentApi.scrollNext(true))) {
+              currentApi.scrollNext();
+            }
             return 'scrollNext';
           }
           if (typeof currentApi.next === 'function') {
@@ -1430,11 +1873,15 @@ export async function performElementSwipe(
           }
         } else {
           if (typeof currentApi.slidePrev === 'function') {
-            currentApi.slidePrev();
+            if (!tryInvoke(() => currentApi.slidePrev(0))) {
+              currentApi.slidePrev();
+            }
             return 'slidePrev';
           }
           if (typeof currentApi.scrollPrev === 'function') {
-            currentApi.scrollPrev();
+            if (!tryInvoke(() => currentApi.scrollPrev(true))) {
+              currentApi.scrollPrev();
+            }
             return 'scrollPrev';
           }
           if (typeof currentApi.prev === 'function') {
@@ -1445,11 +1892,17 @@ export async function performElementSwipe(
 
         const currentIndex = getIndex(currentApi);
         if (typeof currentApi.slideTo === 'function' && typeof currentIndex === 'number') {
-          currentApi.slideTo(Math.max(0, currentIndex + (moveForward ? 1 : -1)));
+          const targetIndex = Math.max(0, currentIndex + (moveForward ? 1 : -1));
+          if (!tryInvoke(() => currentApi.slideTo(targetIndex, 0))) {
+            currentApi.slideTo(targetIndex);
+          }
           return 'slideTo';
         }
         if (typeof currentApi.scrollTo === 'function' && typeof currentIndex === 'number') {
-          currentApi.scrollTo(Math.max(0, currentIndex + (moveForward ? 1 : -1)));
+          const targetIndex = Math.max(0, currentIndex + (moveForward ? 1 : -1));
+          if (!tryInvoke(() => currentApi.scrollTo(targetIndex, true))) {
+            currentApi.scrollTo(targetIndex);
+          }
           return 'scrollTo';
         }
         if (typeof currentApi.moveToIdx === 'function' && typeof currentIndex === 'number') {
@@ -1465,22 +1918,61 @@ export async function performElementSwipe(
       }
 
       for (let i = 0; i < swipeCount; i++) {
+        const stepBeforeState = captureVisualState(container, api, fallbackScrollTarget);
+        let stepMethod = null;
+        let stepChanged = false;
+
         const apiMethod = invokeSwipeApiStep(api, forward);
         if (apiMethod) {
-          method = apiMethod;
-          invoked += 1;
-          continue;
+          stepMethod = apiMethod;
+          const settledState = await waitForSwipeToSettle(
+            stepBeforeState,
+            container,
+            api,
+            fallbackScrollTarget,
+          );
+          stepChanged = hasVisualStateChanged(stepBeforeState, settledState);
         }
 
-        const navButton = getNavButton(container, forward, axis);
-        if (navButton) {
-          navButton.click();
-          method = 'navButton';
-          invoked += 1;
-          continue;
+        if (!stepChanged) {
+          const navButton = getNavButton(container, forward, axis);
+          if (navButton) {
+            navButton.click();
+            stepMethod = 'navButton';
+            const settledState = await waitForSwipeToSettle(
+              stepBeforeState,
+              container,
+              api,
+              fallbackScrollTarget,
+            );
+            stepChanged = hasVisualStateChanged(stepBeforeState, settledState);
+          }
         }
 
-        if (typeof fallbackScrollTarget.scrollBy === 'function') {
+        if (!stepChanged) {
+          const gestureTarget = getGestureTarget(container);
+          const gestureInvoked = await performGestureSwipe(
+            gestureTarget,
+            forward,
+            axis,
+          );
+          if (gestureInvoked) {
+            stepMethod = 'gesture';
+            const settledState = await waitForSwipeToSettle(
+              stepBeforeState,
+              container,
+              api,
+              fallbackScrollTarget,
+            );
+            stepChanged = hasVisualStateChanged(stepBeforeState, settledState);
+          }
+        }
+
+        if (
+          !stepChanged &&
+          canUseScrollFallback &&
+          typeof fallbackScrollTarget.scrollBy === 'function'
+        ) {
           const distance =
             axis === 'x'
               ? Math.round((fallbackScrollTarget.clientWidth || window.innerWidth) * 0.85)
@@ -1490,13 +1982,28 @@ export async function performElementSwipe(
             top: axis === 'y' ? distance * (forward ? 1 : -1) : 0,
             behavior: 'instant',
           });
-          method = axis === 'x' ? 'scrollBy-x' : 'scrollBy-y';
-          invoked += 1;
-          continue;
+          stepMethod = axis === 'x' ? 'scrollBy-x' : 'scrollBy-y';
+          const settledState = await waitForSwipeToSettle(
+            stepBeforeState,
+            container,
+            api,
+            fallbackScrollTarget,
+          );
+          stepChanged = hasVisualStateChanged(stepBeforeState, settledState);
         }
 
-        error = 'No swipe API, navigation button, or swipe fallback found';
-        break;
+        if (!stepMethod) {
+          error = canUseScrollFallback
+            ? 'No swipe API, navigation button, gesture fallback, or swipe fallback found'
+            : 'Selected element does not appear to be a swipeable carousel; use scroll_element or re-highlight a swipable region';
+          break;
+        }
+
+        method = stepMethod;
+        invoked += 1;
+        if (stepChanged) {
+          effectiveSteps += 1;
+        }
       }
 
       function isBoundaryControl(node) {
@@ -1519,16 +2026,7 @@ export async function performElementSwipe(
 
       const swipeEffective =
         invoked > 0 &&
-        (
-          (beforeState.apiIndex !== null &&
-            afterState.apiIndex !== null &&
-            beforeState.apiIndex !== afterState.apiIndex) ||
-          beforeState.scrollLeft !== afterState.scrollLeft ||
-          beforeState.scrollTop !== afterState.scrollTop ||
-          beforeState.activeSlide !== afterState.activeSlide ||
-          beforeState.fractionText !== afterState.fractionText ||
-          beforeState.trackTransform !== afterState.trackTransform
-        );
+        (effectiveSteps > 0 || hasVisualStateChanged(beforeState, afterState));
 
       if (invoked === 0) {
         return {
@@ -1639,10 +2137,12 @@ export async function performElementSwipe(
 
   if (!swipeEffective) {
     console.log(
-      `⚠️ [ElementSwipe] Swipe executed but had no immediate effect: ${warning}`,
+      `⚠️ [ElementSwipe] Swipe executed via ${swipeResult.method || 'unknown'} but had no immediate effect: ${warning}`,
     );
   } else {
-    console.log(`✅ [ElementSwipe] Swipe executed successfully`);
+    console.log(
+      `✅ [ElementSwipe] Swipe executed successfully via ${swipeResult.method || 'unknown'}`,
+    );
   }
 
   return {
@@ -1703,7 +2203,7 @@ export async function performKeyboardInput(
       elementId,
       input: false,
       staleElement: false,
-      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+      error: buildElementCacheMissMessage(elementId),
     };
   }
 
@@ -1724,6 +2224,7 @@ export async function performKeyboardInput(
     (function() {
       const selector = "${escapedSelector}";
       const text = "${escapedText}";
+      ${buildEditableActivationHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
@@ -1744,14 +2245,38 @@ export async function performKeyboardInput(
       }
 
       try {
-        // Focus the element first
-        if (typeof el.focus === 'function') {
-          el.focus();
+        const activation = getInteractiveActivationTarget(el);
+        const activationTarget =
+          activation.target instanceof Element ? activation.target : el;
+        const alreadyFocused =
+          (el instanceof HTMLElement && document.activeElement === el) ||
+          (el instanceof HTMLElement &&
+            document.activeElement instanceof Element &&
+            el.contains(document.activeElement));
+
+        if (!alreadyFocused) {
+          dispatchActivationPress(activationTarget, activation.point);
+        }
+
+        focusInteractionTarget(
+          el instanceof HTMLElement ? el : activationTarget,
+        );
+
+        if (!alreadyFocused) {
+          dispatchActivationRelease(activationTarget, activation.point);
         }
 
         // Set value based on element type
         const tagName = el.tagName.toLowerCase();
         const isContentEditable = el.isContentEditable || el.contentEditable === 'true';
+
+        const beforeInputEvent = new InputEvent('beforeinput', {
+          bubbles: true,
+          cancelable: true,
+          inputType: text.length === 0 ? 'deleteContentBackward' : 'insertText',
+          data: text,
+        });
+        el.dispatchEvent(beforeInputEvent);
 
         if (tagName === 'input' || tagName === 'textarea') {
           // For input and textarea, use value property
@@ -1950,7 +2475,7 @@ export async function performElementSelect(
       elementId,
       selected: false,
       staleElement: false,
-      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+      error: buildElementCacheMissMessage(elementId),
     };
   }
 

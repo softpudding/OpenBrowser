@@ -15,8 +15,6 @@ _spec.loader.exec_module(_state_module)
 OpenBrowserState = _state_module.OpenBrowserState
 PendingConfirmation = _state_module.PendingConfirmation
 
-import pytest
-
 from server.agent.tools.state import OpenBrowserState, PendingConfirmation
 
 
@@ -56,7 +54,9 @@ class TestPendingConfirmation:
     def test_extra_data_default_is_mutable(self) -> None:
         """Test that extra_data defaults to a new empty dict each time."""
         c1 = PendingConfirmation(element_id="a", action_type="click", full_html="")
-        c2 = PendingConfirmation(element_id="b", action_type="hover", full_html="")
+        c2 = PendingConfirmation(
+            element_id="b", action_type="keyboard_input", full_html=""
+        )
 
         c1.extra_data["key"] = "value"
         assert "key" not in c2.extra_data
@@ -92,14 +92,14 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-789",
             element_id="elem-abc",
-            action_type="scroll",
-            full_html="<div>Scrollable</div>",
-            extra_data={"direction": "down", "scroll_amount": 0.5},
+            action_type="keyboard_input",
+            full_html="<input />",
+            extra_data={"text": "hello"},
             screenshot_data_url="data:image/png;base64,test",
         )
 
         pending = state.pending_confirmations["conv-789"]
-        assert pending.extra_data == {"direction": "down", "scroll_amount": 0.5}
+        assert pending.extra_data == {"text": "hello"}
         assert pending.screenshot_data_url == "data:image/png;base64,test"
 
     def test_get_pending_existing(self) -> None:
@@ -108,14 +108,14 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-1",
             element_id="elem-1",
-            action_type="hover",
-            full_html="<a>Link</a>",
+            action_type="keyboard_input",
+            full_html="<input />",
         )
 
         pending = state.get_pending("conv-1")
         assert pending is not None
         assert pending.element_id == "elem-1"
-        assert pending.action_type == "hover"
+        assert pending.action_type == "keyboard_input"
 
     def test_get_pending_nonexistent(self) -> None:
         """Test getting a non-existent pending confirmation."""
@@ -160,8 +160,8 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-2",
             element_id="elem-2",
-            action_type="hover",
-            full_html="<a>B</a>",
+            action_type="keyboard_input",
+            full_html="<input>B</input>",
         )
 
         # Verify isolation
@@ -188,19 +188,19 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-1",
             element_id="elem-2",
-            action_type="hover",
-            full_html="<a>Second</a>",
+            action_type="keyboard_input",
+            full_html="<input>Second</input>",
         )
 
         pending = state.get_pending("conv-1")
         assert pending.element_id == "elem-2"
-        assert pending.action_type == "hover"
-        assert pending.full_html == "<a>Second</a>"
+        assert pending.action_type == "keyboard_input"
+        assert pending.full_html == "<input>Second</input>"
 
     def test_all_action_types(self) -> None:
         """Test all valid action types."""
         state = OpenBrowserState()
-        action_types = ["click", "hover", "scroll", "keyboard_input"]
+        action_types = ["click", "keyboard_input"]
 
         for i, action_type in enumerate(action_types):
             state.set_pending(

@@ -32,7 +32,14 @@ _import_module("server.agent.tools.prompt_context", "prompt_context.py")
 highlight_tool_module = _import_module(
     "server.agent.tools.highlight_tool", "highlight_tool.py"
 )
+element_interaction_tool_module = _import_module(
+    "server.agent.tools.element_interaction_tool", "element_interaction_tool.py"
+)
 get_highlight_tool_description = highlight_tool_module.get_highlight_tool_description
+get_highlight_action_type = highlight_tool_module.get_highlight_action_type
+get_element_interaction_tool_description = (
+    element_interaction_tool_module.get_element_interaction_tool_description
+)
 
 
 def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
@@ -48,20 +55,42 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
         description = get_highlight_tool_description()
 
     assert "## Core Rules" in description
-    assert 'Prefer `element_type: "any"` first.' in description
+    assert 'default first pass for each new page state' in description
+    assert 'extension-derived page insight across element types' in description
+    assert "Treat highlight pagination as reliable" in description
+    assert "After any significant page-state change" in description
+    assert "Do not jump away from `element_type: \"any\"` on a newly changed page" in description
     assert "icon-only toolbar or header control" in description
-    assert 'use `element_type: "clickable"` only as a targeted fallback' in description
-    assert (
-        'Do not use `keywords` such as `"settings"`, `"gear"`, or `"bell"`'
-        in description
-    )
-    assert "concrete visible text" in description
+    assert "continue `any` pagination and inspect the next pages instead of switching modes" in description
+    assert "you may narrow to `inputable`" in description
+    assert "always `click` it first and complete that confirmation before `keyboard_input`" in description
+    assert "After typing, continue discovery with `any`" in description
+    assert "When a search results page loads, call `highlight` with `element_type: \"any\"`" in description
+    assert "use `tab back`" in description
+    assert "Do not use guessed labels such as \"settings\", \"gear\", \"bell\", \"next\", \"prev\", or \"close\"" in description
     assert "icon button next to a count or badge" in description
+    assert "`keywords`" not in description
+    assert '`clickable`' not in description
     assert "Phase 1: Precise Search" not in description
     assert "Collision-Aware Pagination" not in description
 
 
-def test_large_model_highlight_prompt_keeps_detailed_search_and_pagination_guidance() -> (
+def test_small_model_highlight_action_schema_omits_keywords() -> None:
+    with patch.object(
+        highlight_tool_module,
+        "get_prompt_render_context",
+        return_value={
+            "model_name": "dashscope/qwen3.5-flash",
+            "model_profile": "small",
+            "small_model": True,
+        },
+    ):
+        action_type = get_highlight_action_type()
+
+    assert "keywords" not in action_type.model_fields
+
+
+def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without_broad_search() -> (
     None
 ):
     with patch.object(
@@ -76,17 +105,64 @@ def test_large_model_highlight_prompt_keeps_detailed_search_and_pagination_guida
         description = get_highlight_tool_description()
 
     assert "Collision-Aware Pagination" in description
-    assert "Phase 1: Precise Search" in description
-    assert "Phase 2: Broad Search" in description
+    assert '## Any-First Discovery Rule' in description
+    assert 'default first pass for each new page state' in description
+    assert 'extension-derived page insight across element types' in description
+    assert "After any significant page-state change, restart with `highlight` on `element_type: \"any\"`" in description
+    assert "Do not jump away from `element_type: \"any\"` on that changed page" in description
+    assert "Exact-Text Search Only" in description
     assert "icon-only controls" in description
     assert 'Prefer `element_type: "any"` as the default first pass' in description
+    assert "always `click` it first and complete that confirmation before `keyboard_input`" in description
+    assert "Treat pages as reliable collision-free slices of the same candidate set" in description
+    assert "Do not jump from a first-page miss to `keywords`" in description
+    assert "prefer more `any` pages over broad keyword search or a narrower generic-control mode" in description
     assert (
-        'Use `element_type: "clickable"` as a targeted fallback for icon-only controls'
+        'DO NOT search for unlabeled toolbar icons or ambiguous controls with guessed words like "settings", "gear", "bell", "chat", "next", "prev", or "close"'
         in description
     )
-    assert (
-        'DO NOT search for unlabeled toolbar icons with guessed words like "settings", "gear", "bell", or "chat"'
-        in description
-    )
-    assert "Use keywords only for concrete text you can already see" in description
+    assert "Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot" in description
+    assert '`{"keywords": ["52"]}`' in description
+    assert '`["star"]`, `["favorite"]`, or `["bookmark"]`' in description
     assert "the actual button may simply be on the next page" in description
+    assert '`clickable`' not in description
+    assert "Phase 2: Broad Search" not in description
+    assert "Examples of broad search" not in description
+
+
+def test_small_model_element_interaction_requires_click_before_keyboard_input() -> None:
+    with patch.object(
+        element_interaction_tool_module,
+        "get_prompt_render_context",
+        return_value={
+            "model_name": "dashscope/qwen3.5-flash",
+            "model_profile": "small",
+            "small_model": True,
+        },
+    ):
+        description = get_element_interaction_tool_description()
+
+    assert "If the target is `inputable`, always `click` it first and complete that confirmation before `keyboard_input`." in description
+    assert "always `click` first, then use `keyboard_input`" in description
+    assert '`direction: "next"` means show the next picture' in description
+    assert '`direction: "prev"` means show the previous picture' in description
+    assert "not hand or finger movement directions" in description
+
+
+def test_large_model_element_interaction_requires_click_before_keyboard_input() -> None:
+    with patch.object(
+        element_interaction_tool_module,
+        "get_prompt_render_context",
+        return_value={
+            "model_name": "dashscope/qwen3.5-plus",
+            "model_profile": "large",
+            "small_model": False,
+        },
+    ):
+        description = get_element_interaction_tool_description()
+
+    assert "Always `click` the target first and complete that confirmation before `keyboard_input`." in description
+    assert "only after you already clicked the same input target and completed that click confirmation" in description
+    assert '`direction: "next"` means show the next picture' in description
+    assert '`direction: "prev"` means show the previous picture' in description
+    assert "not finger or gesture directions" in description

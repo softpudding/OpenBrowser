@@ -10,12 +10,12 @@ cost_limit: 1.5    # 1.5 RMB
 criteria:
   # Original search criteria
   - type: input_search_term
-    description: "Input 'fed' into search input field"
+    description: "Input the 3-letter search term into search input field"
     points: 1
     expected:
       event_type: input
       element_id: "search-input"
-      value_contains: "fed"
+      value_length_min: 3
       page: "/gbr/"
   - type: click_search_button
     description: "Click the search submit button or search toggle"

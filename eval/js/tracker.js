@@ -1,5 +1,5 @@
 // Event Tracking Library for AI Agent Evaluation
-// Tracks all user interactions and stores in localStorage
+// Tracks all user interactions in memory for the current page session only.
 
 class AgentTracker {
     constructor(siteName, difficulty) {
@@ -8,31 +8,13 @@ class AgentTracker {
         this.events = [];
         this.sessionId = this.generateSessionId();
         this.startTime = Date.now();
-        
-        // Load existing events from localStorage
-        this.loadEvents();
-        
+
         // Initialize tracking
         this.initTracking();
     }
     
     generateSessionId() {
         return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    }
-    
-    loadEvents() {
-        const stored = localStorage.getItem('agent_tracking_events');
-        if (stored) {
-            try {
-                this.events = JSON.parse(stored);
-            } catch (e) {
-                this.events = [];
-            }
-        }
-    }
-    
-    saveEvents() {
-        localStorage.setItem('agent_tracking_events', JSON.stringify(this.events));
     }
     
     track(eventType, data) {
@@ -47,7 +29,6 @@ class AgentTracker {
         };
         
         this.events.push(event);
-        this.saveEvents();
         
         // Also send to server if available
         this.sendToServer(event);
@@ -63,7 +44,7 @@ class AgentTracker {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event)
         }).catch(() => {
-            // Server might not be available, localStorage has it
+            // Ignore transient network failures during local eval runs.
         });
     }
     
@@ -216,7 +197,6 @@ class AgentTracker {
     
     clearEvents() {
         this.events = [];
-        localStorage.removeItem('agent_tracking_events');
     }
 }
 

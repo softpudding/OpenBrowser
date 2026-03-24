@@ -51,4 +51,14 @@ describe('hit-test visibility helpers', () => {
     expect(script).toContain('resolveTopLayerRoot');
     expect(script).toContain('hasVisibleSiblingContent');
   });
+
+  test('buildHitTestVisibilityHelpersScript treats input placeholders as related hit targets', () => {
+    const script = buildHitTestVisibilityHelpersScript();
+
+    expect(script).toContain('INPUT_PLACEHOLDER_TOKEN_REGEX');
+    expect(script).toContain('isTextInputControl');
+    expect(script).toContain('getInputSurfaceRoot');
+    expect(script).toContain('isPlaceholderCoverForInput');
+    expect(script).toContain('isPlaceholderCoverForInput(hit, target)');
+  });
 });

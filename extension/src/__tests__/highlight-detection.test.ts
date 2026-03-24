@@ -27,14 +27,13 @@ function createElement(
 }
 
 describe('highlight-detection helpers', () => {
-  test('normalizeHighlightKeywords trims, lowercases, and deduplicates', () => {
-    expect(normalizeHighlightKeywords([' Like ', 'like', ' REPLY '])).toEqual([
-      'like',
-      'reply',
-    ]);
+  test('normalizeHighlightKeywords trims, lowercases, removes whitespace, and deduplicates', () => {
+    expect(
+      normalizeHighlightKeywords([' Like ', 'like', ' REPLY ', " John's   reply "]),
+    ).toEqual(['like', 'reply', "john'sreply"]);
   });
 
-  test('keyword haystack prefers searchText over raw html', () => {
+  test('keyword haystack prefers normalized searchText over raw html', () => {
     const haystack = getHighlightKeywordHaystack(
       createElement({
         searchText: 'comment actions',
@@ -42,7 +41,7 @@ describe('highlight-detection helpers', () => {
       }),
     );
 
-    expect(haystack).toBe('comment actions');
+    expect(haystack).toBe('commentactions');
   });
 
   test('filterHighlightElementsByKeywords matches semantic control tokens', () => {
@@ -66,6 +65,31 @@ describe('highlight-detection helpers', () => {
     expect(result.elements.map((element) => element.selector)).toEqual([
       'span.like-wrapper',
     ]);
+  });
+
+  test('filterHighlightElementsByKeywords ignores whitespace differences', () => {
+    const result = filterHighlightElementsByKeywords(
+      [
+        createElement({
+          id: 'reply123',
+          selector: 'button.reply-target',
+          text: "John's reply",
+          searchText: "john ' s    reply",
+          html: '<button>John <span>\'s</span> reply</button>',
+        }),
+        createElement({
+          id: 'reply456',
+          selector: 'button.other-reply',
+          text: "Jane's reply",
+          searchText: "jane's reply",
+          html: '<button>Jane&apos;s reply</button>',
+        }),
+      ],
+      ["John's reply"],
+    );
+
+    expect(result.keywords).toEqual(["john'sreply"]);
+    expect(result.elements.map((element) => element.id)).toEqual(['reply123']);
   });
 
   test('buildHighlightDetectionScript wires injected source with config', () => {
@@ -103,6 +127,13 @@ describe('highlight-detection helpers', () => {
     expect(script).toContain('placeholderAreaRatio');
     expect(script).toContain('skeletonLikeCount');
     expect(script).toContain('spinnerLikeCount');
+  });
+
+  test('buildHighlightDetectionScript uses isContentEditable for inputable detection', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'inputable' });
+
+    expect(script).toContain('return el.isContentEditable;');
+    expect(script).not.toContain("return el.getAttribute('contenteditable') === 'true';");
   });
 
   test("buildHighlightDetectionScript keeps 'any' candidate selection across all element types", () => {
@@ -182,6 +213,24 @@ describe('highlight-detection helpers', () => {
     expect(script).toContain('interactionHints');
   });
 
+  test('buildHighlightDetectionScript hides clickable when swipe or scroll affordances are present', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const start = script.indexOf('function toInteractiveElement');
+    const end = script.indexOf('function countVisibleClickableCandidates', start);
+    const toInteractiveElementSource = script.slice(start, end);
+
+    expect(toInteractiveElementSource).toContain(
+      "candidate.type === 'clickable'",
+    );
+    expect(toInteractiveElementSource).toContain(
+      "interactionHints.includes('swipable')",
+    );
+    expect(toInteractiveElementSource).toContain(
+      "isScrollableCandidate(candidate.element)",
+    );
+    expect(toInteractiveElementSource).toContain("? 'scrollable'");
+  });
+
   test('buildHighlightDetectionScript uses bounded tree walking for text metrics', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
 
@@ -189,5 +238,74 @@ describe('highlight-detection helpers', () => {
     expect(script).toContain('document.createTreeWalker');
     expect(script).toContain('layoutStabilityConfig.maxTextCandidates');
     expect(script).toContain('isMetricsTimeBudgetExceeded(metricsStartTime)');
+  });
+
+  test('buildHighlightDetectionScript treats collect wrappers as control roots', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const controlTokenStart = script.indexOf('const CONTROL_TOKEN_REGEX');
+    const controlTokenEnd = script.indexOf(
+      'const SWIPE_LIBRARY_REGEX',
+      controlTokenStart,
+    );
+    const controlTokenSource = script.slice(controlTokenStart, controlTokenEnd);
+    const affinityStart = script.indexOf('function getControlAffinityScore');
+    const affinityEnd = script.indexOf(
+      'function getSemanticClickableSignal',
+      affinityStart,
+    );
+    const affinitySource = script.slice(affinityStart, affinityEnd);
+
+    expect(controlTokenSource).toContain('collect');
+    expect(controlTokenSource).toContain('bookmark');
+    expect(controlTokenSource).toContain('favorite');
+    expect(controlTokenSource).toContain('save');
+    expect(controlTokenSource).toContain('star');
+    expect(affinitySource).toContain('collect');
+    expect(affinitySource).toContain('bookmark');
+    expect(affinitySource).toContain('favorite');
+    expect(affinitySource).toContain('save');
+    expect(affinitySource).toContain('star');
+  });
+
+  test('buildHighlightDetectionScript de-prioritizes pointer-only count labels', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'clickable' });
+    const candidateSignalStart = script.indexOf('function getCandidateSignal');
+    const candidateSignalEnd = script.indexOf(
+      'function buildResolvedCandidate',
+      candidateSignalStart,
+    );
+    const candidateSignalSource = script.slice(
+      candidateSignalStart,
+      candidateSignalEnd,
+    );
+
+    expect(candidateSignalSource).toContain('isLikelyCountTextElement');
+    expect(candidateSignalSource).toContain("signalSource === 'pointer'");
+    expect(candidateSignalSource).toContain('return baseSignalScore - 80;');
+  });
+
+  test('buildHighlightDetectionScript prefers control wrappers over nested count spans', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const compareStart = script.indexOf('function compareCandidates');
+    const compareEnd = script.indexOf(
+      'function isProminentScrollableCandidate',
+      compareStart,
+    );
+    const compareSource = script.slice(compareStart, compareEnd);
+    const shouldDropStart = script.indexOf('function shouldDropCandidate');
+    const shouldDropEnd = script.indexOf(
+      'function toInteractiveElement',
+      shouldDropStart,
+    );
+    const shouldDropSource = script.slice(shouldDropStart, shouldDropEnd);
+
+    expect(compareSource).toContain('isPreferredControlWrapperOverCandidate');
+    expect(compareSource).toContain('isPureCountClickableCandidate');
+    expect(shouldDropSource).toContain(
+      'isPureCountClickableCandidate(candidate)',
+    );
+    expect(shouldDropSource).toContain(
+      'isPreferredControlWrapperOverCandidate(kept, candidate)',
+    );
   });
 });

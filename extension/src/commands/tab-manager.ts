@@ -39,6 +39,9 @@ export class TabManager {
   private tabSwitchedListeners: Array<
     (conversationId: string, tabId: number) => void
   > = [];
+  private tabClosedListeners: Array<
+    (conversationId: string, tabId: number) => void
+  > = [];
 
   /**
    * Initialize the tab manager
@@ -542,6 +545,16 @@ export class TabManager {
       // Remove from tracking
       session.managedTabs.delete(tabId);
 
+      if (session.currentActiveTabId === tabId) {
+        session.currentActiveTabId = null;
+      }
+
+      this.removeSessionIfEmpty(
+        conversationId,
+        session,
+        `tab ${tabId} removed from management`,
+      );
+
       console.log(
         `✅ [TabManager] Removed tab ${tabId} from management for ${conversationId}`,
       );
@@ -763,9 +776,13 @@ export class TabManager {
         );
       }
 
-      // If no managed tabs left, update status
+      // Remove sessions that no longer manage any tabs
       if (session.managedTabs.size === 0) {
-        this.updateSessionStatus(conversationId, 'idle');
+        this.removeSessionIfEmpty(
+          conversationId,
+          session,
+          'cleanup removed all closed tabs',
+        );
       }
 
       totalCleaned += cleanedCount;
@@ -819,6 +836,21 @@ export class TabManager {
     console.log(`✅ [TabManager] Session ${conversationId} cleaned up`);
   }
 
+  private removeSessionIfEmpty(
+    conversationId: string,
+    session: TabGroupState,
+    reason: string,
+  ): void {
+    if (session.managedTabs.size > 0) {
+      return;
+    }
+
+    this.sessions.delete(conversationId);
+    console.log(
+      `🧹 [TabManager] Removed empty session ${conversationId} (${reason})`,
+    );
+  }
+
   /**
    * Setup event listeners
    */
@@ -828,6 +860,7 @@ export class TabManager {
       // Find which session this tab belongs to
       for (const [conversationId, session] of this.sessions.entries()) {
         if (session.managedTabs.has(tabId)) {
+          this.notifyTabClosedListeners(conversationId, tabId);
           console.log(
             `🗑️ [TabManager] Managed tab ${tabId} was closed for ${conversationId}`,
           );
@@ -845,9 +878,13 @@ export class TabManager {
             );
           }
 
-          // Update status if no tabs left
+          // Remove sessions that no longer manage any tabs
           if (session.managedTabs.size === 0) {
-            this.updateSessionStatus(conversationId, 'idle');
+            this.removeSessionIfEmpty(
+              conversationId,
+              session,
+              `last tab ${tabId} closed`,
+            );
           }
           break;
         }
@@ -1009,6 +1046,12 @@ export class TabManager {
                 session.managedTabs.delete(tabId);
               }
             }
+
+            this.removeSessionIfEmpty(
+              conversationId,
+              session,
+              `tab group ${group.id} removed`,
+            );
             break;
           }
         }
@@ -1160,6 +1203,21 @@ export class TabManager {
     }
   }
 
+  addTabClosedListener(
+    listener: (conversationId: string, tabId: number) => void,
+  ): void {
+    this.tabClosedListeners.push(listener);
+  }
+
+  removeTabClosedListener(
+    listener: (conversationId: string, tabId: number) => void,
+  ): void {
+    const index = this.tabClosedListeners.indexOf(listener);
+    if (index > -1) {
+      this.tabClosedListeners.splice(index, 1);
+    }
+  }
+
   /**
    * Notify all tab switched listeners
    */
@@ -1175,6 +1233,22 @@ export class TabManager {
         listener(conversationId, tabId);
       } catch (error) {
         console.error('Error in tab switched listener:', error);
+      }
+    }
+  }
+
+  private notifyTabClosedListeners(
+    conversationId: string,
+    tabId: number,
+  ): void {
+    console.log(
+      `🧹 [TabManager] Notifying ${this.tabClosedListeners.length} listeners about tab close: ${conversationId} -> ${tabId}`,
+    );
+    for (const listener of this.tabClosedListeners) {
+      try {
+        listener(conversationId, tabId);
+      } catch (error) {
+        console.error('Error in tab closed listener:', error);
       }
     }
   }

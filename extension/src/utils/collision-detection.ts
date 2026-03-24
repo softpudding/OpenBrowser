@@ -22,6 +22,8 @@ export interface BBox {
 
 export type LabelPosition = 'above' | 'below' | 'left' | 'right';
 
+const VISUAL_ROW_TOLERANCE_PX = 12;
+
 /**
  * Check if two bounding boxes intersect
  * Boxes that touch at the edge are NOT considered as intersecting
@@ -298,4 +300,33 @@ function cloneInteractiveElement(
     ...element,
     bbox: { ...element.bbox },
   };
+}
+
+/**
+ * Sort elements to match how they are read in the screenshot:
+ * top-to-bottom, and left-to-right within the same visual row.
+ */
+export function sortElementsByVisualOrder(
+  elements: InteractiveElement[],
+): InteractiveElement[] {
+  return elements
+    .map((element, index) => ({ element, index }))
+    .sort((a, b) => {
+      const yDelta = a.element.bbox.y - b.element.bbox.y;
+      if (Math.abs(yDelta) > VISUAL_ROW_TOLERANCE_PX) {
+        return yDelta;
+      }
+
+      const xDelta = a.element.bbox.x - b.element.bbox.x;
+      if (xDelta !== 0) {
+        return xDelta;
+      }
+
+      if (yDelta !== 0) {
+        return yDelta;
+      }
+
+      return a.index - b.index;
+    })
+    .map(({ element }) => element);
 }

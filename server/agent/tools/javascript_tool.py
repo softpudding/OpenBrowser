@@ -12,20 +12,18 @@ Key characteristics:
 """
 
 import os
-import jinja2
 import logging
 from collections.abc import Sequence
-from pathlib import Path
 
 from pydantic import Field
 from openhands.sdk.tool import (
     ToolDefinition,
     ToolAnnotations,
-    ToolExecutor,
     register_tool,
 )
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
+from server.agent.tools.prompt_loader import render_tool_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -34,28 +32,11 @@ DISABLE_JAVASCRIPT_EXECUTE = os.getenv(
     "OPEN_BROWSER_DISABLE_JAVASCRIPT_EXECUTE", ""
 ).lower() in ("1", "true", "yes")
 
-# Setup Jinja2 template environment for prompts
-_TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
-    autoescape=jinja2.select_autoescape(["html", "xml"]),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-
-# Template cache
-_JAVASCRIPT_TOOL_TEMPLATE = None
-
-
-def get_javascript_tool_description() -> str:
+def get_javascript_tool_description(conv_state=None) -> str:
     """Get the JavaScriptTool description, rendered from Jinja2 template."""
-    global _JAVASCRIPT_TOOL_TEMPLATE
-
-    # Load template if not cached
-    if _JAVASCRIPT_TOOL_TEMPLATE is None:
-        _JAVASCRIPT_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template("javascript_tool.j2")
-
-    # Render template with context
-    return _JAVASCRIPT_TOOL_TEMPLATE.render(
+    return render_tool_prompt(
+        "javascript_tool.j2",
+        conv_state,
         disable_javascript=DISABLE_JAVASCRIPT_EXECUTE
     )
 
@@ -111,7 +92,7 @@ class JavaScriptTool(ToolDefinition[JavaScriptAction, OpenBrowserObservation]):
 
         return [
             cls(
-                description=get_javascript_tool_description(),
+                description=get_javascript_tool_description(conv_state),
                 action_type=JavaScriptAction,
                 observation_type=OpenBrowserObservation,
                 annotations=ToolAnnotations(

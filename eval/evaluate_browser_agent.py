@@ -1397,6 +1397,9 @@ class Evaluator:
 
     def _event_matches_expected(self, event: Dict, expected: Dict) -> bool:
         """Check if a track event matches expected criteria"""
+        def normalize_text(value: Any) -> str:
+            return str(value or "").casefold()
+
         # List of reserved keys that have special handling
         reserved_keys = {
             "event_type",
@@ -1466,23 +1469,26 @@ class Evaluator:
         expected_value_contains = expected.get("value_contains")
         if expected_value_contains:
             # For input events, value may be in data
-            value = event.get("value") or event.get("inputValue")
-            if not value or expected_value_contains not in value:
+            value = normalize_text(event.get("value") or event.get("inputValue"))
+            if not value or normalize_text(expected_value_contains) not in value:
                 return False
 
         expected_value_contains_any = expected.get("value_contains_any")
         if expected_value_contains_any:
             # For input events, value may be in data
-            value = event.get("value") or event.get("inputValue")
+            value = normalize_text(event.get("value") or event.get("inputValue"))
             if not value:
                 return False
             # Check if value contains any of the specified strings
             if isinstance(expected_value_contains_any, list):
-                if not any(keyword in value for keyword in expected_value_contains_any):
+                if not any(
+                    normalize_text(keyword) in value
+                    for keyword in expected_value_contains_any
+                ):
                     return False
             else:
                 # If it's a single string, check containment
-                if expected_value_contains_any not in value:
+                if normalize_text(expected_value_contains_any) not in value:
                     return False
 
         expected_value_length_min = expected.get("value_length_min")

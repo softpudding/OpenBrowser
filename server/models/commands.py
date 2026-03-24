@@ -250,14 +250,14 @@ class HighlightElementsCommand(BaseCommand):
     Each page returns a maximal set of non-colliding elements.
     Only one element type per call for stable, predictable pagination.
 
-    When keywords is provided, only elements whose HTML contains the keywords
-    are returned (no pagination needed - all matching elements are returned).
+    When keywords is provided, use exact observed text or stable tokens only.
+    Matching elements are returned without pagination.
     """
 
     type: Literal["highlight_elements"] = "highlight_elements"
     element_type: Optional[str] = Field(
         default="any",
-        description="Single element type to highlight: 'any', 'clickable', 'scrollable', 'inputable', 'hoverable', or 'selectable'",
+        description="Single element type to highlight for agent-visible guidance: 'any', 'scrollable', 'inputable', 'hoverable', or 'selectable'",
     )
     page: Optional[int] = Field(
         default=1,
@@ -266,7 +266,7 @@ class HighlightElementsCommand(BaseCommand):
     )
     keywords: Optional[List[str]] = Field(
         default=None,
-        description="Keywords list to filter elements by detected semantic text (visible text, labels, roles, and stable element tokens). When provided, only matching elements are returned (no pagination). Example: ['button', 'submit', 'login']",
+        description="Exact observed text or stable tokens to filter by detected semantic text (visible text, labels, roles, and stable element tokens). Use only for wording already seen in the screenshot or returned HTML. When provided, only matching elements are returned (no pagination). Example: ['Continue with Email', 'View comments']",
     )
 
 
@@ -327,6 +327,8 @@ class ScrollElementCommand(BaseCommand):
 class SwipeElementCommand(BaseCommand):
     """Swipe a highlighted element in a direction, typically for carousel/swiper regions.
 
+    Swipe directions are semantic content directions: next/prev refer to the next
+    or previous visible item, not the finger movement direction.
     tab_id is optional and will be auto-resolved to the current managed tab if not provided.
     """
 
@@ -334,7 +336,11 @@ class SwipeElementCommand(BaseCommand):
     element_id: str = Field(description="Element ID from highlight response")
     direction: Literal["next", "prev"] = Field(
         default="next",
-        description="Swipe direction: 'next' or 'prev'",
+        description=(
+            "Semantic swipe direction for carousel/swiper regions: 'next' shows "
+            "the next picture/item and 'prev' shows the previous picture/item. "
+            "Do not reinterpret swipe as left/right gesture direction."
+        ),
     )
     swipe_count: int = Field(
         default=1,

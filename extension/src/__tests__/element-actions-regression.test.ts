@@ -21,4 +21,41 @@ describe('Element action regressions', () => {
       'Click JavaScript returned an unresolved Promise instead of a resolved result',
     );
   });
+
+  test('performElementClick routes editable clicks through the visible activation surface', () => {
+    expect(elementActionsSource).toContain(
+      'function getInteractiveActivationTarget(target)',
+    );
+    expect(elementActionsSource).toContain(
+      'dispatchActivationPress(activationTarget, activation.point);',
+    );
+    expect(elementActionsSource).toContain(
+      'dispatchActivationRelease(activationTarget, activation.point);',
+    );
+  });
+
+  test('performKeyboardInput primes editable activation and beforeinput events', () => {
+    expect(elementActionsSource).toContain('const alreadyFocused =');
+    expect(elementActionsSource).toContain("new InputEvent('beforeinput'");
+  });
+
+  test('performElementSwipe includes gesture fallback and settle wait', () => {
+    expect(elementActionsSource).toContain('async function performGestureSwipe');
+    expect(elementActionsSource).toContain('await waitForSwipeToSettle(');
+    expect(elementActionsSource).toContain("stepMethod = 'gesture';");
+  });
+
+  test('performElementSwipe refuses generic horizontal scroll fallback for non-swipable containers', () => {
+    expect(elementActionsSource).toContain('const canUseScrollFallback =');
+    expect(elementActionsSource).toContain(
+      'Selected element does not appear to be a swipeable carousel; use scroll_element or re-highlight a swipable region',
+    );
+  });
+
+  test('performElementSwipe prefers zero-animation library transitions', () => {
+    expect(elementActionsSource).toContain('currentApi.slideNext(0)');
+    expect(elementActionsSource).toContain('currentApi.slidePrev(0)');
+    expect(elementActionsSource).toContain('currentApi.scrollNext(true)');
+    expect(elementActionsSource).toContain('currentApi.slideTo(targetIndex, 0)');
+  });
 });

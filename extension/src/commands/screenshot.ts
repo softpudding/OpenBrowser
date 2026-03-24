@@ -10,8 +10,13 @@ import { workerManager } from '../workers/worker-manager';
 import { dialogManager, DialogType, type DialogInfo } from './dialog';
 import {
   calculateScreenshotCaptureScale,
+  DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
   type ScreenshotCaptureOptions,
 } from '../utils/highlight-screenshot';
+import {
+  buildLayoutStabilityHelpersScript,
+  getHighlightReadinessRetryDelay,
+} from '../utils/layout-stability';
 
 function buildPreCaptureSettleScript(
   timeoutMs: number,
@@ -218,6 +223,448 @@ function buildPreCaptureSettleScript(
   `;
 }
 
+function buildPreCaptureWarmupScript(): string {
+  return `
+    (async () => {
+      ${buildLayoutStabilityHelpersScript()}
+
+      function normalizeWhitespace(value, maxLength = 200) {
+        const normalized = String(value || '').replace(/\\s+/g, ' ').trim();
+        return normalized.length > maxLength
+          ? normalized.slice(0, maxLength)
+          : normalized;
+      }
+
+      function isRectInViewport(rect) {
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.top < window.innerHeight &&
+          rect.bottom > 0 &&
+          rect.left < window.innerWidth &&
+          rect.right > 0
+        );
+      }
+
+      function isElementVisibleForWarmup(node) {
+        if (!(node instanceof HTMLElement) && !(node instanceof SVGElement)) {
+          return false;
+        }
+
+        const style = window.getComputedStyle(node);
+        if (
+          style.display === 'none' ||
+          style.visibility === 'hidden' ||
+          Number.parseFloat(style.opacity || '1') <= 0
+        ) {
+          return false;
+        }
+
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      }
+
+      function isElementInViewportForWarmup(node) {
+        if (!(node instanceof HTMLElement) && !(node instanceof SVGElement)) {
+          return false;
+        }
+
+        return isRectInViewport(node.getBoundingClientRect());
+      }
+
+      function isMetricsTimeBudgetExceeded(startTime) {
+        return (
+          performance.now() - startTime >=
+          layoutStabilityConfig.metricsTimeBudgetMs
+        );
+      }
+
+      function countVisibleClickableCandidates(metricsStartTime) {
+        const clickableCandidates = document.querySelectorAll(
+          'a, button, input, select, textarea, summary, [role="button"], [tabindex], [onclick], [contenteditable="true"]',
+        );
+
+        let count = 0;
+        for (const candidate of clickableCandidates) {
+          if (count >= layoutStabilityConfig.maxClickableCandidates) {
+            break;
+          }
+
+          if (isMetricsTimeBudgetExceeded(metricsStartTime)) {
+            break;
+          }
+
+          if (!isElementVisibleForWarmup(candidate)) {
+            continue;
+          }
+
+          if (!isElementInViewportForWarmup(candidate)) {
+            continue;
+          }
+
+          count += 1;
+        }
+
+        return count;
+      }
+
+      const TEXT_METRIC_TAGS = new Set([
+        'main',
+        'article',
+        'section',
+        'aside',
+        'nav',
+        'div',
+        'p',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+      ]);
+
+      function collectViewportTextMetrics(metricsStartTime) {
+        let textBlockCount = 0;
+        let textCharCount = 0;
+        let processedCount = 0;
+
+        if (!document.body || typeof document.createTreeWalker !== 'function') {
+          return { textBlockCount, textCharCount };
+        }
+
+        const textWalker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_ELEMENT,
+          {
+            acceptNode(node) {
+              if (!(node instanceof HTMLElement)) {
+                return NodeFilter.FILTER_SKIP;
+              }
+
+              const tagName = node.tagName.toLowerCase();
+              if (
+                !TEXT_METRIC_TAGS.has(tagName) &&
+                node.getAttribute('role') !== 'main'
+              ) {
+                return NodeFilter.FILTER_SKIP;
+              }
+
+              return NodeFilter.FILTER_ACCEPT;
+            },
+          },
+        );
+
+        let candidate = textWalker.nextNode();
+        while (candidate) {
+          if (processedCount >= layoutStabilityConfig.maxTextCandidates) {
+            break;
+          }
+
+          if (isMetricsTimeBudgetExceeded(metricsStartTime)) {
+            break;
+          }
+
+          processedCount += 1;
+
+          if (!isElementVisibleForWarmup(candidate)) {
+            candidate = textWalker.nextNode();
+            continue;
+          }
+
+          if (!isElementInViewportForWarmup(candidate)) {
+            candidate = textWalker.nextNode();
+            continue;
+          }
+
+          const text = normalizeWhitespace(candidate.textContent || '', 400);
+          if (text.length >= 24) {
+            textBlockCount += 1;
+            textCharCount += text.length;
+          }
+
+          candidate = textWalker.nextNode();
+        }
+
+        return { textBlockCount, textCharCount };
+      }
+
+      function countPendingViewportImages(metricsStartTime) {
+        let count = 0;
+
+        for (const img of Array.from(document.images)) {
+          if (count >= layoutStabilityConfig.maxPendingImages) {
+            break;
+          }
+
+          if (isMetricsTimeBudgetExceeded(metricsStartTime)) {
+            break;
+          }
+
+          if (!isRectInViewport(img.getBoundingClientRect())) {
+            continue;
+          }
+
+          if (!img.complete || img.naturalWidth === 0) {
+            count += 1;
+          }
+        }
+
+        return count;
+      }
+
+      function countViewportMedia(metricsStartTime) {
+        const mediaElements = document.querySelectorAll('img, video, canvas');
+        let total = 0;
+        let complete = 0;
+
+        for (const media of mediaElements) {
+          if (total >= layoutStabilityConfig.maxViewportMedia) {
+            break;
+          }
+
+          if (isMetricsTimeBudgetExceeded(metricsStartTime)) {
+            break;
+          }
+
+          const rect = media.getBoundingClientRect();
+          if (!isRectInViewport(rect)) {
+            continue;
+          }
+
+          total += 1;
+
+          if (
+            media.tagName.toLowerCase() === 'img'
+              ? media.complete && media.naturalWidth > 0
+              : media.tagName.toLowerCase() === 'canvas' || media.readyState >= 2
+          ) {
+            complete += 1;
+          }
+        }
+
+        return { total, complete };
+      }
+
+      const PLACEHOLDER_SIGNAL_SELECTOR = [
+        '[class*="skeleton" i]',
+        '[class*="placeholder" i]',
+        '[class*="shimmer" i]',
+        '[class*="loading" i]',
+        '[class*="spinner" i]',
+        '[id*="skeleton" i]',
+        '[id*="placeholder" i]',
+        '[id*="shimmer" i]',
+        '[id*="loading" i]',
+        '[id*="spinner" i]',
+        '[aria-busy="true"]',
+        '[role="progressbar"]',
+      ].join(', ');
+
+      function countViewportPlaceholderSignals(metricsStartTime) {
+        const viewportArea = Math.max(1, window.innerWidth * window.innerHeight);
+        let skeletonLikeCount = 0;
+        let spinnerLikeCount = 0;
+        let placeholderArea = 0;
+        let processedCount = 0;
+
+        const candidates = document.querySelectorAll(PLACEHOLDER_SIGNAL_SELECTOR);
+        for (const element of candidates) {
+          if (processedCount >= layoutStabilityConfig.maxPlaceholderCandidates) {
+            break;
+          }
+          if (isMetricsTimeBudgetExceeded(metricsStartTime)) {
+            break;
+          }
+
+          processedCount += 1;
+          if (!isElementVisibleForWarmup(element)) {
+            continue;
+          }
+
+          if (!isElementInViewportForWarmup(element)) {
+            continue;
+          }
+
+          const rect = element.getBoundingClientRect();
+          const clampedWidth = Math.min(window.innerWidth, Math.max(0, rect.width));
+          const clampedHeight = Math.min(window.innerHeight, Math.max(0, rect.height));
+          const candidateArea = clampedWidth * clampedHeight;
+          const tokenText = normalizeWhitespace(
+            [
+              element.id || '',
+              element.className || '',
+              element.getAttribute('role') || '',
+              element.getAttribute('aria-label') || '',
+              element.getAttribute('aria-busy') || '',
+            ].join(' '),
+            200,
+          ).toLowerCase();
+
+          if (
+            tokenText.includes('spinner') ||
+            element.getAttribute('role') === 'progressbar'
+          ) {
+            spinnerLikeCount += 1;
+          } else {
+            skeletonLikeCount += 1;
+          }
+
+          placeholderArea += candidateArea;
+        }
+
+        return {
+          skeletonLikeCount,
+          spinnerLikeCount,
+          placeholderAreaRatio: Math.min(1, placeholderArea / viewportArea),
+        };
+      }
+
+      function warmViewportForCapture() {
+        const startTime = performance.now();
+        const allElements = document.querySelectorAll('*');
+        let scanned = 0;
+        let visible = 0;
+        let mediaTouched = 0;
+
+        for (const element of allElements) {
+          if (scanned >= 1200 || isMetricsTimeBudgetExceeded(startTime)) {
+            break;
+          }
+
+          scanned += 1;
+
+          if (!(element instanceof HTMLElement) && !(element instanceof SVGElement)) {
+            continue;
+          }
+
+          const rect = element.getBoundingClientRect();
+          if (!isRectInViewport(rect)) {
+            continue;
+          }
+
+          visible += 1;
+
+          if (element instanceof HTMLElement) {
+            normalizeWhitespace(element.textContent || '', 120);
+            window.getComputedStyle(element);
+          }
+        }
+
+        for (const media of document.querySelectorAll('img, video, canvas')) {
+          if (mediaTouched >= 24 || isMetricsTimeBudgetExceeded(startTime)) {
+            break;
+          }
+
+          const rect = media.getBoundingClientRect();
+          if (!isRectInViewport(rect)) {
+            continue;
+          }
+
+          mediaTouched += 1;
+
+          if (media.tagName.toLowerCase() === 'img') {
+            media.currentSrc;
+            media.complete;
+            media.naturalWidth;
+          } else if (media.tagName.toLowerCase() === 'video') {
+            media.readyState;
+            media.currentTime;
+          }
+        }
+
+        return {
+          scanned,
+          visible,
+          mediaTouched,
+          tookMs: Math.round(performance.now() - startTime),
+        };
+      }
+
+      function getPageMetrics() {
+        const metricsStartTime = performance.now();
+        const viewportText = collectViewportTextMetrics(metricsStartTime);
+        const viewportMedia = countViewportMedia(metricsStartTime);
+        const placeholderSignals = countViewportPlaceholderSignals(metricsStartTime);
+
+        return {
+          bodyHeight: document.body
+            ? document.body.getBoundingClientRect().height
+            : 0,
+          scrollHeight: document.documentElement
+            ? document.documentElement.scrollHeight
+            : 0,
+          pendingImages: countPendingViewportImages(metricsStartTime),
+          viewportMediaCount: viewportMedia.total,
+          completeViewportMediaCount: viewportMedia.complete,
+          textBlockCount: viewportText.textBlockCount,
+          textCharCount: viewportText.textCharCount,
+          visibleClickableCount: countVisibleClickableCandidates(metricsStartTime),
+          skeletonLikeCount: placeholderSignals.skeletonLikeCount,
+          spinnerLikeCount: placeholderSignals.spinnerLikeCount,
+          placeholderAreaRatio: placeholderSignals.placeholderAreaRatio,
+        };
+      }
+
+      const warmup = warmViewportForCapture();
+      const metrics = getPageMetrics();
+      const readiness = evaluateLayoutReadiness(metrics, {
+        pageReady: document.readyState === 'complete',
+        visibilityState: document.visibilityState,
+      });
+
+      return {
+        warmup,
+        readiness,
+      };
+    })()
+  `;
+}
+
+async function warmUpPageBeforeCapture(
+  cdpCommander: CdpCommander,
+  options?: ScreenshotCaptureOptions,
+): Promise<void> {
+  if (!options?.warmupBeforeCapture) {
+    return;
+  }
+
+  const maxAttempts = Math.max(1, options.warmupMaxAttempts ?? 3);
+  const evaluationTimeoutMs = 5000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const warmupResult = await cdpCommander.sendCommand<any>(
+        'Runtime.evaluate',
+        {
+          expression: buildPreCaptureWarmupScript(),
+          returnByValue: true,
+          awaitPromise: true,
+        },
+        evaluationTimeoutMs,
+      );
+
+      const snapshot = warmupResult?.result?.value;
+      console.log(
+        `🔥 [Screenshot] Pre-capture warmup attempt ${attempt}/${maxAttempts}: ${JSON.stringify(snapshot || {})}`,
+      );
+
+      if (snapshot?.readiness?.state !== 'not_ready') {
+        return;
+      }
+    } catch (warmupError) {
+      console.warn(
+        `⚠️ [Screenshot] Pre-capture warmup attempt ${attempt}/${maxAttempts} failed: ${warmupError instanceof Error ? warmupError.message : warmupError}`,
+      );
+    }
+
+    if (attempt < maxAttempts) {
+      const retryDelayMs = getHighlightReadinessRetryDelay(attempt);
+      if (retryDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
+    }
+  }
+}
+
 async function waitForPageToSettleBeforeCapture(
   cdpCommander: CdpCommander,
   options?: ScreenshotCaptureOptions,
@@ -247,6 +694,42 @@ async function waitForPageToSettleBeforeCapture(
     console.warn(
       `⚠️ [Screenshot] Pre-capture settle failed, continuing with best effort: ${settleError instanceof Error ? settleError.message : settleError}`,
     );
+  }
+}
+
+async function inspectImageDimensions(dataUrl: string): Promise<{
+  width: number;
+  height: number;
+}> {
+  if (!dataUrl.startsWith('data:')) {
+    throw new Error('[Screenshot] Invalid data URL while inspecting dimensions');
+  }
+
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex === -1) {
+    throw new Error('[Screenshot] Screenshot data URL missing payload separator');
+  }
+
+  const header = dataUrl.slice(0, commaIndex);
+  const base64Data = dataUrl.slice(commaIndex + 1);
+  const mimeType = header.slice(5, header.indexOf(';'));
+
+  const binary = atob(base64Data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  const blob = new Blob([bytes], { type: mimeType });
+  const imageBitmap = await createImageBitmap(blob);
+
+  try {
+    return {
+      width: imageBitmap.width,
+      height: imageBitmap.height,
+    };
+  } finally {
+    imageBitmap.close();
   }
 }
 
@@ -467,6 +950,10 @@ async function captureScreenshotWithCDP(
   }
 
   const cdpCommander = new CdpCommander(tabId);
+  const captureOptions: ScreenshotCaptureOptions = {
+    ...DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
+    ...(options ?? {}),
+  };
 
   try {
     // Enable Page domain if not already enabled
@@ -605,7 +1092,7 @@ async function captureScreenshotWithCDP(
       `🖥️ [Screenshot] Viewport size (CSS pixels): ${cssViewportWidth}x${cssViewportHeight} at (${cssViewportX}, ${cssViewportY})`,
     );
     console.log(
-      `📸 [Screenshot] Expected device pixels: ${cssViewportWidth * devicePixelRatio}x${cssViewportHeight * devicePixelRatio}`,
+      `📸 [Screenshot] Source device pixels: ${cssViewportWidth * devicePixelRatio}x${cssViewportHeight * devicePixelRatio}`,
     );
 
     // ========================================
@@ -618,7 +1105,8 @@ async function captureScreenshotWithCDP(
       await new Promise((resolve) => setTimeout(resolve, waitForRender));
     }
 
-    await waitForPageToSettleBeforeCapture(cdpCommander, options);
+    await warmUpPageBeforeCapture(cdpCommander, captureOptions);
+    await waitForPageToSettleBeforeCapture(cdpCommander, captureOptions);
 
     // ========================================
     // STEP 5: Capture screenshot - "所见即所得"方案
@@ -633,17 +1121,26 @@ async function captureScreenshotWithCDP(
       cssViewportWidth,
       cssViewportHeight,
       devicePixelRatio,
-      options,
+      captureOptions,
+    );
+    const expectedOutputWidth = Math.round(
+      cssViewportWidth * devicePixelRatio * clipScale,
+    );
+    const expectedOutputHeight = Math.round(
+      cssViewportHeight * devicePixelRatio * clipScale,
     );
 
     console.log(
       `🎯 [Screenshot] Capturing with clip: (${cssViewportX}, ${cssViewportY}) ${cssViewportWidth}x${cssViewportHeight} CSS pixels, scale=${clipScale} (sourceDPR=${devicePixelRatio})`,
     );
+    console.log(
+      `🎯 [Screenshot] Target output pixels: ${expectedOutputWidth}x${expectedOutputHeight}`,
+    );
 
     // 最大允许的base64数据大小：10MB
     const MAX_BASE64_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 
-    const preferredFormat = options?.preferredFormat ?? 'png';
+    const preferredFormat = captureOptions.preferredFormat ?? 'png';
     let screenshot: any;
     let format = preferredFormat;
     let finalQuality = quality;
@@ -758,8 +1255,8 @@ async function captureScreenshotWithCDP(
     // STEP 6: Validate screenshot data
     // ========================================
     // The screenshot should be in device pixels
-    const expectedDeviceWidth = Math.round(cssViewportWidth * clipScale);
-    const expectedDeviceHeight = Math.round(cssViewportHeight * clipScale);
+    const expectedDeviceWidth = expectedOutputWidth;
+    const expectedDeviceHeight = expectedOutputHeight;
 
     console.log(
       `📊 [Screenshot] Final image: ${format.toUpperCase()} ${expectedDeviceWidth}x${expectedDeviceHeight}, quality=${finalQuality}, size=${screenshot.data.length} bytes`,
@@ -781,8 +1278,16 @@ async function captureScreenshotWithCDP(
     // ========================================
     // 不再进行缩放，直接使用原始截图
     const finalImageData = dataUrl;
-    const finalImageWidth = expectedDeviceWidth;
-    const finalImageHeight = expectedDeviceHeight;
+    const actualDimensions = await inspectImageDimensions(finalImageData);
+    const finalImageWidth = actualDimensions.width;
+    const finalImageHeight = actualDimensions.height;
+    const imageScaleX =
+      cssViewportWidth > 0 ? finalImageWidth / cssViewportWidth : 1;
+    const imageScaleY =
+      cssViewportHeight > 0 ? finalImageHeight / cssViewportHeight : 1;
+    const imageScale = (imageScaleX + imageScaleY) / 2;
+    const effectiveCaptureScale =
+      devicePixelRatio > 0 ? imageScale / devicePixelRatio : imageScale;
 
     // 基本验证：图像数据应合理大小
     // 对于大尺寸截图，最小值应更高
@@ -824,9 +1329,11 @@ async function captureScreenshotWithCDP(
         format: format, // 图像格式 (png/jpeg)
         quality: finalQuality, // 图像质量 (JPEG only)
         captureMethod: 'cdp',
-        devicePixelRatio: clipScale,
+        devicePixelRatio: imageScale,
+        imageScale: imageScale,
         sourceDevicePixelRatio: devicePixelRatio,
-        captureScale: clipScale,
+        captureScale: effectiveCaptureScale,
+        requestedCaptureScale: clipScale,
         // 不再有裁剪偏移，因为不进行缩放
         cropOffsetX: 0,
         cropOffsetY: 0,

@@ -11,6 +11,8 @@
  */
 
 import { rejectPendingCommands } from './cdp-commander';
+import { clearScreenshotCache } from './computer';
+import { dialogManager } from './dialog';
 
 // ============================================================================
 // Types
@@ -330,6 +332,7 @@ export class DebuggerSessionManager {
       session.attachedTabs.delete(tabId);
     }
     this.tabToSession.delete(tabId);
+    dialogManager.disableForTab(tabId);
 
     // 拒绝待处理的命令
     rejectPendingCommands(tabId, `Debugger detaching: ${reason}`);
@@ -483,6 +486,7 @@ export class DebuggerSessionManager {
       session.attachedTabs.delete(tabId);
     }
     this.tabToSession.delete(tabId);
+    dialogManager.disableForTab(tabId);
 
     // 拒绝待处理命令
     rejectPendingCommands(tabId, `Debugger forcibly detached: ${reason}`);
@@ -503,6 +507,8 @@ export class DebuggerSessionManager {
     }
 
     this.tabToSession.delete(tabId);
+    dialogManager.disableForTab(tabId);
+    clearScreenshotCache(tabId);
     rejectPendingCommands(tabId, 'Tab closed');
   }
 

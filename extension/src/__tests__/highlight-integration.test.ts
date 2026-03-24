@@ -9,6 +9,7 @@ import {
   selectCollisionFreePage,
   calculateTotalPages,
   isLabelWithinViewport,
+  sortElementsByVisualOrder,
 } from '../utils/collision-detection';
 import type { InteractiveElement, ElementType } from '../types';
 
@@ -178,6 +179,7 @@ describe('Highlight Integration', () => {
         expect(elem.labelPosition).toBeDefined();
       }
     });
+
   });
 
   describe('Collision detection', () => {
@@ -344,6 +346,24 @@ describe('Highlight Integration', () => {
   });
 
   describe('Edge cases', () => {
+    test('should sort keyword-mode style results in visual order', () => {
+      const elements: InteractiveElement[] = [
+        createElement('c', 'clickable', 420, 220, 80, 30),
+        createElement('a', 'clickable', 120, 100, 80, 30),
+        createElement('d', 'clickable', 120, 220, 80, 30),
+        createElement('b', 'clickable', 420, 100, 80, 30),
+      ];
+
+      const result = sortElementsByVisualOrder(elements);
+
+      expect(result.map((element) => element.id)).toEqual([
+        'a',
+        'b',
+        'd',
+        'c',
+      ]);
+    });
+
     test('should handle empty elements array', () => {
       const result = selectCollisionFreePage([], 1);
       expect(result).toHaveLength(0);

@@ -1,0 +1,182 @@
+# Tab Tool
+
+Browser tab management with session isolation.
+
+## Overview
+
+The Tab Tool manages browser tabs within isolated sessions. Each conversation has its own tab group, ensuring visual and logical separation between different automation tasks.
+
+## Core Concepts
+
+### Session Isolation
+- **Tab Groups**: Tabs created for a conversation are grouped together in Chrome ("OpenBrowser" group).
+- **Active Tab**: Each conversation has one active tab where visual commands operate.
+
+### Screenshot Behavior
+Tab commands return screenshots to verify page state after operations:
+- `tab init` - Returns screenshot of newly loaded page
+- `tab open` - Returns screenshot of newly opened tab
+- `tab switch` - Returns screenshot of switched-to tab
+- `tab refresh` - Returns screenshot of refreshed page
+- `tab back` - Returns screenshot after navigating back in history
+- `tab forward` - Returns screenshot after navigating forward in history
+
+Commands that do NOT return screenshots:
+- `tab list` - Returns tab list only
+- `tab close` - Returns close result only
+
+If you need a clean screenshot after a non-screenshot command, use `tab view`.
+
+## Commands
+
+### tab init
+Initialize a new browser session with a tab group.
+
+```json
+{ "action": "init", "url": "https://example.com" }
+```
+
+**Parameters**:
+- `url`: URL to load in the initial tab
+
+**Behavior**:
+1. Creates a new tab group named "OpenBrowser"
+2. Opens the URL in a new tab
+3. Sets the tab as active for this conversation
+4. Returns screenshot of the loaded page
+
+**Use Case**: Start a new automation session.
+
+### tab open
+Open a new tab in the current session.
+
+```json
+{ "action": "open", "url": "https://example.com" }
+```
+
+**Parameters**:
+- `url`: URL to load in the new tab
+
+**Behavior**:
+1. Opens a new tab in the same tab group
+2. Sets the new tab as active for this conversation
+3. Returns screenshot of the loaded page
+
+**Use Case**: Open additional pages within the same session.
+
+### tab close
+Close a specific tab.
+
+```json
+{ "action": "close", "tab_id": 123 }
+```
+
+**Parameters**:
+- `tab_id`: ID of the tab to close
+
+**Behavior**:
+1. Closes the specified tab
+2. If it was the active tab, selects another tab in the group as active
+3. Returns success/failure (no screenshot)
+
+**Use Case**: Clean up unused tabs.
+
+### tab switch
+Switch to a specific tab within the session.
+
+```json
+{ "action": "switch", "tab_id": 123 }
+```
+
+**Parameters**:
+- `tab_id`: ID of the tab to switch to
+
+**Behavior**:
+1. Makes the specified tab active
+2. Brings it to the foreground
+3. Returns screenshot of the switched-to tab
+
+**Use Case**: Work with multiple open tabs.
+
+### tab list
+List all tabs in the current session.
+
+```json
+{ "action": "list" }
+```
+
+**Returns**: Array of tab objects with `tab_id`, `title`, `url`, `active` flags.
+
+**No screenshot returned**.
+
+### tab refresh
+Refresh the current active tab.
+
+```json
+{ "action": "refresh", "tab_id": 123 }
+```
+
+**Behavior**:
+1. Reloads the current active tab
+2. Returns screenshot of the refreshed page
+
+**Use Case**: Update page content.
+
+### tab view
+Get a clean screenshot of the current active tab without element highlights.
+
+```json
+{ "action": "view" }
+```
+
+**Behavior**:
+1. Captures screenshot without any overlays or modifications
+2. Returns the raw screenshot
+
+**Use Case**: Check page state during loading or when you just need to see the page.
+
+### tab back
+Navigate back in the browser history (equivalent to clicking the browser's back button).
+
+```json
+{ "action": "back" }
+```
+
+**Behavior**:
+1. Navigates to the previous page in the tab's history
+2. Returns screenshot of the navigated page
+
+**Use Case**: Go back to the previous page after clicking a link or navigating forward.
+
+### tab forward
+Navigate forward in the browser history (equivalent to clicking the browser's forward button).
+
+```json
+{ "action": "forward" }
+```
+
+**Behavior**:
+1. Navigates to the next page in the tab's history (if available)
+2. Returns screenshot of the navigated page
+
+**Use Case**: Go forward after having navigated back.
+
+## Workflow Integration
+
+1. **Start session**: `tab init https://example.com`
+2. **Navigate to other pages**: `tab open https://other.com`
+3. **Switch between tabs**: `tab switch` with appropriate tab_id
+4. **After tab operations**, restart discovery with the highlight tool on `element_type: "any"` before selecting the next element, because it exposes extension-derived page insight for the new page state.
+5. Treat highlight pagination as reliable. If page 1 misses the target, continue `element_type: "any"` pages before changing strategy. Use `keywords` only when you can already see the target's exact literal text on the target itself and can copy it verbatim from the screenshot. If a control itself shows an icon plus `52`, the literal keyword is `52`, not guessed icon words like `star`, `favorite`, or `bookmark`.
+
+## Notes
+
+- **Tab IDs**: Integer identifiers assigned by Chrome. These are returned in tab list responses and used in other commands.
+- **Auto-resolution**: element_interaction tool actions (click, hover, scroll, swipe, keyboard_input) automatically use the conversation's active tab if `tab_id` is not provided.
+- **Session persistence**: Tab groups remain until explicitly closed or browser restarts.
+
+## Error Handling
+
+- **No active tab**: If a conversation has no open tabs, commands requiring an active tab will fail.
+- **Invalid tab_id**: Using a tab_id from another conversation will fail.
+- **URL load failures**: Screenshots will show error pages or loading indicators.

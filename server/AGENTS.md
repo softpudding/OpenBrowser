@@ -225,10 +225,10 @@ OpenBrowser now uses 5 focused tools instead of a single monolithic tool:
 - **Pagination**: Collision-aware pages for non-overlapping element display
 
 ### 3. Element Interaction Tool (`element_interaction`)
-- **Purpose**: Click, hover, scroll, keyboard input, and select with confirmation-first flow plus safe fast paths
+- **Purpose**: Click and keyboard input with confirmation, plus direct hover, scroll, swipe, and select
 - **Visual coding**: ORANGE stage - confirmation preview when needed
-- **Interaction flow**: usually preview then `confirm_*`, but confirmed-cache and single-candidate paths can execute directly
-- **Commands**: `click`, `hover`, `scroll`, `keyboard_input`, `select` with confirmation variants
+- **Interaction flow**: `click` and `keyboard_input` preview first and require `confirm_*`; `hover`, `scroll`, `swipe`, and `select` execute directly
+- **Commands**: `click`, `confirm_click`, `hover`, `scroll`, `swipe`, `keyboard_input`, `confirm_keyboard_input`, `select`
 
 ### 4. Dialog Tool (`dialog`)
 - **Purpose**: Browser dialog (alert/confirm/prompt) handling

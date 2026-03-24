@@ -1,58 +1,36 @@
 """
-ElementInteractionTool - Tool for element interactions with 2PC safety mechanism.
+ElementInteractionTool - Tool for visual element interactions.
 
-This tool provides element interaction operations including click, hover, scroll,
-and keyboard input, with a two-phase commit (2PC) safety mechanism to prevent
-accidental interactions.
+Click and keyboard input use a two-phase commit (2PC) confirmation flow.
+Hover, scroll, swipe, and select execute directly.
 """
 
-import os
-import jinja2
 from collections.abc import Sequence
-from pathlib import Path
 from typing import List, Literal, Optional, Union
 
 from openhands.sdk.tool import (
     ToolDefinition,
     ToolAnnotations,
-    ToolExecutor,
     register_tool,
 )
 from pydantic import Field
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.agent.tools.prompt_context import get_prompt_render_context
-
-# Setup Jinja2 template environment for prompts
-_TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
-    autoescape=jinja2.select_autoescape(["html", "xml"]),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-
-# Template cache
-_ELEMENT_INTERACTION_TOOL_TEMPLATE = None
+from server.agent.tools.prompt_loader import render_tool_prompt
 
 
 def get_element_interaction_tool_description(conv_state=None) -> str:
     """Get the ElementInteractionTool description, rendered from Jinja2 template."""
-    global _ELEMENT_INTERACTION_TOOL_TEMPLATE
-
-    # Load template if not cached
-    if _ELEMENT_INTERACTION_TOOL_TEMPLATE is None:
-        _ELEMENT_INTERACTION_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template(
-            "element_interaction_tool.j2"
-        )
-
-    # Render template with context
-    return _ELEMENT_INTERACTION_TOOL_TEMPLATE.render(
-        **get_prompt_render_context(conv_state)
+    return render_tool_prompt(
+        "element_interaction_tool.j2",
+        conv_state,
+        context=get_prompt_render_context(conv_state),
     )
 
 
 class ElementInteractionAction(OpenBrowserAction):
-    """Action for element interactions with 2PC safety mechanism."""
+    """Action for element interactions."""
 
     action: Literal[
         "click",
@@ -62,13 +40,9 @@ class ElementInteractionAction(OpenBrowserAction):
         "keyboard_input",
         "select",
         "confirm_click",
-        "confirm_hover",
-        "confirm_scroll",
-        "confirm_swipe",
         "confirm_keyboard_input",
-        "confirm_select",
     ] = Field(
-        description="Element interaction action (use 'click'/'hover'/'scroll'/'swipe'/'keyboard_input'/'select' for preview, 'confirm_*' to execute)"
+        description="Element interaction action (click and keyboard_input require confirm_* follow-up; hover/scroll/swipe/select execute directly)"
     )
     element_id: Optional[str] = Field(
         default=None,
@@ -76,7 +50,12 @@ class ElementInteractionAction(OpenBrowserAction):
     )
     direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",
-        description="Movement direction for scroll/swipe. Use up/down/left/right for scroll, prefer next/prev for swipe.",
+        description=(
+            "Movement direction for scroll/swipe. Use up/down/left/right for "
+            "scroll. For swipe, use semantic next/prev only: 'next' shows the "
+            "next picture/item and 'prev' shows the previous picture/item. Do "
+            "not reinterpret swipe as left/right."
+        ),
     )
     scroll_amount: Optional[float] = Field(
         default=0.5,
@@ -107,7 +86,7 @@ class ElementInteractionAction(OpenBrowserAction):
 class ElementInteractionTool(
     ToolDefinition[ElementInteractionAction, OpenBrowserObservation]
 ):
-    """Tool for element interactions with 2PC safety mechanism."""
+    """Tool for element interactions with selective 2PC safety."""
 
     name = "element_interaction"
 

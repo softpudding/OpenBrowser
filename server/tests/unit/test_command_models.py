@@ -74,6 +74,14 @@ class TestVisualInteractionContracts:
         assert command.direction == "next"
         assert command.swipe_count == 1
 
+    def test_swipe_direction_description_uses_content_semantics(self) -> None:
+        description = SwipeElementCommand.model_fields["direction"].description
+
+        assert description is not None
+        assert "next picture/item" in description
+        assert "previous picture/item" in description
+        assert "left/right gesture direction" in description
+
     @pytest.mark.parametrize("count", [1, 5])
     def test_swipe_accepts_documented_count_boundaries(self, count: int) -> None:
         command = SwipeElementCommand(element_id="carousel1", swipe_count=count)

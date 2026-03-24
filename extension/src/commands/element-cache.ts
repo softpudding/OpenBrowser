@@ -11,7 +11,8 @@ interface CacheEntry {
   timestamp: number;
 }
 
-const CACHE_TTL_MS = 1200000; // 20 minutes
+export const ELEMENT_CACHE_TTL_MS = 1_200_000; // 20 minutes
+export const ELEMENT_CACHE_TTL_DESCRIPTION = `${ELEMENT_CACHE_TTL_MS / 60_000} minutes`;
 class ElementCacheImpl {
   private cache = new Map<string, CacheEntry>();
 
@@ -94,7 +95,7 @@ class ElementCacheImpl {
       // Check if this entry belongs to the conversation
       if (key.startsWith(`${conversationId}:`)) {
         // Check if expired
-        if (now - entry.timestamp > CACHE_TTL_MS) {
+        if (now - entry.timestamp > ELEMENT_CACHE_TTL_MS) {
           expiredKeys.push(key);
           continue;
         }
@@ -132,7 +133,7 @@ class ElementCacheImpl {
     }
 
     // Check if expired
-    if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    if (Date.now() - entry.timestamp > ELEMENT_CACHE_TTL_MS) {
       this.cache.delete(key);
       console.log(`⏰ [ElementCache] Cache expired for key ${key}`);
       return undefined;
@@ -192,7 +193,7 @@ class ElementCacheImpl {
         continue;
       }
 
-      if (now - entry.timestamp > CACHE_TTL_MS) {
+      if (now - entry.timestamp > ELEMENT_CACHE_TTL_MS) {
         expiredKeys.push(key);
       }
     }

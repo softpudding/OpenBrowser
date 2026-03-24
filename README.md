@@ -1,18 +1,46 @@
 # OpenBrowser
 
-**OpenBrowser** is a visual AI assistant powered by **Qwen3.5-Plus** (primary) with **Qwen3.5-Flash** support as a cost-effective alternative, designed for **browser automation** and **web interaction**. By combining AI-powered visual perception with direct browser control, OpenBrowser enables sophisticated web automation, data extraction, and interactive workflows.
+OpenBrowser is a multimodal browser agent for real web tasks.
 
-> **Note**: OpenBrowser currently supports **Chrome only** (via Chrome extension) and has been tested primarily with **Qwen3.5-Plus**, with **Qwen3.5-Flash** as a supported cost-effective option. Other models are not officially supported.
+It treats browser automation as a visual and interactive systems problem, not just a DOM parsing problem. Browsers are among the most complex pieces of software most people use every day. Reading the DOM can help, but understanding the DOM is not the same thing as actually operating the page. The long-term direction we believe in is multimodal control, or at least a strongly hybrid approach.
+
+OpenBrowser is built around that view:
+
+- Operate pages visually through screenshots and direct browser actions
+- Keep browser execution isolated from the control window
+- Evaluate continuously on mocked sites and real workflows
+- Treat model cost as a first-class engineering constraint
+
+> Note: OpenBrowser currently supports Chrome only through a Chrome extension. Development and evaluation are mainly done with `dashscope/qwen3.5-plus` and `dashscope/qwen3.5-flash`.
 
 ## Demo
 
-### AI-Powered News Collection from WSJ, CNN, and Reuters
+### Apartment Hunting on Xiaohongshu
 
-OpenBrowser autonomously browses major news websites (WSJ, CNN, Reuters) to collect, summarize, and translate breaking news about the Iran conflict.
+This demo is a better representation of what OpenBrowser is trying to do than a benchmark replay. The agent searches Xiaohongshu for apartments near Xixi Wetland, inspects multiple posts, judges renovation quality from images, likes and saves strong candidates, leaves comments, and then produces a shortlist.
+
+Task prompt:
+
+> Help me find 3 whole one-bedroom rentals near Xixi Wetland on Xiaohongshu. They should be close to a metro station, not feel too old, dark, cluttered, or overly styled, and the kitchen, bathroom, and bedroom should look clean with decent natural light. Browse multiple posts, pick the best 3, like and save them, comment on the best 2 to ask about price, earliest move-in date, short-term rental, and whether cats are allowed, then summarize why you chose them.
+
+![Xiaohongshu Apartment Hunting Demo](demo/xiaohongshu_apartment_preview.gif)
+
+[Watch full video: xiaohongshu_3_apartments_3x.mp4](demo/xiaohongshu_3_apartments_3x.mp4)
+
+What this demo shows:
+
+- Visual judgment, not just text extraction: lighting, clutter, decoration quality, and room condition
+- Real browser-side interaction: search, open posts, like, save, and comment
+- Multi-step decision making across multiple candidates
+- End-to-end output instead of isolated single-page actions
+
+### News Collection from WSJ, CNN, and Reuters
+
+OpenBrowser browses major news sites, collects relevant articles, and writes a translated summary of a developing event.
 
 ![News Collection Demo](demo/news_collection-preview.gif)
 
-[📺 Watch full video: news_collection.mp4](demo/news_collection.mp4)
+[Watch full video: news_collection.mp4](demo/news_collection.mp4)
 
 #### Collected Articles
 
@@ -23,20 +51,74 @@ OpenBrowser collected the following articles and saved them as markdown files:
 - **[WSJ_特朗普不排除向伊朗派遣地面部队_实时更新.md](demo/WSJ_特朗普不排除向伊朗派遣地面部队_实时更新.md)** - WSJ live updates on Trump's Iran policy
 - **[CNN_伊朗战争实时更新_能源设施袭击.md](demo/CNN_伊朗战争实时更新_能源设施袭击.md)** - CNN live coverage of energy facility attacks
 
-### AI-Powered Apartment Hunting on Xiaohongshu
+## Why OpenBrowser
 
-OpenBrowser searches for rental listings on Xiaohongshu (Little Red Book), automatically liking, saving, and commenting on posts to inquire about details. It also evaluates furniture and decor quality through visual analysis.
+### Browsers are hard
 
-![Xiaohongshu Apartment Hunting Demo](demo/apartment_hunting-preview.gif)
+The browser is already one of the most complicated software environments in industry: dynamic layouts, asynchronous state, popups, tab switches, scrolling containers, partial rendering, and noisy visual context all show up in routine tasks.
 
-[📺 Watch full video: apartment_hunting.mp4](demo/apartment_hunting.mp4)
+### The most native interface is visual
 
-#### Key Features Demonstrated
+Humans operate browsers by looking at the page and using the mouse and keyboard. Current models still need engineering help to do that reliably, but the native control loop is still visual. That is why OpenBrowser treats screenshots and interaction primitives as central.
 
-- **Autonomous Search**: Navigate and search on Xiaohongshu for rental listings
-- **Social Interactions**: Like, save, and comment on posts to contact landlords
-- **Visual Analysis**: Evaluate furniture quality and interior design through screenshots
-- **Multi-step Workflow**: Complete end-to-end apartment hunting process
+### DOM helps, but DOM-only is not the end state
+
+DOM-heavy systems such as PinchTab or OpenClaw Browser Relay can work well today, and in some tasks they may be faster or more accurate than a multimodal pipeline. But DOM understanding is not the same as being able to operate a page robustly. Our view is that the best long-term browser agent will be multimodal, or at least strongly hybrid.
+
+### Evaluation is part of development
+
+OpenBrowser is not iterated by vibe alone. The repo includes mocked websites with event tracking under [`eval/`](eval/), and meaningful changes are checked against that evaluation suite. Failed real-world behaviors become new evaluation cases.
+
+### Cost matters
+
+Model capability matters, but so does price. We do not assume token costs stay cheap forever. OpenBrowser is developed with that constraint in mind, including separate handling for stronger and cheaper models.
+
+## Evaluation
+
+OpenBrowser is evaluated in two complementary ways:
+
+- Real browser workflows and side-by-side comparisons against existing approaches
+- A custom regression suite of mocked websites with event tracking in [`eval/`](eval/)
+
+The main archived comparison in this repo keeps the same control setup and compares `OpenClaw Browser Relay` with `OpenClaw + OpenBrowser skill`:
+
+- [`eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md`](eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md)
+- [`eval/evaluation_report.json`](eval/evaluation_report.json)
+
+What we track:
+
+- Pass rate
+- Execution time
+- Cost
+- Remaining context headroom in the control window
+
+Representative archived results from `2026-03-16`:
+
+| Setup | Pass Rate | Avg. Time | Control Window Context |
+|--------|-----------|-----------|------------------------|
+| OpenClaw Browser Relay | 6/7 | 211s | 640% |
+| OpenClaw + OpenBrowser (`qwen3.5-plus`) | 7/7 | 274s | 21% |
+| OpenClaw + OpenBrowser (`qwen3.5-flash`) | 5/7 first pass, 7/7 with retry | 317s | 12% |
+
+That comparison is not meant to claim OpenBrowser wins every metric on every task. It is meant to make the tradeoff explicit: DOM-heavy relay systems can be strong today, while OpenBrowser is designed to preserve control-window headroom, support a multimodal execution path, and improve through repeatable evaluation.
+
+### Run Your Own Evaluation
+
+```bash
+# List available tests
+python eval/evaluate_browser_agent.py --list
+
+# Set the browser capability token once
+export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
+
+# Run all tests with both models
+python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
+
+# Or pass the browser UUID explicitly per run
+python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID
+```
+
+See [AGENTS.md](AGENTS.md#evaluation-system) for evaluation framework documentation.
 
 ## Quick Start
 
@@ -155,28 +237,15 @@ This means browser control is authorized by possession of the UUID capability to
 
 Simply tell your agent to install `skill/codex/open-browser`
 
-## Why Qwen3.5-Plus?
+## Why Qwen3.5 Family Right Now?
 
-We chose Qwen3.5-Plus as our foundation model because it offers exceptional multimodal capabilities at a fraction of the cost of competitors. Its native agentic design makes it ideal for tasks that require both visual understanding and code execution.
+OpenBrowser is developed mainly against the Qwen3.5 family because it gives a useful working point on the capability-versus-cost curve for multimodal browser tasks.
 
-**Key Advantages:**
-- **Strong Multimodal Capabilities**: Native multimodal training enables deep understanding of both code and visual content
-- **Cost-Effective**: Priced at approximately $0.688-$3.44 per 1M tokens, roughly 1/18 the cost of Gemini 3 Pro
-- **Agentic Design**: Specifically optimized for autonomous agent workflows
+In practice:
 
-### Qwen3.5-Flash as a Cost-Effective Alternative
-
-For cost-sensitive use cases, OpenBrowser also supports **Qwen3.5-Flash**, a faster and more affordable model from the Qwen3.5 family. Our evaluation results (see `eval/evaluation_report.json`) show that Qwen3.5-Flash maintains good performance for browser automation tasks while significantly reducing costs. 
-
-**When to choose Flash:**
-- **Budget constraints**: Flash offers similar capabilities at lower cost
-- **Simpler tasks**: For straightforward browser interactions and automation
-- **Development/testing**: When iterating on automation scripts
-
-**When to stick with Plus:**
-- **Complex visual reasoning**: Tasks requiring detailed visual analysis
-- **Multi-step planning**: Complex workflows with many decision points
-- **Highest accuracy**: Mission-critical automation where precision is paramount
+- `qwen3.5-plus` is used for harder visual reasoning and more demanding multi-step execution
+- `qwen3.5-flash` is useful when iteration speed and cost matter more than peak capability
+- the project treats model choice as an engineering tradeoff, not as the product itself
 
 Learn more about Qwen3.5:
 
@@ -186,90 +255,23 @@ Learn more about Qwen3.5:
 - [Alibaba unveils new Qwen3.5 model for 'agentic AI era' (Reuters)](https://www.reuters.com/technology/alibaba-unveils-qwen3.5-agentic-ai)
 - [QwenLM/Qwen3.5 (GitHub)](https://github.com/QwenLM/Qwen3.5)
 
-## Evaluation
+## Design Principles
 
-OpenBrowser has been extensively evaluated against real-world browser automation tasks. Our evaluation framework tests various scenarios from simple navigation to complex multi-step workflows.
+### 1. Multimodal first, hybrid when useful
 
-### Key Findings
+OpenBrowser is built around visual page understanding and direct interaction. Structured signals such as DOM can still be useful, but they are not assumed to be the whole answer.
 
-- **100% Pass Rate**: Both Qwen3.5-Plus and Qwen3.5-Flash achieved high pass rates across all 9 test cases
-- **Cost Efficiency**: Qwen3.5-Flash offers similar performance at ~3x lower cost
-- **Context Isolation**: Independent agent architecture uses only 12-21% of control window context vs 640% for monolithic approach
+### 2. Keep execution isolated
 
-### Evaluation Results
+The browser worker should not dump all state into the control window. OpenBrowser uses an independent execution path so the control model does not carry the entire browser session history.
 
-| Metric | Qwen3.5-Plus | Qwen3.5-Flash |
-|--------|--------------|---------------|
-| Pass Rate | High (9 tests) | High (9 tests) |
-| Avg. Duration | ~274s | ~317s |
-| Avg. Cost | ¥0.58/task | ¥0.24/task |
-| Context Usage | 21% | 12% |
+### 3. Evaluate continuously
 
-### Test Cases
+The repo contains mocked websites, event tracking, and archived comparison runs. The goal is not just to demo well once, but to improve under regression pressure.
 
-Our evaluation suite includes 9 test cases across 4 difficulty levels:
-- **Easy**: GBR Search, Finviz Simple Screener
-- **Medium**: TechForum Upvote, GBR Detailed Search & Read, Finviz Multi-Filter, DataFlow Visual Challenge
-- **Hard**: CloudStack DAS Agent, TechForum Comment Reply
-- **Very Hard**: CloudStack DAS Interactive
+### 4. Respect cost constraints
 
-### Reports & Data
-
-- **[Latest Evaluation Report](eval/evaluation_report.json)** - Full JSON report with per-test metrics
-- **[OpenClaw vs OpenBrowser Comparison](eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md)** - Architecture comparison and detailed analysis
-
-### Run Your Own Evaluation
-
-```bash
-# List available tests
-python eval/evaluate_browser_agent.py --list
-
-# Set the browser capability token once
-export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
-
-# Run all tests with both models
-python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
-
-# Or pass the browser UUID explicitly per run
-python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID
-```
-
-See [AGENTS.md](AGENTS.md#evaluation-system) for evaluation framework documentation.
-
-## The Vision
-
-Traditional browser automation tools require manual scripting and fragile selectors. OpenBrowser reimagines browser automation with **AI-powered visual understanding** and **natural interaction**:
-
-- **Visual Perception**: The AI sees web pages through screenshots, understanding UI elements visually
-- **Natural Interaction**: Click, type, scroll, and navigate using human-like visual recognition
-- **Adaptive Automation**: Handle dynamic websites, JavaScript-heavy applications, and complex workflows
-- **Cost-Effective**: Choose between Qwen3.5-Plus for maximum capability or Qwen3.5-Flash for budget-friendly automation
-
-OpenBrowser transforms browser automation from brittle scripts to intelligent, adaptive workflows that understand web pages the way humans do.
-
-## Key Differentiators
-
-### 1. AI-Powered Visual Browser Automation
-Unlike traditional automation tools that rely on brittle CSS selectors, OpenBrowser uses **visual AI to understand and interact with web pages naturally**:
-- **Visual Understanding**: The AI sees pages through screenshots, recognizing buttons, forms, and content visually
-- **Natural Interaction**: Click, type, scroll, and navigate based on visual cues, not fragile selectors
-- **Adaptive Workflows**: Handle dynamic content, JavaScript applications, and complex multi-step processes
-- **Unified Control**: One AI model handles visual perception, decision-making, and browser interaction
-
-This visual-first approach enables robust automation that works across websites without manual selector maintenance.
-
-### 2. Chrome Extension Architecture
-OpenBrowser operates as a **Chrome extension that controls your local browser**, providing unique advantages:
-- **Use Your Identity**: The extension inherits your browser's cookies, sessions, and login states, allowing the AI to interact with websites as you
-- **Bypass CAPTCHAs**: Since the AI uses your authenticated browser session, most CAPTCHA and verification challenges are avoided
-- **Access Restricted Content**: Interact with internal tools, private dashboards, and authenticated services that require your credentials
-- **Natural Browsing**: The AI operates within your existing browser environment, maintaining your bookmarks, extensions, and preferences
-
-### 3. Optimized for Qwen3.5 Family
-OpenBrowser is specifically designed for the **Qwen3.5 family**, primarily **Qwen3.5-Plus** with **Qwen3.5-Flash** as a cost-effective alternative, leveraging their unique strengths:
-- **Native Multimodal Training**: Unlike models with bolted-on vision capabilities, Qwen3.5-Plus was trained from the ground up with multimodal understanding (Flash inherits these capabilities)
-- **Cost-Effective at Scale**: At ~$0.688-$3.44 per 1M tokens for Plus (roughly 1/18 the cost of Gemini 3 Pro), and even lower costs for Flash, extensive browser automation becomes economically viable
-- **Agentic Architecture**: Purpose-built for autonomous agent workflows requiring tool use, visual reasoning, and multi-step planning
+Browser agents are only useful if they remain practical to run. OpenBrowser therefore treats pricing and context usage as core design constraints, not afterthoughts.
 
 ## Key Features
 

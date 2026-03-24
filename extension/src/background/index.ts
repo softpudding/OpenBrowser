@@ -20,6 +20,7 @@ import { debuggerSessionManager } from '../commands/debugger-manager';
 import { dialogManager } from '../commands/dialog';
 import { extractGroundedElements } from '../commands/grounded-elements';
 import { handleGetAccessibilityTree } from '../commands/accessibility';
+import { clearScreenshotCache } from '../commands/computer';
 
 import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
@@ -47,10 +48,13 @@ import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import {
   selectCollisionFreePage,
   calculateTotalPages,
+  sortElementsByVisualOrder,
 } from '../utils/collision-detection';
 import {
   HIGHLIGHT_CONSISTENCY_CONFIG,
   evaluateHighlightConsistency,
+  isRepeatedHighlightDrift,
+  type HighlightConsistencyResult,
 } from '../utils/highlight-consistency';
 import {
   getHighlightReadinessRetryDelay,
@@ -125,6 +129,12 @@ function buildHighlightConsistencyScript(
       };
     })();
   `;
+}
+
+function cleanupTabState(conversationId: string, tabId: number): void {
+  elementCache.invalidate(conversationId, tabId);
+  dialogManager.disableForTab(tabId);
+  clearScreenshotCache(tabId);
 }
 
 // ============================================================================
@@ -1069,6 +1079,15 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         console.log(
           `🧹 [Cleanup Session] Cleaning up session ${cleanupConversationId}`,
         );
+        const managedTabs = tabManager.getManagedTabs(cleanupConversationId);
+
+        for (const managedTab of managedTabs) {
+          cleanupTabState(cleanupConversationId, managedTab.tabId);
+        }
+
+        // Clear any conversation-scoped cache entries that may remain after
+        // tabs are closed or the session has already partially cleaned up.
+        elementCache.invalidate(cleanupConversationId);
 
         // 清理 tab manager 会话
         await tabManager.cleanupSession(cleanupConversationId);
@@ -1458,8 +1477,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         }
 
         const keywords = command.keywords;
-        const elementType =
-          command.element_type || (keywords ? 'any' : 'clickable');
+        const elementType = command.element_type || 'any';
         const page = command.page || 1;
 
         const detectionScript = buildHighlightDetectionScript({
@@ -1468,6 +1486,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const maxHighlightAttempts = 3;
         const highlightDetectionTimeoutMs = 18000;
+        let previousConsistency: HighlightConsistencyResult | null = null;
 
         for (let attempt = 1; attempt <= maxHighlightAttempts; attempt++) {
           console.log(
@@ -1607,7 +1626,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             activeTabId,
             conversationId,
             true,
-            70,
+            90,
             false,
             0,
             HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
@@ -1629,18 +1648,20 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           );
 
           // Get device pixel ratio for coordinate scaling
-          const devicePixelRatio =
-            screenshotResult.metadata?.devicePixelRatio || 1;
+          const imageScale =
+            screenshotResult.metadata?.imageScale ||
+            screenshotResult.metadata?.devicePixelRatio ||
+            1;
           const viewportWidth = screenshotResult.metadata?.viewportWidth || 0;
           const viewportHeight = screenshotResult.metadata?.viewportHeight || 0;
           console.log(
-            `📐 [HighlightElements] Device pixel ratio: ${devicePixelRatio}`,
+            `📐 [HighlightElements] Image scale: ${imageScale}`,
           );
           console.log(
             `📐 [HighlightElements] Viewport: ${viewportWidth}x${viewportHeight} CSS pixels`,
           );
           console.log(
-            `📐 [HighlightElements] Expected image size: ${viewportWidth * devicePixelRatio}x${viewportHeight * devicePixelRatio} device pixels`,
+            `📐 [HighlightElements] Expected image size: ${Math.round(viewportWidth * imageScale)}x${Math.round(viewportHeight * imageScale)} device pixels`,
           );
 
           const consistencyCheckStart = Date.now();
@@ -1672,11 +1693,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           console.log(
             `⏱️ [HighlightTrace] background consistency-check ${Date.now() - consistencyCheckStart}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
           );
+          const repeatedDrift = isRepeatedHighlightDrift(
+            highlightConsistency,
+            previousConsistency,
+          );
 
           if (
             highlightConsistency.shouldRetry &&
-            attempt < maxHighlightAttempts
+            attempt < maxHighlightAttempts &&
+            !repeatedDrift
           ) {
+            previousConsistency = highlightConsistency;
             console.warn(
               `⚠️ [HighlightElements] Layout drift detected after screenshot, retrying (attempt ${attempt}/${maxHighlightAttempts})`,
             );
@@ -1685,9 +1712,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
           if (highlightConsistency.shouldRetry) {
             console.warn(
-              `⚠️ [HighlightElements] Layout drift still detected on final attempt, returning latest screenshot`,
+              repeatedDrift
+                ? `⚠️ [HighlightElements] Layout drift repeated with near-identical metrics, returning latest screenshot`
+                : `⚠️ [HighlightElements] Layout drift still detected on final attempt, returning latest screenshot`,
             );
           }
+
+          // Preserve the original highlight pipeline order for detection,
+          // pagination, and consistency checks. Only derive a display order
+          // at the rendering boundary so the screenshot and returned list
+          // use the same visual ordering.
+          const displayOrderedElements =
+            sortElementsByVisualOrder(paginatedElements);
 
           const cacheStoreStart = Date.now();
           elementCache.storeElements(
@@ -1711,9 +1747,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           const drawHighlightsStart = Date.now();
           const highlightedScreenshot = await drawHighlights(
             screenshotResult.imageData,
-            paginatedElements,
+            displayOrderedElements,
             {
-              scale: devicePixelRatio,
+              scale: imageScale,
               viewportWidth,
               viewportHeight,
             },
@@ -1737,7 +1773,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           return {
             success: true,
             data: {
-              elements: paginatedElements,
+              elements: displayOrderedElements,
               totalElements: filteredElements.length,
               totalPages: totalPages,
               page: currentPage,
@@ -1954,7 +1990,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           true,
           90,
           false,
-          400,
+          900,
+          TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
         );
         const compressedSwipeScreenshotResult = await compressScreenshotResult(
           swipeScreenshotResult,
@@ -2227,7 +2264,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           activeTabId,
           conversationId,
           true,
-          80,
+          90,
         );
 
         // ============================================================
@@ -2285,7 +2322,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           screenshotResult.imageData,
           elementWithFreshBbox,
           {
-            scale: screenshotResult.metadata?.devicePixelRatio || 1,
+            scale:
+              screenshotResult.metadata?.imageScale ||
+              screenshotResult.metadata?.devicePixelRatio ||
+              1,
             viewportWidth: screenshotResult.metadata?.viewportWidth || 0,
             viewportHeight: screenshotResult.metadata?.viewportHeight || 0,
           },
@@ -2396,6 +2436,10 @@ tabManager.addTabSwitchedListener((conversationId: string, tabId: number) => {
   );
   // Send event to server asynchronously (don't await)
   sendTabSwitchedEvent(conversationId, tabId).catch(console.error);
+});
+
+tabManager.addTabClosedListener((conversationId: string, tabId: number) => {
+  cleanupTabState(conversationId, tabId);
 });
 
 console.log('✅ OpenBrowser extension loaded (Strict Mode)');

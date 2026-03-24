@@ -5,66 +5,65 @@ This tool provides visual element detection with collision-aware pagination,
 allowing the AI agent to see and interact with elements via numbered overlays.
 """
 
-import os
-import jinja2
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Optional, List
 
 from pydantic import Field
 from openhands.sdk.tool import (
     ToolDefinition,
     ToolAnnotations,
-    ToolExecutor,
     register_tool,
 )
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.agent.tools.prompt_context import get_prompt_render_context
-
-# Setup Jinja2 template environment for prompts
-_TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
-    autoescape=jinja2.select_autoescape(["html", "xml"]),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-
-# Template cache
-_HIGHLIGHT_TOOL_TEMPLATE = None
+from server.agent.tools.prompt_loader import render_tool_prompt
 
 
 def get_highlight_tool_description(conv_state=None) -> str:
     """Get the HighlightTool description, rendered from Jinja2 template."""
-    global _HIGHLIGHT_TOOL_TEMPLATE
-
-    # Load template if not cached
-    if _HIGHLIGHT_TOOL_TEMPLATE is None:
-        _HIGHLIGHT_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template("highlight_tool.j2")
-
-    # Render template with context
-    return _HIGHLIGHT_TOOL_TEMPLATE.render(**get_prompt_render_context(conv_state))
+    return render_tool_prompt(
+        "highlight_tool.j2",
+        conv_state,
+        context=get_prompt_render_context(conv_state),
+    )
 
 
-class HighlightAction(OpenBrowserAction):
-    """Action for highlighting interactive elements on a web page."""
+class BaseHighlightAction(OpenBrowserAction):
+    """Shared highlight action fields."""
 
     element_type: str = Field(
         default="any",
-        description="Single element type to highlight: any/clickable/scrollable/inputable/hoverable/selectable. Defaults to 'any'.",
+        description="Single element type to highlight for agent-visible guidance: any/scrollable/inputable/hoverable/selectable. Defaults to 'any'.",
     )
     page: int = Field(
         default=1,
         ge=1,
-        description="Page number for pagination (1-indexed). Ignored when keywords is provided.",
+        description="Page number for pagination (1-indexed).",
     )
+
+
+class HighlightAction(BaseHighlightAction):
+    """Large-model highlight action with exact-text keyword filtering."""
+
     keywords: Optional[List[str]] = Field(
         default=None,
-        description="Keywords list to filter elements by detected semantic text (visible text, labels, roles, and stable element tokens). When provided, returns all matching elements (no pagination). Example: ['button', 'submit', 'login']",
+        description="Exact observed text or stable tokens to filter elements by detected semantic text (visible text, labels, roles, and stable element tokens). Use only for wording already seen in the screenshot or returned HTML. When provided, returns all matching elements (no pagination). Example: ['Continue with Email', 'View comments']",
     )
 
 
-class HighlightTool(ToolDefinition[HighlightAction, OpenBrowserObservation]):
+class SmallModelHighlightAction(BaseHighlightAction):
+    """Small-model highlight action without keyword filtering."""
+
+
+def get_highlight_action_type(conv_state=None) -> type[BaseHighlightAction]:
+    """Return the model-aware highlight action schema."""
+    if get_prompt_render_context(conv_state).get("small_model"):
+        return SmallModelHighlightAction
+    return HighlightAction
+
+
+class HighlightTool(ToolDefinition[BaseHighlightAction, OpenBrowserObservation]):
     """Tool for highlighting interactive elements with visual overlays."""
 
     name = "highlight"
@@ -97,7 +96,7 @@ class HighlightTool(ToolDefinition[HighlightAction, OpenBrowserObservation]):
         return [
             cls(
                 description=get_highlight_tool_description(conv_state),
-                action_type=HighlightAction,
+                action_type=get_highlight_action_type(conv_state),
                 observation_type=OpenBrowserObservation,
                 annotations=ToolAnnotations(
                     title="Highlight Elements",

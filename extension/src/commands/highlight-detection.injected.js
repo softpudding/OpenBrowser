@@ -32,7 +32,7 @@ const POINTER_ROLE_SET = new Set([
 ]);
 
 const CONTROL_TOKEN_REGEX =
-  /\b(action|back|btn|button|clear|close|comment|filter|follow|like|menu|more|next|pause|play|prev|previous|refresh|reload|reply|search|share|submit|tab|toggle)\b/i;
+  /\b(action|back|bookmark|btn|button|clear|close|collect|comment|favorite|favourite|filter|follow|like|menu|more|next|pause|play|prev|previous|refresh|reload|reply|save|search|share|star|submit|tab|toggle)\b/i;
 const SWIPE_LIBRARY_REGEX =
   /\b(swiper|carousel|slider|slides?|embla|splide|slick|flickity|glide|keen-slider|tns)\b/i;
 
@@ -312,6 +312,35 @@ function getBaseClickableSignal(el) {
   return 'pointer';
 }
 
+function isNumericCounterText(text) {
+  const normalized = normalizeWhitespace(text, 32)
+    .replace(/,/g, '')
+    .toLowerCase();
+  return /^(?:\d+(?:\.\d+)?)(?:[kmw]|万|亿)?$/.test(normalized);
+}
+
+function isLikelyCountTextElement(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tag = el.tagName.toLowerCase();
+  if (!['span', 'div', 'strong', 'em', 'b', 'i'].includes(tag)) {
+    return false;
+  }
+
+  const text = getElementTextForDetection(el);
+  if (!text || !isNumericCounterText(text)) {
+    return false;
+  }
+
+  const searchText = getElementSearchText(el);
+  return (
+    /\b(count|num|number|total|qty)\b/i.test(searchText) ||
+    el.children.length === 0
+  );
+}
+
 function getControlAffinityScore(el) {
   const searchText = getElementSearchText(el);
   const text = getElementTextForDetection(el);
@@ -326,7 +355,7 @@ function getControlAffinityScore(el) {
   }
 
   if (
-    /\b(button|btn|filter|follow|like|refresh|reload|reply|search|share|submit|toggle)\b/i.test(
+    /\b(bookmark|button|btn|collect|favorite|favourite|filter|follow|like|refresh|reload|reply|save|search|share|star|submit|toggle)\b/i.test(
       searchText,
     )
   ) {
@@ -335,6 +364,14 @@ function getControlAffinityScore(el) {
 
   if (/\b(icon|svg)\b/i.test(searchText)) {
     score -= 10;
+  }
+
+  if (hasControlIntentToken(el) && countVisibleSvgDescendants(el, 1) > 0) {
+    score += 18;
+  }
+
+  if (isLikelyCountTextElement(el)) {
+    score -= 24;
   }
 
   const rect = el.getBoundingClientRect();
@@ -542,7 +579,7 @@ function isInputableCandidate(el) {
     ].includes(inputType);
   }
 
-  return el.getAttribute('contenteditable') === 'true';
+  return el.isContentEditable;
 }
 
 function isSelectableCandidate(el) {
@@ -700,9 +737,9 @@ function resolveClickableCandidate(el) {
       candidates.push({
         element: current,
         signalSource,
-        signalScore: getCandidateSignal('clickable', signalSource),
+        signalScore: getCandidateSignal('clickable', signalSource, current),
         quality:
-          getCandidateSignal('clickable', signalSource) +
+          getCandidateSignal('clickable', signalSource, current) +
           getControlAffinityScore(current),
         rect,
         area,
@@ -1086,11 +1123,19 @@ function generateSelector(el) {
   return path.join(' > ');
 }
 
-function getCandidateSignal(type, signalSource) {
+function getCandidateSignal(type, signalSource, el = null) {
   if (type === 'clickable') {
-    return (
-      HIGHLIGHT_SIGNAL_SCORE[signalSource] || HIGHLIGHT_SIGNAL_SCORE.pointer
-    );
+    const baseSignalScore =
+      HIGHLIGHT_SIGNAL_SCORE[signalSource] || HIGHLIGHT_SIGNAL_SCORE.pointer;
+    if (
+      signalSource === 'pointer' &&
+      el instanceof HTMLElement &&
+      isLikelyCountTextElement(el)
+    ) {
+      return baseSignalScore - 80;
+    }
+
+    return baseSignalScore;
   }
 
   return HIGHLIGHT_SIGNAL_SCORE[type] || 0;
@@ -1106,7 +1151,7 @@ function buildResolvedCandidate(el, type, signalSource) {
     rect,
     area: getElementArea(rect),
     depth: getDomDepth(el),
-    signalScore: getCandidateSignal(type, signalSource),
+    signalScore: getCandidateSignal(type, signalSource, el),
   };
 }
 
@@ -1202,6 +1247,20 @@ function compareCandidates(a, b) {
     return typeDelta;
   }
 
+  if (isPreferredControlWrapperOverCandidate(a, b)) {
+    return -1;
+  }
+
+  if (isPreferredControlWrapperOverCandidate(b, a)) {
+    return 1;
+  }
+
+  const aPureCountClickable = isPureCountClickableCandidate(a);
+  const bPureCountClickable = isPureCountClickableCandidate(b);
+  if (aPureCountClickable !== bPureCountClickable) {
+    return aPureCountClickable ? 1 : -1;
+  }
+
   if (a.signalScore !== b.signalScore) {
     return b.signalScore - a.signalScore;
   }
@@ -1219,6 +1278,34 @@ function compareCandidates(a, b) {
   }
 
   return a.rect.x - b.rect.x;
+}
+
+function isPureCountClickableCandidate(candidate) {
+  return (
+    candidate.type === 'clickable' &&
+    candidate.signalSource === 'pointer' &&
+    isLikelyCountTextElement(candidate.element)
+  );
+}
+
+function isControlWrapperCandidate(candidate) {
+  return (
+    candidate.type === 'clickable' &&
+    hasControlIntentToken(candidate.element) &&
+    (countVisibleSvgDescendants(candidate.element, 1) > 0 ||
+      candidate.element.children.length > 0)
+  );
+}
+
+function isPreferredControlWrapperOverCandidate(
+  wrapperCandidate,
+  nestedCandidate,
+) {
+  return (
+    isControlWrapperCandidate(wrapperCandidate) &&
+    isPureCountClickableCandidate(nestedCandidate) &&
+    wrapperCandidate.element.contains(nestedCandidate.element)
+  );
 }
 
 function isProminentScrollableCandidate(candidate) {
@@ -1289,6 +1376,18 @@ function shouldDropCandidate(candidate, kept) {
     candidate.type === 'scrollable' && kept.type !== 'scrollable';
 
   if (
+    isPureCountClickableCandidate(candidate) &&
+    isPreferredControlWrapperOverCandidate(kept, candidate) &&
+    overlapRatio >= 0.6
+  ) {
+    return true;
+  }
+
+  if (isPreferredControlWrapperOverCandidate(candidate, kept)) {
+    return false;
+  }
+
+  if (
     !preserveScrollableContainer &&
     candidate.element.contains(kept.element) &&
     overlapRatio >= 0.6
@@ -1308,12 +1407,18 @@ function shouldDropCandidate(candidate, kept) {
 }
 
 function toInteractiveElement(candidate) {
-  const text = getElementTextForDetection(candidate.element);
   const interactionHints = getInteractionHints(candidate.element);
+  const displayType =
+    candidate.type === 'clickable' &&
+    (interactionHints.includes('swipable') ||
+      isScrollableCandidate(candidate.element))
+      ? 'scrollable'
+      : candidate.type;
+  const text = getElementTextForDetection(candidate.element);
 
   return {
     id: '',
-    type: candidate.type,
+    type: displayType,
     ...(interactionHints.length > 0 ? { interactionHints } : {}),
     tagName: candidate.element.tagName.toLowerCase(),
     selector: generateSelector(candidate.element),
@@ -1710,8 +1815,9 @@ function collectHighlightCandidates(requestedType, trace) {
   };
 
   const elements = prunedCandidates.map((candidate) => {
-    counts[candidate.type] += 1;
-    return toInteractiveElement(candidate);
+    const element = toInteractiveElement(candidate);
+    counts[element.type] += 1;
+    return element;
   });
 
   trace(

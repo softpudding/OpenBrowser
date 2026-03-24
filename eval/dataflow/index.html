@@ -22,7 +22,7 @@
         <nav class="sidebar-nav">
             <div class="nav-section">
                 <div class="nav-section-title">Main</div>
-                <a href="#" class="nav-item active">
+                <a href="#" class="nav-item active" data-view="dashboard">
                     <span class="nav-icon">📊</span>
                     <span>Dashboard</span>
                 </a>
@@ -30,7 +30,7 @@
                     <span class="nav-icon">📈</span>
                     <span>Analytics</span>
                 </a>
-                <a href="#" class="nav-item">
+                <a href="#" class="nav-item" data-view="reports">
                     <span class="nav-icon">📝</span>
                     <span>Reports</span>
                 </a>
@@ -82,11 +82,11 @@
         <!-- Top Header -->
         <header class="top-header">
             <div class="header-left">
-                <h1 class="page-title">Dashboard</h1>
+                <h1 class="page-title" id="page-title">Dashboard</h1>
                 <div class="breadcrumb">
                     <span>Home</span>
                     <span class="separator">/</span>
-                    <span>Dashboard</span>
+                    <span id="breadcrumb-current">Dashboard</span>
                 </div>
             </div>
             <div class="header-right">
@@ -180,6 +180,18 @@
                     <button class="btn-primary" id="add-widget-btn">➕ Add Widget</button>
                 </div>
             </div>
+
+            <section class="reports-hub" id="reports-hub" hidden>
+                <div class="reports-hub-copy">
+                    <span class="reports-badge">Reports Workspace</span>
+                    <h2>Quarterly Revenue Reports</h2>
+                    <p>Review the same quarterly revenue chart used on the dashboard, or jump directly into the highest-revenue quarter report.</p>
+                </div>
+                <div class="reports-hub-actions">
+                    <button class="btn-primary" id="open-q4-report-btn">Open Highest Revenue Report</button>
+                    <div class="reports-hub-note">Highest revenue quarter: Q4</div>
+                </div>
+            </section>
 
             <!-- Tab Content: Overview -->
             <div class="tab-content" id="content-overview">

@@ -1,0 +1,196 @@
+# Highlight Tool
+
+Element discovery with collision-free visual overlays.
+
+## Overview
+
+The Highlight Tool discovers interactive elements on a web page and marks them with visual overlays. This is the **BLUE stage** of the two-stage color system, designed for safe element identification before interaction.
+
+## Any-First Discovery Rule
+
+- `element_type: "any"` is the default first pass for each new page state because it exposes extension-derived page insight across element types, neighboring controls, and other actionable structure that you cannot reliably infer from intent alone
+- After any significant page-state change, restart with `highlight` on `element_type: "any"` before choosing the next element
+- Do not jump away from `element_type: "any"` on that changed page before rebuilding the mixed-type inventory
+- If the page state is unchanged and the target is still missing, continue `any` pagination first before trying another discovery strategy
+- Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`; only narrow to another specific type or `keywords` when the task directly targets that affordance and the current page state's `any` inventory was not enough
+
+## Visual Color System - BLUE Stage
+
+When you use the highlight tool, elements are marked with **BLUE boxes**:
+
+**Purpose**: Identify which element you want to interact with.
+
+**You see**:
+- Screenshot with **multiple blue boxes** (one per element)
+- Each box has an **element ID label**
+- List of element IDs with their HTML
+
+**Your task**:
+1. Look at the screenshot - find blue boxes
+2. Match visual position with your intent
+3. Read HTML semantics to confirm
+4. Note the element_id of your target
+
+## Element ID Format
+
+Element IDs are unique 6-character base36 hashes (e.g., `a3f2b1`, `9z8x7c`).
+Each element is assigned a stable hash based on its DOM position and attributes.
+This hash remains consistent across highlight tool calls for the same page state.
+
+## Collision-Aware Pagination
+
+Elements are paginated to ensure **no visual overlap** in each screenshot:
+- **One element type per call** for stable, predictable pagination
+- Each page returns a maximal set of non-colliding elements
+- Collision detection includes label area (26px above element)
+- AI calls `page=1, page=2, page=3...` to see all elements of that type
+- No offset/limit - pages are determined by collision geometry
+
+## Commands
+
+### highlight
+Capture a screenshot with numbered visual markers on interactive elements of ONE type.
+
+```json
+{}                           // Default: any interactive elements, page 1
+{ "element_type": "inputable" }  // Input fields
+{ "element_type": "scrollable" } // Scrollable areas
+{ "element_type": "hoverable" }  // Hoverable elements
+{ "element_type": "selectable" } // Select dropdowns
+{ "element_type": "any" }        // All interactive elements combined
+{ "page": 2 }                 // Next page of any interactive elements
+{ "keywords": ["Continue with Email"] } // Exact observed readable text only
+```
+
+**Parameters**:
+- `element_type`: Single type to highlight - "any" (default), "scrollable", "inputable", "hoverable", or "selectable"
+- `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
+- `keywords`: Exact literal text already visible on the target itself in the current screenshot that you can copy verbatim. Use this only to accelerate a known text match, not to discover guessed controls. When provided, only matching elements are returned without pagination. Example: ["Continue with Email", "View comments"]
+
+**When to Use Pagination**:
+- After any significant page-state change, restart with `highlight` on `element_type: "any"` before selecting the next target
+- Do not jump away from `element_type: "any"` on that changed page before rebuilding the mixed-type inventory
+- Use `any` first because it captures extension-derived structure and cross-type context that a narrower pass can hide
+- If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements
+- If the page state is unchanged and you still have not found the target, your default next step is the next `any` page
+- Treat pages as reliable collision-free slices of the same candidate set, not random samples
+- Continue to the next page until you find the most appropriate element for your task or exhaust the relevant pages
+- Stay on the same `element_type` across pages to browse through all elements of that category
+- Do not jump from a first-page miss to `keywords`
+- Exhaust relevant highlight pages before switching strategies unless the page state changed or you already see the target's exact literal text on the target itself in the screenshot
+- Use `any` to inventory the changed page first, then use type-specific pagination only if you have a narrower reason on the same unchanged page state
+- For icon-only controls (gear, close, bell, avatar menu, toolbar icons), prefer more `any` pages over broad keyword search or a narrower generic-control mode
+- If you can see a related count, badge, or neighboring text from the target control but not the control itself, prefer the next page first; collision-aware pagination often separates adjacent pieces of the same UI
+
+**When to Use Keywords**:
+- When you know the exact literal text you're looking for because you already observed it on the target itself in the current screenshot
+- Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot
+- More efficient than pagination only when the target is already text-identified and you can quote it precisely
+- No need for pagination - all matching elements are returned at once
+- Weak for icon-only controls because SVG meaning often is not represented in searchable text
+- Do not use keywords as your first attempt for toolbar icons like settings, history, notifications, chat, or avatar menus
+- If a generic control has visible readable text, you may use that exact text; if it is icon-only, use pagination instead
+- Do not guess a semantic word from appearance alone and search for it
+- Do not use keywords as a fallback just because page 1 did not contain the target
+
+**Exact-Text Search Only**:
+
+Use keyword search only when you can clearly identify the target element's exact literal text on the target itself in the current screenshot:
+- You see the element's distinctive text clearly in the screenshot
+- You can already see the target's exact text label on the target itself in the screenshot and can copy it verbatim
+- You want to narrow to a specific post, comment, button, or menu item whose text you can quote verbatim
+- If the target is a control, its visible readable text is clear enough to quote exactly rather than guess
+- If a target control itself visibly shows an icon plus `52`, the only literal searchable token is `52`; do not convert the icon into guessed words like `star`, `favorite`, or `bookmark`
+
+For exact-text search:
+- Prefer **ONE exact phrase** that distinguishes the target from all other elements
+- Reuse the exact wording you already observed
+- Avoid generic action words that could match multiple controls
+
+Examples of exact-text search:
+- **Specific button label already visible**: If you can see a button labeled "Continue with Email", search `{"keywords": ["Continue with Email"]}` instead of just `["Continue"]`.
+- **Specific user's comment**: Page shows multiple user comments. If targeting "John's reply", search `{"keywords": ["John's reply"]}` to narrow down to that specific comment.
+- **Specific post title already visible**: If you can see a post titled "春季穿搭合集", search `{"keywords": ["春季穿搭合集"]}`.
+- **Icon + count on the target itself**: If the control itself visibly shows an icon plus `52`, search `{"keywords": ["52"]}` if you need keywords. Do not search guessed icon semantics like `["star"]`, `["favorite"]`, or `["bookmark"]`.
+
+**Anti-Patterns**:
+- DO NOT use overly broad keywords like ["x"] that match everything
+- DO NOT switch to keywords after only checking page 1 of highlight results
+- DO NOT replace pagination with speculative keyword probing
+- DO NOT infer a guessed semantic label from shape, iconography, color, or position and search for that guess
+- DO NOT search for unlabeled toolbar icons or ambiguous controls with guessed words like "settings", "gear", "bell", "chat", "next", "prev", or "close"
+- DO NOT switch to keywords just because a nearby count like "57" is visible; in collision-aware pagination, the actual button may simply be on the next page
+- DO NOT turn an icon+count control into guessed icon words. If the control itself shows an icon plus `52`, the literal keyword is `["52"]`, not `["star"]`, `["favorite"]`, or `["bookmark"]`
+- DO NOT use synonym bundles like `["close", "dismiss", "cancel"]` or `["search", "find", "query"]`
+- DO NOT mix unrelated keywords in a single search
+
+## Workflow Integration
+
+1. **Start with Highlight**: Always begin element interaction by calling the highlight tool to discover available elements. Treat highlight as the authoritative inventory of currently reachable interactive elements.
+2. **Re-Highlight After Big Changes**: If the page significantly changed after your last action, such as navigation, tab switch, modal expansion, or opening a detail view, call `highlight` with `element_type: "any"` again before choosing the next element. Use `any` here because it exposes extension-derived page insight that a narrower pass may miss. Do not jump straight to `keywords` or another narrower type on that changed page.
+3. **Visual + Semantic Verification**: At the BLUE stage, verify using BOTH visual AND semantic information:
+   - **Visual Check**: Is the blue box where you expect?
+   - **Semantic Check**: Does the HTML match your goal?
+4. **Select Element**: Note the `element_id` of your target.
+   - Returned IDs can include the primary type plus extra hints, for example `abc123(scrollable, swipable)`.
+   - `swipable` means the element is in a carousel/slider/swiper-like region. Do not assume normal page/container scroll will move it.
+   - When you later use `swipe`, `direction: "next"` means show the next picture/item and `direction: "prev"` means show the previous picture/item. These are semantic content directions, not gesture directions.
+5. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and the selected element_id.
+   - For any `inputable` target, always `click` it first and complete that confirmation before `keyboard_input`.
+
+## Element Types
+
+**Recommendation**:
+- Prefer `element_type: "any"` as the default first pass
+- Trust pagination and continue the same highlight mode across pages before changing strategy
+- Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any` instead of moving to a dedicated control-only mode
+- Prefer `keywords` only when the target has exact literal text you can quote verbatim from the target itself in the current screenshot
+
+### any
+Combines all element types with OR logic. Returns elements matching any of the supported types. Elements matching multiple types are deduplicated and assigned one display type plus any extra interaction hints.
+
+When used with keywords, pagination is skipped and all matching elements are returned.
+
+**HTML-to-Action Mapping**: When using `any` type, determine the appropriate action based on the element's HTML:
+
+| Element Type | Action | Intent | Display Color |
+|--------------|--------|--------|---------------|
+| `<button>`, `<a>`, `[role="button"]` | `click` | Trigger action, navigate, submit | Blue (#0066FF) |
+| `<input type="text/email/password/number/search">`, `<textarea>` | `click` → `keyboard_input` | Focus, then enter text | Orange (#FF9900) |
+| `<input type="checkbox">`, `<input type="radio">` | `click` | Toggle selection | Blue (#0066FF) |
+| `<input type="submit">`, `<input type="button">` | `click` | Submit form, trigger action | Blue (#0066FF) |
+| `<select>` | `select` | Choose from dropdown options | Red (#FF6B6B) |
+| Scrollable containers | `scroll` | Scroll content | Green (#00CC66) |
+| Elements with `cursor: pointer` | `hover` then `click` | Reveal menus, custom buttons | Purple (#9966FF) |
+
+**Decision flow**: Check `tagName` and attributes in the returned HTML to determine the correct action.
+If the element suffix includes `swipable`, prefer `swipe` for moving the region: visible items may still trigger actions, but changing slides often requires carousel/swiper behavior rather than normal scroll.
+For `swipe`, use semantic directions: `"next"` shows the next picture/item and `"prev"` shows the previous picture/item.
+
+### inputable
+Text inputs, textareas, checkboxes, radio buttons.
+For text-entry targets, always `click` first and complete that confirmation before `keyboard_input`.
+
+### scrollable
+Scrollable containers and the entire page.
+This is different from `swipable`, which is an extra hint for carousel/slider regions that may ignore ordinary `scroll` operations.
+
+### hoverable
+Elements that reveal tooltips, dropdowns, or change state on hover.
+
+### selectable
+Native `<select>` dropdown elements (look for ▼ arrow indicator). Use when your intent is to **pick a value** from options.
+
+**click-triggering controls vs selectable**:
+- Most controls you discover in `any` are click-triggering controls: the intent is to **open/navigate/trigger** (e.g., "Submit", "Learn More")
+- `selectable`: Intent is to **choose a value** (e.g., country selector, quantity dropdown)
+
+## Screenshot Behavior
+
+The highlight tool always returns a screenshot with overlays. In `element_type="any"` mode, overlay colors can differ by detected element type.
+
+## Error Handling
+
+- **No elements found**: Returns empty element list but still provides screenshot.
+- **Invalid element_type**: Returns error.
+- **Page out of range**: Returns empty element list for that page.

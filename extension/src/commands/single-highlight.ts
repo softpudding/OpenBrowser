@@ -1,21 +1,35 @@
 /**
  * Single Element Highlight Module
- * Draws a single bounding box with confirmation label on a screenshot for 2PC flow.
+ * Draws a single bounding box on a cropped confirmation screenshot for 2PC flow.
  */
 
 import type { InteractiveElement } from '../types';
 
 // Visual style for single-element confirmation
 const CONFIRMATION_COLOR = '#FF6600'; // Orange border
-const CONFIRMATION_BG = 'rgba(255, 102, 0, 0.8)'; // Orange with transparency
-const CONFIRMATION_LABEL = 'Is This The Element You Selected? Please Confirm';
-const BASE_FONT_SIZE = 16;
-const BASE_LABEL_PADDING = 4;
 const BASE_BOX_PADDING = 2;
 const BASE_LINE_WIDTH = 3;
+const BASE_CONTEXT_PADDING_X = 96;
+const BASE_CONTEXT_PADDING_Y = 112;
+const BASE_MIN_CROP_WIDTH = 520;
+const BASE_MIN_CROP_HEIGHT = 320;
+const MIN_CROP_WIDTH_RATIO = 0.58;
+const MIN_CROP_HEIGHT_RATIO = 0.58;
+
+interface DeviceRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface ConfirmationPreviewLayout {
+  crop: DeviceRect;
+  element: DeviceRect;
+}
 
 /**
- * Draw a single highlighted element with confirmation label
+ * Draw a single highlighted element on a focused confirmation preview.
  *
  * @param screenshotDataUrl - Base64 data URL of the screenshot
  * @param element - The element to highlight
@@ -142,8 +156,23 @@ export async function highlightSingleElement(
       `📐 [SingleHighlight] Using scale: ${scale.toFixed(3)} (provided: ${providedScale}, calculated: ${actualScale})`,
     );
 
-    // Create OffscreenCanvas with same dimensions as screenshot
-    const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
+    const previewLayout = calculateConfirmationPreviewLayout(
+      imageBitmap.width,
+      imageBitmap.height,
+      element,
+      scale,
+    );
+
+    console.log(
+      `🪟 [SingleHighlight] Confirmation crop for ${element.id}:`,
+      JSON.stringify(previewLayout),
+    );
+
+    // Create OffscreenCanvas with cropped preview dimensions
+    const canvas = new OffscreenCanvas(
+      previewLayout.crop.width,
+      previewLayout.crop.height,
+    );
     const ctx = canvas.getContext('2d');
 
     if (!ctx) {
@@ -152,14 +181,24 @@ export async function highlightSingleElement(
       );
     }
 
-    // Draw original screenshot onto canvas
-    ctx.drawImage(imageBitmap, 0, 0);
+    // Draw a focused crop around the target element for clearer confirmation.
+    ctx.drawImage(
+      imageBitmap,
+      previewLayout.crop.x,
+      previewLayout.crop.y,
+      previewLayout.crop.width,
+      previewLayout.crop.height,
+      0,
+      0,
+      previewLayout.crop.width,
+      previewLayout.crop.height,
+    );
 
     // Close the bitmap to free memory
     imageBitmap.close();
 
     // Draw the single element bounding box
-    drawSingleBoundingBox(ctx, element, scale);
+    drawSingleBoundingBox(ctx, previewLayout.element, scale);
 
     const resultBlob = await canvas.convertToBlob({ type: 'image/png' });
 
@@ -186,79 +225,98 @@ export async function highlightSingleElement(
 }
 
 /**
- * Draw bounding box for single element
+ * Calculate a focused preview crop around the target element.
+ */
+export function calculateConfirmationPreviewLayout(
+  imageWidth: number,
+  imageHeight: number,
+  element: InteractiveElement,
+  scale: number,
+): ConfirmationPreviewLayout {
+  const { x, y, width, height } = element.bbox;
+
+  const boxPadding = Math.round(BASE_BOX_PADDING * scale);
+  const contextPaddingX = Math.round(BASE_CONTEXT_PADDING_X * scale);
+  const contextPaddingY = Math.round(BASE_CONTEXT_PADDING_Y * scale);
+  const minCropWidth = Math.min(
+    imageWidth,
+    Math.max(
+      Math.round(BASE_MIN_CROP_WIDTH * scale),
+      Math.round(imageWidth * MIN_CROP_WIDTH_RATIO),
+    ),
+  );
+  const minCropHeight = Math.min(
+    imageHeight,
+    Math.max(
+      Math.round(BASE_MIN_CROP_HEIGHT * scale),
+      Math.round(imageHeight * MIN_CROP_HEIGHT_RATIO),
+    ),
+  );
+
+  const elementRect: DeviceRect = {
+    x: Math.round(x * scale) - boxPadding,
+    y: Math.round(y * scale) - boxPadding,
+    width: Math.round(width * scale) + boxPadding * 2,
+    height: Math.round(height * scale) + boxPadding * 2,
+  };
+
+  const desiredWidth = Math.max(
+    minCropWidth,
+    elementRect.width + contextPaddingX * 2,
+  );
+  const desiredHeight = Math.max(
+    minCropHeight,
+    elementRect.height + contextPaddingY * 2,
+  );
+
+  const cropWidth = Math.min(imageWidth, desiredWidth);
+  const cropHeight = Math.min(imageHeight, desiredHeight);
+  const elementCenterX = elementRect.x + elementRect.width / 2;
+  const elementCenterY = elementRect.y + elementRect.height / 2;
+
+  let cropX = Math.round(elementCenterX - cropWidth / 2);
+  let cropY = Math.round(elementCenterY - cropHeight / 2);
+
+  cropX = clamp(cropX, 0, Math.max(0, imageWidth - cropWidth));
+  cropY = clamp(cropY, 0, Math.max(0, imageHeight - cropHeight));
+
+  return {
+    crop: {
+      x: cropX,
+      y: cropY,
+      width: cropWidth,
+      height: cropHeight,
+    },
+    element: {
+      x: elementRect.x - cropX,
+      y: elementRect.y - cropY,
+      width: elementRect.width,
+      height: elementRect.height,
+    },
+  };
+}
+
+/**
+ * Draw bounding box for single element.
  */
 function drawSingleBoundingBox(
   ctx: OffscreenCanvasRenderingContext2D,
-  element: InteractiveElement,
+  elementRect: DeviceRect,
   scale: number,
 ): void {
-  const { x, y, width, height } = element.bbox;
-
-  // Calculate device-pixel values from base CSS sizes
-  const boxPadding = Math.round(BASE_BOX_PADDING * scale);
   const lineWidth = BASE_LINE_WIDTH * scale;
-
-  // Apply scale to convert CSS pixels to device pixels, then apply padding
-  const boxX = Math.round(x * scale) - boxPadding;
-  const boxY = Math.round(y * scale) - boxPadding;
-  const boxWidth = Math.round(width * scale) + boxPadding * 2;
-  const boxHeight = Math.round(height * scale) + boxPadding * 2;
+  const { x, y, width, height } = elementRect;
 
   console.log(
-    `[SingleHighlight] Drawing bbox for ${element.id}: CSS(${x}, ${y}, ${width}, ${height}) → Device(${boxX}, ${boxY}, ${boxWidth}, ${boxHeight}) scale=${scale}`,
+    `[SingleHighlight] Drawing confirmation bbox at (${x}, ${y}, ${width}, ${height}) scale=${scale}`,
   );
 
   // Draw bounding box with orange color
   ctx.strokeStyle = CONFIRMATION_COLOR;
   ctx.lineWidth = lineWidth;
-  ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-
-  // Draw confirmation label above box
-  drawConfirmationLabel(ctx, CONFIRMATION_LABEL, boxX, boxY, scale);
+  ctx.strokeRect(x, y, width, height);
 }
 
-/**
- * Draw confirmation label
- */
-function drawConfirmationLabel(
-  ctx: OffscreenCanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  scale: number,
-): void {
-  // Calculate device-pixel values from base CSS sizes
-  const fontSize = Math.round(BASE_FONT_SIZE * scale);
-  const labelPadding = Math.round(BASE_LABEL_PADDING * scale);
-
-  // Set font before measuring text
-  ctx.font = `bold ${fontSize}px Arial`;
-
-  // Measure text width
-  const metrics = ctx.measureText(text);
-  const textWidth = metrics.width;
-  const textHeight = fontSize;
-
-  // Calculate label dimensions
-  const labelWidth = textWidth + labelPadding * 2;
-  const labelHeight = textHeight + labelPadding * 2;
-
-  // Position label above the box
-  let labelX = x;
-  let labelY = y - labelHeight;
-
-  // If label would go above canvas, position it inside the box
-  if (labelY < 0) {
-    labelY = y;
-  }
-
-  // Draw label background with orange color
-  ctx.fillStyle = CONFIRMATION_BG;
-  ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-
-  // Draw label text (white for contrast)
-  ctx.fillStyle = '#FFFFFF';
-  ctx.textBaseline = 'top';
-  ctx.fillText(text, labelX + labelPadding, labelY + labelPadding);
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
