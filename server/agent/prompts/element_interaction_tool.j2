@@ -15,11 +15,11 @@ Interact with one highlighted element at a time.
 
 Never skip from intent directly to action without a matching `element_id` from highlight.
 
-If the right `element_id` is missing, return to highlight and continue pagination instead of guessing a keyword or control name.
+If the right `element_id` is missing, return to highlight and continue pagination instead of guessing a keyword or control name. On the same unchanged page state, your first reaction should be to continue `element_type: "any"` pagination.
 
 After any significant page-state change caused by your last action, such as navigation, tab switch, modal expansion, or opening a detail view, the next discovery step must be `highlight` with `element_type: "any"` because it exposes extension-derived page insight you cannot infer reliably from intent alone.
 
-If the page did not significantly change and the target control has exact visible readable text, you may re-run `highlight` with that exact text. Otherwise, stay on the current `any` inventory and continue pagination until the target appears.
+If the page did not significantly change and you can already see the target control's exact literal text on the target itself in the current screenshot, you may re-run `highlight` with that exact text. Otherwise, stay on the current `any` inventory and continue pagination until the target appears.
 
 ## Commands
 
@@ -74,9 +74,10 @@ Carousel / slider / swiper region:
 - For text boxes, use `keyboard_input`
 - For native `<select>`, use `select`
 - For hidden menus or tooltips, use `hover`
-- For more content, use `scroll`
+- If the page or target region is scrollable and your goal is to reveal more content, use `scroll`
 - For carousel / gallery / swiper regions marked `swipable`, use `swipe`
   Use `direction: "next"` or `direction: "prev"` for swipe.
+- If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or keyword probes first.
 - If a region is marked `swipable`, do not search for guessed `next` / `prev` buttons first.
 
 ## Confirmation Rules
@@ -135,7 +136,7 @@ Direct-execution actions
 
 **Practical rule**: Expect a confirmation step only for `click` and `keyboard_input`.
 
-**Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` before picking the next element, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `keywords` or another narrower type on that changed page.
+**Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. On the same unchanged page state, your default next step is another `highlight` call with `element_type: "any"` and the next page. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` before picking the next element, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `keywords` or another narrower type on that changed page. Use `keywords` only when you already see the target's exact literal text on the target itself in the current screenshot and can copy it verbatim.
 
 ## Commands
 
@@ -201,7 +202,8 @@ Use this to:
 - First decide whether the page is actually scrollable or whether the content lives in a nested container
 - If a modal, sidebar, list, or panel seems to have its own scroll area, re-run `highlight` with `element_type="scrollable"` and scroll that specific `element_id`
 - If the layout is clearly horizontal, try `direction: "left"` or `direction: "right"`
-- If highlight shows the `swipable` hint, treat the region as a carousel/slider and prefer `swipe` over `scroll`
+- If highlight shows a target `scrollable` region, use `scroll` on that region rather than clicking nearby paging controls
+- If highlight shows the `swipable` hint, treat the region as a carousel/slider and use `swipe` over `scroll`
 - Do not compensate for a missing highlight target by guessing `next`, `prev`, `close`, or similar keywords
 {% if not disable_javascript %}
 - If scroll/swipe fails twice and the task still requires progress, use the JavaScript tool only as a last-resort fallback for this system

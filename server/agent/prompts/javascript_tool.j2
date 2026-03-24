@@ -10,7 +10,7 @@ The JavaScript Tool executes arbitrary JavaScript code in the browser context. U
 
 **Use visual commands first**:
 1. `highlight` to identify the target
-2. Continue highlight pagination if page 1 does not show the target
+2. If the page state is unchanged and the target is still missing, your first reaction should be to continue `element_type: "any"` pagination
 3. `element_interaction` to click / hover / scroll / swipe / input / select
 4. `dialog` immediately if JavaScript or interaction opens a blocking dialog
 
@@ -40,9 +40,9 @@ Execute arbitrary JavaScript.
 - **Console output captured**: `console.log()` output is included in response
 - **Dialog detection**: Dialogs triggered during execution are automatically detected and require the dialog tool
 - **Prefer framework-safe events**: If a page action must be simulated, dispatch the event sequence the app expects rather than relying on a brittle shortcut
-- **Re-verify visually after state-changing JS**: JavaScript does not return a screenshot, so use `tab view` or `highlight` after page-changing scripts
+- **Rebuild discovery after state-changing JS**: JavaScript does not return a screenshot, so after any page-changing script the next discovery step must be `highlight` with `element_type: "any"` before choosing the next element
 - **Use JavaScript to complement, not replace, the visual workflow**: Prefer reading state, calling a known page API, or performing a narrow fallback step rather than re-implementing the whole task in JavaScript
-- **Do not use JavaScript just because highlight page 1 did not show the target**: Continue pagination or switch to another visual strategy first
+- **Do not use JavaScript just because highlight page 1 did not show the target**: On the same unchanged page state, continue `highlight` pagination with `element_type: "any"` first
 
 ### Minimal example
 ```javascript

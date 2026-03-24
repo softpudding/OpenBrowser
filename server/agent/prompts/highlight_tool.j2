@@ -9,10 +9,11 @@ Find elements before interacting.
 2. After any significant page-state change, immediately call `highlight` with `element_type: "any"` before choosing the next element. Significant changes include navigation to a different page or tab, opening a modal or expanded detail view, or any major layout change.
 3. Do not jump away from `element_type: "any"` on a newly changed page before rebuilding the mixed-type inventory.
 4. Treat highlight pagination as reliable. If the target is not on the current page, keep the same `element_type` and increment `page`.
-5. Buttons, links, icon-only controls, and dense toolbars should still be discovered through `any` pagination.
-6. Use `keywords` only when copying exact observed readable text you can quote exactly from the screenshot or highlight HTML.
-7. Do not guess an `element_id` without a highlight result.
-8. Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`.
+5. If the page state is unchanged and you cannot find the element you want to act on, your first reaction should be to continue `element_type: "any"` to the next page.
+6. Buttons, links, icon-only controls, and dense toolbars should still be discovered through `any` pagination.
+7. Use `keywords` only when you can already see the target's exact literal text characters on the target itself in the screenshot and can copy them verbatim.
+8. Do not guess an `element_id` without a highlight result.
+9. Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`.
 
 ## Command
 
@@ -33,22 +34,23 @@ Find elements before interacting.
 - After any significant page-state change, restart discovery with `highlight` and `element_type: "any"` before selecting the next target
 - Do not narrow a newly changed page just because you expect a button, submit control, close control, or toolbar icon
 - If the target is not on the first page, continue `page=2,3...` in the same highlight mode before changing strategy
-- Exhaust the relevant highlight pages unless the page state changed or you already have exact observed text
+- If the page state is unchanged and the target is still missing, your default next step is another `any` page
+- Exhaust the relevant highlight pages unless the page state changed or you already see the target's exact literal text on the target itself in the screenshot
 - Stay with `any` while building inventory on the current page state; generic controls should remain in that mixed inventory instead of moving to a dedicated control-only mode
-- If you can already see exact observed readable text in the screenshot or highlight HTML, try `keywords`
+- Use `keywords` only as an accelerator after you already see the target's exact literal text on the target itself in the screenshot
 - If the current page state is unchanged and the remaining target is an icon-only toolbar or header control, continue `any` pagination and inspect the next pages instead of switching modes
-- If a control has visible readable text, you may use that exact text with `keywords`; if it is icon-only or the text is not clearly readable, continue `any` pagination
+- If a control has visible readable text on the target itself, you may use that exact text with `keywords`; if it is icon-only or the text is not clearly readable, continue `any` pagination
 - Do not use guessed `keywords` such as `"settings"`, `"gear"`, `"bell"`, `"next"`, `"prev"`, or `"close"` to probe icon-only or ambiguous controls
 - If a composite control is split across pages by collisions, such as an icon button next to a count or badge, stay on the same `element_type` and try the next page before switching to `keywords`
 - If many elements overlap across pages, stay on the same `element_type` and increment `page`
 
-- For search, highlight `inputable`, type into the search box, then continue discovery with `any`; keep paging the current `any` inventory until the submit control appears
+- For search on a new or changed page state, still start with `highlight` on `element_type: "any"`. If, on that same unchanged page state, you specifically need a text-entry affordance and `any` was not enough, you may narrow to `inputable`; after typing, continue discovery with `any` and keep paging the current `any` inventory until the submit control appears
 - When a search results page loads, call `highlight` with `element_type: "any"` before choosing a result
 - For exit controls in a detail view or modal, first highlight `any` on that changed page state; continue `any` pagination on that page or use `tab back`
 - If the current detail view came from a normal navigation step and exit controls are unstable, use `tab back`
 - If highlight shows `swipable`, use `swipe`
 - After opening a post, expanding a detail view, switching tabs, or navigating to a different page, highlight `any` again before picking the next element
-- Use `keywords` only for exact observed readable text you can quote exactly, not guessed labels or icon tokens
+- Use `keywords` only for exact literal text you can copy exactly from the target itself in the current screenshot, not guessed labels, hidden text, HTML-only text, or icon tokens
 
 ## After Highlight
 
@@ -69,6 +71,7 @@ The Highlight Tool discovers interactive elements on a web page and marks them w
 - `element_type: "any"` is the default first pass for each new page state because it exposes extension-derived page insight across element types, neighboring controls, and other actionable structure that you cannot reliably infer from intent alone
 - After any significant page-state change, restart with `highlight` on `element_type: "any"` before choosing the next element
 - Do not jump away from `element_type: "any"` on that changed page before rebuilding the mixed-type inventory
+- If the page state is unchanged and the target is still missing, continue `any` pagination first before trying another discovery strategy
 - Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`; only narrow to another specific type or `keywords` when the task directly targets that affordance and the current page state's `any` inventory was not enough
 
 ## Visual Color System - BLUE Stage
@@ -122,26 +125,27 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 **Parameters**:
 - `element_type`: Single type to highlight - "any" (default), "scrollable", "inputable", "hoverable", or "selectable"
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
-- `keywords`: Exact observed readable text to filter by detected semantic text. Matching uses visible text, labels, roles, and stable element tokens. When provided, only matching elements are returned without pagination. Example: ["Continue with Email", "View comments"]
+- `keywords`: Exact literal text already visible on the target itself in the current screenshot that you can copy verbatim. Use this only to accelerate a known text match, not to discover guessed controls. When provided, only matching elements are returned without pagination. Example: ["Continue with Email", "View comments"]
 
 **When to Use Pagination**:
 - After any significant page-state change, restart with `highlight` on `element_type: "any"` before selecting the next target
 - Do not jump away from `element_type: "any"` on that changed page before rebuilding the mixed-type inventory
 - Use `any` first because it captures extension-derived structure and cross-type context that a narrower pass can hide
 - If the element you want to interact with is NOT visible on the current page, increment `page` to see more elements
+- If the page state is unchanged and you still have not found the target, your default next step is the next `any` page
 - Treat pages as reliable collision-free slices of the same candidate set, not random samples
 - Continue to the next page until you find the most appropriate element for your task or exhaust the relevant pages
 - Stay on the same `element_type` across pages to browse through all elements of that category
 - Do not jump from a first-page miss to `keywords`
-- Exhaust relevant highlight pages before switching strategies unless the page state changed or you already have exact observed readable text
+- Exhaust relevant highlight pages before switching strategies unless the page state changed or you already see the target's exact literal text on the target itself in the screenshot
 - Use `any` to inventory the changed page first, then use type-specific pagination only if you have a narrower reason on the same unchanged page state
 - For icon-only controls (gear, close, bell, avatar menu, toolbar icons), prefer more `any` pages over broad keyword search or a narrower generic-control mode
 - If you can see a related count, badge, or neighboring text from the target control but not the control itself, prefer the next page first; collision-aware pagination often separates adjacent pieces of the same UI
 
 **When to Use Keywords**:
-- When you know the exact readable text/attribute you're looking for because you already observed it
-- Use keywords only for exact observed readable text or stable tokens you can already see in the screenshot, highlight HTML, or prior observation from the same task
-- More efficient than pagination when the target is text-identified and you can quote it precisely
+- When you know the exact literal text you're looking for because you already observed it on the target itself in the current screenshot
+- Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot
+- More efficient than pagination only when the target is already text-identified and you can quote it precisely
 - No need for pagination - all matching elements are returned at once
 - Weak for icon-only controls because SVG meaning often is not represented in searchable text
 - Do not use keywords as your first attempt for toolbar icons like settings, history, notifications, chat, or avatar menus
@@ -151,9 +155,9 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 
 **Exact-Text Search Only**:
 
-Use keyword search only when you can clearly identify the target element's exact observed readable text or exact stable token:
+Use keyword search only when you can clearly identify the target element's exact literal text on the target itself in the current screenshot:
 - You see the element's distinctive text clearly in the screenshot
-- The highlight response already exposed the target's exact label, `aria-label`, or other stable token
+- You can already see the target's exact text label on the target itself in the screenshot and can copy it verbatim
 - You want to narrow to a specific post, comment, button, or menu item whose text you can quote verbatim
 - If the target is a control, its visible readable text is clear enough to quote exactly rather than guess
 
@@ -195,7 +199,7 @@ Examples of exact-text search:
 - Prefer `element_type: "any"` as the default first pass
 - Trust pagination and continue the same highlight mode across pages before changing strategy
 - Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any` instead of moving to a dedicated control-only mode
-- Prefer `keywords` only when the target has exact observed text you can quote verbatim
+- Prefer `keywords` only when the target has exact literal text you can quote verbatim from the target itself in the current screenshot
 
 ### any
 Combines all element types with OR logic. Returns elements matching any of the supported types. Elements matching multiple types are deduplicated and assigned one display type plus any extra interaction hints.
