@@ -15,6 +15,149 @@ import { elementCache } from './element-cache';
 import { executeJavaScript, type JavaScriptResult } from './javascript';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
 
+function buildEditableActivationHelpersScript(): string {
+  return `
+    ${buildHitTestVisibilityHelpersScript()}
+
+    function getInteractiveActivationTarget(target) {
+      if (!(target instanceof Element)) {
+        return { target: null, point: null };
+      }
+
+      const rect = target.getBoundingClientRect();
+      const samplePoints = getHitTestSamplePoints(rect);
+
+      for (const point of samplePoints) {
+        const stack = document.elementsFromPoint(point.x, point.y);
+        for (const candidate of stack) {
+          const normalized = normalizeHitTestElement(candidate);
+          if (isRelatedHitTarget(normalized, target)) {
+            return { target: normalized || target, point };
+          }
+        }
+      }
+
+      const fallbackPoint =
+        samplePoints[0] || {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
+
+      return { target, point: fallbackPoint };
+    }
+
+    function getActivationEventPoint(target, point) {
+      if (
+        point &&
+        Number.isFinite(point.x) &&
+        Number.isFinite(point.y)
+      ) {
+        return point;
+      }
+
+      const rect = target.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+    }
+
+    function dispatchPointerEventForActivation(target, type, point) {
+      if (!(target instanceof Element) || typeof PointerEvent !== 'function') {
+        return;
+      }
+
+      target.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          isPrimary: true,
+          button: 0,
+          buttons: type === 'pointerup' ? 0 : 1,
+          clientX: point.x,
+          clientY: point.y,
+          view: window,
+        }),
+      );
+    }
+
+    function dispatchMouseEventForActivation(target, type, point) {
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      target.dispatchEvent(
+        new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          button: 0,
+          buttons: type === 'mouseup' || type === 'click' ? 0 : 1,
+          clientX: point.x,
+          clientY: point.y,
+          view: window,
+        }),
+      );
+    }
+
+    function dispatchActivationPress(target, point) {
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const eventPoint = getActivationEventPoint(target, point);
+      dispatchPointerEventForActivation(target, 'pointerdown', eventPoint);
+      dispatchMouseEventForActivation(target, 'mousedown', eventPoint);
+    }
+
+    function dispatchActivationRelease(target, point) {
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const eventPoint = getActivationEventPoint(target, point);
+      dispatchPointerEventForActivation(target, 'pointerup', eventPoint);
+      dispatchMouseEventForActivation(target, 'mouseup', eventPoint);
+      dispatchMouseEventForActivation(target, 'click', eventPoint);
+    }
+
+    function focusInteractionTarget(target) {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      try {
+        target.focus({ preventScroll: true });
+      } catch (focusWithOptionsError) {
+        try {
+          target.focus();
+        } catch (focusError) {
+          return false;
+        }
+      }
+
+      if (target.isContentEditable) {
+        const selection = window.getSelection();
+        if (selection) {
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+
+      return (
+        document.activeElement === target ||
+        target.contains(document.activeElement)
+      );
+    }
+  `;
+}
+
 /**
  * Result type for element click operation
  */
@@ -98,7 +241,7 @@ export async function performElementClick(
   const script = `
     (async function() {
       const selector = "${escapedSelector}";
-      ${buildHitTestVisibilityHelpersScript()}
+      ${buildEditableActivationHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
@@ -138,45 +281,22 @@ export async function performElementClick(
         };
       }
 
-      // Full event sequence for React/Vue compatibility
-      // NOTE: Synthetic events have isTrusted=false, which some frameworks check
-      const eventOptions = {
-        bubbles: true,
-        cancelable: true,
-        composed: true,  // Allow events to cross shadow DOM boundaries
-        view: window,
-        button: 0,
-        buttons: 1,
-      };
-
       try {
-        // Focus the element BEFORE events (important for React/Vue form validation)
-        if (typeof el.focus === 'function') {
-          el.focus();
-          // Dispatch focus event for frameworks
-          el.dispatchEvent(new FocusEvent('focus', { bubbles: true, composed: true }));
-        }
+        const activation = getInteractiveActivationTarget(el);
+        const activationTarget =
+          activation.target instanceof Element ? activation.target : el;
 
-        // Pointer events sequence
-        const pointerEvents = ['pointerdown', 'pointerup'];
-        for (const eventType of pointerEvents) {
-          const event = new PointerEvent(eventType, {
-            ...eventOptions,
-            pointerType: 'mouse',
-            isPrimary: true,
-          });
-          el.dispatchEvent(event);
-        }
+        dispatchActivationPress(activationTarget, activation.point);
+        const focused = focusInteractionTarget(
+          el instanceof HTMLElement ? el : activationTarget,
+        );
+        dispatchActivationRelease(activationTarget, activation.point);
 
-        // Native click as fallback - some frameworks only respond to native clicks
-        // This is a no-op if synthetic events already triggered the action
-        try {
-          el.click();
-        } catch (nativeClickError) {
-          // Ignore native click errors, synthetic events may have already worked
-        }
-
-        return { clicked: true };
+        return {
+          clicked: true,
+          focused,
+          activationTarget: describeElement(activationTarget),
+        };
       } catch (e) {
         return { clicked: false, error: e.message || String(e) };
       }
@@ -2094,6 +2214,7 @@ export async function performKeyboardInput(
     (function() {
       const selector = "${escapedSelector}";
       const text = "${escapedText}";
+      ${buildEditableActivationHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
@@ -2114,14 +2235,38 @@ export async function performKeyboardInput(
       }
 
       try {
-        // Focus the element first
-        if (typeof el.focus === 'function') {
-          el.focus();
+        const activation = getInteractiveActivationTarget(el);
+        const activationTarget =
+          activation.target instanceof Element ? activation.target : el;
+        const alreadyFocused =
+          (el instanceof HTMLElement && document.activeElement === el) ||
+          (el instanceof HTMLElement &&
+            document.activeElement instanceof Element &&
+            el.contains(document.activeElement));
+
+        if (!alreadyFocused) {
+          dispatchActivationPress(activationTarget, activation.point);
+        }
+
+        focusInteractionTarget(
+          el instanceof HTMLElement ? el : activationTarget,
+        );
+
+        if (!alreadyFocused) {
+          dispatchActivationRelease(activationTarget, activation.point);
         }
 
         // Set value based on element type
         const tagName = el.tagName.toLowerCase();
         const isContentEditable = el.isContentEditable || el.contentEditable === 'true';
+
+        const beforeInputEvent = new InputEvent('beforeinput', {
+          bubbles: true,
+          cancelable: true,
+          inputType: text.length === 0 ? 'deleteContentBackward' : 'insertText',
+          data: text,
+        });
+        el.dispatchEvent(beforeInputEvent);
 
         if (tagName === 'input' || tagName === 'textarea') {
           // For input and textarea, use value property

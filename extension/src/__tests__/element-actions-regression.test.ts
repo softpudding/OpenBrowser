@@ -22,6 +22,23 @@ describe('Element action regressions', () => {
     );
   });
 
+  test('performElementClick routes editable clicks through the visible activation surface', () => {
+    expect(elementActionsSource).toContain(
+      'function getInteractiveActivationTarget(target)',
+    );
+    expect(elementActionsSource).toContain(
+      'dispatchActivationPress(activationTarget, activation.point);',
+    );
+    expect(elementActionsSource).toContain(
+      'dispatchActivationRelease(activationTarget, activation.point);',
+    );
+  });
+
+  test('performKeyboardInput primes editable activation and beforeinput events', () => {
+    expect(elementActionsSource).toContain('const alreadyFocused =');
+    expect(elementActionsSource).toContain("new InputEvent('beforeinput'");
+  });
+
   test('performElementSwipe includes gesture fallback and settle wait', () => {
     expect(elementActionsSource).toContain('async function performGestureSwipe');
     expect(elementActionsSource).toContain('await waitForSwipeToSettle(');
