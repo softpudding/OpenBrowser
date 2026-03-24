@@ -70,6 +70,10 @@ Carousel / slider / swiper region:
 { "action": "swipe", "element_id": "d2f4a8", "direction": "next", "swipe_count": 1, "tab_id": 123 }
 ```
 
+`direction: "next"` means show the next picture or next carousel item.
+`direction: "prev"` means show the previous picture or previous carousel item.
+These are content directions, not hand or finger movement directions. Do not reinterpret swipe as `left` or `right`.
+
 ## Decision Rules
 
 - For buttons and links, use `click`
@@ -78,7 +82,8 @@ Carousel / slider / swiper region:
 - For hidden menus or tooltips, use `hover`
 - If the page or target region is scrollable and your goal is to reveal more content, use `scroll`
 - For carousel / gallery / swiper regions marked `swipable`, use `swipe`
-  Use `direction: "next"` or `direction: "prev"` for swipe.
+  Use `direction: "next"` to view the next picture or item.
+  Use `direction: "prev"` to view the previous picture or item.
 - If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or other guessed controls first.
 - If a region is marked `swipable`, do not search for guessed `next` / `prev` buttons first.
 

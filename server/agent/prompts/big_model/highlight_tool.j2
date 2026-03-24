@@ -131,6 +131,7 @@ Examples of exact-text search:
 4. **Select Element**: Note the `element_id` of your target.
    - Returned IDs can include the primary type plus extra hints, for example `abc123(scrollable, swipable)`.
    - `swipable` means the element is in a carousel/slider/swiper-like region. Do not assume normal page/container scroll will move it.
+   - When you later use `swipe`, `direction: "next"` means show the next picture/item and `direction: "prev"` means show the previous picture/item. These are semantic content directions, not gesture directions.
 5. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and the selected element_id.
    - For any `inputable` target, always `click` it first and complete that confirmation before `keyboard_input`.
 
@@ -161,6 +162,7 @@ When used with keywords, pagination is skipped and all matching elements are ret
 
 **Decision flow**: Check `tagName` and attributes in the returned HTML to determine the correct action.
 If the element suffix includes `swipable`, prefer `swipe` for moving the region: visible items may still trigger actions, but changing slides often requires carousel/swiper behavior rather than normal scroll.
+For `swipe`, use semantic directions: `"next"` shows the next picture/item and `"prev"` shows the previous picture/item.
 
 ### inputable
 Text inputs, textareas, checkboxes, radio buttons.

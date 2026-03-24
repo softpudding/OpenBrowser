@@ -119,6 +119,24 @@ Use this to:
 - If scroll/swipe fails repeatedly, re-orient around currently visible items because JavaScript fallback is disabled in this environment
 {% endif %}
 
+### swipe
+Swipe a carousel / gallery / swiper region by its visual ID.
+
+```json
+{ "action": "swipe", "element_id": "d2f4a8", "direction": "next", "swipe_count": 1, "tab_id": 123 }
+{ "action": "swipe", "element_id": "d2f4a8", "direction": "prev", "swipe_count": 1, "tab_id": 123 }
+// → Executes immediately and returns the post-swipe screenshot
+```
+
+**Parameters**:
+- `direction`: `"next"` or `"prev"` only
+  - `direction: "next"` means show the next picture or next carousel item
+  - `direction: "prev"` means show the previous picture or previous carousel item
+  - These are semantic content directions, not finger or gesture directions. Do not reinterpret swipe as `left` or `right`.
+- `swipe_count`: Number of swipe steps to perform (default: 1, range: 1-5)
+
+Use this when highlight marks a region as `swipable` and your goal is to move through carousel content rather than scroll the page.
+
 ### keyboard_input
 Type text into an input element by its visual ID.
 
@@ -215,6 +233,7 @@ Each action has a corresponding confirm action (use the same `element_interactio
 
 - `click` and `keyboard_input` return an ORANGE preview screenshot before execution.
 - `hover`, `scroll`, `swipe`, and `select` return the post-action screenshot from the browser.
+- For `swipe`, remember that `"next"` means the next picture/item in the UI and `"prev"` means the previous picture/item, not the physical finger movement direction.
 
 ## tab_id Auto-Resolution
 

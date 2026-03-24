@@ -50,7 +50,12 @@ class ElementInteractionAction(OpenBrowserAction):
     )
     direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",
-        description="Movement direction for scroll/swipe. Use up/down/left/right for scroll, prefer next/prev for swipe.",
+        description=(
+            "Movement direction for scroll/swipe. Use up/down/left/right for "
+            "scroll. For swipe, use semantic next/prev only: 'next' shows the "
+            "next picture/item and 'prev' shows the previous picture/item. Do "
+            "not reinterpret swipe as left/right."
+        ),
     )
     scroll_amount: Optional[float] = Field(
         default=0.5,

@@ -48,6 +48,7 @@ get_highlight_tool_description = highlight_tool_module.get_highlight_tool_descri
 get_element_interaction_tool_description = (
     element_interaction_tool_module.get_element_interaction_tool_description
 )
+ElementInteractionAction = element_interaction_tool_module.ElementInteractionAction
 get_tab_tool_description = tab_tool_module.get_tab_tool_description
 
 
@@ -141,6 +142,21 @@ class TestPromptContracts:
 
         assert "Always `click` the target first and complete that confirmation before `keyboard_input`." in description
         assert "only after you already clicked the same input target and completed that click confirmation" in description
+
+    def test_element_interaction_prompt_explains_swipe_semantics(self) -> None:
+        description = get_element_interaction_tool_description()
+
+        assert '`direction: "next"` means show the next picture' in description
+        assert '`direction: "prev"` means show the previous picture' in description
+        assert "not finger or gesture directions" in description
+
+    def test_element_interaction_action_schema_explains_swipe_semantics(self) -> None:
+        description = ElementInteractionAction.model_fields["direction"].description
+
+        assert description is not None
+        assert "next picture/item" in description
+        assert "previous picture/item" in description
+        assert "Do not reinterpret swipe as left/right" in description
 
     def test_dialog_guidance_uses_dialog_tool_name(self) -> None:
         observation = OpenBrowserObservation(

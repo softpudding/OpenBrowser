@@ -327,6 +327,8 @@ class ScrollElementCommand(BaseCommand):
 class SwipeElementCommand(BaseCommand):
     """Swipe a highlighted element in a direction, typically for carousel/swiper regions.
 
+    Swipe directions are semantic content directions: next/prev refer to the next
+    or previous visible item, not the finger movement direction.
     tab_id is optional and will be auto-resolved to the current managed tab if not provided.
     """
 
@@ -334,7 +336,11 @@ class SwipeElementCommand(BaseCommand):
     element_id: str = Field(description="Element ID from highlight response")
     direction: Literal["next", "prev"] = Field(
         default="next",
-        description="Swipe direction: 'next' or 'prev'",
+        description=(
+            "Semantic swipe direction for carousel/swiper regions: 'next' shows "
+            "the next picture/item and 'prev' shows the previous picture/item. "
+            "Do not reinterpret swipe as left/right gesture direction."
+        ),
     )
     swipe_count: int = Field(
         default=1,
