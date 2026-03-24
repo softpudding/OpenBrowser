@@ -48,6 +48,7 @@ import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import {
   selectCollisionFreePage,
   calculateTotalPages,
+  sortElementsByVisualOrder,
 } from '../utils/collision-detection';
 import {
   HIGHLIGHT_CONSISTENCY_CONFIG,
@@ -1704,6 +1705,13 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             );
           }
 
+          // Preserve the original highlight pipeline order for detection,
+          // pagination, and consistency checks. Only derive a display order
+          // at the rendering boundary so the screenshot and returned list
+          // use the same visual ordering.
+          const displayOrderedElements =
+            sortElementsByVisualOrder(paginatedElements);
+
           const cacheStoreStart = Date.now();
           elementCache.storeElements(
             conversationId,
@@ -1726,7 +1734,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           const drawHighlightsStart = Date.now();
           const highlightedScreenshot = await drawHighlights(
             screenshotResult.imageData,
-            paginatedElements,
+            displayOrderedElements,
             {
               scale: devicePixelRatio,
               viewportWidth,
@@ -1752,7 +1760,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           return {
             success: true,
             data: {
-              elements: paginatedElements,
+              elements: displayOrderedElements,
               totalElements: filteredElements.length,
               totalPages: totalPages,
               page: currentPage,
