@@ -3,7 +3,7 @@ BrowserExecutor - Unified executor for handling all 5 OpenBrowser tool actions.
 
 This executor can handle actions from all 5 focused tools:
 - TabAction (from tab_tool.py)
-- HighlightAction (from highlight_tool.py)
+- BaseHighlightAction (from highlight_tool.py)
 - ElementInteractionAction (from element_interaction_tool.py)
 - DialogHandleAction (from dialog_tool.py)
 - JavaScriptAction (from javascript_tool.py)
@@ -42,7 +42,7 @@ from server.models.commands import (
 
 # Import action types for type checking
 from server.agent.tools.tab_tool import TabAction
-from server.agent.tools.highlight_tool import HighlightAction
+from server.agent.tools.highlight_tool import BaseHighlightAction
 from server.agent.tools.element_interaction_tool import ElementInteractionAction
 from server.agent.tools.dialog_tool import DialogHandleAction
 from server.agent.tools.javascript_tool import (
@@ -137,7 +137,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
 
         Args:
             action: Any action that inherits from OpenBrowserAction
-                   (TabAction, HighlightAction, ElementInteractionAction,
+                   (TabAction, BaseHighlightAction, ElementInteractionAction,
                    DialogHandleAction, JavaScriptAction)
 
         Returns:
@@ -168,7 +168,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             # Route based on action type
             if isinstance(action, TabAction):
                 return self._execute_tab_action(action)
-            elif isinstance(action, HighlightAction):
+            elif isinstance(action, BaseHighlightAction):
                 return self._execute_highlight_action(action)
             elif isinstance(action, ElementInteractionAction):
                 return self._execute_element_interaction_action(action)
@@ -267,7 +267,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         )
 
     def _execute_highlight_action(
-        self, action: HighlightAction
+        self, action: BaseHighlightAction
     ) -> OpenBrowserObservation:
         """Execute a highlight elements action."""
         logger.debug(
@@ -277,7 +277,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         # Single element type for stable collision-aware pagination
         element_type = action.element_type or "any"
         page = action.page or 1
-        keywords = action.keywords
+        keywords = getattr(action, "keywords", None)
 
         command = HighlightElementsCommand(
             element_type=element_type,

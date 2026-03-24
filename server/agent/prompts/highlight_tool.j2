@@ -11,9 +11,8 @@ Find elements before interacting.
 4. Treat highlight pagination as reliable. If the target is not on the current page, keep the same `element_type` and increment `page`.
 5. If the page state is unchanged and you cannot find the element you want to act on, your first reaction should be to continue `element_type: "any"` to the next page.
 6. Buttons, links, icon-only controls, and dense toolbars should still be discovered through `any` pagination.
-7. Use `keywords` only when you can already see the target's exact literal text characters on the target itself in the screenshot and can copy them verbatim.
+7. Stay inside pagination and supported `element_type` changes; do not replace a miss with guessed text, labels, or icon semantics.
 8. Do not guess an `element_id` without a highlight result.
-9. Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`.
 
 ## Command
 
@@ -24,7 +23,6 @@ Find elements before interacting.
 { "element_type": "scrollable" }
 { "element_type": "selectable" }
 { "page": 2 }
-{ "keywords": ["Continue with Email"] }
 ```
 
 ## Selection Strategy
@@ -35,13 +33,12 @@ Find elements before interacting.
 - Do not narrow a newly changed page just because you expect a button, submit control, close control, or toolbar icon
 - If the target is not on the first page, continue `page=2,3...` in the same highlight mode before changing strategy
 - If the page state is unchanged and the target is still missing, your default next step is another `any` page
-- Exhaust the relevant highlight pages unless the page state changed or you already see the target's exact literal text on the target itself in the screenshot
+- Exhaust the relevant highlight pages unless the page state changed
 - Stay with `any` while building inventory on the current page state; generic controls should remain in that mixed inventory instead of moving to a dedicated control-only mode
-- Use `keywords` only as an accelerator after you already see the target's exact literal text on the target itself in the screenshot
 - If the current page state is unchanged and the remaining target is an icon-only toolbar or header control, continue `any` pagination and inspect the next pages instead of switching modes
-- If a control has visible readable text on the target itself, you may use that exact text with `keywords`; if it is icon-only or the text is not clearly readable, continue `any` pagination
-- Do not use guessed `keywords` such as `"settings"`, `"gear"`, `"bell"`, `"next"`, `"prev"`, or `"close"` to probe icon-only or ambiguous controls
-- If a composite control is split across pages by collisions, such as an icon button next to a count or badge, stay on the same `element_type` and try the next page before switching to `keywords`
+- If a control has visible readable text, still prefer pagination and element-type selection over guessed text probes
+- Do not use guessed labels such as "settings", "gear", "bell", "next", "prev", or "close" to hunt for icon-only or ambiguous controls
+- If a composite control is split across pages by collisions, such as an icon button next to a count or badge, stay on the same `element_type` and try the next page before changing strategy
 - If many elements overlap across pages, stay on the same `element_type` and increment `page`
 
 - For search on a new or changed page state, still start with `highlight` on `element_type: "any"`. If, on that same unchanged page state, you specifically need a text-entry affordance and `any` was not enough, you may narrow to `inputable`; after typing, continue discovery with `any` and keep paging the current `any` inventory until the submit control appears
@@ -50,7 +47,6 @@ Find elements before interacting.
 - If the current detail view came from a normal navigation step and exit controls are unstable, use `tab back`
 - If highlight shows `swipable`, use `swipe`
 - After opening a post, expanding a detail view, switching tabs, or navigating to a different page, highlight `any` again before picking the next element
-- Use `keywords` only for exact literal text you can copy exactly from the target itself in the current screenshot, not guessed labels, hidden text, HTML-only text, or icon tokens
 
 ## After Highlight
 

@@ -33,6 +33,7 @@ highlight_tool_module = _import_module(
     "server.agent.tools.highlight_tool", "highlight_tool.py"
 )
 get_highlight_tool_description = highlight_tool_module.get_highlight_tool_description
+get_highlight_action_type = highlight_tool_module.get_highlight_action_type
 
 
 def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
@@ -55,20 +56,31 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     assert "Do not jump away from `element_type: \"any\"` on a newly changed page" in description
     assert "icon-only toolbar or header control" in description
     assert "continue `any` pagination and inspect the next pages instead of switching modes" in description
-    assert "Never use `keywords` for guessed labels, unread text, or icon-only controls such as `×` or `🔍`" in description
-    assert "highlight `inputable`" in description
-    assert "then continue discovery with `any`" in description
+    assert "you may narrow to `inputable`" in description
+    assert "after typing, continue discovery with `any`" in description
     assert "When a search results page loads, call `highlight` with `element_type: \"any\"`" in description
     assert "use `tab back`" in description
-    assert (
-        'Do not use guessed `keywords` such as `"settings"`, `"gear"`, `"bell"`, `"next"`, `"prev"`, or `"close"`'
-        in description
-    )
-    assert "copying exact observed readable text" in description
+    assert "Do not use guessed labels such as \"settings\", \"gear\", \"bell\", \"next\", \"prev\", or \"close\"" in description
     assert "icon button next to a count or badge" in description
+    assert "`keywords`" not in description
     assert '`clickable`' not in description
     assert "Phase 1: Precise Search" not in description
     assert "Collision-Aware Pagination" not in description
+
+
+def test_small_model_highlight_action_schema_omits_keywords() -> None:
+    with patch.object(
+        highlight_tool_module,
+        "get_prompt_render_context",
+        return_value={
+            "model_name": "dashscope/qwen3.5-flash",
+            "model_profile": "small",
+            "small_model": True,
+        },
+    ):
+        action_type = get_highlight_action_type()
+
+    assert "keywords" not in action_type.model_fields
 
 
 def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without_broad_search() -> (
@@ -101,7 +113,7 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
         'DO NOT search for unlabeled toolbar icons or ambiguous controls with guessed words like "settings", "gear", "bell", "chat", "next", "prev", or "close"'
         in description
     )
-    assert "Use keywords only for exact observed readable text or stable tokens you can already see" in description
+    assert "Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot" in description
     assert "the actual button may simply be on the next page" in description
     assert '`clickable`' not in description
     assert "Phase 2: Broad Search" not in description

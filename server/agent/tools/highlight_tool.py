@@ -46,8 +46,8 @@ def get_highlight_tool_description(conv_state=None) -> str:
     return _HIGHLIGHT_TOOL_TEMPLATE.render(**get_prompt_render_context(conv_state))
 
 
-class HighlightAction(OpenBrowserAction):
-    """Action for highlighting interactive elements on a web page."""
+class BaseHighlightAction(OpenBrowserAction):
+    """Shared highlight action fields."""
 
     element_type: str = Field(
         default="any",
@@ -56,15 +56,31 @@ class HighlightAction(OpenBrowserAction):
     page: int = Field(
         default=1,
         ge=1,
-        description="Page number for pagination (1-indexed). Ignored when keywords is provided.",
+        description="Page number for pagination (1-indexed).",
     )
+
+
+class HighlightAction(BaseHighlightAction):
+    """Large-model highlight action with exact-text keyword filtering."""
+
     keywords: Optional[List[str]] = Field(
         default=None,
         description="Exact observed text or stable tokens to filter elements by detected semantic text (visible text, labels, roles, and stable element tokens). Use only for wording already seen in the screenshot or returned HTML. When provided, returns all matching elements (no pagination). Example: ['Continue with Email', 'View comments']",
     )
 
 
-class HighlightTool(ToolDefinition[HighlightAction, OpenBrowserObservation]):
+class SmallModelHighlightAction(BaseHighlightAction):
+    """Small-model highlight action without keyword filtering."""
+
+
+def get_highlight_action_type(conv_state=None) -> type[BaseHighlightAction]:
+    """Return the model-aware highlight action schema."""
+    if get_prompt_render_context(conv_state).get("small_model"):
+        return SmallModelHighlightAction
+    return HighlightAction
+
+
+class HighlightTool(ToolDefinition[BaseHighlightAction, OpenBrowserObservation]):
     """Tool for highlighting interactive elements with visual overlays."""
 
     name = "highlight"
@@ -97,7 +113,7 @@ class HighlightTool(ToolDefinition[HighlightAction, OpenBrowserObservation]):
         return [
             cls(
                 description=get_highlight_tool_description(conv_state),
-                action_type=HighlightAction,
+                action_type=get_highlight_action_type(conv_state),
                 observation_type=OpenBrowserObservation,
                 annotations=ToolAnnotations(
                     title="Highlight Elements",
