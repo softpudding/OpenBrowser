@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   HIGHLIGHT_CONSISTENCY_CONFIG,
   evaluateHighlightConsistency,
+  isRepeatedHighlightDrift,
   type HighlightConsistencySample,
 } from '../utils/highlight-consistency';
 
@@ -95,5 +96,51 @@ describe('Highlight Consistency', () => {
 
     expect(result.shiftedCount).toBe(1);
     expect(result.shouldRetry).toBe(false);
+  });
+
+  test('detects repeated drift signatures so highlight can stop retrying early', () => {
+    const previous = {
+      checkedCount: 12,
+      matchedCount: 12,
+      missingCount: 0,
+      shiftedCount: 5,
+      maxCenterShift: 268,
+      maxSizeDelta: 32,
+      shouldRetry: true,
+    };
+    const current = {
+      checkedCount: 12,
+      matchedCount: 12,
+      missingCount: 0,
+      shiftedCount: 5,
+      maxCenterShift: 274,
+      maxSizeDelta: 30,
+      shouldRetry: true,
+    };
+
+    expect(isRepeatedHighlightDrift(current, previous)).toBe(true);
+  });
+
+  test('does not treat materially different retry metrics as repeated drift', () => {
+    const previous = {
+      checkedCount: 12,
+      matchedCount: 12,
+      missingCount: 0,
+      shiftedCount: 5,
+      maxCenterShift: 268,
+      maxSizeDelta: 32,
+      shouldRetry: true,
+    };
+    const current = {
+      checkedCount: 12,
+      matchedCount: 9,
+      missingCount: 3,
+      shiftedCount: 2,
+      maxCenterShift: 64,
+      maxSizeDelta: 12,
+      shouldRetry: true,
+    };
+
+    expect(isRepeatedHighlightDrift(current, previous)).toBe(false);
   });
 });

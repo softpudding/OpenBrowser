@@ -53,6 +53,8 @@ import {
 import {
   HIGHLIGHT_CONSISTENCY_CONFIG,
   evaluateHighlightConsistency,
+  isRepeatedHighlightDrift,
+  type HighlightConsistencyResult,
 } from '../utils/highlight-consistency';
 import {
   getHighlightReadinessRetryDelay,
@@ -1484,6 +1486,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const maxHighlightAttempts = 3;
         const highlightDetectionTimeoutMs = 18000;
+        let previousConsistency: HighlightConsistencyResult | null = null;
 
         for (let attempt = 1; attempt <= maxHighlightAttempts; attempt++) {
           console.log(
@@ -1645,18 +1648,20 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           );
 
           // Get device pixel ratio for coordinate scaling
-          const devicePixelRatio =
-            screenshotResult.metadata?.devicePixelRatio || 1;
+          const imageScale =
+            screenshotResult.metadata?.imageScale ||
+            screenshotResult.metadata?.devicePixelRatio ||
+            1;
           const viewportWidth = screenshotResult.metadata?.viewportWidth || 0;
           const viewportHeight = screenshotResult.metadata?.viewportHeight || 0;
           console.log(
-            `📐 [HighlightElements] Device pixel ratio: ${devicePixelRatio}`,
+            `📐 [HighlightElements] Image scale: ${imageScale}`,
           );
           console.log(
             `📐 [HighlightElements] Viewport: ${viewportWidth}x${viewportHeight} CSS pixels`,
           );
           console.log(
-            `📐 [HighlightElements] Expected image size: ${viewportWidth * devicePixelRatio}x${viewportHeight * devicePixelRatio} device pixels`,
+            `📐 [HighlightElements] Expected image size: ${Math.round(viewportWidth * imageScale)}x${Math.round(viewportHeight * imageScale)} device pixels`,
           );
 
           const consistencyCheckStart = Date.now();
@@ -1688,11 +1693,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           console.log(
             `⏱️ [HighlightTrace] background consistency-check ${Date.now() - consistencyCheckStart}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
           );
+          const repeatedDrift = isRepeatedHighlightDrift(
+            highlightConsistency,
+            previousConsistency,
+          );
 
           if (
             highlightConsistency.shouldRetry &&
-            attempt < maxHighlightAttempts
+            attempt < maxHighlightAttempts &&
+            !repeatedDrift
           ) {
+            previousConsistency = highlightConsistency;
             console.warn(
               `⚠️ [HighlightElements] Layout drift detected after screenshot, retrying (attempt ${attempt}/${maxHighlightAttempts})`,
             );
@@ -1701,7 +1712,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
           if (highlightConsistency.shouldRetry) {
             console.warn(
-              `⚠️ [HighlightElements] Layout drift still detected on final attempt, returning latest screenshot`,
+              repeatedDrift
+                ? `⚠️ [HighlightElements] Layout drift repeated with near-identical metrics, returning latest screenshot`
+                : `⚠️ [HighlightElements] Layout drift still detected on final attempt, returning latest screenshot`,
             );
           }
 
@@ -1736,7 +1749,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             screenshotResult.imageData,
             displayOrderedElements,
             {
-              scale: devicePixelRatio,
+              scale: imageScale,
               viewportWidth,
               viewportHeight,
             },
@@ -2309,7 +2322,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           screenshotResult.imageData,
           elementWithFreshBbox,
           {
-            scale: screenshotResult.metadata?.devicePixelRatio || 1,
+            scale:
+              screenshotResult.metadata?.imageScale ||
+              screenshotResult.metadata?.devicePixelRatio ||
+              1,
             viewportWidth: screenshotResult.metadata?.viewportWidth || 0,
             viewportHeight: screenshotResult.metadata?.viewportHeight || 0,
           },

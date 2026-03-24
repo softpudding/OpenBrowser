@@ -10,12 +10,20 @@ export interface ScreenshotCaptureOptions {
   settleQuietWindowMs?: number;
 }
 
+export const DEFAULT_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
+  preferredFormat: 'jpeg',
+  maxOutputWidth: 1920,
+  maxOutputHeight: 1080,
+};
+
 export const HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
-  // Keep highlight captures on the same baseline as regular action screenshots.
-  // We no longer force JPEG or clamp output dimensions specifically for highlight flows.
+  ...DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
+  warmupBeforeCapture: true,
+  warmupMaxAttempts: 2,
 };
 
 export const TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
+  ...DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
   warmupBeforeCapture: true,
   warmupMaxAttempts: 3,
 };
@@ -30,22 +38,24 @@ export function calculateScreenshotCaptureScale(
     return 1;
   }
 
-  let captureScale = devicePixelRatio;
+  // Chrome's Page.captureScreenshot clip.scale composes with the source DPR.
+  // A scale of 1 already produces device-pixel output on HiDPI displays.
+  let captureScale = 1;
 
   if (options?.maxOutputWidth && options.maxOutputWidth > 0) {
     captureScale = Math.min(
       captureScale,
-      options.maxOutputWidth / viewportWidth,
+      options.maxOutputWidth / (viewportWidth * devicePixelRatio),
     );
   }
 
   if (options?.maxOutputHeight && options.maxOutputHeight > 0) {
     captureScale = Math.min(
       captureScale,
-      options.maxOutputHeight / viewportHeight,
+      options.maxOutputHeight / (viewportHeight * devicePixelRatio),
     );
   }
 
   const minCaptureScale = options?.minCaptureScale ?? 0.1;
-  return Math.max(minCaptureScale, captureScale);
+  return Math.max(minCaptureScale, Math.min(1, captureScale));
 }

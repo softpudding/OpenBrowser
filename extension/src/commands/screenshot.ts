@@ -10,6 +10,7 @@ import { workerManager } from '../workers/worker-manager';
 import { dialogManager, DialogType, type DialogInfo } from './dialog';
 import {
   calculateScreenshotCaptureScale,
+  DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
   type ScreenshotCaptureOptions,
 } from '../utils/highlight-screenshot';
 import {
@@ -696,6 +697,42 @@ async function waitForPageToSettleBeforeCapture(
   }
 }
 
+async function inspectImageDimensions(dataUrl: string): Promise<{
+  width: number;
+  height: number;
+}> {
+  if (!dataUrl.startsWith('data:')) {
+    throw new Error('[Screenshot] Invalid data URL while inspecting dimensions');
+  }
+
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex === -1) {
+    throw new Error('[Screenshot] Screenshot data URL missing payload separator');
+  }
+
+  const header = dataUrl.slice(0, commaIndex);
+  const base64Data = dataUrl.slice(commaIndex + 1);
+  const mimeType = header.slice(5, header.indexOf(';'));
+
+  const binary = atob(base64Data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  const blob = new Blob([bytes], { type: mimeType });
+  const imageBitmap = await createImageBitmap(blob);
+
+  try {
+    return {
+      width: imageBitmap.width,
+      height: imageBitmap.height,
+    };
+  } finally {
+    imageBitmap.close();
+  }
+}
+
 /**
  * Error thrown when screenshot capture is blocked by an open dialog
  */
@@ -913,6 +950,10 @@ async function captureScreenshotWithCDP(
   }
 
   const cdpCommander = new CdpCommander(tabId);
+  const captureOptions: ScreenshotCaptureOptions = {
+    ...DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
+    ...(options ?? {}),
+  };
 
   try {
     // Enable Page domain if not already enabled
@@ -1051,7 +1092,7 @@ async function captureScreenshotWithCDP(
       `🖥️ [Screenshot] Viewport size (CSS pixels): ${cssViewportWidth}x${cssViewportHeight} at (${cssViewportX}, ${cssViewportY})`,
     );
     console.log(
-      `📸 [Screenshot] Expected device pixels: ${cssViewportWidth * devicePixelRatio}x${cssViewportHeight * devicePixelRatio}`,
+      `📸 [Screenshot] Source device pixels: ${cssViewportWidth * devicePixelRatio}x${cssViewportHeight * devicePixelRatio}`,
     );
 
     // ========================================
@@ -1064,8 +1105,8 @@ async function captureScreenshotWithCDP(
       await new Promise((resolve) => setTimeout(resolve, waitForRender));
     }
 
-    await warmUpPageBeforeCapture(cdpCommander, options);
-    await waitForPageToSettleBeforeCapture(cdpCommander, options);
+    await warmUpPageBeforeCapture(cdpCommander, captureOptions);
+    await waitForPageToSettleBeforeCapture(cdpCommander, captureOptions);
 
     // ========================================
     // STEP 5: Capture screenshot - "所见即所得"方案
@@ -1080,17 +1121,26 @@ async function captureScreenshotWithCDP(
       cssViewportWidth,
       cssViewportHeight,
       devicePixelRatio,
-      options,
+      captureOptions,
+    );
+    const expectedOutputWidth = Math.round(
+      cssViewportWidth * devicePixelRatio * clipScale,
+    );
+    const expectedOutputHeight = Math.round(
+      cssViewportHeight * devicePixelRatio * clipScale,
     );
 
     console.log(
       `🎯 [Screenshot] Capturing with clip: (${cssViewportX}, ${cssViewportY}) ${cssViewportWidth}x${cssViewportHeight} CSS pixels, scale=${clipScale} (sourceDPR=${devicePixelRatio})`,
     );
+    console.log(
+      `🎯 [Screenshot] Target output pixels: ${expectedOutputWidth}x${expectedOutputHeight}`,
+    );
 
     // 最大允许的base64数据大小：10MB
     const MAX_BASE64_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 
-    const preferredFormat = options?.preferredFormat ?? 'png';
+    const preferredFormat = captureOptions.preferredFormat ?? 'png';
     let screenshot: any;
     let format = preferredFormat;
     let finalQuality = quality;
@@ -1205,8 +1255,8 @@ async function captureScreenshotWithCDP(
     // STEP 6: Validate screenshot data
     // ========================================
     // The screenshot should be in device pixels
-    const expectedDeviceWidth = Math.round(cssViewportWidth * clipScale);
-    const expectedDeviceHeight = Math.round(cssViewportHeight * clipScale);
+    const expectedDeviceWidth = expectedOutputWidth;
+    const expectedDeviceHeight = expectedOutputHeight;
 
     console.log(
       `📊 [Screenshot] Final image: ${format.toUpperCase()} ${expectedDeviceWidth}x${expectedDeviceHeight}, quality=${finalQuality}, size=${screenshot.data.length} bytes`,
@@ -1228,8 +1278,16 @@ async function captureScreenshotWithCDP(
     // ========================================
     // 不再进行缩放，直接使用原始截图
     const finalImageData = dataUrl;
-    const finalImageWidth = expectedDeviceWidth;
-    const finalImageHeight = expectedDeviceHeight;
+    const actualDimensions = await inspectImageDimensions(finalImageData);
+    const finalImageWidth = actualDimensions.width;
+    const finalImageHeight = actualDimensions.height;
+    const imageScaleX =
+      cssViewportWidth > 0 ? finalImageWidth / cssViewportWidth : 1;
+    const imageScaleY =
+      cssViewportHeight > 0 ? finalImageHeight / cssViewportHeight : 1;
+    const imageScale = (imageScaleX + imageScaleY) / 2;
+    const effectiveCaptureScale =
+      devicePixelRatio > 0 ? imageScale / devicePixelRatio : imageScale;
 
     // 基本验证：图像数据应合理大小
     // 对于大尺寸截图，最小值应更高
@@ -1271,9 +1329,11 @@ async function captureScreenshotWithCDP(
         format: format, // 图像格式 (png/jpeg)
         quality: finalQuality, // 图像质量 (JPEG only)
         captureMethod: 'cdp',
-        devicePixelRatio: clipScale,
+        devicePixelRatio: imageScale,
+        imageScale: imageScale,
         sourceDevicePixelRatio: devicePixelRatio,
-        captureScale: clipScale,
+        captureScale: effectiveCaptureScale,
+        requestedCaptureScale: clipScale,
         // 不再有裁剪偏移，因为不进行缩放
         cropOffsetX: 0,
         cropOffsetY: 0,
