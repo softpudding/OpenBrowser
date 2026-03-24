@@ -11,9 +11,16 @@ import type { ElementActionResult } from '../types';
  * - Handles dialog events using the same pattern as javascript.ts
  */
 
-import { elementCache } from './element-cache';
+import { ELEMENT_CACHE_TTL_DESCRIPTION, elementCache } from './element-cache';
 import { executeJavaScript, type JavaScriptResult } from './javascript';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
+
+function buildElementCacheMissMessage(
+  elementId: string,
+  refreshHint: string = 'Call highlight_elements() first.',
+): string {
+  return `Element '${elementId}' not found in cache. Cache expires after ${ELEMENT_CACHE_TTL_DESCRIPTION}. ${refreshHint}`;
+}
 
 function buildEditableActivationHelpersScript(): string {
   return `
@@ -224,7 +231,10 @@ export async function performElementClick(
       elementId,
       clicked: false,
       staleElement: false,
-      error: `Element '${elementId}' not found in cache. The element cache expires after 2 minutes. Call highlight_elements() first to refresh the cache and get updated element IDs.`,
+      error: buildElementCacheMissMessage(
+        elementId,
+        'Call highlight_elements() first to refresh the cache and get updated element IDs.',
+      ),
     };
   }
 
@@ -482,7 +492,7 @@ export async function performElementHover(
       elementId,
       hovered: false,
       staleElement: false,
-      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+      error: buildElementCacheMissMessage(elementId),
     };
   }
 
@@ -748,7 +758,7 @@ export async function performElementScroll(
         success: false,
         elementId,
         scrolled: false,
-        error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+        error: buildElementCacheMissMessage(elementId),
       };
     }
 
@@ -1052,7 +1062,7 @@ export async function performElementSwipe(
       success: false,
       elementId,
       swiped: false,
-      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+      error: buildElementCacheMissMessage(elementId),
     };
   }
 
@@ -2193,7 +2203,7 @@ export async function performKeyboardInput(
       elementId,
       input: false,
       staleElement: false,
-      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+      error: buildElementCacheMissMessage(elementId),
     };
   }
 
@@ -2465,7 +2475,7 @@ export async function performElementSelect(
       elementId,
       selected: false,
       staleElement: false,
-      error: `Element '${elementId}' not found in cache. Cache expires after 2 minutes. Call highlight_elements() first.`,
+      error: buildElementCacheMissMessage(elementId),
     };
   }
 
