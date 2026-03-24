@@ -25,7 +25,7 @@ Task prompt:
 
 ![Xiaohongshu Apartment Hunting Demo](demo/xiaohongshu_apartment_preview.gif)
 
-[Watch full video on Bilibili](https://www.bilibili.com/video/BV1LxQrBMEh8)
+[Watch full video: xiaohongshu_3_apartments_3x.mp4](demo/xiaohongshu_3_apartments_3x.mp4)
 
 What this demo shows:
 
