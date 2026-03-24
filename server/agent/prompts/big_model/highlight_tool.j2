@@ -100,6 +100,7 @@ Use keyword search only when you can clearly identify the target element's exact
 - You can already see the target's exact text label on the target itself in the screenshot and can copy it verbatim
 - You want to narrow to a specific post, comment, button, or menu item whose text you can quote verbatim
 - If the target is a control, its visible readable text is clear enough to quote exactly rather than guess
+- If a target control itself visibly shows an icon plus `52`, the only literal searchable token is `52`; do not convert the icon into guessed words like `star`, `favorite`, or `bookmark`
 
 For exact-text search:
 - Prefer **ONE exact phrase** that distinguishes the target from all other elements
@@ -110,6 +111,7 @@ Examples of exact-text search:
 - **Specific button label already visible**: If you can see a button labeled "Continue with Email", search `{"keywords": ["Continue with Email"]}` instead of just `["Continue"]`.
 - **Specific user's comment**: Page shows multiple user comments. If targeting "John's reply", search `{"keywords": ["John's reply"]}` to narrow down to that specific comment.
 - **Specific post title already visible**: If you can see a post titled "春季穿搭合集", search `{"keywords": ["春季穿搭合集"]}`.
+- **Icon + count on the target itself**: If the control itself visibly shows an icon plus `52`, search `{"keywords": ["52"]}` if you need keywords. Do not search guessed icon semantics like `["star"]`, `["favorite"]`, or `["bookmark"]`.
 
 **Anti-Patterns**:
 - DO NOT use overly broad keywords like ["x"] that match everything
@@ -118,6 +120,7 @@ Examples of exact-text search:
 - DO NOT infer a guessed semantic label from shape, iconography, color, or position and search for that guess
 - DO NOT search for unlabeled toolbar icons or ambiguous controls with guessed words like "settings", "gear", "bell", "chat", "next", "prev", or "close"
 - DO NOT switch to keywords just because a nearby count like "57" is visible; in collision-aware pagination, the actual button may simply be on the next page
+- DO NOT turn an icon+count control into guessed icon words. If the control itself shows an icon plus `52`, the literal keyword is `["52"]`, not `["star"]`, `["favorite"]`, or `["bookmark"]`
 - DO NOT use synonym bundles like `["close", "dismiss", "cancel"]` or `["search", "find", "query"]`
 - DO NOT mix unrelated keywords in a single search
 

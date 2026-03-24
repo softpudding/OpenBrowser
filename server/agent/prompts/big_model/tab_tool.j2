@@ -167,7 +167,7 @@ Navigate forward in the browser history (equivalent to clicking the browser's fo
 2. **Navigate to other pages**: `tab open https://other.com`
 3. **Switch between tabs**: `tab switch` with appropriate tab_id
 4. **After tab operations**, restart discovery with the highlight tool on `element_type: "any"` before selecting the next element, because it exposes extension-derived page insight for the new page state.
-5. Treat highlight pagination as reliable. If page 1 misses the target, continue `element_type: "any"` pages before changing strategy. Use `keywords` only when you can already see the target's exact literal text on the target itself and can copy it verbatim from the screenshot.
+5. Treat highlight pagination as reliable. If page 1 misses the target, continue `element_type: "any"` pages before changing strategy. Use `keywords` only when you can already see the target's exact literal text on the target itself and can copy it verbatim from the screenshot. If a control itself shows an icon plus `52`, the literal keyword is `52`, not guessed icon words like `star`, `favorite`, or `bookmark`.
 
 ## Notes
 

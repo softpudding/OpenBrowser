@@ -122,6 +122,8 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
         in description
     )
     assert "Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot" in description
+    assert '`{"keywords": ["52"]}`' in description
+    assert '`["star"]`, `["favorite"]`, or `["bookmark"]`' in description
     assert "the actual button may simply be on the next page" in description
     assert '`clickable`' not in description
     assert "Phase 2: Broad Search" not in description

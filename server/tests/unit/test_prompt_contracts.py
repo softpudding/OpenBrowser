@@ -81,6 +81,8 @@ class TestPromptContracts:
         assert "Treat pages as reliable collision-free slices of the same candidate set" in description
         assert "Do not jump from a first-page miss to `keywords`" in description
         assert "Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot" in description
+        assert '`{"keywords": ["52"]}`' in description
+        assert '`["star"]`, `["favorite"]`, or `["bookmark"]`' in description
         assert "DO NOT use synonym bundles like" in description
         assert "Examples of broad search" not in description
         assert "Phase 2: Broad Search" not in description
