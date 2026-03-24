@@ -1623,7 +1623,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             activeTabId,
             conversationId,
             true,
-            70,
+            90,
             false,
             0,
             HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
@@ -2251,7 +2251,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           activeTabId,
           conversationId,
           true,
-          80,
+          90,
         );
 
         // ============================================================

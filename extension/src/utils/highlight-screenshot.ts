@@ -11,10 +11,8 @@ export interface ScreenshotCaptureOptions {
 }
 
 export const HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
-  preferredFormat: 'jpeg',
-  maxOutputWidth: 1280,
-  maxOutputHeight: 720,
-  minCaptureScale: 0.25,
+  // Keep highlight captures on the same baseline as regular action screenshots.
+  // We no longer force JPEG or clamp output dimensions specifically for highlight flows.
 };
 
 export const TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {

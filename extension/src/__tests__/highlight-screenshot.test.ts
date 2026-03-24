@@ -7,7 +7,14 @@ import {
 } from '../utils/highlight-screenshot';
 
 describe('Highlight Screenshot', () => {
-  test('caps highlight capture to roughly 720p output height', () => {
+  test('does not force a dedicated format or output clamp for highlight captures', () => {
+    expect(HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS.preferredFormat).toBeUndefined();
+    expect(HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS.maxOutputWidth).toBeUndefined();
+    expect(HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS.maxOutputHeight).toBeUndefined();
+    expect(HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS.minCaptureScale).toBeUndefined();
+  });
+
+  test('keeps highlight capture scale aligned with normal screenshots', () => {
     const scale = calculateScreenshotCaptureScale(
       1728,
       1080,
@@ -15,12 +22,12 @@ describe('Highlight Screenshot', () => {
       HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
     );
 
-    expect(scale).toBeCloseTo(720 / 1080, 3);
-    expect(Math.round(1728 * scale)).toBe(1152);
-    expect(Math.round(1080 * scale)).toBe(720);
+    expect(scale).toBe(2);
+    expect(Math.round(1728 * scale)).toBe(3456);
+    expect(Math.round(1080 * scale)).toBe(2160);
   });
 
-  test('does not upscale when viewport is already small', () => {
+  test('does not override small viewport captures', () => {
     const scale = calculateScreenshotCaptureScale(
       390,
       844,
@@ -28,8 +35,7 @@ describe('Highlight Screenshot', () => {
       HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
     );
 
-    expect(scale).toBeCloseTo(720 / 844, 3);
-    expect(scale).toBeLessThanOrEqual(1);
+    expect(scale).toBe(1);
   });
 
   test('respects minimum capture scale guardrail', () => {
