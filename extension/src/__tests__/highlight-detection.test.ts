@@ -266,4 +266,46 @@ describe('highlight-detection helpers', () => {
     expect(affinitySource).toContain('save');
     expect(affinitySource).toContain('star');
   });
+
+  test('buildHighlightDetectionScript de-prioritizes pointer-only count labels', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'clickable' });
+    const candidateSignalStart = script.indexOf('function getCandidateSignal');
+    const candidateSignalEnd = script.indexOf(
+      'function buildResolvedCandidate',
+      candidateSignalStart,
+    );
+    const candidateSignalSource = script.slice(
+      candidateSignalStart,
+      candidateSignalEnd,
+    );
+
+    expect(candidateSignalSource).toContain('isLikelyCountTextElement');
+    expect(candidateSignalSource).toContain("signalSource === 'pointer'");
+    expect(candidateSignalSource).toContain('return baseSignalScore - 80;');
+  });
+
+  test('buildHighlightDetectionScript prefers control wrappers over nested count spans', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const compareStart = script.indexOf('function compareCandidates');
+    const compareEnd = script.indexOf(
+      'function isProminentScrollableCandidate',
+      compareStart,
+    );
+    const compareSource = script.slice(compareStart, compareEnd);
+    const shouldDropStart = script.indexOf('function shouldDropCandidate');
+    const shouldDropEnd = script.indexOf(
+      'function toInteractiveElement',
+      shouldDropStart,
+    );
+    const shouldDropSource = script.slice(shouldDropStart, shouldDropEnd);
+
+    expect(compareSource).toContain('isPreferredControlWrapperOverCandidate');
+    expect(compareSource).toContain('isPureCountClickableCandidate');
+    expect(shouldDropSource).toContain(
+      'isPureCountClickableCandidate(candidate)',
+    );
+    expect(shouldDropSource).toContain(
+      'isPreferredControlWrapperOverCandidate(kept, candidate)',
+    );
+  });
 });
