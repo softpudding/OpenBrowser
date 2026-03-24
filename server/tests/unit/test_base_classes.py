@@ -26,8 +26,10 @@ OpenBrowserObservation = base_module.OpenBrowserObservation
 
 def _text_content(observation: OpenBrowserObservation) -> str:
     llm_content = observation.to_llm_content
-    assert isinstance(llm_content[0], TextContent)
-    return llm_content[0].text
+    for item in llm_content:
+        if isinstance(item, TextContent):
+            return item.text
+    raise AssertionError("No TextContent found")
 
 
 class TestOpenBrowserAction:
@@ -172,8 +174,8 @@ class TestOpenBrowserObservation:
 
         text = _text_content(observation)
 
-        assert "## ⚠️ Action Pending Confirmation" in text
-        assert "use the `element_interaction` tool" in text
+        assert "## Pending Confirmation" in text
+        assert "Inspect the screenshot first." in text
         assert '"action": "confirm_click"' in text
         assert '"element_id": "a1b2c3"' in text
 
@@ -191,6 +193,27 @@ class TestOpenBrowserObservation:
 
         assert '"action": "confirm_keyboard_input"' in text
         assert '"element_id": "inp789"' in text
+
+    def test_pending_confirmation_with_screenshot_is_image_first_and_text_minimal(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            screenshot_data_url="data:image/png;base64,confirm123",
+            pending_confirmation={
+                "element_id": "a1b2c3",
+                "action_type": "click",
+                "full_html": "<button>Delete</button>",
+            },
+        )
+
+        llm_content = observation.to_llm_content
+
+        assert len(llm_content) == 2
+        assert isinstance(llm_content[0], ImageContent)
+        assert isinstance(llm_content[1], TextContent)
+        assert llm_content[0].image_urls == ["data:image/png;base64,confirm123"]
+        assert "## Operation Status" not in llm_content[1].text
+        assert "**Full HTML**" not in llm_content[1].text
+        assert "**Secondary HTML Check**:" in llm_content[1].text
 
     def test_auto_accepted_dialogs_render_history_and_note(self) -> None:
         observation = OpenBrowserObservation(

@@ -97,9 +97,57 @@ class OpenBrowserObservation(Observation):
         description="Type of elements highlighted (clickable/scrollable/inputable/hoverable/selectable)",
     )
 
+    def _pending_confirmation_llm_content(
+        self,
+    ) -> Sequence[TextContent | ImageContent]:
+        """Render a minimal, image-first confirmation payload."""
+        content_items: list[TextContent | ImageContent] = []
+
+        if self.screenshot_data_url:
+            content_items.append(ImageContent(image_urls=[self.screenshot_data_url]))
+
+        pending = self.pending_confirmation or {}
+        action_type = str(pending.get("action_type", "unknown"))
+        element_id = str(pending.get("element_id", "unknown"))
+        confirm_cmd = (
+            f'{{"action": "confirm_{action_type}", "element_id": "{element_id}"}}'
+        )
+
+        text_parts = [
+            "## Pending Confirmation",
+            "",
+            "Inspect the screenshot first.",
+            "Confirm only if the single highlighted element is exactly the intended target.",
+            "",
+            f"**Element ID**: {element_id}",
+            f"**Action Type**: {action_type}",
+            "",
+        ]
+
+        full_html = str(pending.get("full_html", "")).strip()
+        if full_html:
+            if len(full_html) > 800:
+                full_html = full_html[:800] + "\n... (truncated)"
+            text_parts.append("**Secondary HTML Check**:")
+            text_parts.append("```html")
+            text_parts.append(full_html)
+            text_parts.append("```")
+            text_parts.append("")
+
+        text_parts.append("**Confirm with:**")
+        text_parts.append(f"```json\n{confirm_cmd}\n```")
+        text_parts.append("")
+        text_parts.append("Use a different action to cancel.")
+
+        content_items.append(TextContent(text="\n".join(text_parts)))
+        return content_items
+
     @property
     def to_llm_content(self) -> Sequence[TextContent | ImageContent]:
         import json
+
+        if self.pending_confirmation:
+            return self._pending_confirmation_llm_content()
 
         content_items = []
         text_parts = []
@@ -337,45 +385,6 @@ class OpenBrowserObservation(Observation):
                     tag = el.get("tagName", "").upper()
                     element_descriptions.append(f"{display_id} ({tag})")
             text_parts.append("\n".join(element_descriptions))
-            text_parts.append("")
-
-        # Pending Confirmation Section (2PC)
-        if self.pending_confirmation:
-            text_parts.append("## ⚠️ Action Pending Confirmation")
-            text_parts.append("")
-            text_parts.append(
-                "**IMPORTANT**: This action requires confirmation before execution."
-            )
-            text_parts.append("")
-            text_parts.append(
-                f"**Element ID**: {self.pending_confirmation.get('element_id', 'unknown')}"
-            )
-            text_parts.append(
-                f"**Action Type**: {self.pending_confirmation.get('action_type', 'unknown')}"
-            )
-            text_parts.append("")
-            text_parts.append("**Full HTML**:")
-            text_parts.append("```html")
-            full_html = self.pending_confirmation.get("full_html", "<not available>")
-            # Truncate if too long
-            if len(full_html) > 5000:
-                full_html = full_html[:5000] + "\n... (truncated)"
-            text_parts.append(full_html)
-            text_parts.append("```")
-            text_parts.append("")
-            text_parts.append(
-                "**To confirm this action, use the `element_interaction` tool with:**"
-            )
-            action_type = self.pending_confirmation.get("action_type", "")
-            element_id = self.pending_confirmation.get("element_id", "")
-            confirm_cmd = (
-                f'{{"action": "confirm_{action_type}", "element_id": "{element_id}"}}'
-            )
-            text_parts.append(f"```json\n{confirm_cmd}\n```")
-            text_parts.append("")
-            text_parts.append(
-                "**Or choose a different action to cancel this pending confirmation.**"
-            )
             text_parts.append("")
 
         if self.element_id:
