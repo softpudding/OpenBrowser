@@ -1,34 +1,3 @@
-{% if small_model %}
-# Dialog Tool
-
-Handle blocking browser dialogs immediately.
-
-## Rule
-
-If a dialog is open, do not use other browser tools first.
-
-## Commands
-
-### dialog
-
-```json
-{ "dialog_action": "accept" }
-{ "dialog_action": "dismiss" }
-{ "dialog_action": "accept", "prompt_text": "my response" }
-```
-
-## Quick Mapping
-
-- `confirm`: choose `accept` or `dismiss`
-- `prompt`: use `accept` with `prompt_text`, or `dismiss`
-- `beforeunload`: `accept` means leave, `dismiss` means stay
-- `alert`: auto-accepted by the system
-
-## After Handling
-
-- Check the returned screenshot
-- If another dialog appears, handle that next
-{% else %}
 # Dialog Tool
 
 Handle browser modal dialogs that block automation.
@@ -91,4 +60,3 @@ The dialog tool returns a screenshot after handling the dialog, showing the resu
 
 - Returns error if no dialog is currently open
 - Returns error if accepting a prompt without `prompt_text`
-{% endif %}

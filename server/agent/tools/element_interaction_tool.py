@@ -5,48 +5,27 @@ Click and keyboard input use a two-phase commit (2PC) confirmation flow.
 Hover, scroll, swipe, and select execute directly.
 """
 
-import os
-import jinja2
 from collections.abc import Sequence
-from pathlib import Path
 from typing import List, Literal, Optional, Union
 
 from openhands.sdk.tool import (
     ToolDefinition,
     ToolAnnotations,
-    ToolExecutor,
     register_tool,
 )
 from pydantic import Field
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.agent.tools.prompt_context import get_prompt_render_context
-
-# Setup Jinja2 template environment for prompts
-_TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
-    autoescape=jinja2.select_autoescape(["html", "xml"]),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-
-# Template cache
-_ELEMENT_INTERACTION_TOOL_TEMPLATE = None
+from server.agent.tools.prompt_loader import render_tool_prompt
 
 
 def get_element_interaction_tool_description(conv_state=None) -> str:
     """Get the ElementInteractionTool description, rendered from Jinja2 template."""
-    global _ELEMENT_INTERACTION_TOOL_TEMPLATE
-
-    # Load template if not cached
-    if _ELEMENT_INTERACTION_TOOL_TEMPLATE is None:
-        _ELEMENT_INTERACTION_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template(
-            "element_interaction_tool.j2"
-        )
-
-    # Render template with context
-    return _ELEMENT_INTERACTION_TOOL_TEMPLATE.render(
-        **get_prompt_render_context(conv_state)
+    return render_tool_prompt(
+        "element_interaction_tool.j2",
+        conv_state,
+        context=get_prompt_render_context(conv_state),
     )
 
 

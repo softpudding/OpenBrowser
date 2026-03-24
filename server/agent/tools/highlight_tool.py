@@ -5,45 +5,28 @@ This tool provides visual element detection with collision-aware pagination,
 allowing the AI agent to see and interact with elements via numbered overlays.
 """
 
-import os
-import jinja2
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Optional, List
 
 from pydantic import Field
 from openhands.sdk.tool import (
     ToolDefinition,
     ToolAnnotations,
-    ToolExecutor,
     register_tool,
 )
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.agent.tools.prompt_context import get_prompt_render_context
-
-# Setup Jinja2 template environment for prompts
-_TEMPLATE_ENV = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "prompts"),
-    autoescape=jinja2.select_autoescape(["html", "xml"]),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-
-# Template cache
-_HIGHLIGHT_TOOL_TEMPLATE = None
+from server.agent.tools.prompt_loader import render_tool_prompt
 
 
 def get_highlight_tool_description(conv_state=None) -> str:
     """Get the HighlightTool description, rendered from Jinja2 template."""
-    global _HIGHLIGHT_TOOL_TEMPLATE
-
-    # Load template if not cached
-    if _HIGHLIGHT_TOOL_TEMPLATE is None:
-        _HIGHLIGHT_TOOL_TEMPLATE = _TEMPLATE_ENV.get_template("highlight_tool.j2")
-
-    # Render template with context
-    return _HIGHLIGHT_TOOL_TEMPLATE.render(**get_prompt_render_context(conv_state))
+    return render_tool_prompt(
+        "highlight_tool.j2",
+        conv_state,
+        context=get_prompt_render_context(conv_state),
+    )
 
 
 class BaseHighlightAction(OpenBrowserAction):

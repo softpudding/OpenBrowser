@@ -1,97 +1,3 @@
-{% if small_model %}
-# Element Interaction Tool
-
-Interact with one highlighted element at a time.
-
-## Primary Workflow
-
-1. Use `highlight` first.
-2. Choose one `element_id`.
-3. Call the action.
-4. Only `click` and `keyboard_input` produce an ORANGE preview and require the matching `confirm_*`.
-5. If the target is wrong, stop and highlight again.
-
-## Core Rule
-
-Never skip from intent directly to action without a matching `element_id` from highlight.
-
-If the right `element_id` is missing, return to highlight and continue pagination instead of guessing a control name or target. On the same unchanged page state, your first reaction should be to continue `element_type: "any"` pagination.
-
-After any significant page-state change caused by your last action, such as navigation, tab switch, modal expansion, or opening a detail view, the next discovery step must be `highlight` with `element_type: "any"` because it exposes extension-derived page insight you cannot infer reliably from intent alone.
-
-If the page did not significantly change, stay on the current `any` inventory and continue pagination until the target appears. Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and the current `any` inventory was not enough.
-
-## Commands
-
-### click
-
-```json
-{ "action": "click", "element_id": "c8e4d2", "tab_id": 123 }
-{ "action": "confirm_click", "element_id": "c8e4d2", "tab_id": 123 }
-```
-
-### keyboard_input
-
-```json
-{ "action": "keyboard_input", "element_id": "b7c9e5", "text": "hello@example.com", "tab_id": 123 }
-{ "action": "confirm_keyboard_input", "element_id": "b7c9e5", "tab_id": 123 }
-```
-
-### hover
-
-```json
-{ "action": "hover", "element_id": "a3f2b1", "tab_id": 123 }
-```
-
-### select
-
-```json
-{ "action": "select", "element_id": "f3a8c2", "value": "option1", "tab_id": 123 }
-```
-
-### scroll
-
-Whole page:
-```json
-{ "action": "scroll", "direction": "down", "scroll_amount": 1.0, "tab_id": 123 }
-```
-
-Inside one container:
-```json
-{ "action": "scroll", "element_id": "d2f4a8", "direction": "down", "tab_id": 123 }
-```
-
-### swipe
-
-Carousel / slider / swiper region:
-```json
-{ "action": "swipe", "element_id": "d2f4a8", "direction": "next", "swipe_count": 1, "tab_id": 123 }
-```
-
-## Decision Rules
-
-- For buttons and links, use `click`
-- For text boxes, use `keyboard_input`
-- For native `<select>`, use `select`
-- For hidden menus or tooltips, use `hover`
-- If the page or target region is scrollable and your goal is to reveal more content, use `scroll`
-- For carousel / gallery / swiper regions marked `swipable`, use `swipe`
-  Use `direction: "next"` or `direction: "prev"` for swipe.
-- If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or keyword probes first.
-- If a region is marked `swipable`, do not search for guessed `next` / `prev` buttons first.
-
-## Confirmation Rules
-
-- `click` and `keyboard_input` require confirmation
-- If ORANGE preview appears, confirm only when the box position and HTML both match your target
-- If they do not match, do not confirm; highlight again
-
-## Retry Rule
-
-- If one action fails, retry once with a better target
-- If it fails twice, change strategy instead of repeating the same action
-- For failed close or back-like controls inside a detail view, re-highlight that changed page with `any` first, then continue `any` pagination or use `tab back`
-{% else %}
 # Element Interaction Tool
 
 Element interaction with selective visual verification.
@@ -135,6 +41,7 @@ Direct-execution actions
 ```
 
 **Practical rule**: Expect a confirmation step only for `click` and `keyboard_input`.
+**Hard rule for inputable targets**: Always `click` the target first and complete that confirmation before `keyboard_input`.
 
 **Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. On the same unchanged page state, your default next step is another `highlight` call with `element_type: "any"` and the next page. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` before picking the next element, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `keywords` or another narrower type on that changed page. Use `keywords` only when you already see the target's exact literal text on the target itself in the current screenshot and can copy it verbatim.
 
@@ -152,6 +59,7 @@ Initiate a click on an element by its visual ID.
 ```
 
 Use this for buttons, links, and other trigger controls you identified from the highlight tool.
+If the target is an input field, use this click step first to focus it before typing.
 
 ### hover
 Initiate a hover over an element by its visual ID.
@@ -222,7 +130,7 @@ Type text into an input element by its visual ID.
 { "action": "confirm_keyboard_input", "element_id": "b7c9e5", "tab_id": 123 }
 ```
 
-Use this for text inputs, textareas, and search boxes.
+Use this for text inputs, textareas, and search boxes, but only after you already clicked the same input target and completed that click confirmation.
 
 ### select
 Select an option from a native `<select>` dropdown element by its visual ID.
@@ -318,4 +226,3 @@ If `tab_id` is not provided, the system automatically uses the conversation's ac
 - **Invalid element_id**: Returns error.
 - **No active tab**: Returns error if tab_id not provided and no active tab exists.
 - **Action failed**: Returns error with details.
-{% endif %}

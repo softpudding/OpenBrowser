@@ -1,0 +1,96 @@
+# Element Interaction Tool
+
+Interact with one highlighted element at a time.
+
+## Primary Workflow
+
+1. Use `highlight` first.
+2. Choose one `element_id`.
+3. If the target is `inputable`, always `click` it first and complete that confirmation before `keyboard_input`.
+4. Call the action.
+5. Only `click` and `keyboard_input` produce an ORANGE preview and require the matching `confirm_*`.
+6. If the target is wrong, stop and highlight again.
+
+## Core Rule
+
+Never skip from intent directly to action without a matching `element_id` from highlight.
+
+If the right `element_id` is missing, return to highlight and continue pagination instead of guessing a control name or target. On the same unchanged page state, your first reaction should be to continue `element_type: "any"` pagination.
+
+After any significant page-state change caused by your last action, such as navigation, tab switch, modal expansion, or opening a detail view, the next discovery step must be `highlight` with `element_type: "any"` because it exposes extension-derived page insight you cannot infer reliably from intent alone.
+
+If the page did not significantly change, stay on the current `any` inventory and continue pagination until the target appears. Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and the current `any` inventory was not enough.
+
+## Commands
+
+### click
+
+```json
+{ "action": "click", "element_id": "c8e4d2", "tab_id": 123 }
+{ "action": "confirm_click", "element_id": "c8e4d2", "tab_id": 123 }
+```
+
+### keyboard_input
+
+```json
+{ "action": "keyboard_input", "element_id": "b7c9e5", "text": "hello@example.com", "tab_id": 123 }
+{ "action": "confirm_keyboard_input", "element_id": "b7c9e5", "tab_id": 123 }
+```
+
+Use `keyboard_input` only after you already clicked the same input target and completed that click confirmation.
+
+### hover
+
+```json
+{ "action": "hover", "element_id": "a3f2b1", "tab_id": 123 }
+```
+
+### select
+
+```json
+{ "action": "select", "element_id": "f3a8c2", "value": "option1", "tab_id": 123 }
+```
+
+### scroll
+
+Whole page:
+```json
+{ "action": "scroll", "direction": "down", "scroll_amount": 1.0, "tab_id": 123 }
+```
+
+Inside one container:
+```json
+{ "action": "scroll", "element_id": "d2f4a8", "direction": "down", "tab_id": 123 }
+```
+
+### swipe
+
+Carousel / slider / swiper region:
+```json
+{ "action": "swipe", "element_id": "d2f4a8", "direction": "next", "swipe_count": 1, "tab_id": 123 }
+```
+
+## Decision Rules
+
+- For buttons and links, use `click`
+- For text boxes, always `click` first, then use `keyboard_input`
+- For native `<select>`, use `select`
+- For hidden menus or tooltips, use `hover`
+- If the page or target region is scrollable and your goal is to reveal more content, use `scroll`
+- For carousel / gallery / swiper regions marked `swipable`, use `swipe`
+  Use `direction: "next"` or `direction: "prev"` for swipe.
+- If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or other guessed controls first.
+- If a region is marked `swipable`, do not search for guessed `next` / `prev` buttons first.
+
+## Confirmation Rules
+
+- `click` and `keyboard_input` require confirmation
+- For any `inputable` target, the required sequence is `click` first, then `keyboard_input`
+- If ORANGE preview appears, confirm only when the box position and HTML both match your target
+- If they do not match, do not confirm; highlight again
+
+## Retry Rule
+
+- If one action fails, retry once with a better target
+- If it fails twice, change strategy instead of repeating the same action
+- For failed close or back-like controls inside a detail view, re-highlight that changed page with `any` first, then continue `any` pagination or use `tab back`

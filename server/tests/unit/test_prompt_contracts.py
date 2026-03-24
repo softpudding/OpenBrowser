@@ -36,12 +36,18 @@ _import_module("server.agent.tools.prompt_context", "prompt_context.py")
 highlight_tool_module = _import_module(
     "server.agent.tools.highlight_tool", "highlight_tool.py"
 )
+element_interaction_tool_module = _import_module(
+    "server.agent.tools.element_interaction_tool", "element_interaction_tool.py"
+)
 tab_tool_module = _import_module("server.agent.tools.tab_tool", "tab_tool.py")
 
 OpenBrowserObservation = base_module.OpenBrowserObservation
 HighlightAction = highlight_tool_module.HighlightAction
 get_highlight_action_type = highlight_tool_module.get_highlight_action_type
 get_highlight_tool_description = highlight_tool_module.get_highlight_tool_description
+get_element_interaction_tool_description = (
+    element_interaction_tool_module.get_element_interaction_tool_description
+)
 get_tab_tool_description = tab_tool_module.get_tab_tool_description
 
 
@@ -90,6 +96,11 @@ class TestPromptContracts:
 
         assert '`clickable`' not in description
 
+    def test_highlight_prompt_requires_click_before_keyboard_input_for_inputable_targets(self) -> None:
+        description = get_highlight_tool_description()
+
+        assert "always `click` it first and complete that confirmation before `keyboard_input`" in description
+
     def test_small_model_highlight_prompt_omits_keywords_guidance(self) -> None:
         with patch.object(
             highlight_tool_module,
@@ -124,6 +135,12 @@ class TestPromptContracts:
 
         assert "tab view" in description
         assert "clean screenshot" in description.lower()
+
+    def test_element_interaction_prompt_requires_click_before_keyboard_input(self) -> None:
+        description = get_element_interaction_tool_description()
+
+        assert "Always `click` the target first and complete that confirmation before `keyboard_input`." in description
+        assert "only after you already clicked the same input target and completed that click confirmation" in description
 
     def test_dialog_guidance_uses_dialog_tool_name(self) -> None:
         observation = OpenBrowserObservation(
