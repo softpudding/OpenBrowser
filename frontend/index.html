@@ -1656,7 +1656,7 @@
 
         .right-panel {
             order: 1;
-            flex: 1 1 auto;
+            flex: 1.15 1 auto;
             min-width: 0;
             gap: 0;
         }
@@ -1677,10 +1677,10 @@
 
         .main-terminal {
             order: 3;
-            flex: 0 0 440px;
-            max-width: 460px;
-            min-width: 360px;
-            gap: 12px;
+            flex: 0 0 540px;
+            max-width: 620px;
+            min-width: 400px;
+            gap: 14px;
             background: transparent;
             border: none;
             overflow-x: hidden;
@@ -1725,6 +1725,100 @@
 
         .control-card {
             gap: 18px;
+        }
+
+        .agent-voice-card {
+            gap: 18px;
+            border-color: rgba(var(--accent-rgb), 0.22);
+            background:
+                radial-gradient(circle at top left, rgba(var(--accent-rgb), 0.12), transparent 46%),
+                linear-gradient(180deg, rgba(38, 30, 23, 0.98), rgba(23, 19, 15, 0.94));
+        }
+
+        .agent-voice-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .agent-voice-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .agent-voice-time {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .agent-voice-bubble {
+            position: relative;
+            padding: 18px 20px;
+            border-radius: 22px 22px 22px 8px;
+            background:
+                linear-gradient(180deg, rgba(64, 48, 35, 0.62), rgba(37, 29, 23, 0.92));
+            border: 1px solid rgba(var(--accent-rgb), 0.22);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .agent-voice-bubble::after {
+            content: "";
+            position: absolute;
+            left: 18px;
+            bottom: -10px;
+            width: 18px;
+            height: 18px;
+            border-radius: 0 0 0 6px;
+            background: rgba(37, 29, 23, 0.92);
+            border-left: 1px solid rgba(var(--accent-rgb), 0.22);
+            border-bottom: 1px solid rgba(var(--accent-rgb), 0.22);
+            transform: skewY(22deg);
+        }
+
+        .agent-voice-text {
+            color: var(--text-primary);
+            font-size: 16px;
+            line-height: 1.75;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .agent-voice-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .voice-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(24, 19, 15, 0.62);
+            border: 1px solid rgba(204, 175, 140, 0.1);
+            min-width: 0;
+        }
+
+        .voice-stat-label {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .voice-stat-value {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
 
         .control-header {
@@ -1926,7 +2020,7 @@
 
         .timeline-card {
             flex: 1;
-            min-height: 320px;
+            min-height: 360px;
             overflow: hidden;
         }
 
@@ -1949,17 +2043,20 @@
         }
 
         .terminal-output {
-            padding: 12px 6px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 14px 0 2px;
             font-family: var(--mono-font);
             font-size: 12px;
         }
 
         .event-line {
-            margin-bottom: 10px;
             padding: 10px 12px;
             border-left: 3px solid rgba(var(--accent-rgb), 0.12);
             border-radius: 0 14px 14px 0;
             background: rgba(25, 20, 16, 0.44);
+            max-width: 100%;
         }
 
         .event-line:hover,
@@ -1983,6 +2080,65 @@
         .event-content,
         .prompt-line {
             color: var(--text-secondary);
+        }
+
+        .event-line.message-agent,
+        .event-line.message-user {
+            border-left: none;
+            border-radius: 22px;
+            padding: 14px 16px;
+        }
+
+        .event-line.message-agent {
+            margin-right: 28px;
+            background:
+                linear-gradient(180deg, rgba(57, 44, 33, 0.82), rgba(34, 27, 21, 0.94));
+            border: 1px solid rgba(var(--accent-rgb), 0.24);
+        }
+
+        .event-line.message-user {
+            align-self: flex-end;
+            margin-left: 44px;
+            background: rgba(var(--accent-rgb), 0.1);
+            border: 1px solid rgba(var(--accent-rgb), 0.16);
+        }
+
+        .event-line.event-action,
+        .event-line.event-observation,
+        .event-line.event-system,
+        .event-line.event-error {
+            background: rgba(25, 20, 16, 0.5);
+        }
+
+        .event-line.message-agent .event-content,
+        .event-line.message-user .event-content {
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+
+        .event-line.message-agent .event-type {
+            color: var(--accent-strong) !important;
+        }
+
+        .event-line.message-user .event-type {
+            color: #f0d8a3 !important;
+        }
+
+        .event-line.event-action .event-type {
+            color: #e6c48d !important;
+        }
+
+        .event-line.event-observation .event-type {
+            color: #9be7c1 !important;
+        }
+
+        .event-line.event-error .event-type {
+            color: #ffb8b8 !important;
+        }
+
+        .event-line.event-system .event-type {
+            color: var(--text-muted) !important;
         }
 
         .right-panel {
@@ -2015,6 +2171,64 @@
             background:
                 radial-gradient(circle at top, rgba(var(--accent-rgb), 0.08), transparent 46%),
                 linear-gradient(180deg, rgba(19, 16, 13, 0.95), rgba(15, 12, 10, 0.92));
+        }
+
+        .stage-conversation-overlay {
+            position: absolute;
+            left: 34px;
+            right: 34px;
+            bottom: 28px;
+            z-index: 2;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: min(520px, calc(100% - 68px));
+            padding: 16px 18px;
+            border-radius: 22px;
+            border: 1px solid rgba(var(--accent-rgb), 0.22);
+            background:
+                linear-gradient(180deg, rgba(20, 17, 14, 0.56), rgba(20, 16, 13, 0.86));
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(18px);
+        }
+
+        .stage-conversation-overlay.is-empty {
+            border-style: dashed;
+            opacity: 0.84;
+        }
+
+        .stage-conversation-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .stage-conversation-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-strong);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+        }
+
+        .stage-conversation-time {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .stage-conversation-text {
+            color: var(--text-primary);
+            font-size: 14px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
 
         .no-image-placeholder {
@@ -2309,7 +2523,8 @@
             .helper-row,
             .summary-grid,
             .control-summary,
-            .quick-prompts {
+            .quick-prompts,
+            .agent-voice-stats {
                 grid-template-columns: 1fr;
             }
 
@@ -2338,14 +2553,16 @@
             .viewer-header,
             .viewer-footer,
             .advanced-shell summary,
-            .connection-line {
+            .connection-line,
+            .agent-voice-header {
                 align-items: flex-start;
                 flex-direction: column;
             }
 
             .viewer-status-stack,
             .timeline-meta,
-            .header-actions {
+            .header-actions,
+            .agent-voice-meta {
                 justify-content: flex-start;
             }
         }
@@ -2391,6 +2608,14 @@
             .image-viewer-content {
                 min-height: 300px;
                 padding: 16px;
+            }
+
+            .stage-conversation-overlay {
+                left: 16px;
+                right: 16px;
+                bottom: 16px;
+                max-width: none;
+                padding: 14px;
             }
 
             .no-image-placeholder {
@@ -2499,6 +2724,15 @@
                     </div>
 
                     <div class="image-viewer-content" id="image-viewer-content">
+                        <div class="stage-conversation-overlay is-empty" id="stage-conversation-overlay">
+                            <div class="stage-conversation-meta">
+                                <span class="stage-conversation-label" id="stage-conversation-label">Agent feed</span>
+                                <span class="stage-conversation-time" id="stage-conversation-time">Waiting</span>
+                            </div>
+                            <div class="stage-conversation-text" id="stage-conversation-text">
+                                Agent narration will stay visible here while the browser updates.
+                            </div>
+                        </div>
                     </div>
 
                     <div class="image-viewer-title viewer-footer">
@@ -2574,11 +2808,41 @@
                     </div>
                 </section>
 
+                <section class="panel-card agent-voice-card" id="agent-voice-card">
+                    <div class="agent-voice-header">
+                        <div>
+                            <div class="panel-kicker">Agent voice</div>
+                            <h2 class="panel-title">What the agent is saying</h2>
+                        </div>
+                        <div class="agent-voice-meta">
+                            <span class="stage-badge" id="agent-voice-state">Ready</span>
+                            <span class="agent-voice-time" id="agent-voice-time">Waiting</span>
+                        </div>
+                    </div>
+
+                    <div class="agent-voice-bubble">
+                        <div class="agent-voice-text" id="agent-voice-text">
+                            Connect a browser and run a task. The agent's narration will stay visible here.
+                        </div>
+                    </div>
+
+                    <div class="agent-voice-stats">
+                        <div class="voice-stat">
+                            <span class="voice-stat-label">Current step</span>
+                            <strong class="voice-stat-value" id="agent-voice-step">Waiting for a task.</strong>
+                        </div>
+                        <div class="voice-stat">
+                            <span class="voice-stat-label">Browser result</span>
+                            <strong class="voice-stat-value" id="agent-voice-result">No browser result yet.</strong>
+                        </div>
+                    </div>
+                </section>
+
                 <section class="panel-card timeline-card" id="timeline-card" style="display: none;">
                     <div class="timeline-header">
                         <div>
                             <div class="panel-kicker">Timeline</div>
-                            <h2 class="panel-title">Actions and results</h2>
+                            <h2 class="panel-title">Conversation and steps</h2>
                         </div>
                         <div class="timeline-meta">
                             <span class="timeline-clock-label">Updated</span>
@@ -2588,7 +2852,7 @@
                     </div>
 
                     <div class="terminal-output scrollbar" id="terminal-output">
-                        <div class="event-line expanded" data-type="SystemEvent" data-source="system">
+                        <div class="event-line event-system expanded" data-type="SystemEvent" data-source="system">
                             <div class="event-header">
                                 <span class="event-type" style="color: #7a6b5b;">SYSTEM</span>
                                 <span class="expand-toggle" onclick="toggleEvent(this)">[collapse]</span>
@@ -2875,6 +3139,10 @@
         let currentImageUrl = null; // Track current displayed image URL
         let cwdWarningShown = false; // Track if CWD warning has been shown
         let selectedModelAlias = null;
+        let latestAgentMessage = '';
+        let latestAgentStep = 'Waiting for a task.';
+        let latestAgentResult = 'No browser result yet.';
+        let latestAgentTimestamp = null;
         
         // Sisyphus mode variables
         let sisyphusEnabled = false;
@@ -2955,6 +3223,85 @@
             }
 
             node.style.display = visible ? '' : 'none';
+        }
+
+        function getAgentVoiceFallback() {
+            if (isProcessing) {
+                return 'The agent is working. Follow the browser stage and the step feed below.';
+            }
+
+            if (currentImageUrl) {
+                return 'The latest browser state is ready. Send the next instruction when you want to continue.';
+            }
+
+            if (currentBrowserId) {
+                return 'Browser connected. Describe the outcome you want and the agent will narrate each step.';
+            }
+
+            return 'Connect a browser and run a task. The agent\'s narration will stay visible here.';
+        }
+
+        function renderAgentVoice() {
+            const hasMessage = Boolean((latestAgentMessage || '').trim());
+            const timestamp = latestAgentTimestamp ? new Date(latestAgentTimestamp) : null;
+            const timeText = timestamp
+                ? timestamp.toLocaleTimeString('en-US', { hour12: false })
+                : 'Waiting';
+            const voiceText = hasMessage ? latestAgentMessage : getAgentVoiceFallback();
+            const stateText = isProcessing ? 'Speaking' : hasMessage ? 'Latest reply' : currentBrowserId ? 'Ready' : 'Idle';
+            const stageLabel = isProcessing ? 'Agent speaking' : hasMessage ? 'Latest reply' : 'Agent feed';
+            const overlay = document.getElementById('stage-conversation-overlay');
+
+            setNodeText('agent-voice-state', stateText);
+            setNodeText('agent-voice-time', timeText);
+            setNodeText('agent-voice-text', voiceText, voiceText);
+            setNodeText('agent-voice-step', latestAgentStep, latestAgentStep);
+            setNodeText('agent-voice-result', latestAgentResult, latestAgentResult);
+            setNodeText('stage-conversation-label', stageLabel);
+            setNodeText('stage-conversation-time', timeText);
+            setNodeText('stage-conversation-text', voiceText, voiceText);
+
+            if (overlay) {
+                overlay.classList.toggle('is-empty', !hasMessage && !isProcessing);
+            }
+        }
+
+        function resetAgentVoice() {
+            latestAgentMessage = '';
+            latestAgentStep = 'Waiting for a task.';
+            latestAgentResult = 'No browser result yet.';
+            latestAgentTimestamp = null;
+            renderAgentVoice();
+        }
+
+        function updateAgentVoice(event) {
+            const timestamp = event.timestamp || new Date().toISOString();
+            const content = event.error || event.message || event.text || '';
+
+            if (event.type === 'MessageEvent' && event.source === 'user') {
+                latestAgentMessage = '';
+                latestAgentStep = truncateForSummary(content.replace(/^User:\s*/i, ''), 140) || latestAgentStep;
+                latestAgentResult = 'Waiting for browser result.';
+            } else if (event.type === 'MessageEvent' && event.source !== 'user') {
+                latestAgentMessage = content.trim() || latestAgentMessage;
+                latestAgentTimestamp = timestamp;
+            } else if (event.type === 'ActionEvent') {
+                latestAgentStep = truncateForSummary(event.summary || content, 140) || latestAgentStep;
+            } else if (event.type === 'ObservationEvent') {
+                const observationText = truncateForSummary(
+                    event.message || content || (event.image ? 'Browser screenshot updated.' : ''),
+                    140
+                );
+                latestAgentResult = observationText || latestAgentResult;
+                latestAgentTimestamp = timestamp;
+            } else if (event.type === 'ErrorEvent') {
+                latestAgentResult = truncateForSummary(content || 'An error occurred.', 140);
+                latestAgentTimestamp = timestamp;
+            } else if (event.type === 'SystemEvent' && !latestAgentMessage) {
+                latestAgentResult = truncateForSummary(content || latestAgentResult, 140);
+            }
+
+            renderAgentVoice();
         }
 
         function syncCommandInputHeight() {
@@ -3083,6 +3430,7 @@
                     ? `Latest screenshot from ${shortDisplay(currentBrowserId, 'the connected browser')}.`
                     : 'The latest screenshot from your connected Chrome session appears here.'
             );
+            renderAgentVoice();
         }
 
         function updateBrowserIdDisplay() {
@@ -3928,6 +4276,7 @@
                     }
                     resetEventCounters();
                     resetRecentActivity();
+                    resetAgentVoice();
                     
                     // Replay events
                     for (const event of data.events) {
@@ -4062,6 +4411,7 @@
             setInterval(updateCurrentTime, 1000);
             setAdvancedMode(false);
             resetRecentActivity();
+            resetAgentVoice();
             checkServerStatus();
             
             // Check configuration and load saved settings
@@ -4724,22 +5074,33 @@
             
             // Create event line
             const eventLine = document.createElement('div');
+            const eventId = event.id || `event-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
             eventLine.className = 'event-line collapsed';
-            eventLine.id = event.id;
-            eventLine.dataset.type = event.type;
+            eventLine.id = eventId;
+            eventLine.dataset.type = event.type || 'SystemEvent';
             eventLine.dataset.source = event.source || 'system';
+            const eventKind = (event.type || 'SystemEvent').replace('Event', '').toLowerCase();
+            eventLine.classList.add(`event-${eventKind}`);
+            if (event.type === 'MessageEvent') {
+                eventLine.classList.add(event.source === 'user' ? 'message-user' : 'message-agent');
+            }
             console.log(`[Frontend] Created eventLine with dataset.type: "${eventLine.dataset.type}", dataset.source: "${eventLine.dataset.source}"`);
             
             // Determine event type color
             let typeColor = '#666666'; // Default system color
+            let typeLabel = event.type ? event.type.replace('Event', '').toUpperCase() : 'SYSTEM';
             if (event.type === 'MessageEvent') {
-                typeColor = event.source === 'user' ? '#aaaaaa' : '#cccccc';
+                typeColor = event.source === 'user' ? '#f0d8a3' : '#e0b777';
+                typeLabel = event.source === 'user' ? 'YOU' : 'AGENT';
             } else if (event.type === 'ActionEvent') {
-                typeColor = '#aaaaaa';
+                typeColor = '#e6c48d';
+                typeLabel = 'STEP';
             } else if (event.type === 'ObservationEvent') {
-                typeColor = '#aaaaaa';
+                typeColor = '#9be7c1';
+                typeLabel = 'RESULT';
             } else if (event.type === 'ErrorEvent') {
-                typeColor = '#888888';
+                typeColor = '#ffb8b8';
+                typeLabel = 'ERROR';
             }
             
             // Format timestamp
@@ -4751,6 +5112,11 @@
             if (event.error) {
                 content = `ERROR: ${event.error}`;
             }
+            const headerSummary = event.summary || (
+                event.type === 'MessageEvent'
+                    ? truncateForSummary(content, 72)
+                    : null
+            );
             
             // Add metadata for MessageEvent
             let metadataHtml = '';
@@ -4769,8 +5135,8 @@
             // Create HTML
             eventLine.innerHTML = `
                 <div class="event-header">
-                    <span class="event-type" style="color: ${typeColor}">${event.type.replace('Event', '').toUpperCase()}</span>
-                    ${event.summary ? `<span class="event-header-summary">: ${escapeHtml(event.summary)}</span>` : ''}
+                    <span class="event-type" style="color: ${typeColor}">${typeLabel}</span>
+                    ${headerSummary ? `<span class="event-header-summary">: ${escapeHtml(headerSummary)}</span>` : ''}
                     <span class="event-timestamp">${timeStr}</span>
                     <span class="expand-toggle" onclick="toggleEvent(this)">[expand]</span>
                 </div>
@@ -4788,10 +5154,11 @@
             // Add to terminal
             terminalOutput.appendChild(eventLine);
             updateRecentActivity(event);
+            updateAgentVoice(event);
             
             // Auto-expand if setting is enabled
             const autoExpand = document.getElementById('auto-expand').checked;
-            if (autoExpand) {
+            if (autoExpand || event.type === 'MessageEvent' || event.type === 'ErrorEvent') {
                 expandEvent(eventLine);
             }
             
@@ -4915,6 +5282,7 @@
             events = [];
             resetEventCounters();
             resetRecentActivity();
+            resetAgentVoice();
             
             // Clear image viewer
             updateLiveImage(null);
