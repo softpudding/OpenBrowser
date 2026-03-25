@@ -145,6 +145,24 @@ describe('Smart Label Placement', () => {
   });
 
   describe('Position priority - Greedy algorithm', () => {
+    test('should prioritize more constrained elements before flexible ones', () => {
+      const flexible = createElement('flexible', 100, 100, 50, 30);
+      const constrained = createElement('constrained', 10, 10, 20, 14);
+
+      const result = selectCollisionFreePage(
+        [flexible, constrained],
+        1,
+        200,
+        200,
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.selector).toBe('#constrained');
+      expect(result[0]?.id).toBe('1');
+      expect(result[1]?.selector).toBe('#flexible');
+      expect(result[1]?.id).toBe('2');
+    });
+
     test('should place label above when space available (default)', () => {
       // Single element with plenty of space above
       const elements = [createElement('a', 100, 200, 50, 30)];
@@ -206,28 +224,31 @@ describe('Smart Label Placement', () => {
       expect(resultB?.labelPosition).toBeDefined();
     });
 
-    test('should skip element when all positions collide', () => {
-      // Element completely surrounded - should go to page 2
-      // Center element at (200, 100) - all positions blocked by surrounding elements
+    test('should choose the feasible position that blocks fewer later elements', () => {
+      const upper = createElement('upper', 10, 20, 24, 14);
+      const lower = createElement('lower', 10, 48, 24, 14);
+
+      const result = selectCollisionFreePage([upper, lower], 1, 80, 200);
+
+      expect(result).toHaveLength(2);
+      expect(findBySelector(result, '#upper')?.labelPosition).toBe('right');
+      expect(findBySelector(result, '#lower')).toBeDefined();
+    });
+
+    test('should repack surrounding elements to keep constrained center on page 1', () => {
+      // Element completely surrounded in input order. The constraint-aware
+      // heuristic should reorder placements so the center element still fits.
       const center = createElement('center', 200, 100, 50, 30);
-      // Above blocker - placed first, gets label 'above', blocks center's 'above'
       const above = createElement('above', 200, 74, 50, 30);
-      // Below blocker - placed second, gets label 'below' (blocked by center's element), tries 'left'
       const below = createElement('below', 200, 130, 50, 30);
-      // Left blocker - placed third
       const left = createElement('left', 80, 100, 50, 30);
-      // Right blocker - placed fourth
       const right = createElement('right', 320, 100, 50, 30);
 
       const elements = [above, below, left, right, center];
 
-      // Page 1 should have 4 elements (center skipped due to all positions blocked)
       const page1 = selectCollisionFreePage(elements, 1);
-      expect(findBySelector(page1, '#center')).toBeUndefined();
-
-      // Page 2 should have the center element
-      const page2 = selectCollisionFreePage(elements, 2);
-      expect(findBySelector(page2, '#center')).toBeDefined();
+      expect(page1).toHaveLength(5);
+      expect(findBySelector(page1, '#center')?.labelPosition).toBe('left');
     });
   });
 
