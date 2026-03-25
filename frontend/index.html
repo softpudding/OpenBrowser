@@ -2765,10 +2765,8 @@
                     </div>
 
                     <div class="quick-prompts">
-                        <button class="quick-prompt" onclick="setCommand('Open github.com, find the OpenBrowser repository, and summarize what it does.');">Repo Summary</button>
-                        <button class="quick-prompt" onclick="setCommand('Open news.ycombinator.com and find the top AI-related story.');">News Check</button>
-                        <button class="quick-prompt" onclick="setCommand('Open google.com and describe the page after it loads.');">Smoke Test</button>
-                        <button class="quick-prompt" onclick="setCommand('Navigate to a demo site and explain each step you take.');">Narrate Demo</button>
+                        <button class="quick-prompt" onclick="setCommand('Open https://github.com/softpudding/OpenBrowser and introduce OpenBrowser in a concise way.');">Introduce OpenBrowser</button>
+                        <button class="quick-prompt" onclick="setCommand('Open https://github.com/softpudding/OpenBrowser and star it.');">Star OpenBrowser</button>
                     </div>
 
                     <div class="input-area">
@@ -2778,17 +2776,6 @@
                         <button class="pause-button" id="pause-button" onclick="pauseConversation()" style="display: none;">Pause</button>
                         <button class="sisyphus-start-button" id="sisyphus-start-btn" onclick="startSisyphus()" style="display: none; background: #224422; border: 1px solid #448844; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">Start Sisyphus</button>
                         <button class="sisyphus-stop-button" id="sisyphus-stop-btn" onclick="stopSisyphus()" style="display: none; background: #662222; border: 1px solid #882222; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">Stop Sisyphus</button>
-                    </div>
-
-                    <div class="control-summary">
-                        <div class="summary-item">
-                            <span class="summary-label">Model</span>
-                            <strong class="summary-value" id="selected-model-display">Loading...</strong>
-                        </div>
-                        <div class="summary-item">
-                            <span class="summary-label">Workspace</span>
-                            <strong class="summary-value" id="cwd-summary">/tmp</strong>
-                        </div>
                     </div>
                 </section>
 
@@ -3477,19 +3464,10 @@
         }
 
         function updateGuidedPanels() {
-            const cwdInput = document.getElementById('cwd-input');
-            const cwdValue = cwdInput?.value?.trim() || appConfig?.default_cwd || '/tmp';
-            const selectedAlias = getSelectedModelAlias();
             const hasTimeline = isProcessing || Boolean(currentConversationId) || eventCounters.total > 0;
             const hasBoundSession = Boolean(currentBrowserId || currentConversationId || currentImageUrl || isProcessing);
             const hasRecentActivity = Boolean(currentImageUrl || eventCounters.total > 0);
 
-            setNodeText(
-                'selected-model-display',
-                selectedAlias || 'No model selected',
-                selectedAlias || ''
-            );
-            setNodeText('cwd-summary', cwdValue, cwdValue);
             setSectionVisibility('timeline-card', hasTimeline);
             setSectionVisibility('connection-card', hasBoundSession);
             setSectionVisibility('recent-activity-card', hasRecentActivity);
