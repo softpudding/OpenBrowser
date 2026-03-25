@@ -46,7 +46,7 @@ class ElementInteractionAction(OpenBrowserAction):
     )
     element_id: Optional[str] = Field(
         default=None,
-        description="Element ID (6-character hash) from highlight_elements",
+        description="Element ID (page-local numeric string) from the latest highlight_elements result",
     )
     direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",

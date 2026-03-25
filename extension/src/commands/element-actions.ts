@@ -19,7 +19,7 @@ function buildElementCacheMissMessage(
   elementId: string,
   refreshHint: string = 'Call highlight_elements() first.',
 ): string {
-  return `Element '${elementId}' not found in cache. Cache expires after ${ELEMENT_CACHE_TTL_DESCRIPTION}. ${refreshHint}`;
+  return `Element '${elementId}' not found in cache. Each new highlight invalidates the previous IDs, and unused cache entries still expire after ${ELEMENT_CACHE_TTL_DESCRIPTION}. ${refreshHint}`;
 }
 
 function buildEditableActivationHelpersScript(): string {
@@ -205,7 +205,7 @@ export interface SelectResult extends ElementActionResult {
  * 4. Return result with dialog info if applicable
  *
  * @param conversationId Session ID for element cache lookup
- * @param elementId Cached element ID (e.g., "click-1", "scroll-1")
+ * @param elementId Cached element ID from the latest highlight (for example, "1")
  * @param tabId Target tab ID
  * @param timeout Maximum execution time in milliseconds (default: 30000)
  * @returns Click result with success status and dialog info
@@ -466,7 +466,7 @@ export async function performElementClick(
  * 4. Return result
  *
  * @param conversationId Session ID for element cache lookup
- * @param elementId Cached element ID (e.g., "click-1", "scroll-1")
+ * @param elementId Cached element ID from the latest highlight (for example, "1")
  * @param tabId Target tab ID
  * @param timeout Maximum execution time in milliseconds (default: 30000)
  * @returns Hover result with success status
@@ -2447,7 +2447,7 @@ export async function performKeyboardInput(
  * 4. Return result with selected values/labels/indices
  *
  * @param conversationId Session ID for element cache lookup
- * @param elementId Cached element ID (6-char hash)
+ * @param elementId Cached element ID from the latest highlight (for example, "1")
  * @param tabId Target tab ID
  * @param value Option value(s) to select. Use string for single select, array for multi-select
  * @param timeout Maximum execution time in milliseconds (default: 30000)

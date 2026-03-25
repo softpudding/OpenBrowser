@@ -42,6 +42,13 @@ function createElement(
   };
 }
 
+function findBySelector(
+  elements: InteractiveElement[],
+  selector: string,
+): InteractiveElement | undefined {
+  return elements.find((element) => element.selector === selector);
+}
+
 describe('Smart Label Placement', () => {
   describe('expandBBoxWithLabel - Position-aware expansion', () => {
     test('should expand bbox upward when labelPosition is "above" (default)', () => {
@@ -159,7 +166,7 @@ describe('Smart Label Placement', () => {
 
       // Both elements should be on page 1 with different label positions
       expect(result).toHaveLength(2);
-      const resultB = result.find((e: InteractiveElement) => e.id === 'b');
+      const resultB = findBySelector(result, '#b');
       expect(resultB?.labelPosition).toBe('below');
     });
 
@@ -177,7 +184,7 @@ describe('Smart Label Placement', () => {
 
       // All three should fit with a non-overlapping placement
       expect(result).toHaveLength(3);
-      const resultB = result.find((e: InteractiveElement) => e.id === 'b');
+      const resultB = findBySelector(result, '#b');
       expect(resultB?.labelPosition).toBeDefined();
     });
 
@@ -195,7 +202,7 @@ describe('Smart Label Placement', () => {
       const result = selectCollisionFreePage(elements, 1);
 
       expect(result).toHaveLength(2);
-      const resultB = result.find((e: InteractiveElement) => e.id === 'b');
+      const resultB = findBySelector(result, '#b');
       expect(resultB?.labelPosition).toBeDefined();
     });
 
@@ -216,15 +223,11 @@ describe('Smart Label Placement', () => {
 
       // Page 1 should have 4 elements (center skipped due to all positions blocked)
       const page1 = selectCollisionFreePage(elements, 1);
-      expect(
-        page1.find((e: InteractiveElement) => e.id === 'center'),
-      ).toBeUndefined();
+      expect(findBySelector(page1, '#center')).toBeUndefined();
 
       // Page 2 should have the center element
       const page2 = selectCollisionFreePage(elements, 2);
-      expect(
-        page2.find((e: InteractiveElement) => e.id === 'center'),
-      ).toBeDefined();
+      expect(findBySelector(page2, '#center')).toBeDefined();
     });
   });
 
@@ -239,7 +242,7 @@ describe('Smart Label Placement', () => {
 
       const result = selectCollisionFreePage([elemA, elemB], 1, 1280, 720);
 
-      const resultA = result.find((e: InteractiveElement) => e.id === 'a');
+      const resultA = findBySelector(result, '#a');
       // A's above is blocked by B, left would go outside viewport
       // So A should try right or below
       expect(resultA?.labelPosition).not.toBe('left');
@@ -261,7 +264,7 @@ describe('Smart Label Placement', () => {
         720,
       );
 
-      const resultA = result.find((e: InteractiveElement) => e.id === 'a');
+      const resultA = findBySelector(result, '#a');
       // Right placement should be rejected because it would leave the viewport.
       expect(resultA?.labelPosition).not.toBe('right');
     });
@@ -287,7 +290,7 @@ describe('Smart Label Placement', () => {
 
       const result = selectCollisionFreePage([elemA, elemB], 1, 1280, 720);
 
-      const resultA = result.find((e: InteractiveElement) => e.id === 'a');
+      const resultA = findBySelector(result, '#a');
       // A's above blocked by B, below outside viewport
       // So A should try left or right
       expect(resultA?.labelPosition).not.toBe('below');
@@ -343,9 +346,12 @@ describe('Smart Label Placement', () => {
 
       // All should fit without collision
       expect(result).toHaveLength(3);
-      expect(result[0].id).toBe('a');
-      expect(result[1].id).toBe('b');
-      expect(result[2].id).toBe('c');
+      expect(result.map((element) => element.id)).toEqual(['1', '2', '3']);
+      expect(result.map((element) => element.selector)).toEqual([
+        '#a',
+        '#b',
+        '#c',
+      ]);
     });
   });
 });

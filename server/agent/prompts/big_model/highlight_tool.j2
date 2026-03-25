@@ -33,9 +33,10 @@ When you use the highlight tool, elements are marked with **BLUE boxes**:
 
 ## Element ID Format
 
-Element IDs are unique 6-character base36 hashes (e.g., `a3f2b1`, `9z8x7c`).
-Each element is assigned a stable hash based on its DOM position and attributes.
-This hash remains consistent across highlight tool calls for the same page state.
+Element IDs are simple numeric labels such as `1`, `2`, `3`.
+They are assigned in the current highlight screenshot order.
+Each new `highlight` call replaces the previous ID set, so older highlight IDs immediately become invalid.
+The confirmation-only `highlight_single_element` flow does not create a new ID set.
 
 ## Collision-Aware Pagination
 
@@ -132,7 +133,7 @@ Examples of exact-text search:
    - **Visual Check**: Is the blue box where you expect?
    - **Semantic Check**: Does the HTML match your goal?
 4. **Select Element**: Note the `element_id` of your target.
-   - Returned IDs can include the primary type plus extra hints, for example `abc123(scrollable, swipable)`.
+   - Returned IDs can include the primary type plus extra hints, for example `1(scrollable, swipable)`.
    - `swipable` means the element is in a carousel/slider/swiper-like region. Do not assume normal page/container scroll will move it.
    - When you later use `swipe`, `direction: "next"` means show the next picture/item and `direction: "prev"` means show the previous picture/item. These are semantic content directions, not gesture directions.
 5. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and the selected element_id.

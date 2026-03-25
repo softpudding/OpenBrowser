@@ -125,7 +125,7 @@ class TestExtensionLayerScreenshotBehavior:
         mock_response = CommandResponse(
             success=True,
             data={
-                "elements": [{"id": "click-1", "html": "<button>Click</button>"}],
+                "elements": [{"id": "1", "html": "<button>Click</button>"}],
                 "screenshot": "base64imagedata...",
                 "totalElements": 5,
             },
@@ -149,7 +149,7 @@ class TestExtensionLayerScreenshotBehavior:
     async def test_click_element_returns_screenshot(self, processor):
         """click_element command should return screenshot (from extension)."""
         command = ClickElementCommand(
-            element_id="click-1", conversation_id="test-conv-5"
+            element_id="1", conversation_id="test-conv-5"
         )
 
         mock_response = CommandResponse(

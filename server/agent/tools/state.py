@@ -13,7 +13,7 @@ class PendingConfirmation:
     """Represents a pending element interaction confirmation.
 
     Attributes:
-        element_id: The 6-character hash ID of the target element.
+        element_id: The numeric ID of the target element from the latest highlight.
         action_type: The type of action being confirmed ('click' or 'keyboard_input').
         full_html: The HTML content of the element for confirmation.
         extra_data: Additional data needed for the action (for example, 'text' for keyboard_input).
@@ -50,7 +50,7 @@ class OpenBrowserState:
 
         Args:
             conversation_id: The unique identifier for the conversation.
-            element_id: The 6-character hash ID of the target element.
+            element_id: The numeric ID of the target element from the latest highlight.
             action_type: The type of action ('click' or 'keyboard_input').
             full_html: The HTML content of the element.
             extra_data: Optional additional data for the action.

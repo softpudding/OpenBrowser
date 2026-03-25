@@ -67,13 +67,13 @@ def managed_tab_id(server_available: bool) -> int:
 class TestHighlightElements:
     """Integration tests for highlight_elements command."""
 
-    def test_returns_hash_ids_no_prefix(
+    def test_returns_page_local_numeric_ids(
         self, server_available: bool, managed_tab_id: int
     ) -> None:
-        """Test that highlight_elements returns hash IDs without prefixes.
+        """Test that highlight_elements returns page-local numeric IDs.
 
-        The element IDs should be 6-character hash strings like 'a1b2c3',
-        NOT prefixed IDs like 'click-1' or 'input-2'.
+        The element IDs should be "1", "2", "3", ... in the same order as the
+        returned list for the current highlight result.
         """
         if not server_available:
             pytest.skip("Server not available")
@@ -100,20 +100,16 @@ class TestHighlightElements:
         result_data = data.get("data", {})
         elements = result_data.get("elements", [])
 
-        # If elements exist, verify they have hash IDs (6 chars, no prefix)
+        # If elements exist, verify they use page-local numeric IDs.
         if elements:
-            for element in elements:
+            for index, element in enumerate(elements, start=1):
                 element_id = element.get("id", "")
-                # Element ID should be a hash string (6 chars, alphanumeric)
-                # NOT a prefixed ID like "click-1", "input-2", etc.
-                assert not re.match(
-                    r"^(click|input|scroll|hover)-\d+$", element_id
-                ), f"Element ID should not have prefix: {element_id}"
-
-                # Should be 6-character alphanumeric hash
                 assert re.match(
-                    r"^[a-z0-9]{6}$", element_id
-                ), f"Element ID should be 6-char hash: {element_id}"
+                    r"^\d+$", element_id
+                ), f"Element ID should be numeric: {element_id}"
+                assert (
+                    element_id == str(index)
+                ), f"Element ID should follow response order: expected {index}, got {element_id}"
 
 
 @pytest.mark.integration
@@ -316,7 +312,7 @@ class TestElementOperationsIntegration:
     ) -> None:
         """Test the complete element interaction workflow.
 
-        1. Highlight elements and get hash IDs
+        1. Highlight elements and get numeric IDs
         2. Verify IDs are in correct format
         3. Click an element with valid tab_id
         """
@@ -347,11 +343,12 @@ class TestElementOperationsIntegration:
         if not elements:
             pytest.skip("No clickable elements found for workflow test")
 
-        # Step 2: Verify element IDs are hash format
+        # Step 2: Verify element IDs are numeric
         element_id = elements[0].get("id")
         assert re.match(
-            r"^[a-z0-9]{6}$", element_id
+            r"^\d+$", element_id
         ), f"Invalid element ID format: {element_id}"
+        assert element_id == "1"
 
         # Step 3: Click with valid tab_id
         click_response = local_request(

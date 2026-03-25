@@ -48,6 +48,13 @@ function createElement(
   };
 }
 
+function findBySelector(
+  elements: InteractiveElement[],
+  selector: string,
+): InteractiveElement | undefined {
+  return elements.find((element) => element.selector === selector);
+}
+
 describe('Highlight Integration', () => {
   describe('Complete workflow', () => {
     test('should return elements of all types when element_type="any"', () => {
@@ -102,6 +109,10 @@ describe('Highlight Integration', () => {
       // Run selectCollisionFreePage
       const page1 = selectCollisionFreePage(elements, 1);
 
+      expect(page1.map((element) => element.id)).toEqual(
+        page1.map((_, index) => String(index + 1)),
+      );
+
       // Verify no label collisions on the same page
       for (let i = 0; i < page1.length; i++) {
         for (let j = i + 1; j < page1.length; j++) {
@@ -112,10 +123,12 @@ describe('Highlight Integration', () => {
           const labelA = getLabelBBox(
             elemA.bbox,
             elemA.labelPosition ?? 'above',
+            elemA.id,
           );
           const labelB = getLabelBBox(
             elemB.bbox,
             elemB.labelPosition ?? 'above',
+            elemB.id,
           );
 
           // Labels should not intersect
@@ -148,14 +161,15 @@ describe('Highlight Integration', () => {
       const positions = new Set(page1.map((e) => e.labelPosition));
       expect(positions.size).toBe(page1.length);
 
-      // Verify elements on different pages
-      const page1Ids = new Set(page1.map((e) => e.id));
-
+      // Verify elements on different pages while numeric ids reset per page.
+      const page1Selectors = new Set(page1.map((e) => e.selector));
       const page2 = selectCollisionFreePage(elements, 2);
       expect(page2.length).toBeGreaterThan(0);
-      // Page 2 elements should be different from page 1
+      expect(page2.map((element) => element.id)).toEqual(
+        page2.map((_, index) => String(index + 1)),
+      );
       for (const elem of page2) {
-        expect(page1Ids.has(elem.id)).toBe(false);
+        expect(page1Selectors.has(elem.selector)).toBe(false);
       }
     });
 
@@ -264,7 +278,7 @@ describe('Highlight Integration', () => {
       const result = selectCollisionFreePage([elemTop, elemBottom], 1);
 
       // Bottom element should have a different position (not 'above' if blocked)
-      const bottomElem = result.find((e) => e.id === 'bottom');
+      const bottomElem = findBySelector(result, '#bottom');
       expect(bottomElem?.labelPosition).toBeDefined();
     });
 
@@ -277,7 +291,7 @@ describe('Highlight Integration', () => {
       const result = selectCollisionFreePage([above, below, center], 1);
 
       // Center should try left or right
-      const centerElem = result.find((e) => e.id === 'center');
+      const centerElem = findBySelector(result, '#center');
       if (centerElem) {
         expect(['left', 'right']).toContain(centerElem.labelPosition);
       }
@@ -318,7 +332,7 @@ describe('Highlight Integration', () => {
 
       const page1 = selectCollisionFreePage(elements, 1, 1728, 891);
 
-      expect(page1.map((e) => e.id)).toEqual(['modal', 'like', 'reply']);
+      expect(page1.map((e) => e.id)).toEqual(['1', '2', '3']);
       expect(page1[0].labelPosition).toBeDefined();
       expect(page1[1].labelPosition).toBeDefined();
       expect(page1[2].labelPosition).toBeDefined();
@@ -339,7 +353,7 @@ describe('Highlight Integration', () => {
         720,
       );
 
-      const leftElem = result.find((e) => e.id === 'left');
+      const leftElem = findBySelector(result, '#left');
       // Should not use 'left' position (would be outside viewport)
       expect(leftElem?.labelPosition).not.toBe('left');
     });

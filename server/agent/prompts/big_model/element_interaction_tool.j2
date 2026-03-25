@@ -51,11 +51,11 @@ Direct-execution actions
 Initiate a click on an element by its visual ID.
 
 ```json
-{ "action": "click", "element_id": "c8e4d2", "tab_id": 123 }
+{ "action": "click", "element_id": "3", "tab_id": 123 }
 // → Returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
 // → Then confirm:
-{ "action": "confirm_click", "element_id": "c8e4d2", "tab_id": 123 }
+{ "action": "confirm_click", "element_id": "3", "tab_id": 123 }
 ```
 
 Use this for buttons, links, and other trigger controls you identified from the highlight tool.
@@ -65,7 +65,7 @@ If the target is an input field, use this click step first to focus it before ty
 Initiate a hover over an element by its visual ID.
 
 ```json
-{ "action": "hover", "element_id": "a3f2b1", "tab_id": 123 }
+{ "action": "hover", "element_id": "4", "tab_id": 123 }
 // → Executes immediately and returns the post-hover screenshot
 ```
 
@@ -80,7 +80,7 @@ Scroll within an element by its visual ID, or scroll the entire page if no eleme
 
 1. **Scroll within specific element** (executes immediately):
    ```json
-   { "action": "scroll", "element_id": "d2f4a8", "direction": "down", "tab_id": 123 }
+   { "action": "scroll", "element_id": "2", "direction": "down", "tab_id": 123 }
    // → Executes immediately and returns the resulting screenshot
    ```
 
@@ -123,8 +123,8 @@ Use this to:
 Swipe a carousel / gallery / swiper region by its visual ID.
 
 ```json
-{ "action": "swipe", "element_id": "d2f4a8", "direction": "next", "swipe_count": 1, "tab_id": 123 }
-{ "action": "swipe", "element_id": "d2f4a8", "direction": "prev", "swipe_count": 1, "tab_id": 123 }
+{ "action": "swipe", "element_id": "2", "direction": "next", "swipe_count": 1, "tab_id": 123 }
+{ "action": "swipe", "element_id": "2", "direction": "prev", "swipe_count": 1, "tab_id": 123 }
 // → Executes immediately and returns the post-swipe screenshot
 ```
 
@@ -141,11 +141,11 @@ Use this when highlight marks a region as `swipable` and your goal is to move th
 Type text into an input element by its visual ID.
 
 ```json
-{ "action": "keyboard_input", "element_id": "b7c9e5", "text": "hello@example.com", "tab_id": 123 }
+{ "action": "keyboard_input", "element_id": "1", "text": "hello@example.com", "tab_id": 123 }
 // → Returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
 // → Then confirm:
-{ "action": "confirm_keyboard_input", "element_id": "b7c9e5", "tab_id": 123 }
+{ "action": "confirm_keyboard_input", "element_id": "1", "tab_id": 123 }
 ```
 
 Use this for text inputs, textareas, and search boxes, but only after you already clicked the same input target and completed that click confirmation.
@@ -169,7 +169,7 @@ Select an option from a native `<select>` dropdown element by its visual ID.
 - If your goal is to **pick a value** from a list of options → use `select`
 
 ```json
-{ "action": "select", "element_id": "f3a8c2", "value": "option1", "tab_id": 123 }
+{ "action": "select", "element_id": "5", "value": "option1", "tab_id": 123 }
 // → Executes immediately and returns the resulting screenshot
 ```
 
@@ -181,16 +181,16 @@ Select an option from a native `<select>` dropdown element by its visual ID.
 For `<select multiple>` elements, pass an array of values:
 
 ```json
-{ "action": "select", "element_id": "f3a8c2", "value": ["opt1", "opt2"], "tab_id": 123 }
+{ "action": "select", "element_id": "5", "value": ["opt1", "opt2"], "tab_id": 123 }
 ```
 
 **Examples**:
 ```json
 // Single select
-{ "action": "select", "element_id": "abc123", "value": "us", "tab_id": 123 }
+{ "action": "select", "element_id": "2", "value": "us", "tab_id": 123 }
 
 // Multi-select
-{ "action": "select", "element_id": "abc123", "value": ["red", "blue"], "tab_id": 123 }
+{ "action": "select", "element_id": "2", "value": ["red", "blue"], "tab_id": 123 }
 ```
 
 ## Confirm Commands
@@ -203,6 +203,9 @@ Each action has a corresponding confirm action (use the same `element_interactio
 **Parameters**: Use the same `element_id`. `tab_id` is optional. For `confirm_keyboard_input`, the `text` comes from the pending confirmation created by the initiating action.
 
 **Behavior**: Executes the action after visual verification.
+
+If you ran another `highlight` before confirming, treat the old `element_id` as stale and start from the latest highlight result.
+The ORANGE confirmation preview itself does not invalidate the chosen `element_id`.
 
 ## Visual + Semantic Verification (ORANGE Stage)
 

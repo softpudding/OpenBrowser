@@ -130,7 +130,7 @@ export interface HighlightElementsCommand extends BaseCommand {
 
 export interface ClickElementCommand extends BaseCommand {
   type: 'click_element';
-  /** Element ID from highlight response (6-char hash) */
+  /** Element ID from the latest highlight response (page-local numeric string) */
   element_id: string;
   /**
    * Target tab ID (optional - auto-resolved from conversation if not provided)
@@ -141,7 +141,7 @@ export interface ClickElementCommand extends BaseCommand {
 
 export interface HoverElementCommand extends BaseCommand {
   type: 'hover_element';
-  /** Element ID from highlight response (6-char hash) */
+  /** Element ID from the latest highlight response (page-local numeric string) */
   element_id: string;
   /**
    * Target tab ID (optional - auto-resolved from conversation if not provided)
@@ -152,7 +152,7 @@ export interface HoverElementCommand extends BaseCommand {
 
 export interface ScrollElementCommand extends BaseCommand {
   type: 'scroll_element';
-  /** Element ID from highlight response (6-char hash). If not provided, scrolls the entire page */
+  /** Element ID from the latest highlight response (page-local numeric string). If not provided, scrolls the entire page */
   element_id?: string;
   direction?: ScrollDirection;
   /** Scroll amount relative to page/element height (0.5 = half page, 1.0 = full page) */
@@ -168,7 +168,7 @@ export type SwipeDirection = 'next' | 'prev';
 
 export interface SwipeElementCommand extends BaseCommand {
   type: 'swipe_element';
-  /** Element ID from highlight response (6-char hash) */
+  /** Element ID from the latest highlight response (page-local numeric string) */
   element_id: string;
   direction?: SwipeDirection;
   /** Number of swipe steps for carousel/swiper interactions */
@@ -182,7 +182,7 @@ export interface SwipeElementCommand extends BaseCommand {
 
 export interface KeyboardInputCommand extends BaseCommand {
   type: 'keyboard_input';
-  /** Element ID from highlight response (6-char hash) */
+  /** Element ID from the latest highlight response (page-local numeric string) */
   element_id: string;
   text: string;
   /**
@@ -194,7 +194,7 @@ export interface KeyboardInputCommand extends BaseCommand {
 
 export interface SelectElementCommand extends BaseCommand {
   type: 'select_element';
-  /** Element ID from highlight response (6-char hash) */
+  /** Element ID from the latest highlight response (page-local numeric string) */
   element_id: string;
   /** Option value(s) to select. Use string for single select, array for multi-select (<select multiple>) */
   value: string | string[];
@@ -308,7 +308,7 @@ export type ElementType =
 export type InteractionHint = 'swipable';
 
 export interface InteractiveElement {
-  id: string; // Element ID: 6-char hash from CSS path (e.g., "a3f2b1")
+  id: string; // Element ID: page-local numeric string from the latest highlight (e.g. "1", "2", "3")
   type: ElementType; // Type of interactive element
   interactionHints?: InteractionHint[]; // Extra interaction hints (e.g. swipable carousel region)
   tagName: string; // HTML tag name

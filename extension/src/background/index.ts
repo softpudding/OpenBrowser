@@ -25,7 +25,7 @@ import { clearScreenshotCache } from '../commands/computer';
 import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
 import { elementCache } from '../commands/element-cache';
-import { generateElementId } from '../commands/hash-utils';
+import { assignSequentialElementIds } from '../commands/element-id';
 import {
   buildHighlightDetectionScript,
   filterHighlightElementsByKeywords,
@@ -1566,30 +1566,15 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             `⏱️ [HighlightTrace] background keyword-filter ${Date.now() - keywordFilterStart}ms (keywords=${keywordList.length}, kept=${filteredElements.length}/${allElements.length})`,
           );
 
-          // Generate hash IDs for filtered elements (collision-free, content-aware)
-          const hashStart = Date.now();
-          const existingHashes = new Set<string>();
-          for (const element of filteredElements) {
-            const { id } = generateElementId(
-              element.type,
-              element.selector,
-              existingHashes,
-              element.html,
-            );
-            element.id = id;
-            existingHashes.add(id);
-          }
-          console.log(
-            `⏱️ [HighlightTrace] background hash-ids ${Date.now() - hashStart}ms (count=${filteredElements.length})`,
-          );
-
           let paginatedElements: InteractiveElement[];
           let totalPages: number;
           let currentPage = page;
 
           if (keywordList.length > 0) {
-            // Keyword mode: return all matching elements, no pagination
-            paginatedElements = filteredElements;
+            // Keyword mode: return all matching elements, no pagination.
+            // Assign temporary numeric IDs so the consistency check can
+            // correlate samples before the final display-order renumbering.
+            paginatedElements = assignSequentialElementIds(filteredElements);
             totalPages = 1;
             currentPage = 1;
             console.log(
@@ -1719,27 +1704,28 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           }
 
           // Preserve the original highlight pipeline order for detection,
-          // pagination, and consistency checks. Only derive a display order
-          // at the rendering boundary so the screenshot and returned list
-          // use the same visual ordering.
-          const displayOrderedElements =
-            sortElementsByVisualOrder(paginatedElements);
+          // pagination, and consistency checks. Only sort and renumber at the
+          // rendering boundary so the screenshot/response stay intuitive
+          // without changing the stability gate.
+          const displayOrderedElements = assignSequentialElementIds(
+            sortElementsByVisualOrder(paginatedElements),
+          );
 
           const cacheStoreStart = Date.now();
           elementCache.storeElements(
             conversationId,
             activeTabId,
-            filteredElements,
+            displayOrderedElements,
           );
           console.log(
-            `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (count=${filteredElements.length})`,
+            `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (count=${displayOrderedElements.length})`,
           );
 
           // Log first few element bboxes for debugging
-          if (paginatedElements.length > 0) {
+          if (displayOrderedElements.length > 0) {
             console.log(
               `📍 [HighlightElements] First element bbox:`,
-              JSON.stringify(paginatedElements[0].bbox),
+              JSON.stringify(displayOrderedElements[0].bbox),
             );
           }
 

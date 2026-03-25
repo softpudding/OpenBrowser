@@ -1,6 +1,6 @@
 /**
  * Element Cache Manager
- * Stores detected interactive elements per conversation with auto-invalidation
+ * Stores the latest highlight snapshot per conversation with auto-invalidation.
  */
 
 import type { InteractiveElement } from '../types';
@@ -28,58 +28,47 @@ class ElementCacheImpl {
   }
 
   /**
-   * Store elements for a conversation and tab
-   * - Elements are stored/overwritten by their ID
-   * - If an element with same ID already exists, it is replaced with new data
-   * - No limit on element count - relies on TTL for cleanup
+   * Store the latest highlight snapshot for a conversation and tab.
+   *
+   * Every new highlight replaces the previous highlight snapshot for the
+   * conversation so old numeric IDs immediately become invalid.
    */
   storeElements(
     conversationId: string,
     tabId: number,
     elements: InteractiveElement[],
   ): void {
-    if (!conversationId || !elements.length) {
+    if (!conversationId) {
       return;
     }
 
-    // Cleanup expired entries first
-    this.cleanup(conversationId);
+    this.invalidate(conversationId);
+
+    if (!elements.length) {
+      console.log(
+        `🗂️ [ElementCache] Cleared latest highlight snapshot for conversation ${conversationId} (no elements to store)`,
+      );
+      return;
+    }
 
     const timestamp = Date.now();
-    let added = 0;
-    let updated = 0;
 
     for (const element of elements) {
       const key = this.buildKey(conversationId, tabId, element.id);
-      const existing = this.cache.get(key);
-
-      if (!existing) {
-        // New element: add to cache
-        this.cache.set(key, {
-          element,
-          tabId,
-          timestamp,
-        });
-        added++;
-      } else {
-        // Element already exists: replace with new data (content may have changed)
-        this.cache.set(key, {
-          element,
-          tabId,
-          timestamp,
-        });
-        updated++;
-      }
+      this.cache.set(key, {
+        element,
+        tabId,
+        timestamp,
+      });
     }
 
     console.log(
-      `📁 [ElementCache] Added ${added}, updated ${updated} elements for conversation ${conversationId}, tab ${tabId} (total: ${this.cache.size})`,
+      `📁 [ElementCache] Stored ${elements.length} latest-highlight elements for conversation ${conversationId}, tab ${tabId} (total: ${this.cache.size})`,
     );
   }
 
   /**
-   * Get all elements for a conversation (across all tabs)
-   * Note: This aggregates elements from all tabs for the conversation
+   * Get all elements for a conversation from the latest highlight snapshot.
    */
   getElements(conversationId: string): InteractiveElement[] | undefined {
     if (!conversationId) {
@@ -177,30 +166,6 @@ class ElementCacheImpl {
       console.log(
         `🗑️ [ElementCache] Invalidated ${keysToDelete.length} elements for conversation ${conversationId} (${scope})`,
       );
-    }
-  }
-
-  /**
-   * Remove expired entries for a conversation (or all if no conversationId)
-   */
-  private cleanup(conversationId?: string): void {
-    const now = Date.now();
-    const expiredKeys: string[] = [];
-
-    for (const [key, entry] of this.cache.entries()) {
-      // Filter by conversation if provided
-      if (conversationId && !key.startsWith(`${conversationId}:`)) {
-        continue;
-      }
-
-      if (now - entry.timestamp > ELEMENT_CACHE_TTL_MS) {
-        expiredKeys.push(key);
-      }
-    }
-
-    for (const key of expiredKeys) {
-      this.cache.delete(key);
-      console.log(`🧹 [ElementCache] Cleaned up expired cache for ${key}`);
     }
   }
 

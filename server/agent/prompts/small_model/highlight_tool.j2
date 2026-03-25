@@ -28,6 +28,8 @@ Find elements before interacting.
 
 - Start with `element_type: "any"` for general exploration
 - Treat `any` as the authoritative first-pass inventory for the current page state because it reflects extension-derived structure you do not know in advance
+- Treat returned `element_id` values as page-local numeric labels such as `1`, `2`, `3`
+- A new `highlight` call invalidates IDs from the previous highlight result
 - After any significant page-state change, restart discovery with `highlight` and `element_type: "any"` before selecting the next target
 - Do not narrow a newly changed page just because you expect a button, submit control, close control, or toolbar icon
 - If the target is not on the first page, continue `page=2,3...` in the same highlight mode before changing strategy

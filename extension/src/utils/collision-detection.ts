@@ -222,13 +222,20 @@ function buildCollisionFreePages(
   }
 
   const positions: LabelPosition[] = ['above', 'below', 'left', 'right'];
-  let remaining = elements.map(cloneInteractiveElement);
+  let remaining = elements.map((element, sourceIndex) => ({
+    sourceIndex,
+    element: cloneInteractiveElement(element),
+  }));
   const pages: InteractiveElement[][] = [];
 
   while (remaining.length > 0) {
     const selected: InteractiveElement[] = [];
+    const selectedSourceIndexes = new Set<number>();
 
-    for (const elem of remaining) {
+    for (const candidate of remaining) {
+      const elem = candidate.element;
+      const labelText = String(selected.length + 1);
+
       for (const pos of positions) {
         const withinViewport =
           viewportWidth !== undefined && viewportHeight !== undefined
@@ -237,7 +244,7 @@ function buildCollisionFreePages(
                 pos,
                 viewportWidth,
                 viewportHeight,
-                elem.id,
+                labelText,
               )
             : true;
 
@@ -245,7 +252,7 @@ function buildCollisionFreePages(
           continue;
         }
 
-        const labelBBox = getLabelBBox(elem.bbox, pos, elem.id);
+        const labelBBox = getLabelBBox(elem.bbox, pos, labelText);
 
         let hasCollision = false;
 
@@ -275,7 +282,8 @@ function buildCollisionFreePages(
         }
 
         if (!hasCollision) {
-          selected.push({ ...elem, labelPosition: pos });
+          selected.push({ ...elem, id: labelText, labelPosition: pos });
+          selectedSourceIndexes.add(candidate.sourceIndex);
           break;
         }
       }
@@ -286,8 +294,9 @@ function buildCollisionFreePages(
     }
 
     pages.push(selected);
-    const selectedIds = new Set(selected.map((e) => e.id));
-    remaining = remaining.filter((e) => !selectedIds.has(e.id));
+    remaining = remaining.filter(
+      (candidate) => !selectedSourceIndexes.has(candidate.sourceIndex),
+    );
   }
 
   return pages;

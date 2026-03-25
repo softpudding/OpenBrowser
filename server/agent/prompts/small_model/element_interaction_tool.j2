@@ -26,15 +26,15 @@ If the page did not significantly change, stay on the current `any` inventory an
 ### click
 
 ```json
-{ "action": "click", "element_id": "c8e4d2", "tab_id": 123 }
-{ "action": "confirm_click", "element_id": "c8e4d2", "tab_id": 123 }
+{ "action": "click", "element_id": "3", "tab_id": 123 }
+{ "action": "confirm_click", "element_id": "3", "tab_id": 123 }
 ```
 
 ### keyboard_input
 
 ```json
-{ "action": "keyboard_input", "element_id": "b7c9e5", "text": "hello@example.com", "tab_id": 123 }
-{ "action": "confirm_keyboard_input", "element_id": "b7c9e5", "tab_id": 123 }
+{ "action": "keyboard_input", "element_id": "1", "text": "hello@example.com", "tab_id": 123 }
+{ "action": "confirm_keyboard_input", "element_id": "1", "tab_id": 123 }
 ```
 
 Use `keyboard_input` only after you already clicked the same input target and completed that click confirmation.
@@ -42,13 +42,13 @@ Use `keyboard_input` only after you already clicked the same input target and co
 ### hover
 
 ```json
-{ "action": "hover", "element_id": "a3f2b1", "tab_id": 123 }
+{ "action": "hover", "element_id": "4", "tab_id": 123 }
 ```
 
 ### select
 
 ```json
-{ "action": "select", "element_id": "f3a8c2", "value": "option1", "tab_id": 123 }
+{ "action": "select", "element_id": "5", "value": "option1", "tab_id": 123 }
 ```
 
 ### scroll
@@ -60,14 +60,14 @@ Whole page:
 
 Inside one container:
 ```json
-{ "action": "scroll", "element_id": "d2f4a8", "direction": "down", "tab_id": 123 }
+{ "action": "scroll", "element_id": "2", "direction": "down", "tab_id": 123 }
 ```
 
 ### swipe
 
 Carousel / slider / swiper region:
 ```json
-{ "action": "swipe", "element_id": "d2f4a8", "direction": "next", "swipe_count": 1, "tab_id": 123 }
+{ "action": "swipe", "element_id": "2", "direction": "next", "swipe_count": 1, "tab_id": 123 }
 ```
 
 `direction: "next"` means show the next picture or next carousel item.
@@ -99,3 +99,5 @@ These are content directions, not hand or finger movement directions. Do not rei
 - If one action fails, retry once with a better target
 - If it fails twice, change strategy instead of repeating the same action
 - For failed close or back-like controls inside a detail view, re-highlight that changed page with `any` first, then continue `any` pagination or use `tab back`
+- If a newer `highlight` ran, old numeric `element_id` values are stale; use the newest highlight result
+- The ORANGE confirmation preview itself does not invalidate the chosen `element_id`
