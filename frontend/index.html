@@ -2832,8 +2832,8 @@
                             <strong class="voice-stat-value" id="agent-voice-step">Waiting for a task.</strong>
                         </div>
                         <div class="voice-stat">
-                            <span class="voice-stat-label">Browser result</span>
-                            <strong class="voice-stat-value" id="agent-voice-result">No browser result yet.</strong>
+                            <span class="voice-stat-label">Agent thinking</span>
+                            <strong class="voice-stat-value" id="agent-voice-thinking">Waiting for agent reasoning.</strong>
                         </div>
                     </div>
                 </section>
@@ -3141,7 +3141,7 @@
         let selectedModelAlias = null;
         let latestAgentMessage = '';
         let latestAgentStep = 'Waiting for a task.';
-        let latestAgentResult = 'No browser result yet.';
+        let latestAgentThinking = 'Waiting for agent reasoning.';
         let latestAgentTimestamp = null;
         
         // Sisyphus mode variables
@@ -3158,6 +3158,8 @@
         const serverBaseUrl = isFileProtocol ? 'http://127.0.0.1:8765' : '';
         const BROWSER_ID_STORAGE_KEY = 'openbrowser_browser_id';
         const MODEL_ALIAS_STORAGE_KEY = 'openbrowser_model_alias';
+        const AGENT_STEP_PLACEHOLDER = 'Waiting for a task.';
+        const AGENT_THINKING_PLACEHOLDER = 'Waiting for agent reasoning.';
         
         // Helper function to build API URL
         function apiUrl(path) {
@@ -3241,25 +3243,124 @@
             return 'Connect a browser and run a task. The agent\'s narration will stay visible here.';
         }
 
+        function parseActionSections(content) {
+            const text = String(content || '');
+            const markerPattern = /^(Summary|Reasoning|Finish with message|Thought|Action)\s*:/gim;
+            const matches = [];
+            let match;
+
+            while ((match = markerPattern.exec(text)) !== null) {
+                matches.push({
+                    key: match[1].toLowerCase(),
+                    start: match.index,
+                    bodyStart: markerPattern.lastIndex
+                });
+            }
+
+            if (matches.length === 0) {
+                return {
+                    hasStructuredSections: false,
+                    summary: '',
+                    reasoning: '',
+                    finishMessage: '',
+                    thought: '',
+                    action: '',
+                    preamble: text.trim()
+                };
+            }
+
+            const result = {
+                hasStructuredSections: true,
+                summary: '',
+                reasoning: '',
+                finishMessage: '',
+                thought: '',
+                action: '',
+                preamble: text.slice(0, matches[0].start).trim()
+            };
+
+            for (let index = 0; index < matches.length; index++) {
+                const current = matches[index];
+                const next = matches[index + 1];
+                const rawValue = text.slice(
+                    current.bodyStart,
+                    next ? next.start : text.length
+                ).trim();
+
+                if (current.key === 'summary') {
+                    result.summary = rawValue;
+                } else if (current.key === 'reasoning') {
+                    result.reasoning = rawValue;
+                } else if (current.key === 'finish with message') {
+                    result.finishMessage = rawValue;
+                } else if (current.key === 'thought') {
+                    result.thought = rawValue;
+                } else if (current.key === 'action') {
+                    result.action = rawValue;
+                }
+            }
+
+            if (!result.reasoning && result.thought) {
+                result.reasoning = result.thought;
+            }
+
+            if (!result.reasoning && result.preamble) {
+                result.reasoning = result.preamble;
+            }
+
+            if (!result.summary && result.action) {
+                const compactAction = result.action
+                    .replace(/\s+/g, ' ')
+                    .replace(/\s+kind:\s*"[^"]+"/i, '')
+                    .trim();
+                result.summary = compactAction;
+            }
+
+            return result;
+        }
+
         function renderAgentVoice() {
             const hasMessage = Boolean((latestAgentMessage || '').trim());
+            const hasThinking = Boolean((latestAgentThinking || '').trim()) && latestAgentThinking !== AGENT_THINKING_PLACEHOLDER;
+            const hasStep = Boolean((latestAgentStep || '').trim()) && latestAgentStep !== AGENT_STEP_PLACEHOLDER;
             const timestamp = latestAgentTimestamp ? new Date(latestAgentTimestamp) : null;
             const timeText = timestamp
                 ? timestamp.toLocaleTimeString('en-US', { hour12: false })
                 : 'Waiting';
-            const voiceText = hasMessage ? latestAgentMessage : getAgentVoiceFallback();
-            const stateText = isProcessing ? 'Speaking' : hasMessage ? 'Latest reply' : currentBrowserId ? 'Ready' : 'Idle';
-            const stageLabel = isProcessing ? 'Agent speaking' : hasMessage ? 'Latest reply' : 'Agent feed';
+            const voiceText = hasMessage
+                ? latestAgentMessage
+                : isProcessing
+                    ? 'No final reply yet. The agent is still working.'
+                    : getAgentVoiceFallback();
+            const stageText = hasMessage
+                ? latestAgentMessage
+                : hasStep
+                    ? latestAgentStep
+                    : hasThinking
+                        ? latestAgentThinking
+                        : getAgentVoiceFallback();
+            const stateText = isProcessing
+                ? hasStep ? 'Acting' : hasThinking ? 'Reasoning' : 'Speaking'
+                : hasMessage ? 'Latest reply'
+                : currentBrowserId ? 'Ready'
+                : 'Idle';
+            const stageLabel = hasMessage
+                ? 'Latest reply'
+                : hasThinking
+                    ? 'Agent thinking'
+                    : hasStep
+                        ? 'Current step'
+                        : 'Agent feed';
             const overlay = document.getElementById('stage-conversation-overlay');
 
             setNodeText('agent-voice-state', stateText);
             setNodeText('agent-voice-time', timeText);
             setNodeText('agent-voice-text', voiceText, voiceText);
             setNodeText('agent-voice-step', latestAgentStep, latestAgentStep);
-            setNodeText('agent-voice-result', latestAgentResult, latestAgentResult);
+            setNodeText('agent-voice-thinking', latestAgentThinking, latestAgentThinking);
             setNodeText('stage-conversation-label', stageLabel);
             setNodeText('stage-conversation-time', timeText);
-            setNodeText('stage-conversation-text', voiceText, voiceText);
+            setNodeText('stage-conversation-text', stageText, stageText);
 
             if (overlay) {
                 overlay.classList.toggle('is-empty', !hasMessage && !isProcessing);
@@ -3268,8 +3369,8 @@
 
         function resetAgentVoice() {
             latestAgentMessage = '';
-            latestAgentStep = 'Waiting for a task.';
-            latestAgentResult = 'No browser result yet.';
+            latestAgentStep = AGENT_STEP_PLACEHOLDER;
+            latestAgentThinking = AGENT_THINKING_PLACEHOLDER;
             latestAgentTimestamp = null;
             renderAgentVoice();
         }
@@ -3281,24 +3382,40 @@
             if (event.type === 'MessageEvent' && event.source === 'user') {
                 latestAgentMessage = '';
                 latestAgentStep = truncateForSummary(content.replace(/^User:\s*/i, ''), 140) || latestAgentStep;
-                latestAgentResult = 'Waiting for browser result.';
+                latestAgentThinking = AGENT_THINKING_PLACEHOLDER;
+                latestAgentTimestamp = timestamp;
             } else if (event.type === 'MessageEvent' && event.source !== 'user') {
                 latestAgentMessage = content.trim() || latestAgentMessage;
                 latestAgentTimestamp = timestamp;
             } else if (event.type === 'ActionEvent') {
-                latestAgentStep = truncateForSummary(event.summary || content, 140) || latestAgentStep;
+                const parsed = parseActionSections(content);
+                latestAgentStep = truncateForSummary(
+                    event.summary || parsed.summary || content,
+                    140
+                ) || latestAgentStep;
+                if (parsed.reasoning) {
+                    latestAgentThinking = truncateForSummary(
+                        parsed.reasoning,
+                        220
+                    ) || latestAgentThinking;
+                } else {
+                    latestAgentThinking = AGENT_THINKING_PLACEHOLDER;
+                }
+                if (parsed.finishMessage) {
+                    latestAgentMessage = parsed.finishMessage;
+                }
+                latestAgentTimestamp = timestamp;
             } else if (event.type === 'ObservationEvent') {
-                const observationText = truncateForSummary(
+                latestAgentStep = truncateForSummary(
                     event.message || content || (event.image ? 'Browser screenshot updated.' : ''),
                     140
-                );
-                latestAgentResult = observationText || latestAgentResult;
+                ) || latestAgentStep;
                 latestAgentTimestamp = timestamp;
             } else if (event.type === 'ErrorEvent') {
-                latestAgentResult = truncateForSummary(content || 'An error occurred.', 140);
+                latestAgentThinking = truncateForSummary(content || 'An error occurred.', 220);
                 latestAgentTimestamp = timestamp;
             } else if (event.type === 'SystemEvent' && !latestAgentMessage) {
-                latestAgentResult = truncateForSummary(content || latestAgentResult, 140);
+                latestAgentThinking = truncateForSummary(content || latestAgentThinking, 220);
             }
 
             renderAgentVoice();
