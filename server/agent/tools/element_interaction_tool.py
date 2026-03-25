@@ -46,7 +46,11 @@ class ElementInteractionAction(OpenBrowserAction):
     )
     element_id: Optional[str] = Field(
         default=None,
-        description="Element ID (page-local numeric string) from the latest highlight_elements result",
+        description="Element ID (page-local numeric string) from a specific highlight_elements snapshot",
+    )
+    highlight_snapshot_id: Optional[int] = Field(
+        default=None,
+        description="Highlight snapshot ID returned by highlight_elements. Required for all element-targeted actions.",
     )
     direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",

@@ -3,8 +3,8 @@ import type { InteractiveElement } from '../types';
 /**
  * Reassign element IDs to page-local sequential numbers.
  *
- * IDs are intentionally ephemeral: each highlight response starts at 1 again
- * and only the most recent highlight snapshot remains valid in the cache.
+ * IDs are intentionally page-local: each highlight snapshot page starts at 1
+ * again, and the page-local IDs must be paired with highlight_snapshot_id.
  */
 export function assignSequentialElementIds(
   elements: InteractiveElement[],

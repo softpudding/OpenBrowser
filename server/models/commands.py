@@ -268,6 +268,18 @@ class HighlightElementsCommand(BaseCommand):
         default=None,
         description="Exact observed text or stable tokens to filter by detected semantic text (visible text, labels, roles, and stable element tokens). Use only for wording already seen in the screenshot or returned HTML. When provided, only matching elements are returned (no pagination). Example: ['Continue with Email', 'View comments']",
     )
+    highlight_snapshot_id: Optional[int] = Field(
+        default=None,
+        description="Highlight snapshot ID from a previous highlight_elements response. Required when page > 1 so pagination continues on the same frozen inventory.",
+    )
+
+    @model_validator(mode="after")
+    def validate_snapshot_pagination(self) -> "HighlightElementsCommand":
+        if (self.page or 1) > 1 and self.highlight_snapshot_id is None:
+            raise ValueError(
+                "highlight_snapshot_id is required when page > 1 so pagination stays on the same frozen highlight inventory"
+            )
+        return self
 
 
 class ClickElementCommand(BaseCommand):
@@ -278,6 +290,9 @@ class ClickElementCommand(BaseCommand):
 
     type: Literal["click_element"] = "click_element"
     element_id: str = Field(description="Element ID from highlight response")
+    highlight_snapshot_id: int = Field(
+        description="Highlight snapshot ID returned by highlight_elements"
+    )
     tab_id: Optional[int] = Field(
         default=None,
         description="Target tab ID (optional, auto-resolved if not provided)",
@@ -292,6 +307,9 @@ class HoverElementCommand(BaseCommand):
 
     type: Literal["hover_element"] = "hover_element"
     element_id: str = Field(description="Element ID from highlight response")
+    highlight_snapshot_id: int = Field(
+        description="Highlight snapshot ID returned by highlight_elements"
+    )
     tab_id: Optional[int] = Field(
         default=None,
         description="Target tab ID (optional, auto-resolved if not provided)",
@@ -309,6 +327,10 @@ class ScrollElementCommand(BaseCommand):
         default=None,
         description="Element ID from highlight response. If not provided, scrolls the entire page",
     )
+    highlight_snapshot_id: Optional[int] = Field(
+        default=None,
+        description="Highlight snapshot ID returned by highlight_elements. Required when element_id is provided.",
+    )
     direction: str = Field(
         default="down", description="Scroll direction: 'up', 'down', 'left', 'right'"
     )
@@ -323,6 +345,14 @@ class ScrollElementCommand(BaseCommand):
         description="Target tab ID (optional, auto-resolved if not provided)",
     )
 
+    @model_validator(mode="after")
+    def validate_scroll_snapshot(self) -> "ScrollElementCommand":
+        if self.element_id is not None and self.highlight_snapshot_id is None:
+            raise ValueError(
+                "highlight_snapshot_id is required when scrolling a highlighted element"
+            )
+        return self
+
 
 class SwipeElementCommand(BaseCommand):
     """Swipe a highlighted element in a direction, typically for carousel/swiper regions.
@@ -334,6 +364,9 @@ class SwipeElementCommand(BaseCommand):
 
     type: Literal["swipe_element"] = "swipe_element"
     element_id: str = Field(description="Element ID from highlight response")
+    highlight_snapshot_id: int = Field(
+        description="Highlight snapshot ID returned by highlight_elements"
+    )
     direction: Literal["next", "prev"] = Field(
         default="next",
         description=(
@@ -362,6 +395,9 @@ class KeyboardInputCommand(BaseCommand):
 
     type: Literal["keyboard_input"] = "keyboard_input"
     element_id: str = Field(description="Element ID from highlight response")
+    highlight_snapshot_id: int = Field(
+        description="Highlight snapshot ID returned by highlight_elements"
+    )
     text: str = Field(description="Text to input into the element")
     tab_id: Optional[int] = Field(
         default=None,
@@ -378,6 +414,9 @@ class SelectElementCommand(BaseCommand):
 
     type: Literal["select_element"] = "select_element"
     element_id: str = Field(description="Element ID from highlight response")
+    highlight_snapshot_id: int = Field(
+        description="Highlight snapshot ID returned by highlight_elements"
+    )
     value: Union[str, List[str]] = Field(
         description="Option value(s) to select. Use string for single select, list for multi-select."
     )
@@ -392,6 +431,9 @@ class GetElementHtmlCommand(BaseCommand):
 
     type: Literal["get_element_html"] = "get_element_html"
     element_id: str = Field(description="Element ID from highlight response")
+    highlight_snapshot_id: int = Field(
+        description="Highlight snapshot ID returned by highlight_elements"
+    )
     tab_id: Optional[int] = Field(
         default=None,
         description="Target tab ID (optional, uses active tab if not provided)",
@@ -403,6 +445,9 @@ class HighlightSingleElementCommand(BaseCommand):
 
     type: Literal["highlight_single_element"] = "highlight_single_element"
     element_id: str = Field(description="Element ID from highlight response")
+    highlight_snapshot_id: int = Field(
+        description="Highlight snapshot ID returned by highlight_elements"
+    )
     tab_id: Optional[int] = Field(
         default=None,
         description="Target tab ID (optional, uses active tab if not provided)",

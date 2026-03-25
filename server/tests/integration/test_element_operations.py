@@ -98,6 +98,7 @@ class TestHighlightElements:
 
         # Check elements exist in response
         result_data = data.get("data", {})
+        assert result_data.get("highlight_snapshot_id") is not None
         elements = result_data.get("elements", [])
 
         # If elements exist, verify they use page-local numeric IDs.
@@ -146,8 +147,13 @@ class TestClickElement:
             pytest.skip("Could not highlight elements")
 
         elements = highlight_data.get("data", {}).get("elements", [])
+        highlight_snapshot_id = highlight_data.get("data", {}).get(
+            "highlight_snapshot_id"
+        )
         if not elements:
             pytest.skip("No clickable elements found")
+        if highlight_snapshot_id is None:
+            pytest.skip("No highlight_snapshot_id returned")
 
         # Use first element for click test
         element_id = elements[0].get("id")
@@ -159,6 +165,7 @@ class TestClickElement:
             json={
                 "type": "click_element",
                 "element_id": element_id,
+                "highlight_snapshot_id": highlight_snapshot_id,
                 "tab_id": managed_tab_id,
             },
             timeout=30,
@@ -191,6 +198,7 @@ class TestClickElement:
             json={
                 "type": "click_element",
                 "element_id": "a1b2c3",
+                "highlight_snapshot_id": 1,
                 "tab_id": invalid_tab_id,
             },
             timeout=30,
@@ -246,8 +254,13 @@ class TestKeyboardInput:
             pytest.skip("Could not highlight inputable elements")
 
         elements = highlight_data.get("data", {}).get("elements", [])
+        highlight_snapshot_id = highlight_data.get("data", {}).get(
+            "highlight_snapshot_id"
+        )
         if not elements:
             pytest.skip("No inputable elements found")
+        if highlight_snapshot_id is None:
+            pytest.skip("No highlight_snapshot_id returned")
 
         # Use first input element
         element_id = elements[0].get("id")
@@ -260,6 +273,7 @@ class TestKeyboardInput:
             json={
                 "type": "keyboard_input",
                 "element_id": element_id,
+                "highlight_snapshot_id": highlight_snapshot_id,
                 "text": "test",
                 "tab_id": managed_tab_id,
             },
@@ -282,6 +296,7 @@ class TestKeyboardInput:
             json={
                 "type": "keyboard_input",
                 "element_id": element_id,
+                "highlight_snapshot_id": highlight_snapshot_id,
                 "text": "test",
                 "tab_id": 999999,  # Invalid tab_id
             },
@@ -339,9 +354,14 @@ class TestElementOperationsIntegration:
         ), f"Highlight failed: {highlight_data.get('error')}"
 
         elements = highlight_data.get("data", {}).get("elements", [])
+        highlight_snapshot_id = highlight_data.get("data", {}).get(
+            "highlight_snapshot_id"
+        )
 
         if not elements:
             pytest.skip("No clickable elements found for workflow test")
+        if highlight_snapshot_id is None:
+            pytest.skip("No highlight_snapshot_id returned")
 
         # Step 2: Verify element IDs are numeric
         element_id = elements[0].get("id")
@@ -357,6 +377,7 @@ class TestElementOperationsIntegration:
             json={
                 "type": "click_element",
                 "element_id": element_id,
+                "highlight_snapshot_id": highlight_snapshot_id,
                 "tab_id": managed_tab_id,
             },
             timeout=30,

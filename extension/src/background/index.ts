@@ -29,6 +29,7 @@ import { assignSequentialElementIds } from '../commands/element-id';
 import {
   buildHighlightDetectionScript,
   filterHighlightElementsByKeywords,
+  normalizeHighlightKeywords,
 } from '../commands/highlight-detection';
 import {
   performElementClick,
@@ -83,6 +84,403 @@ async function compressScreenshotResult<T extends { imageData?: string }>(
   );
 
   return (compressedResult as T | null | undefined) ?? screenshotResult;
+}
+
+function buildStoredHighlightPages(options: {
+  filteredElements: InteractiveElement[];
+  totalPages: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  keywordMode: boolean;
+}): InteractiveElement[][] {
+  const {
+    filteredElements,
+    totalPages,
+    viewportWidth,
+    viewportHeight,
+    keywordMode,
+  } = options;
+
+  if (keywordMode) {
+    return [
+      assignSequentialElementIds(
+        sortElementsByVisualOrder(assignSequentialElementIds(filteredElements)),
+      ),
+    ];
+  }
+
+  const pages: InteractiveElement[][] = [];
+  for (let page = 1; page <= totalPages; page++) {
+    const pageElements = selectCollisionFreePage(
+      filteredElements,
+      page,
+      viewportWidth,
+      viewportHeight,
+    );
+    pages.push(assignSequentialElementIds(sortElementsByVisualOrder(pageElements)));
+  }
+
+  return pages;
+}
+
+function buildSnapshotPageRefreshScript(options: {
+  elements: InteractiveElement[];
+  expectedDocumentId?: string;
+}): string {
+  const { elements, expectedDocumentId } = options;
+  const refreshTargets = elements.map((element) => ({
+    id: element.id,
+    selector: element.selector,
+    fingerprint: element.fingerprint || '',
+  }));
+
+  return `
+    (() => {
+      const expectedDocumentId = ${JSON.stringify(expectedDocumentId || '')};
+      const refreshTargets = ${JSON.stringify(refreshTargets)};
+
+      function normalizeIdentityWhitespace(value, maxLength = 240) {
+        const normalized = String(value ?? '')
+          .replace(/\\s+/g, ' ')
+          .trim();
+        return normalized.slice(0, maxLength).toLowerCase();
+      }
+
+      function getIdentityAttributeTokens(el, attributeNames) {
+        const tokens = [];
+        for (const attributeName of attributeNames) {
+          const value = el.getAttribute(attributeName);
+          if (!value) {
+            continue;
+          }
+
+          const normalized = normalizeIdentityWhitespace(value, 80);
+          if (normalized) {
+            tokens.push(normalized);
+          }
+        }
+        return tokens;
+      }
+
+      function getIdentityClassTokens(el) {
+        return Array.from(el.classList)
+          .filter(
+            (token) =>
+              token.length > 1 &&
+              token.length <= 40 &&
+              /^[a-z0-9_-]+$/i.test(token),
+          )
+          .slice(0, 4)
+          .map((token) => token.toLowerCase());
+      }
+
+      function getElementTextForIdentity(el) {
+        if (el instanceof HTMLInputElement) {
+          const inputType = (el.type || '').toLowerCase();
+          if (
+            inputType === 'button' ||
+            inputType === 'submit' ||
+            inputType === 'reset'
+          ) {
+            return normalizeIdentityWhitespace(el.value, 120);
+          }
+        }
+
+        return normalizeIdentityWhitespace(el.textContent || '', 160);
+      }
+
+      function getCurrentDocumentId() {
+        return \`\${Math.trunc(performance.timeOrigin)}|\${location.href}\`;
+      }
+
+      function getElementFingerprint(el) {
+        const tokens = [
+          el.tagName.toLowerCase(),
+          ...getIdentityAttributeTokens(el, [
+            'role',
+            'type',
+            'name',
+            'id',
+            'aria-label',
+            'title',
+            'placeholder',
+            'data-testid',
+            'data-test-id',
+          ]),
+          ...getIdentityClassTokens(el),
+        ];
+
+        const text = getElementTextForIdentity(el);
+        if (text) {
+          tokens.push(text);
+        }
+
+        return normalizeIdentityWhitespace(tokens.join(' | '), 240);
+      }
+
+      function splitFingerprintTokens(value) {
+        return Array.from(
+          new Set(
+            String(value ?? '')
+              .toLowerCase()
+              .split(/[^a-z0-9]+/i)
+              .filter((token) => token.length > 1),
+          ),
+        );
+      }
+
+      function fingerprintsLookCompatible(expected, current) {
+        if (!expected || !current) {
+          return true;
+        }
+        if (expected === current) {
+          return true;
+        }
+
+        const expectedTokens = splitFingerprintTokens(expected);
+        const currentTokens = new Set(splitFingerprintTokens(current));
+        if (expectedTokens.length === 0) {
+          return true;
+        }
+
+        let overlap = 0;
+        for (const token of expectedTokens) {
+          if (currentTokens.has(token)) {
+            overlap += 1;
+          }
+        }
+
+        return overlap >= Math.max(2, Math.min(4, Math.ceil(expectedTokens.length * 0.5)));
+      }
+
+      const currentDocumentId = getCurrentDocumentId();
+      if (expectedDocumentId && currentDocumentId !== expectedDocumentId) {
+        return {
+          ok: false,
+          stale: true,
+          error:
+            'Highlight snapshot is stale because the document changed. Call highlight_elements() again.',
+        };
+      }
+
+      const refreshed = [];
+      for (const target of refreshTargets) {
+        let el = null;
+        try {
+          el = document.querySelector(target.selector);
+        } catch (error) {
+          return {
+            ok: false,
+            stale: true,
+            error:
+              'Highlight snapshot is stale because a cached selector is no longer valid. Call highlight_elements() again.',
+          };
+        }
+
+        if (!el) {
+          return {
+            ok: false,
+            stale: true,
+            error:
+              'Highlight snapshot is stale because a highlighted element disappeared. Call highlight_elements() again.',
+          };
+        }
+
+        const currentFingerprint = getElementFingerprint(el);
+        if (
+          !fingerprintsLookCompatible(target.fingerprint, currentFingerprint)
+        ) {
+          return {
+            ok: false,
+            stale: true,
+            error:
+              'Highlight snapshot is stale because highlighted element identities changed. Call highlight_elements() again.',
+          };
+        }
+
+        const rect = el.getBoundingClientRect();
+        refreshed.push({
+          id: target.id,
+          bbox: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+          },
+        });
+      }
+
+      return {
+        ok: true,
+        refreshed,
+      };
+    })();
+  `;
+}
+
+async function renderHighlightSnapshotPage(options: {
+  tabId: number;
+  conversationId: string;
+  elements: InteractiveElement[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  highlightSnapshotId: number;
+  expectedDocumentId?: string;
+  pageState: HighlightPageState | 'snapshot_reused';
+  readinessReasons: string[];
+}): Promise<CommandResponse> {
+  const {
+    tabId,
+    conversationId,
+    elements,
+    totalElements,
+    totalPages,
+    page,
+    highlightSnapshotId,
+    expectedDocumentId,
+    pageState,
+    readinessReasons,
+  } = options;
+
+  let renderElements = elements;
+  const refreshResult = await javascript.executeJavaScript(
+    tabId,
+    conversationId,
+    buildSnapshotPageRefreshScript({
+      elements,
+      expectedDocumentId,
+    }),
+    true,
+    false,
+    2500,
+  );
+  const refreshPayload = refreshResult.result?.value;
+
+  if (refreshResult.success && refreshPayload?.ok) {
+    const refreshedById = new Map<
+      string,
+      {
+        bbox: {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+        };
+      }
+    >(
+      Array.isArray(refreshPayload.refreshed)
+        ? refreshPayload.refreshed
+            .filter(
+              (
+                refreshedElement: unknown,
+              ): refreshedElement is {
+                id: string;
+                bbox: {
+                  x: number;
+                  y: number;
+                  width: number;
+                  height: number;
+                };
+              } =>
+                typeof refreshedElement === 'object' &&
+                refreshedElement !== null &&
+                'id' in refreshedElement &&
+                'bbox' in refreshedElement,
+            )
+            .map((refreshedElement) => [
+              refreshedElement.id,
+              { bbox: refreshedElement.bbox },
+            ])
+        : [],
+    );
+
+    renderElements = elements.map((element) => ({
+      ...element,
+      bbox: refreshedById.get(element.id)?.bbox || element.bbox,
+    }));
+  } else if (
+    refreshResult.success &&
+    refreshPayload &&
+    refreshPayload.ok === false
+  ) {
+    return {
+      success: false,
+      error:
+        refreshPayload.error ||
+        `Highlight snapshot ${highlightSnapshotId} is stale. Call highlight_elements() again.`,
+      timestamp: Date.now(),
+    };
+  } else if (!refreshResult.success) {
+    console.warn(
+      `⚠️ [HighlightElements] Failed to refresh cached snapshot ${highlightSnapshotId} before rendering page ${page}: ${refreshResult.error || 'unknown error'}`,
+    );
+  }
+
+  const screenshotResult = await captureScreenshot(
+    tabId,
+    conversationId,
+    true,
+    90,
+    false,
+    0,
+    HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
+  );
+
+  if (!screenshotResult?.success || !screenshotResult?.imageData) {
+    return {
+      success: false,
+      error: `Failed to capture screenshot: ${screenshotResult?.success === false ? 'Screenshot command failed' : 'No image data returned'}`,
+      timestamp: Date.now(),
+    };
+  }
+
+  const imageScale =
+    screenshotResult.metadata?.imageScale ||
+    screenshotResult.metadata?.devicePixelRatio ||
+    1;
+  const viewportWidth = screenshotResult.metadata?.viewportWidth || 0;
+  const viewportHeight = screenshotResult.metadata?.viewportHeight || 0;
+
+  const highlightedScreenshot = await drawHighlights(
+    screenshotResult.imageData,
+    renderElements,
+    {
+      scale: imageScale,
+      viewportWidth,
+      viewportHeight,
+    },
+  );
+  const compressedScreenshot = await compressIfNeeded(
+    highlightedScreenshot,
+    getCompressionThreshold(),
+  );
+
+  return {
+    success: true,
+    data: {
+      highlight_snapshot_id: highlightSnapshotId,
+      elements: renderElements,
+      totalElements,
+      totalPages,
+      page,
+      pageState,
+      readinessReasons,
+      screenshot: compressedScreenshot,
+      ...(screenshotResult?.dialog_auto_accepted
+        ? {
+            dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
+          }
+        : {}),
+      ...(screenshotResult?.dialog_auto_accepted_list
+        ? {
+            dialog_auto_accepted_list:
+              screenshotResult.dialog_auto_accepted_list,
+          }
+        : {}),
+    },
+    timestamp: Date.now(),
+  };
 }
 
 function buildHighlightConsistencyScript(
@@ -1479,6 +1877,84 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         const keywords = command.keywords;
         const elementType = command.element_type || 'any';
         const page = command.page || 1;
+        const highlightSnapshotId = command.highlight_snapshot_id;
+        const requestedKeywords = normalizeHighlightKeywords(keywords);
+
+        if (
+          highlightSnapshotId !== undefined &&
+          highlightSnapshotId !== null
+        ) {
+          const baseSnapshot = elementCache.getSnapshotPage(
+            conversationId,
+            activeTabId,
+            highlightSnapshotId,
+          );
+          if (!baseSnapshot) {
+            return {
+              success: false,
+              error: `Highlight snapshot ${highlightSnapshotId} was not found or expired. Call highlight_elements() again.`,
+              timestamp: Date.now(),
+            };
+          }
+
+          const cachedKeywords = normalizeHighlightKeywords(baseSnapshot.keywords);
+          if (baseSnapshot.elementType !== elementType) {
+            return {
+              success: false,
+              error: `Highlight snapshot ${highlightSnapshotId} was created for element_type="${baseSnapshot.elementType}", but the current request asked for "${elementType}". Start a new highlight from page 1 instead.`,
+              timestamp: Date.now(),
+            };
+          }
+
+          if (
+            cachedKeywords.length !== requestedKeywords.length ||
+            cachedKeywords.some(
+              (keyword, index) => keyword !== requestedKeywords[index],
+            )
+          ) {
+            return {
+              success: false,
+              error: `Highlight snapshot ${highlightSnapshotId} was created with different keywords. Start a new highlight from page 1 instead.`,
+              timestamp: Date.now(),
+            };
+          }
+
+          const continuedSnapshot = elementCache.forkSnapshotPage(
+            conversationId,
+            activeTabId,
+            highlightSnapshotId,
+            page,
+          );
+          if (!continuedSnapshot) {
+            return {
+              success: false,
+              error: `Failed to continue from highlight snapshot ${highlightSnapshotId}. Call highlight_elements() again.`,
+              timestamp: Date.now(),
+            };
+          }
+
+          return await renderHighlightSnapshotPage({
+            tabId: activeTabId,
+            conversationId,
+            elements: continuedSnapshot.elements,
+            totalElements: continuedSnapshot.totalElements,
+            totalPages: continuedSnapshot.totalPages,
+            page: continuedSnapshot.page,
+            highlightSnapshotId: continuedSnapshot.snapshotId,
+            expectedDocumentId: continuedSnapshot.documentId,
+            pageState: 'snapshot_reused',
+            readinessReasons: [],
+          });
+        }
+
+        if (page > 1) {
+          return {
+            success: false,
+            error:
+              'page > 1 requires highlight_snapshot_id so pagination stays on the same frozen highlight inventory. Call highlight_elements() page 1 first.',
+            timestamp: Date.now(),
+          };
+        }
 
         const detectionScript = buildHighlightDetectionScript({
           elementType,
@@ -1512,6 +1988,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           }
 
           const allElements = detectionResult.result.value.elements || [];
+          const detectedDocumentId =
+            typeof detectionResult.result.value.documentId === 'string'
+              ? detectionResult.result.value.documentId
+              : '';
           const detectedViewport = detectionResult.result.value.viewport || {};
           const layoutStability = detectionResult.result.value.layoutStability;
           const highlightTraceStart = Date.now();
@@ -1707,18 +2187,28 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           // pagination, and consistency checks. Only sort and renumber at the
           // rendering boundary so the screenshot/response stay intuitive
           // without changing the stability gate.
-          const displayOrderedElements = assignSequentialElementIds(
-            sortElementsByVisualOrder(paginatedElements),
-          );
+          const storedPages = buildStoredHighlightPages({
+            filteredElements,
+            totalPages,
+            viewportWidth: detectedViewportWidth,
+            viewportHeight: detectedViewportHeight,
+            keywordMode: keywordList.length > 0,
+          });
+          const displayOrderedElements = storedPages[currentPage - 1] ?? [];
 
           const cacheStoreStart = Date.now();
-          elementCache.storeElements(
+          const storedSnapshot = elementCache.storeSnapshot({
             conversationId,
-            activeTabId,
-            displayOrderedElements,
-          );
+            tabId: activeTabId,
+            documentId: detectedDocumentId,
+            elementType,
+            keywords: keywordList,
+            totalElements: filteredElements.length,
+            pages: storedPages,
+            page: currentPage,
+          });
           console.log(
-            `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (count=${displayOrderedElements.length})`,
+            `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (snapshot=${storedSnapshot.snapshotId}, count=${displayOrderedElements.length})`,
           );
 
           // Log first few element bboxes for debugging
@@ -1733,7 +2223,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           const drawHighlightsStart = Date.now();
           const highlightedScreenshot = await drawHighlights(
             screenshotResult.imageData,
-            displayOrderedElements,
+            storedSnapshot.elements,
             {
               scale: imageScale,
               viewportWidth,
@@ -1741,7 +2231,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             },
           );
           console.log(
-            `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${paginatedElements.length})`,
+            `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${storedSnapshot.elements.length})`,
           );
 
           const compressStart = Date.now();
@@ -1759,7 +2249,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           return {
             success: true,
             data: {
-              elements: displayOrderedElements,
+              highlight_snapshot_id: storedSnapshot.snapshotId,
+              elements: storedSnapshot.elements,
               totalElements: filteredElements.length,
               totalPages: totalPages,
               page: currentPage,
@@ -1798,6 +2289,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const clickResult = await performElementClick(
           command.conversation_id,
+          command.highlight_snapshot_id,
           command.element_id,
           clickTabId,
         );
@@ -1868,6 +2360,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const hoverResult = await performElementHover(
           command.conversation_id,
+          command.highlight_snapshot_id,
           command.element_id,
           hoverTabId,
         );
@@ -1916,6 +2409,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         // element_id is optional - if not provided, scrolls the entire page
         const scrollResult = await performElementScroll(
           command.conversation_id,
+          command.highlight_snapshot_id,
           command.element_id,
           command.direction || 'down',
           scrollTabId,
@@ -1965,6 +2459,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const swipeResult = await performElementSwipe(
           command.conversation_id,
+          command.highlight_snapshot_id,
           command.element_id,
           command.direction || 'next',
           swipeTabId,
@@ -2015,6 +2510,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const inputResult = await performKeyboardInput(
           command.conversation_id,
+          command.highlight_snapshot_id,
           command.element_id,
           command.text,
           inputTabId,
@@ -2063,6 +2559,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const selectResult = await performElementSelect(
           command.conversation_id,
+          command.highlight_snapshot_id,
           command.element_id,
           selectTabId,
           command.value,
@@ -2107,9 +2604,15 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           throw new Error('conversation_id required for get_element_html');
         const conversationId = command.conversation_id;
         const elementId = command.element_id;
+        const highlightSnapshotId = command.highlight_snapshot_id;
 
         if (!elementId) {
           throw new Error('element_id is required for get_element_html');
+        }
+        if (highlightSnapshotId === undefined || highlightSnapshotId === null) {
+          throw new Error(
+            'highlight_snapshot_id is required for get_element_html',
+          );
         }
 
         // Get current active tab for this conversation
@@ -2124,23 +2627,28 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         const element = elementCache.getElementById(
           conversationId,
           activeTabId,
+          highlightSnapshotId,
           elementId,
         );
 
         if (!element) {
           console.warn(
-            `⚠️ [GetElementHtml] Element ${elementId} not found in cache for conversation ${conversationId}, tab ${activeTabId}`,
+            `⚠️ [GetElementHtml] Element ${elementId} not found in cache for conversation ${conversationId}, tab ${activeTabId}, snapshot ${highlightSnapshotId}`,
           );
           return {
             success: false,
-            error: `Element ${elementId} not found in cache. The element may have been invalidated or the page may have changed. Try highlight_elements again.`,
-            data: { element_id: elementId, html: null },
+            error: `Element ${elementId} not found in cache for highlight snapshot ${highlightSnapshotId}. The snapshot may have expired or the page may have changed. Try highlight_elements again.`,
+            data: {
+              element_id: elementId,
+              highlight_snapshot_id: highlightSnapshotId,
+              html: null,
+            },
             timestamp: Date.now(),
           };
         }
 
         // Return the cached HTML
-        const html = element.html || '<not available>';
+        const html = element.element.html || '<not available>';
         console.log(
           `✅ [GetElementHtml] Retrieved HTML for element ${elementId} from cache (${html.length} chars)`,
         );
@@ -2150,9 +2658,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           message: `Retrieved HTML for element ${elementId}`,
           data: {
             element_id: elementId,
+            highlight_snapshot_id: highlightSnapshotId,
             html: html,
-            tagName: element.tagName,
-            type: element.type,
+            tagName: element.element.tagName,
+            type: element.element.type,
           },
           timestamp: Date.now(),
         };
@@ -2166,20 +2675,27 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         }
         const conversationId = command.conversation_id;
         const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
+        const highlightSnapshotId = command.highlight_snapshot_id;
         if (!activeTabId) {
           throw new Error(`No active tab for conversation ${conversationId}`);
+        }
+        if (highlightSnapshotId === undefined || highlightSnapshotId === null) {
+          throw new Error(
+            'highlight_snapshot_id is required for highlight_single_element command',
+          );
         }
 
         // Get element from cache
         const element = elementCache.getElementById(
           conversationId,
           activeTabId,
+          highlightSnapshotId,
           command.element_id,
         );
         if (!element) {
           return {
             success: false,
-            error: `Element ${command.element_id} not found in cache. Call highlight_elements() first.`,
+            error: `Element ${command.element_id} not found in cache for highlight snapshot ${highlightSnapshotId}. Call highlight_elements() again.`,
             timestamp: Date.now(),
           };
         }
@@ -2187,24 +2703,167 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         // ============================================================
         // Re-fetch current bbox using cached selector (bbox may be stale if page scrolled)
         // ============================================================
-        const escapedSelector = element.selector
+        const escapedSelector = element.element.selector
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"');
+        const escapedDocumentId = element.documentId
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"');
+        const escapedFingerprint = (element.element.fingerprint || '')
           .replace(/\\/g, '\\\\')
           .replace(/"/g, '\\"');
         const bboxScript = `
           (function() {
+            function normalizeIdentityWhitespace(value, maxLength = 240) {
+              const normalized = String(value ?? '')
+                .replace(/\\s+/g, ' ')
+                .trim();
+              return normalized.slice(0, maxLength).toLowerCase();
+            }
+
+            function getIdentityAttributeTokens(el, attributeNames) {
+              const tokens = [];
+              for (const attributeName of attributeNames) {
+                const value = el.getAttribute(attributeName);
+                if (!value) {
+                  continue;
+                }
+                const normalized = normalizeIdentityWhitespace(value, 80);
+                if (normalized) {
+                  tokens.push(normalized);
+                }
+              }
+              return tokens;
+            }
+
+            function getIdentityClassTokens(el) {
+              return Array.from(el.classList)
+                .filter(
+                  (token) =>
+                    token.length > 1 &&
+                    token.length <= 40 &&
+                    /^[a-z0-9_-]+$/i.test(token),
+                )
+                .slice(0, 4)
+                .map((token) => token.toLowerCase());
+            }
+
+            function getElementTextForIdentity(el) {
+              if (el instanceof HTMLInputElement) {
+                const inputType = (el.type || '').toLowerCase();
+                if (
+                  inputType === 'button' ||
+                  inputType === 'submit' ||
+                  inputType === 'reset'
+                ) {
+                  return normalizeIdentityWhitespace(el.value, 120);
+                }
+              }
+
+              return normalizeIdentityWhitespace(el.textContent || '', 160);
+            }
+
+            function getElementFingerprint(el) {
+              const tokens = [
+                el.tagName.toLowerCase(),
+                ...getIdentityAttributeTokens(el, [
+                  'role',
+                  'type',
+                  'name',
+                  'id',
+                  'aria-label',
+                  'title',
+                  'placeholder',
+                  'data-testid',
+                  'data-test-id',
+                ]),
+                ...getIdentityClassTokens(el),
+              ];
+
+              const text = getElementTextForIdentity(el);
+              if (text) {
+                tokens.push(text);
+              }
+
+              return normalizeIdentityWhitespace(tokens.join(' | '), 240);
+            }
+
+            function splitFingerprintTokens(value) {
+              return Array.from(
+                new Set(
+                  String(value ?? '')
+                    .toLowerCase()
+                    .split(/[^a-z0-9]+/i)
+                    .filter((token) => token.length > 1),
+                ),
+              );
+            }
+
+            function fingerprintsLookCompatible(expected, current) {
+              if (!expected || !current) {
+                return true;
+              }
+              if (expected === current) {
+                return true;
+              }
+              const expectedTokens = splitFingerprintTokens(expected);
+              const currentTokens = new Set(splitFingerprintTokens(current));
+              if (expectedTokens.length === 0) {
+                return true;
+              }
+
+              let overlap = 0;
+              for (const token of expectedTokens) {
+                if (currentTokens.has(token)) {
+                  overlap += 1;
+                }
+              }
+              return overlap >= Math.max(2, Math.min(4, Math.ceil(expectedTokens.length * 0.5)));
+            }
+
             const el = document.querySelector("${escapedSelector}");
-            if (!el) return null;
+            const expectedDocumentId = "${escapedDocumentId}";
+            const expectedFingerprint = "${escapedFingerprint}";
+            const currentDocumentId = \`\${Math.trunc(performance.timeOrigin)}|\${location.href}\`;
+            if (expectedDocumentId && currentDocumentId !== expectedDocumentId) {
+              return {
+                ok: false,
+                stale: true,
+                error:
+                  "Highlight snapshot is stale because the document changed. Call highlight_elements() again."
+              };
+            }
+            if (!el) {
+              return {
+                ok: false,
+                stale: true,
+                error:
+                  "Element not found in DOM for this highlight snapshot. Call highlight_elements() again."
+              };
+            }
+            const currentFingerprint = getElementFingerprint(el);
+            if (!fingerprintsLookCompatible(expectedFingerprint, currentFingerprint)) {
+              return {
+                ok: false,
+                stale: true,
+                error:
+                  "Highlight snapshot is stale because the target element identity changed. Call highlight_elements() again."
+              };
+            }
             const rect = el.getBoundingClientRect();
             return {
-              x: rect.x,
-              y: rect.y,
-              width: rect.width,
-              height: rect.height
+              ok: true,
+              bbox: {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height
+              }
             };
           })();
         `;
 
-        let freshBbox = element.bbox; // Default to cached bbox
+        let freshBbox = element.element.bbox; // Default to cached bbox
         try {
           const bboxResult = await javascript.executeJavaScript(
             activeTabId,
@@ -2214,8 +2873,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             false,
             5000,
           );
-          if (bboxResult.success && bboxResult.result?.value) {
-            const fetchedBbox = bboxResult.result.value as {
+          if (bboxResult.success && bboxResult.result?.value?.ok) {
+            const fetchedBbox = bboxResult.result.value.bbox as {
               x: number;
               y: number;
               width: number;
@@ -2223,16 +2882,28 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             };
             freshBbox = fetchedBbox;
             console.log(
-              `📐 [SingleHighlight] Fresh bbox for ${element.id}:`,
+              `📐 [SingleHighlight] Fresh bbox for ${element.element.id}:`,
               JSON.stringify(freshBbox),
             );
+          } else if (
+            bboxResult.success
+            && bboxResult.result?.value
+            && bboxResult.result.value.ok === false
+          ) {
+            return {
+              success: false,
+              error:
+                bboxResult.result.value.error ||
+                `Element ${command.element_id} is stale for highlight snapshot ${highlightSnapshotId}. Call highlight_elements() again.`,
+              timestamp: Date.now(),
+            };
           } else {
             console.warn(
-              `⚠️ [SingleHighlight] Failed to fetch fresh bbox for ${element.id}:`,
+              `⚠️ [SingleHighlight] Failed to fetch fresh bbox for ${element.element.id}:`,
               {
                 error: bboxResult.error,
-                selector: element.selector,
-                cachedBbox: element.bbox,
+                selector: element.element.selector,
+                cachedBbox: element.element.bbox,
                 resultValue: bboxResult.result?.value,
                 rawResult: bboxResult.result,
               },
@@ -2286,9 +2957,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           return {
             success: false,
             error:
-              `Element ${element.id} is not visible in the current viewport. ${scrollHint}`.trim(),
+              `Element ${element.element.id} is not visible in the current viewport. ${scrollHint}`.trim(),
             data: {
-              elementId: element.id,
+              elementId: element.element.id,
+              highlight_snapshot_id: highlightSnapshotId,
               bbox: freshBbox,
               viewportWidth,
               viewportHeight,
@@ -2299,7 +2971,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         // Create element with fresh bbox for drawing
         const elementWithFreshBbox = {
-          ...element,
+          ...element.element,
           bbox: freshBbox,
         };
 
@@ -2320,12 +2992,13 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         return {
           success: true,
           data: {
-            html: element.html || '',
+            html: element.element.html || '',
             screenshot: await compressIfNeeded(
               highlightedScreenshot,
               getCompressionThreshold(),
             ),
             elementId: command.element_id,
+            highlight_snapshot_id: highlightSnapshotId,
             ...(screenshotResult?.dialog_auto_accepted
               ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted }
               : {}),

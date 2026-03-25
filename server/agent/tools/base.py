@@ -79,6 +79,9 @@ class OpenBrowserObservation(Observation):
     total_elements: Optional[int] = Field(
         default=None, description="Total number of elements found"
     )
+    highlight_snapshot_id: Optional[int] = Field(
+        default=None, description="Highlight snapshot ID associated with the result"
+    )
     element_id: Optional[str] = Field(
         default=None, description="ID of the element that was acted upon"
     )
@@ -109,8 +112,16 @@ class OpenBrowserObservation(Observation):
         pending = self.pending_confirmation or {}
         action_type = str(pending.get("action_type", "unknown"))
         element_id = str(pending.get("element_id", "unknown"))
+        highlight_snapshot_id = str(
+            pending.get("highlight_snapshot_id", self.highlight_snapshot_id or "unknown")
+        )
+        snapshot_json_value = (
+            highlight_snapshot_id
+            if highlight_snapshot_id.isdigit()
+            else f'"{highlight_snapshot_id}"'
+        )
         confirm_cmd = (
-            f'{{"action": "confirm_{action_type}", "element_id": "{element_id}"}}'
+            f'{{"action": "confirm_{action_type}", "highlight_snapshot_id": {snapshot_json_value}, "element_id": "{element_id}"}}'
         )
 
         text_parts = [
@@ -119,6 +130,7 @@ class OpenBrowserObservation(Observation):
             "Inspect the screenshot first.",
             "Confirm only if the single highlighted element is exactly the intended target.",
             "",
+            f"**Highlight Snapshot ID**: {highlight_snapshot_id}",
             f"**Element ID**: {element_id}",
             f"**Action Type**: {action_type}",
             "",
@@ -351,6 +363,10 @@ class OpenBrowserObservation(Observation):
         if self.highlighted_elements:
             text_parts.append("## Highlighted Elements")
             text_parts.append("")
+            if self.highlight_snapshot_id is not None:
+                text_parts.append(
+                    f"**Highlight Snapshot ID**: {self.highlight_snapshot_id}"
+                )
             text_parts.append(
                 f"**Total Elements**: {self.total_elements if self.total_elements is not None else len(self.highlighted_elements)}"
             )
@@ -390,6 +406,10 @@ class OpenBrowserObservation(Observation):
         if self.element_id:
             text_parts.append("## Element Action Result")
             text_parts.append("")
+            if self.highlight_snapshot_id is not None:
+                text_parts.append(
+                    f"**Highlight Snapshot ID**: {self.highlight_snapshot_id}"
+                )
             text_parts.append(f"**Element ID**: {self.element_id}")
             text_parts.append("")
 

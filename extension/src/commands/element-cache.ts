@@ -1,187 +1,435 @@
 /**
- * Element Cache Manager
- * Stores the latest highlight snapshot per conversation with auto-invalidation.
+ * Highlight snapshot cache manager.
+ *
+ * Two cache layers are maintained:
+ * 1. Frozen highlight inventories used for stable pagination across pages.
+ * 2. Page-scoped highlight snapshots returned to callers and used for
+ *    element interactions together with page-local element IDs.
  */
 
-import type { InteractiveElement } from '../types';
+import type { ElementType, InteractiveElement } from '../types';
 
-interface CacheEntry {
-  element: InteractiveElement; // Single element
-  tabId: number; // Tab ID for validation
-  timestamp: number;
+interface HighlightInventoryEntry {
+  tabId: number;
+  createdAt: number;
+  lastAccessedAt: number;
+  documentId: string;
+  elementType: ElementType;
+  keywords: string[];
+  totalElements: number;
+  pages: InteractiveElement[][];
+}
+
+interface HighlightSnapshotViewEntry {
+  tabId: number;
+  inventoryId: number;
+  createdAt: number;
+  page: number;
+}
+
+export interface HighlightSnapshotPage {
+  snapshotId: number;
+  inventoryId: number;
+  page: number;
+  totalPages: number;
+  totalElements: number;
+  elementType: ElementType;
+  keywords: string[];
+  documentId: string;
+  elements: InteractiveElement[];
+}
+
+export interface CachedElementLookup {
+  snapshotId: number;
+  inventoryId: number;
+  page: number;
+  totalPages: number;
+  totalElements: number;
+  documentId: string;
+  elementType: ElementType;
+  keywords: string[];
+  element: InteractiveElement;
 }
 
 export const ELEMENT_CACHE_TTL_MS = 1_200_000; // 20 minutes
 export const ELEMENT_CACHE_TTL_DESCRIPTION = `${ELEMENT_CACHE_TTL_MS / 60_000} minutes`;
-class ElementCacheImpl {
-  private cache = new Map<string, CacheEntry>();
+const MAX_HIGHLIGHT_INVENTORIES_PER_TAB = 12;
 
-  /**
-   * Generate composite cache key
-   */
-  private buildKey(
+class ElementCacheImpl {
+  private inventories = new Map<string, HighlightInventoryEntry>();
+
+  private snapshotViews = new Map<string, HighlightSnapshotViewEntry>();
+
+  private nextInventoryId = 1;
+
+  private nextSnapshotId = 1;
+
+  private buildInventoryKey(
     conversationId: string,
     tabId: number,
-    elementId: string,
+    inventoryId: number,
   ): string {
-    return `${conversationId}:${tabId}:${elementId}`;
+    return `${conversationId}:${tabId}:inventory:${inventoryId}`;
   }
 
-  /**
-   * Store the latest highlight snapshot for a conversation and tab.
-   *
-   * Every new highlight replaces the previous highlight snapshot for the
-   * conversation so old numeric IDs immediately become invalid.
-   */
-  storeElements(
+  private buildSnapshotKey(
     conversationId: string,
     tabId: number,
-    elements: InteractiveElement[],
-  ): void {
-    if (!conversationId) {
+    snapshotId: number,
+  ): string {
+    return `${conversationId}:${tabId}:snapshot:${snapshotId}`;
+  }
+
+  private touchInventory(entry: HighlightInventoryEntry): void {
+    entry.lastAccessedAt = Date.now();
+  }
+
+  private isExpired(timestamp: number): boolean {
+    return Date.now() - timestamp > ELEMENT_CACHE_TTL_MS;
+  }
+
+  private removeInventoryByKey(key: string): void {
+    const inventory = this.inventories.get(key);
+    if (!inventory) {
       return;
     }
 
-    this.invalidate(conversationId);
+    this.inventories.delete(key);
 
-    if (!elements.length) {
-      console.log(
-        `🗂️ [ElementCache] Cleared latest highlight snapshot for conversation ${conversationId} (no elements to store)`,
-      );
-      return;
+    const snapshotKeysToDelete: string[] = [];
+    for (const [snapshotKey, snapshot] of this.snapshotViews.entries()) {
+      if (snapshot.inventoryId === this.parseInventoryIdFromKey(key)) {
+        snapshotKeysToDelete.push(snapshotKey);
+      }
     }
-
-    const timestamp = Date.now();
-
-    for (const element of elements) {
-      const key = this.buildKey(conversationId, tabId, element.id);
-      this.cache.set(key, {
-        element,
-        tabId,
-        timestamp,
-      });
+    for (const snapshotKey of snapshotKeysToDelete) {
+      this.snapshotViews.delete(snapshotKey);
     }
 
     console.log(
-      `📁 [ElementCache] Stored ${elements.length} latest-highlight elements for conversation ${conversationId}, tab ${tabId} (total: ${this.cache.size})`,
+      `🗑️ [ElementCache] Removed highlight inventory ${key} (${inventory.pages.length} pages, ${snapshotKeysToDelete.length} snapshots)`,
     );
   }
 
-  /**
-   * Get all elements for a conversation from the latest highlight snapshot.
-   */
-  getElements(conversationId: string): InteractiveElement[] | undefined {
+  private parseInventoryIdFromKey(key: string): number {
+    const maybeId = Number.parseInt(key.split(':').at(-1) ?? '', 10);
+    return Number.isFinite(maybeId) ? maybeId : -1;
+  }
+
+  private cleanupExpired(): void {
+    const activeInventoryKeys = new Set<string>();
+
+    for (const [snapshotKey, snapshot] of this.snapshotViews.entries()) {
+      if (this.isExpired(snapshot.createdAt)) {
+        this.snapshotViews.delete(snapshotKey);
+        console.log(`⏰ [ElementCache] Snapshot expired for key ${snapshotKey}`);
+        continue;
+      }
+
+      const inventoryKey = snapshotKey.replace(
+        /:snapshot:\d+$/,
+        `:inventory:${snapshot.inventoryId}`,
+      );
+      activeInventoryKeys.add(inventoryKey);
+    }
+
+    const inventoryKeysToDelete: string[] = [];
+    for (const [inventoryKey, inventory] of this.inventories.entries()) {
+      if (this.isExpired(inventory.lastAccessedAt)) {
+        inventoryKeysToDelete.push(inventoryKey);
+        continue;
+      }
+
+      if (!activeInventoryKeys.has(inventoryKey) && this.isExpired(inventory.createdAt)) {
+        inventoryKeysToDelete.push(inventoryKey);
+      }
+    }
+
+    for (const inventoryKey of inventoryKeysToDelete) {
+      this.removeInventoryByKey(inventoryKey);
+    }
+  }
+
+  private pruneInventoriesForTab(conversationId: string, tabId: number): void {
+    const prefix = `${conversationId}:${tabId}:inventory:`;
+    const matchingInventories = Array.from(this.inventories.entries())
+      .filter(([key]) => key.startsWith(prefix))
+      .sort((a, b) => a[1].createdAt - b[1].createdAt);
+
+    if (matchingInventories.length <= MAX_HIGHLIGHT_INVENTORIES_PER_TAB) {
+      return;
+    }
+
+    const toDelete = matchingInventories.slice(
+      0,
+      matchingInventories.length - MAX_HIGHLIGHT_INVENTORIES_PER_TAB,
+    );
+    for (const [inventoryKey] of toDelete) {
+      this.removeInventoryByKey(inventoryKey);
+    }
+  }
+
+  storeSnapshot(options: {
+    conversationId: string;
+    tabId: number;
+    documentId: string;
+    elementType: ElementType;
+    keywords?: string[];
+    totalElements: number;
+    pages: InteractiveElement[][];
+    page: number;
+  }): HighlightSnapshotPage {
+    const {
+      conversationId,
+      tabId,
+      documentId,
+      elementType,
+      keywords = [],
+      totalElements,
+      pages,
+      page,
+    } = options;
+
+    this.cleanupExpired();
+
+    const inventoryId = this.nextInventoryId++;
+    const snapshotId = this.nextSnapshotId++;
+    const now = Date.now();
+    const inventoryKey = this.buildInventoryKey(conversationId, tabId, inventoryId);
+    const snapshotKey = this.buildSnapshotKey(conversationId, tabId, snapshotId);
+
+    this.inventories.set(inventoryKey, {
+      tabId,
+      createdAt: now,
+      lastAccessedAt: now,
+      documentId,
+      elementType,
+      keywords: [...keywords],
+      totalElements,
+      pages: pages.map((snapshotPage) =>
+        snapshotPage.map((element) => ({
+          ...element,
+          bbox: { ...element.bbox },
+        })),
+      ),
+    });
+
+    this.snapshotViews.set(snapshotKey, {
+      tabId,
+      inventoryId,
+      createdAt: now,
+      page,
+    });
+
+    this.pruneInventoriesForTab(conversationId, tabId);
+
+    const snapshotPage = this.getSnapshotPage(conversationId, tabId, snapshotId);
+    if (!snapshotPage) {
+      throw new Error(
+        `Failed to retrieve newly stored highlight snapshot ${snapshotId}`,
+      );
+    }
+
+    console.log(
+      `📁 [ElementCache] Stored highlight inventory ${inventoryId} and snapshot ${snapshotId} for conversation ${conversationId}, tab ${tabId} (${pages.length} pages, ${totalElements} total elements)`,
+    );
+    return snapshotPage;
+  }
+
+  forkSnapshotPage(
+    conversationId: string,
+    tabId: number,
+    baseSnapshotId: number,
+    page: number,
+  ): HighlightSnapshotPage | undefined {
+    this.cleanupExpired();
+
+    const baseSnapshot = this.getSnapshotView(conversationId, tabId, baseSnapshotId);
+    if (!baseSnapshot) {
+      return undefined;
+    }
+
+    const snapshotId = this.nextSnapshotId++;
+    const snapshotKey = this.buildSnapshotKey(conversationId, tabId, snapshotId);
+    const now = Date.now();
+
+    this.snapshotViews.set(snapshotKey, {
+      tabId,
+      inventoryId: baseSnapshot.inventoryId,
+      createdAt: now,
+      page,
+    });
+
+    const inventory = this.getInventory(conversationId, tabId, baseSnapshot.inventoryId);
+    if (inventory) {
+      this.touchInventory(inventory);
+    }
+
+    const snapshotPage = this.getSnapshotPage(conversationId, tabId, snapshotId);
+    if (snapshotPage) {
+      console.log(
+        `📄 [ElementCache] Forked snapshot ${snapshotId} from base ${baseSnapshotId} for conversation ${conversationId}, tab ${tabId}, page ${page}`,
+      );
+    }
+    return snapshotPage;
+  }
+
+  getSnapshotPage(
+    conversationId: string,
+    tabId: number,
+    snapshotId: number,
+  ): HighlightSnapshotPage | undefined {
+    this.cleanupExpired();
+
+    const snapshot = this.getSnapshotView(conversationId, tabId, snapshotId);
+    if (!snapshot) {
+      return undefined;
+    }
+
+    const inventory = this.getInventory(conversationId, tabId, snapshot.inventoryId);
+    if (!inventory) {
+      return undefined;
+    }
+
+    this.touchInventory(inventory);
+
+    const pageIndex = Math.max(0, snapshot.page - 1);
+    const elements = inventory.pages[pageIndex] ?? [];
+
+    return {
+      snapshotId,
+      inventoryId: snapshot.inventoryId,
+      page: snapshot.page,
+      totalPages: inventory.pages.length,
+      totalElements: inventory.totalElements,
+      elementType: inventory.elementType,
+      keywords: [...inventory.keywords],
+      documentId: inventory.documentId,
+      elements: elements.map((element) => ({
+        ...element,
+        bbox: { ...element.bbox },
+      })),
+    };
+  }
+
+  getElementById(
+    conversationId: string,
+    tabId: number,
+    snapshotId: number,
+    elementId: string,
+  ): CachedElementLookup | undefined {
+    const snapshotPage = this.getSnapshotPage(conversationId, tabId, snapshotId);
+    if (!snapshotPage) {
+      return undefined;
+    }
+
+    const element = snapshotPage.elements.find(
+      (candidate) => candidate.id === elementId,
+    );
+    if (!element) {
+      return undefined;
+    }
+
+    return {
+      snapshotId,
+      inventoryId: snapshotPage.inventoryId,
+      page: snapshotPage.page,
+      totalPages: snapshotPage.totalPages,
+      totalElements: snapshotPage.totalElements,
+      documentId: snapshotPage.documentId,
+      elementType: snapshotPage.elementType,
+      keywords: snapshotPage.keywords,
+      element,
+    };
+  }
+
+  getSnapshotView(
+    conversationId: string,
+    tabId: number,
+    snapshotId: number,
+  ): HighlightSnapshotViewEntry | undefined {
     if (!conversationId) {
       return undefined;
     }
 
-    const now = Date.now();
-    const elements: InteractiveElement[] = [];
-    const expiredKeys: string[] = [];
-
-    // Iterate through all cache entries
-    for (const [key, entry] of this.cache.entries()) {
-      // Check if this entry belongs to the conversation
-      if (key.startsWith(`${conversationId}:`)) {
-        // Check if expired
-        if (now - entry.timestamp > ELEMENT_CACHE_TTL_MS) {
-          expiredKeys.push(key);
-          continue;
-        }
-        elements.push(entry.element);
-      }
+    const snapshotKey = this.buildSnapshotKey(conversationId, tabId, snapshotId);
+    const snapshot = this.snapshotViews.get(snapshotKey);
+    if (!snapshot) {
+      return undefined;
     }
 
-    // Cleanup expired entries
-    for (const key of expiredKeys) {
-      this.cache.delete(key);
-      console.log(`⏰ [ElementCache] Cache expired for key ${key}`);
+    if (snapshot.tabId !== tabId || this.isExpired(snapshot.createdAt)) {
+      this.snapshotViews.delete(snapshotKey);
+      console.log(`⏰ [ElementCache] Snapshot expired or mismatched for key ${snapshotKey}`);
+      return undefined;
     }
 
-    return elements.length > 0 ? elements : undefined;
+    return snapshot;
   }
 
-  /**
-   * Find a specific element by ID within a conversation and tab
-   * Validates tab_id match - returns undefined if mismatch
-   */
-  getElementById(
+  getInventory(
     conversationId: string,
     tabId: number,
-    elementId: string,
-  ): InteractiveElement | undefined {
-    if (!conversationId || !elementId) {
+    inventoryId: number,
+  ): HighlightInventoryEntry | undefined {
+    if (!conversationId) {
       return undefined;
     }
 
-    const key = this.buildKey(conversationId, tabId, elementId);
-    const entry = this.cache.get(key);
-
-    if (!entry) {
+    const inventoryKey = this.buildInventoryKey(conversationId, tabId, inventoryId);
+    const inventory = this.inventories.get(inventoryKey);
+    if (!inventory) {
       return undefined;
     }
 
-    // Check if expired
-    if (Date.now() - entry.timestamp > ELEMENT_CACHE_TTL_MS) {
-      this.cache.delete(key);
-      console.log(`⏰ [ElementCache] Cache expired for key ${key}`);
+    if (inventory.tabId !== tabId || this.isExpired(inventory.lastAccessedAt)) {
+      this.removeInventoryByKey(inventoryKey);
       return undefined;
     }
 
-    // Validate tab_id match
-    if (entry.tabId !== tabId) {
-      console.log(
-        `⚠️ [ElementCache] Tab ID mismatch: expected ${tabId}, found ${entry.tabId} for key ${key}`,
-      );
-      return undefined;
-    }
-
-    return entry.element;
+    return inventory;
   }
 
-  /**
-   * Invalidate (clear) cache for a specific conversation
-   * If tabId provided, invalidate only that tab's elements
-   * If no tabId, invalidate all elements for the conversation
-   */
   invalidate(conversationId: string, tabId?: number): void {
-    const prefix =
+    const inventoryPrefix =
       tabId !== undefined
-        ? `${conversationId}:${tabId}:`
+        ? `${conversationId}:${tabId}:inventory:`
+        : `${conversationId}:`;
+    const snapshotPrefix =
+      tabId !== undefined
+        ? `${conversationId}:${tabId}:snapshot:`
         : `${conversationId}:`;
 
-    const keysToDelete: string[] = [];
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(prefix)) {
-        keysToDelete.push(key);
-      }
+    const inventoryKeysToDelete = Array.from(this.inventories.keys()).filter((key) =>
+      key.startsWith(inventoryPrefix),
+    );
+    const snapshotKeysToDelete = Array.from(this.snapshotViews.keys()).filter((key) =>
+      key.startsWith(snapshotPrefix),
+    );
+
+    for (const key of inventoryKeysToDelete) {
+      this.inventories.delete(key);
+    }
+    for (const key of snapshotKeysToDelete) {
+      this.snapshotViews.delete(key);
     }
 
-    for (const key of keysToDelete) {
-      this.cache.delete(key);
-    }
-
-    if (keysToDelete.length > 0) {
+    if (inventoryKeysToDelete.length > 0 || snapshotKeysToDelete.length > 0) {
       const scope = tabId !== undefined ? `tab ${tabId}` : 'all tabs';
       console.log(
-        `🗑️ [ElementCache] Invalidated ${keysToDelete.length} elements for conversation ${conversationId} (${scope})`,
+        `🗑️ [ElementCache] Invalidated ${inventoryKeysToDelete.length} inventories and ${snapshotKeysToDelete.length} snapshots for conversation ${conversationId} (${scope})`,
       );
     }
   }
 
-  /**
-   * Clear all cached elements
-   */
   clearAll(): void {
-    this.cache.clear();
+    this.inventories.clear();
+    this.snapshotViews.clear();
     console.log('🧹 [ElementCache] Cleared all caches');
   }
 
-  /**
-   * Get cache size (number of conversations with cached elements)
-   */
   get size(): number {
-    return this.cache.size;
+    return this.snapshotViews.size;
   }
 }
 

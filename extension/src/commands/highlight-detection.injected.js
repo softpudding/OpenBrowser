@@ -223,6 +223,35 @@ function getElementSearchText(el) {
   return normalizeWhitespace(tokens.join(' '), 320).toLowerCase();
 }
 
+function getCurrentDocumentId() {
+  return `${Math.trunc(performance.timeOrigin)}|${location.href}`;
+}
+
+function getElementFingerprint(el) {
+  const tokens = [
+    el.tagName.toLowerCase(),
+    ...getAttributeTextTokens(el, [
+      'role',
+      'type',
+      'name',
+      'id',
+      'aria-label',
+      'title',
+      'placeholder',
+      'data-testid',
+      'data-test-id',
+    ]),
+    ...getClassTokens(el).slice(0, 4),
+  ];
+
+  const text = getElementTextForDetection(el);
+  if (text) {
+    tokens.push(text);
+  }
+
+  return normalizeWhitespace(tokens.join(' | '), 240).toLowerCase();
+}
+
 function hasControlIntentToken(el) {
   return CONTROL_TOKEN_REGEX.test(getElementSearchText(el));
 }
@@ -1427,6 +1456,7 @@ function toInteractiveElement(candidate) {
       : undefined,
     text,
     searchText: getElementSearchText(candidate.element),
+    fingerprint: getElementFingerprint(candidate.element),
     bbox: getElementRect(candidate.element),
     isVisible: true,
     isInViewport: true,
@@ -1847,6 +1877,7 @@ async function runOpenBrowserHighlightDetection(config) {
     elements,
     counts,
     layoutStability,
+    documentId: getCurrentDocumentId(),
     viewport: {
       width: window.innerWidth,
       height: window.innerHeight,

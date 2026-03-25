@@ -43,7 +43,9 @@ Direct-execution actions
 **Practical rule**: Expect a confirmation step only for `click` and `keyboard_input`.
 **Hard rule for inputable targets**: Always `click` the target first and complete that confirmation before `keyboard_input`.
 
-**Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. On the same unchanged page state, your default next step is another `highlight` call with `element_type: "any"` and the next page. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` before picking the next element, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `keywords` or another narrower type on that changed page. Use `keywords` only when you already see the target's exact literal text on the target itself in the current screenshot and can copy it verbatim. If a control itself shows an icon plus `52`, the literal keyword is `52`, not guessed icon words like `star`, `favorite`, or `bookmark`.
+**Snapshot rule**: Every element-targeted action must include both `highlight_snapshot_id` and `element_id`. `element_id` is page-local within one highlight snapshot response and is not valid by itself.
+
+**Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. On the same unchanged page state, your default next step is another `highlight` call with `element_type: "any"`, the next page, and the previous `highlight_snapshot_id`. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` page 1 without reusing the old snapshot, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `keywords` or another narrower type on that changed page. Use `keywords` only when you already see the target's exact literal text on the target itself in the current screenshot and can copy it verbatim. If a control itself shows an icon plus `52`, the literal keyword is `52`, not guessed icon words like `star`, `favorite`, or `bookmark`.
 
 ## Commands
 
@@ -51,11 +53,11 @@ Direct-execution actions
 Initiate a click on an element by its visual ID.
 
 ```json
-{ "action": "click", "element_id": "3", "tab_id": 123 }
+{ "action": "click", "highlight_snapshot_id": 17, "element_id": "3", "tab_id": 123 }
 // → Returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
 // → Then confirm:
-{ "action": "confirm_click", "element_id": "3", "tab_id": 123 }
+{ "action": "confirm_click", "highlight_snapshot_id": 17, "element_id": "3", "tab_id": 123 }
 ```
 
 Use this for buttons, links, and other trigger controls you identified from the highlight tool.
@@ -65,7 +67,7 @@ If the target is an input field, use this click step first to focus it before ty
 Initiate a hover over an element by its visual ID.
 
 ```json
-{ "action": "hover", "element_id": "4", "tab_id": 123 }
+{ "action": "hover", "highlight_snapshot_id": 17, "element_id": "4", "tab_id": 123 }
 // → Executes immediately and returns the post-hover screenshot
 ```
 
@@ -80,7 +82,7 @@ Scroll within an element by its visual ID, or scroll the entire page if no eleme
 
 1. **Scroll within specific element** (executes immediately):
    ```json
-   { "action": "scroll", "element_id": "2", "direction": "down", "tab_id": 123 }
+   { "action": "scroll", "highlight_snapshot_id": 17, "element_id": "2", "direction": "down", "tab_id": 123 }
    // → Executes immediately and returns the resulting screenshot
    ```
 
@@ -92,6 +94,7 @@ Scroll within an element by its visual ID, or scroll the entire page if no eleme
    ```
 
 **Parameters**:
+- `highlight_snapshot_id`: Required when `element_id` is provided.
 - `element_id`: (optional) Element ID from highlight tool response. If not provided, scrolls the entire page.
 - `direction`: "up", "down", "left", or "right" (default: "down")
 - `scroll_amount`: Relative amount to scroll based on page/element height (default: 0.5)
@@ -123,8 +126,8 @@ Use this to:
 Swipe a carousel / gallery / swiper region by its visual ID.
 
 ```json
-{ "action": "swipe", "element_id": "2", "direction": "next", "swipe_count": 1, "tab_id": 123 }
-{ "action": "swipe", "element_id": "2", "direction": "prev", "swipe_count": 1, "tab_id": 123 }
+{ "action": "swipe", "highlight_snapshot_id": 17, "element_id": "2", "direction": "next", "swipe_count": 1, "tab_id": 123 }
+{ "action": "swipe", "highlight_snapshot_id": 17, "element_id": "2", "direction": "prev", "swipe_count": 1, "tab_id": 123 }
 // → Executes immediately and returns the post-swipe screenshot
 ```
 
@@ -141,11 +144,11 @@ Use this when highlight marks a region as `swipable` and your goal is to move th
 Type text into an input element by its visual ID.
 
 ```json
-{ "action": "keyboard_input", "element_id": "1", "text": "hello@example.com", "tab_id": 123 }
+{ "action": "keyboard_input", "highlight_snapshot_id": 17, "element_id": "1", "text": "hello@example.com", "tab_id": 123 }
 // → Returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
 // → Then confirm:
-{ "action": "confirm_keyboard_input", "element_id": "1", "tab_id": 123 }
+{ "action": "confirm_keyboard_input", "highlight_snapshot_id": 17, "element_id": "1", "tab_id": 123 }
 ```
 
 Use this for text inputs, textareas, and search boxes, but only after you already clicked the same input target and completed that click confirmation.
@@ -169,11 +172,12 @@ Select an option from a native `<select>` dropdown element by its visual ID.
 - If your goal is to **pick a value** from a list of options → use `select`
 
 ```json
-{ "action": "select", "element_id": "5", "value": "option1", "tab_id": 123 }
+{ "action": "select", "highlight_snapshot_id": 17, "element_id": "5", "value": "option1", "tab_id": 123 }
 // → Executes immediately and returns the resulting screenshot
 ```
 
 **Parameters**:
+- `highlight_snapshot_id`: (required) Highlight snapshot ID from highlight tool response
 - `element_id`: (required) Element ID from highlight tool response
 - `value`: (required) Option value to select (matches `value` attribute of `<option>`)
 
@@ -181,16 +185,16 @@ Select an option from a native `<select>` dropdown element by its visual ID.
 For `<select multiple>` elements, pass an array of values:
 
 ```json
-{ "action": "select", "element_id": "5", "value": ["opt1", "opt2"], "tab_id": 123 }
+{ "action": "select", "highlight_snapshot_id": 17, "element_id": "5", "value": ["opt1", "opt2"], "tab_id": 123 }
 ```
 
 **Examples**:
 ```json
 // Single select
-{ "action": "select", "element_id": "2", "value": "us", "tab_id": 123 }
+{ "action": "select", "highlight_snapshot_id": 17, "element_id": "2", "value": "us", "tab_id": 123 }
 
 // Multi-select
-{ "action": "select", "element_id": "2", "value": ["red", "blue"], "tab_id": 123 }
+{ "action": "select", "highlight_snapshot_id": 17, "element_id": "2", "value": ["red", "blue"], "tab_id": 123 }
 ```
 
 ## Confirm Commands
@@ -200,12 +204,12 @@ Each action has a corresponding confirm action (use the same `element_interactio
 - `confirm_click` (for click action)
 - `confirm_keyboard_input` (for keyboard_input action)
 
-**Parameters**: Use the same `element_id`. `tab_id` is optional. For `confirm_keyboard_input`, the `text` comes from the pending confirmation created by the initiating action.
+**Parameters**: Use the same `highlight_snapshot_id` and `element_id`. `tab_id` is optional. For `confirm_keyboard_input`, the `text` comes from the pending confirmation created by the initiating action.
 
 **Behavior**: Executes the action after visual verification.
 
-If you ran another `highlight` before confirming, treat the old `element_id` as stale and start from the latest highlight result.
-The ORANGE confirmation preview itself does not invalidate the chosen `element_id`.
+If you ran another `highlight` and got a new `highlight_snapshot_id` before confirming, treat the old snapshot as stale and start from the newest highlight result.
+The ORANGE confirmation preview itself does not invalidate the chosen `highlight_snapshot_id` or `element_id`.
 
 ## Visual + Semantic Verification (ORANGE Stage)
 

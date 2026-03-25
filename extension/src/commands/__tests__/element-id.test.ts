@@ -39,27 +39,71 @@ describe('element-id', () => {
   });
 });
 
-describe('element-cache latest highlight snapshot', () => {
-  test('replaces the previous highlight snapshot for the same conversation', () => {
+describe('element-cache highlight snapshots', () => {
+  test('stores a page-scoped snapshot and resolves element IDs within that snapshot', () => {
     elementCache.clearAll();
 
-    elementCache.storeElements('conv-1', 101, [createElement('1', '#old')]);
-    expect(elementCache.getElementById('conv-1', 101, '1')?.selector).toBe('#old');
+    const snapshot = elementCache.storeSnapshot({
+      conversationId: 'conv-1',
+      tabId: 101,
+      documentId: 'doc-1',
+      elementType: 'any',
+      totalElements: 2,
+      pages: [
+        [createElement('1', '#page-1')],
+        [createElement('1', '#page-2')],
+      ],
+      page: 1,
+    });
 
-    elementCache.storeElements('conv-1', 101, [createElement('1', '#new')]);
+    expect(snapshot.snapshotId).toBe(1);
+    expect(snapshot.page).toBe(1);
+    expect(snapshot.elements.map((element) => element.selector)).toEqual([
+      '#page-1',
+    ]);
 
-    expect(elementCache.getElementById('conv-1', 101, '1')?.selector).toBe('#new');
-    expect(elementCache.getElementById('conv-1', 101, '2')).toBeUndefined();
+    const lookup = elementCache.getElementById('conv-1', 101, snapshot.snapshotId, '1');
+    expect(lookup?.element.selector).toBe('#page-1');
+    expect(lookup?.documentId).toBe('doc-1');
   });
 
-  test('clears old ids even when the next highlight returns no elements', () => {
+  test('forks a new snapshot page from the same frozen inventory', () => {
     elementCache.clearAll();
 
-    elementCache.storeElements('conv-2', 101, [createElement('1', '#old')]);
-    expect(elementCache.getElementById('conv-2', 101, '1')).toBeDefined();
+    const page1 = elementCache.storeSnapshot({
+      conversationId: 'conv-2',
+      tabId: 101,
+      documentId: 'doc-2',
+      elementType: 'any',
+      totalElements: 2,
+      pages: [
+        [createElement('1', '#first-page')],
+        [createElement('1', '#second-page')],
+      ],
+      page: 1,
+    });
 
-    elementCache.storeElements('conv-2', 101, []);
+    const page2 = elementCache.forkSnapshotPage(
+      'conv-2',
+      101,
+      page1.snapshotId,
+      2,
+    );
 
-    expect(elementCache.getElementById('conv-2', 101, '1')).toBeUndefined();
+    expect(page2).toBeDefined();
+    expect(page2?.snapshotId).not.toBe(page1.snapshotId);
+    expect(page2?.page).toBe(2);
+    expect(page2?.elements.map((element) => element.selector)).toEqual([
+      '#second-page',
+    ]);
+
+    expect(
+      elementCache.getElementById('conv-2', 101, page1.snapshotId, '1')?.element
+        .selector,
+    ).toBe('#first-page');
+    expect(
+      elementCache.getElementById('conv-2', 101, page2!.snapshotId, '1')?.element
+        .selector,
+    ).toBe('#second-page');
   });
 });
