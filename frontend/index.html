@@ -251,25 +251,6 @@
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
         }
         
-        .live-image.fullsize {
-            max-width: 90vw;
-            max-height: 90vh;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.95);
-            z-index: 1000;
-            background: #1a1a1a;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.9);
-            cursor: pointer;
-        }
-        
-        .live-image.fullsize:hover {
-            transform: translate(-50%, -50%) scale(1);
-        }
-        
         .no-image-placeholder {
             color: #666666;
             font-style: italic;
@@ -392,33 +373,36 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
         }
         
-        .event-image.fullsize {
-            max-width: 100%;
-            max-height: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.95);
-            z-index: 1000;
-            background: #1a1a1a;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.8);
-        }
-        
-        .event-image.fullsize:hover {
-            transform: translate(-50%, -50%) scale(1);
-        }
-        
         .image-overlay {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 999;
+            background: rgba(6, 5, 4, 0.88);
+            backdrop-filter: blur(8px);
+            z-index: 4000;
             display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            cursor: zoom-out;
+        }
+
+        .image-overlay.open {
+            display: flex;
+        }
+
+        .image-overlay img {
+            max-width: min(92vw, 1800px);
+            max-height: 92vh;
+            width: auto;
+            height: auto;
+            border-radius: 20px;
+            border: 1px solid rgba(var(--accent-rgb), 0.18);
+            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+            background: #17120e;
+            cursor: auto;
         }
 
         .event-meta {
@@ -5483,26 +5467,22 @@
         function toggleImageFullsize(event) {
             const img = event.currentTarget;
             const overlay = document.getElementById('image-overlay') || createImageOverlay();
+            const overlayImage = overlay.querySelector('img');
             
-            if (img.classList.contains('fullsize')) {
-                // Restore to normal size
-                img.classList.remove('fullsize');
-                overlay.style.display = 'none';
+            if (overlay.classList.contains('open')) {
+                overlay.classList.remove('open');
+                if (overlayImage) {
+                    overlayImage.removeAttribute('src');
+                    overlayImage.removeAttribute('alt');
+                }
                 document.removeEventListener('keydown', handleEscapeKey);
             } else {
-                // Show fullsize
-                img.classList.add('fullsize');
-                overlay.style.display = 'block';
+                if (overlayImage) {
+                    overlayImage.src = img.currentSrc || img.src;
+                    overlayImage.alt = img.alt || 'Expanded image';
+                }
+                overlay.classList.add('open');
                 document.addEventListener('keydown', handleEscapeKey);
-                
-                // Click overlay to close
-                overlay.onclick = function(e) {
-                    if (e.target === overlay) {
-                        img.classList.remove('fullsize');
-                        overlay.style.display = 'none';
-                        document.removeEventListener('keydown', handleEscapeKey);
-                    }
-                };
             }
         }
         
@@ -5510,18 +5490,30 @@
             const overlay = document.createElement('div');
             overlay.id = 'image-overlay';
             overlay.className = 'image-overlay';
+            const overlayImage = document.createElement('img');
+            overlay.appendChild(overlayImage);
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) {
+                    overlay.classList.remove('open');
+                    overlayImage.removeAttribute('src');
+                    overlayImage.removeAttribute('alt');
+                    document.removeEventListener('keydown', handleEscapeKey);
+                }
+            });
             document.body.appendChild(overlay);
             return overlay;
         }
         
         function handleEscapeKey(event) {
             if (event.key === 'Escape') {
-                // Look for both event-image and live-image classes
-                const fullsizeImg = document.querySelector('.event-image.fullsize, .live-image.fullsize');
-                if (fullsizeImg) {
-                    fullsizeImg.classList.remove('fullsize');
-                    const overlay = document.getElementById('image-overlay');
-                    if (overlay) overlay.style.display = 'none';
+                const overlay = document.getElementById('image-overlay');
+                if (overlay && overlay.classList.contains('open')) {
+                    const overlayImage = overlay.querySelector('img');
+                    overlay.classList.remove('open');
+                    if (overlayImage) {
+                        overlayImage.removeAttribute('src');
+                        overlayImage.removeAttribute('alt');
+                    }
                     document.removeEventListener('keydown', handleEscapeKey);
                 }
             }
