@@ -43,7 +43,7 @@ Direct-execution actions
 **Practical rule**: Expect a confirmation step only for `click` and `keyboard_input`.
 **Hard rule for inputable targets**: Always `click` the target first and complete that confirmation before `keyboard_input`.
 
-**Snapshot rule**: Every element-targeted action must include both `highlight_snapshot_id` and `element_id`. `element_id` is page-local within one highlight snapshot response and is not valid by itself.
+**Snapshot rule**: Every initiating or direct element-targeted action must include both `highlight_snapshot_id` and `element_id`. `element_id` is page-local within one highlight snapshot response and is not valid by itself. `confirm_click` and `confirm_keyboard_input` operate on the current pending confirmation and do not need those fields repeated.
 
 **Discovery rule**: If you do not yet have the correct `element_id`, continue discovery with highlight pagination instead of replacing the missing target with guessed keywords. On the same unchanged page state, your default next step is another `highlight` call with `element_type: "any"`, the next page, and the previous `highlight_snapshot_id`. After any significant page-state change caused by your last action, restart discovery with `highlight` on `element_type: "any"` page 1 without reusing the old snapshot, because it exposes extension-derived page insight you cannot infer reliably from intent alone. Do not jump straight to `keywords` or another narrower type on that changed page. Use `keywords` only when you already see the target's exact literal text on the target itself in the current screenshot and can copy it verbatim. If a control itself shows an icon plus `52`, the literal keyword is `52`, not guessed icon words like `star`, `favorite`, or `bookmark`.
 
@@ -57,7 +57,7 @@ Initiate a click on an element by its visual ID.
 // → Returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
 // → Then confirm:
-{ "action": "confirm_click", "highlight_snapshot_id": 17, "element_id": "3", "tab_id": 123 }
+{ "action": "confirm_click" }
 ```
 
 Use this for buttons, links, and other trigger controls you identified from the highlight tool.
@@ -148,7 +148,7 @@ Type text into an input element by its visual ID.
 // → Returns an ORANGE preview screenshot
 // → Review the orange highlight + HTML
 // → Then confirm:
-{ "action": "confirm_keyboard_input", "highlight_snapshot_id": 17, "element_id": "1", "tab_id": 123 }
+{ "action": "confirm_keyboard_input" }
 ```
 
 Use this for text inputs, textareas, and search boxes, but only after you already clicked the same input target and completed that click confirmation.
@@ -204,7 +204,7 @@ Each action has a corresponding confirm action (use the same `element_interactio
 - `confirm_click` (for click action)
 - `confirm_keyboard_input` (for keyboard_input action)
 
-**Parameters**: Use the same `highlight_snapshot_id` and `element_id`. `tab_id` is optional. For `confirm_keyboard_input`, the `text` comes from the pending confirmation created by the initiating action.
+**Parameters**: No `element_id`, `highlight_snapshot_id`, or `tab_id` is required. The system executes the current pending confirmation. For `confirm_keyboard_input`, the `text` also comes from that pending confirmation.
 
 **Behavior**: Executes the action after visual verification.
 

@@ -152,6 +152,14 @@ class TestPromptContracts:
         assert '`direction: "prev"` means show the previous picture' in description
         assert "not finger or gesture directions" in description
 
+    def test_element_interaction_confirm_examples_use_pending_state_only(self) -> None:
+        description = get_element_interaction_tool_description()
+
+        assert '{ "action": "confirm_click" }' in description
+        assert '{ "action": "confirm_keyboard_input" }' in description
+        assert '{ "action": "confirm_click", "highlight_snapshot_id": 17, "element_id": "3", "tab_id": 123 }' not in description
+        assert '{ "action": "confirm_keyboard_input", "highlight_snapshot_id": 17, "element_id": "1", "tab_id": 123 }' not in description
+
     def test_element_interaction_action_schema_explains_swipe_semantics(self) -> None:
         description = ElementInteractionAction.model_fields["direction"].description
 

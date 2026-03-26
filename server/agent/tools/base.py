@@ -115,20 +115,14 @@ class OpenBrowserObservation(Observation):
         highlight_snapshot_id = str(
             pending.get("highlight_snapshot_id", self.highlight_snapshot_id or "unknown")
         )
-        snapshot_json_value = (
-            highlight_snapshot_id
-            if highlight_snapshot_id.isdigit()
-            else f'"{highlight_snapshot_id}"'
-        )
-        confirm_cmd = (
-            f'{{"action": "confirm_{action_type}", "highlight_snapshot_id": {snapshot_json_value}, "element_id": "{element_id}"}}'
-        )
+        confirm_cmd = f'{{"action": "confirm_{action_type}"}}'
 
         text_parts = [
             "## Pending Confirmation",
             "",
             "Inspect the screenshot first.",
             "Confirm only if the single highlighted element is exactly the intended target.",
+            "The pending element and highlight snapshot are already stored by the system.",
             "",
             f"**Highlight Snapshot ID**: {highlight_snapshot_id}",
             f"**Element ID**: {element_id}",

@@ -126,8 +126,9 @@ function buildStoredHighlightPages(options: {
 function buildSnapshotPageRefreshScript(options: {
   elements: InteractiveElement[];
   expectedDocumentId?: string;
+  highlightSnapshotId?: number;
 }): string {
-  const { elements, expectedDocumentId } = options;
+  const { elements, expectedDocumentId, highlightSnapshotId } = options;
   const refreshTargets = elements.map((element) => ({
     id: element.id,
     selector: element.selector,
@@ -137,6 +138,7 @@ function buildSnapshotPageRefreshScript(options: {
   return `
     (() => {
       const expectedDocumentId = ${JSON.stringify(expectedDocumentId || '')};
+      const highlightSnapshotId = ${highlightSnapshotId ?? "null"};
       const refreshTargets = ${JSON.stringify(refreshTargets)};
 
       function normalizeIdentityWhitespace(value, maxLength = 240) {
@@ -259,7 +261,7 @@ function buildSnapshotPageRefreshScript(options: {
           ok: false,
           stale: true,
           error:
-            'Highlight snapshot is stale because the document changed. Call highlight_elements() again.',
+            \`Highlight snapshot \${highlightSnapshotId} is stale because the document changed. Call highlight_elements() again.\`,
         };
       }
 
@@ -350,6 +352,7 @@ async function renderHighlightSnapshotPage(options: {
     buildSnapshotPageRefreshScript({
       elements,
       expectedDocumentId,
+      highlightSnapshotId,
     }),
     true,
     false,
@@ -2830,7 +2833,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ok: false,
                 stale: true,
                 error:
-                  "Highlight snapshot is stale because the document changed. Call highlight_elements() again."
+                  "Highlight snapshot ${highlightSnapshotId} is stale because the document changed. Call highlight_elements() again."
               };
             }
             if (!el) {

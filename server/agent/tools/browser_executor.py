@@ -515,35 +515,37 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError(
                     "No pending click confirmation found. Please call click first."
                 )
-            if action.highlight_snapshot_id is None:
-                raise ValueError("confirm_click requires highlight_snapshot_id parameter")
-            if pending["element_id"] != action.element_id:
+            pending_element_id = pending.get("element_id")
+            pending_snapshot_id = pending.get("highlight_snapshot_id")
+            pending_extra_data = pending.get("extra_data", {})
+            if pending_snapshot_id is None:
+                pending_snapshot_id = pending_extra_data.get("highlight_snapshot_id")
+            if not pending_element_id:
                 raise ValueError(
-                    f"Element ID mismatch. Expected {pending['element_id']}, got {action.element_id}"
+                    "Pending click confirmation is missing element_id state."
                 )
-            if pending["highlight_snapshot_id"] != action.highlight_snapshot_id:
+            if pending_snapshot_id is None:
                 raise ValueError(
-                    f"Highlight snapshot mismatch. Expected {pending['highlight_snapshot_id']}, got {action.highlight_snapshot_id}"
+                    "Pending click confirmation is missing highlight_snapshot_id state."
                 )
             # Execute actual click
             command = ClickElementCommand(
-                element_id=action.element_id,
-                highlight_snapshot_id=action.highlight_snapshot_id
-                or pending["extra_data"].get("highlight_snapshot_id"),
+                element_id=pending_element_id,
+                highlight_snapshot_id=pending_snapshot_id,
                 conversation_id=self.conversation_id,
-                tab_id=action.tab_id or pending["extra_data"].get("tab_id"),
+                tab_id=pending_extra_data.get("tab_id"),
             )
             result_dict = self._execute_command_sync(command)
             if not result_dict or not result_dict.get("success"):
                 ext_error = self._extract_result_error(result_dict)
                 raise RuntimeError(f"Failed to click element: {ext_error}")
-            message = f"Confirmed and clicked element: {action.element_id}"
+            message = f"Confirmed and clicked element: {pending_element_id}"
             self._clear_pending_confirmation()
             return self._build_observation_from_result(
                 result_dict,
                 message,
-                element_id=action.element_id,
-                highlight_snapshot_id=action.highlight_snapshot_id,
+                element_id=pending_element_id,
+                highlight_snapshot_id=pending_snapshot_id,
             )
 
         elif action_type == "confirm_keyboard_input":
@@ -552,37 +554,37 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError(
                     "No pending keyboard_input confirmation found. Please call keyboard_input first."
                 )
-            if action.highlight_snapshot_id is None:
+            pending_element_id = pending.get("element_id")
+            pending_snapshot_id = pending.get("highlight_snapshot_id")
+            pending_extra_data = pending.get("extra_data", {})
+            if pending_snapshot_id is None:
+                pending_snapshot_id = pending_extra_data.get("highlight_snapshot_id")
+            if not pending_element_id:
                 raise ValueError(
-                    "confirm_keyboard_input requires highlight_snapshot_id parameter"
+                    "Pending keyboard_input confirmation is missing element_id state."
                 )
-            if pending["element_id"] != action.element_id:
+            if pending_snapshot_id is None:
                 raise ValueError(
-                    f"Element ID mismatch. Expected {pending['element_id']}, got {action.element_id}"
-                )
-            if pending["highlight_snapshot_id"] != action.highlight_snapshot_id:
-                raise ValueError(
-                    f"Highlight snapshot mismatch. Expected {pending['highlight_snapshot_id']}, got {action.highlight_snapshot_id}"
+                    "Pending keyboard_input confirmation is missing highlight_snapshot_id state."
                 )
             command = KeyboardInputCommand(
-                element_id=action.element_id,
-                highlight_snapshot_id=action.highlight_snapshot_id
-                or pending["extra_data"].get("highlight_snapshot_id"),
-                text=pending["extra_data"].get("text", ""),
+                element_id=pending_element_id,
+                highlight_snapshot_id=pending_snapshot_id,
+                text=pending_extra_data.get("text", ""),
                 conversation_id=self.conversation_id,
-                tab_id=action.tab_id or pending["extra_data"].get("tab_id"),
+                tab_id=pending_extra_data.get("tab_id"),
             )
             result_dict = self._execute_command_sync(command)
             if not result_dict or not result_dict.get("success"):
                 ext_error = self._extract_result_error(result_dict)
                 raise RuntimeError(f"Failed to input text: {ext_error}")
-            message = f"Confirmed and input text to element: {action.element_id}"
+            message = f"Confirmed and input text to element: {pending_element_id}"
             self._clear_pending_confirmation()
             return self._build_observation_from_result(
                 result_dict,
                 message,
-                element_id=action.element_id,
-                highlight_snapshot_id=action.highlight_snapshot_id,
+                element_id=pending_element_id,
+                highlight_snapshot_id=pending_snapshot_id,
             )
 
         else:

@@ -27,14 +27,14 @@ If the page did not significantly change, stay on the current `any` inventory an
 
 ```json
 { "action": "click", "highlight_snapshot_id": 17, "element_id": "3", "tab_id": 123 }
-{ "action": "confirm_click", "highlight_snapshot_id": 17, "element_id": "3", "tab_id": 123 }
+{ "action": "confirm_click" }
 ```
 
 ### keyboard_input
 
 ```json
 { "action": "keyboard_input", "highlight_snapshot_id": 17, "element_id": "1", "text": "hello@example.com", "tab_id": 123 }
-{ "action": "confirm_keyboard_input", "highlight_snapshot_id": 17, "element_id": "1", "tab_id": 123 }
+{ "action": "confirm_keyboard_input" }
 ```
 
 Use `keyboard_input` only after you already clicked the same input target and completed that click confirmation.
@@ -91,6 +91,7 @@ These are content directions, not hand or finger movement directions. Do not rei
 
 - `click` and `keyboard_input` require confirmation
 - For any `inputable` target, the required sequence is `click` first, then `keyboard_input`
+- `confirm_click` and `confirm_keyboard_input` operate on the current pending confirmation; do not repeat `element_id` or `highlight_snapshot_id`
 - If ORANGE preview appears, confirm only when the box position and HTML both match your target
 - If they do not match, do not confirm; highlight again
 

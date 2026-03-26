@@ -145,14 +145,14 @@ function buildSnapshotIdentityHelpersScript(): string {
       return overlap >= Math.max(2, Math.min(4, Math.ceil(expectedTokens.length * 0.5)));
     }
 
-    function validateSnapshotElement(expectedDocumentId, expectedFingerprint, el) {
+    function validateSnapshotElement(expectedHighlightSnapshotId, expectedDocumentId, expectedFingerprint, el) {
       const currentDocumentId = getCurrentDocumentId();
       if (expectedDocumentId && currentDocumentId !== expectedDocumentId) {
         return {
           ok: false,
           stale: true,
           error:
-            'Highlight snapshot is stale because the document changed. Call highlight_elements() again.',
+            \`Highlight snapshot \${expectedHighlightSnapshotId} is stale because the document changed. Call highlight_elements() again.\`,
         };
       }
 
@@ -419,6 +419,7 @@ export async function performElementClick(
   const script = `
     (async function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       ${buildEditableActivationHelpersScript()}
@@ -429,6 +430,7 @@ export async function performElementClick(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,
@@ -705,6 +707,7 @@ export async function performElementHover(
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       ${buildSnapshotIdentityHelpersScript()}
@@ -715,6 +718,7 @@ export async function performElementHover(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,
@@ -1002,6 +1006,7 @@ export async function performElementScroll(
     script = `
       (function() {
         const selector = "${escapedSelector}";
+        const expectedHighlightSnapshotId = ${highlightSnapshotId};
         const expectedDocumentId = "${escapedDocumentId}";
         const expectedFingerprint = "${escapedFingerprint}";
         const el = document.querySelector(selector);
@@ -1014,6 +1019,7 @@ export async function performElementScroll(
         }
 
         const snapshotValidation = validateSnapshotElement(
+          expectedHighlightSnapshotId,
           expectedDocumentId,
           expectedFingerprint,
           el,
@@ -1336,6 +1342,7 @@ export async function performElementSwipe(
   const script = `
     (async function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       const direction = "${direction}";
@@ -1348,6 +1355,7 @@ export async function performElementSwipe(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,
@@ -2512,6 +2520,7 @@ export async function performKeyboardInput(
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       const text = "${escapedText}";
@@ -2523,6 +2532,7 @@ export async function performKeyboardInput(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,
@@ -2813,6 +2823,7 @@ export async function performElementSelect(
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       const value = ${valueJson};
@@ -2825,6 +2836,7 @@ export async function performElementSelect(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,
