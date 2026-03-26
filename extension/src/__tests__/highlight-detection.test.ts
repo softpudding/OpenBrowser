@@ -213,14 +213,18 @@ describe('highlight-detection helpers', () => {
     expect(script).toContain('interactionHints');
   });
 
-  test('buildHighlightDetectionScript hides clickable when swipe or scroll affordances are present', () => {
+  test('buildHighlightDetectionScript keeps semantic controls clickable in swipe regions', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
     const start = script.indexOf('function toInteractiveElement');
     const end = script.indexOf('function countVisibleClickableCandidates', start);
     const toInteractiveElementSource = script.slice(start, end);
 
+    expect(script).toContain('function isSemanticControlElement');
     expect(toInteractiveElementSource).toContain(
       "candidate.type === 'clickable'",
+    );
+    expect(toInteractiveElementSource).toContain(
+      '!isSemanticControlElement(candidate.element)',
     );
     expect(toInteractiveElementSource).toContain(
       "interactionHints.includes('swipable')",
