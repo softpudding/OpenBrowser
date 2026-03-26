@@ -2175,6 +2175,8 @@
                 linear-gradient(180deg, rgba(20, 17, 14, 0.56), rgba(20, 16, 13, 0.86));
             box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
             backdrop-filter: blur(18px);
+            max-height: calc(100% - 56px);
+            overflow: hidden;
         }
 
         .stage-conversation-overlay.is-empty {
@@ -2213,6 +2215,18 @@
             line-height: 1.65;
             white-space: pre-wrap;
             word-break: break-word;
+            max-height: min(36vh, 340px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            pointer-events: auto;
+            padding-right: 8px;
+            scrollbar-gutter: stable;
+        }
+
+        .stage-conversation-text:focus-visible {
+            outline: 1px solid rgba(var(--accent-rgb), 0.42);
+            outline-offset: 4px;
+            border-radius: 12px;
         }
 
         .no-image-placeholder {
@@ -2602,6 +2616,10 @@
                 padding: 14px;
             }
 
+            .stage-conversation-text {
+                max-height: min(32vh, 220px);
+            }
+
             .no-image-placeholder {
                 width: 100%;
                 padding: 22px;
@@ -2713,7 +2731,7 @@
                                 <span class="stage-conversation-label" id="stage-conversation-label">Agent feed</span>
                                 <span class="stage-conversation-time" id="stage-conversation-time">Waiting</span>
                             </div>
-                            <div class="stage-conversation-text" id="stage-conversation-text">
+                            <div class="stage-conversation-text scrollbar" id="stage-conversation-text" tabindex="0">
                                 Agent narration will stay visible here while the browser updates.
                             </div>
                         </div>
@@ -3338,26 +3356,39 @@
             }
         }
 
+        function resetStageConversationScroll() {
+            const node = document.getElementById('stage-conversation-text');
+            if (!node) {
+                return;
+            }
+
+            node.scrollTop = 0;
+        }
+
         function resetAgentVoice() {
             latestAgentMessage = '';
             latestAgentStep = AGENT_STEP_PLACEHOLDER;
             latestAgentThinking = AGENT_THINKING_PLACEHOLDER;
             latestAgentTimestamp = null;
             renderAgentVoice();
+            resetStageConversationScroll();
         }
 
         function updateAgentVoice(event) {
             const timestamp = event.timestamp || new Date().toISOString();
             const content = event.error || event.message || event.text || '';
+            let shouldResetStageScroll = false;
 
             if (event.type === 'MessageEvent' && event.source === 'user') {
                 latestAgentMessage = '';
                 latestAgentStep = truncateForSummary(content.replace(/^User:\s*/i, ''), 140) || latestAgentStep;
                 latestAgentThinking = AGENT_THINKING_PLACEHOLDER;
                 latestAgentTimestamp = timestamp;
+                shouldResetStageScroll = true;
             } else if (event.type === 'MessageEvent' && event.source !== 'user') {
                 latestAgentMessage = content.trim() || latestAgentMessage;
                 latestAgentTimestamp = timestamp;
+                shouldResetStageScroll = true;
             } else if (event.type === 'ActionEvent') {
                 const parsed = parseActionSections(content);
                 latestAgentStep = truncateForSummary(
@@ -3374,6 +3405,7 @@
                 }
                 if (parsed.finishMessage) {
                     latestAgentMessage = parsed.finishMessage;
+                    shouldResetStageScroll = true;
                 }
                 latestAgentTimestamp = timestamp;
             } else if (event.type === 'ObservationEvent') {
@@ -3390,6 +3422,9 @@
             }
 
             renderAgentVoice();
+            if (shouldResetStageScroll) {
+                resetStageConversationScroll();
+            }
         }
 
         function syncCommandInputHeight() {
