@@ -96,7 +96,6 @@ class OpenBrowserAgentManager:
             Tool(name="highlight"),  # Element discovery with visual overlays
             Tool(name="element_interaction"),  # Click/input with 2PC, others direct
             Tool(name="dialog"),  # Browser dialog handling
-            Tool(name="javascript"),  # JavaScript execution fallback
         ]
         self.general_tools = [
             Tool(name=PLEASE_HELP_ME_TOOL_NAME),
@@ -135,22 +134,9 @@ class OpenBrowserAgentManager:
     def _get_tools_for_model(
         self, model: Optional[str] = None, model_alias: Optional[str] = None
     ) -> list[Tool]:
-        """Return the tool list for a model tier.
-
-        Small models keep the general agentic tools but use a narrower browser
-        toolset to reduce risky action branching.
-        """
-        resolved_model, _, _ = self._resolve_llm_settings(
-            model=model, model_alias=model_alias
-        )
-
-        browser_tools = list(self.browser_tools)
-        if is_small_model(resolved_model):
-            browser_tools = [
-                tool for tool in browser_tools if tool.name != "javascript"
-            ]
-
-        return browser_tools + list(self.general_tools)
+        """Return the tool list for a model tier."""
+        self._resolve_llm_settings(model=model, model_alias=model_alias)
+        return list(self.browser_tools) + list(self.general_tools)
 
     def _create_llm_from_config(
         self,
@@ -196,7 +182,6 @@ class OpenBrowserAgentManager:
         return {
             "model_profile": get_model_profile(resolved_model),
             "small_model": small_model,
-            "javascript_available": not small_model,
         }
 
     def _build_session_metadata(

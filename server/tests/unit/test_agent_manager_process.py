@@ -63,8 +63,8 @@ class TestAgentManagerMultiProcessMode:
         assert manager._process_manager is not None
         assert manager._ipc_router is not None
 
-    def test_large_models_keep_full_browser_toolset(self) -> None:
-        """Large models should keep javascript plus general tools."""
+    def test_large_models_keep_core_browser_toolset(self) -> None:
+        """Large models should expose the four browser tools plus general tools."""
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
             manager = OpenBrowserAgentManager()
             mock_llm_config.reload_config.return_value = MagicMock()
@@ -84,15 +84,14 @@ class TestAgentManagerMultiProcessMode:
             "highlight",
             "element_interaction",
             "dialog",
-            "javascript",
             "please_help_me",
             "terminal",
             "file_editor",
             "task_tracker",
         ]
 
-    def test_small_models_drop_javascript_only(self) -> None:
-        """Small models keep general tools but lose javascript."""
+    def test_small_models_keep_the_same_browser_toolset(self) -> None:
+        """Small models should use the same four browser tools."""
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
             manager = OpenBrowserAgentManager()
             mock_llm_config.reload_config.return_value = MagicMock()
@@ -119,7 +118,7 @@ class TestAgentManagerMultiProcessMode:
         ]
 
     def test_unknown_models_default_to_large_profile(self) -> None:
-        """Unconfigured models should keep the large-model toolset."""
+        """Unconfigured models should keep the standard browser toolset."""
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
             manager = OpenBrowserAgentManager()
             mock_llm_config.reload_config.return_value = MagicMock()
@@ -133,11 +132,11 @@ class TestAgentManagerMultiProcessMode:
                 tool.name for tool in manager._get_tools_for_model("some/new-model")
             ]
 
-        assert "javascript" in tool_names
+        assert "dialog" in tool_names
         assert "please_help_me" in tool_names
 
     def test_system_prompt_kwargs_follow_large_model_profile(self) -> None:
-        """Large models should advertise full browser freedom in system prompt."""
+        """Large models should get the large-profile system prompt kwargs."""
         manager = OpenBrowserAgentManager()
 
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
@@ -153,11 +152,10 @@ class TestAgentManagerMultiProcessMode:
         assert kwargs == {
             "model_profile": "large",
             "small_model": False,
-            "javascript_available": True,
         }
 
     def test_system_prompt_kwargs_follow_small_model_profile(self) -> None:
-        """Small models should get the constrained system prompt variant."""
+        """Small models should get the small-profile system prompt kwargs."""
         manager = OpenBrowserAgentManager()
 
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
@@ -173,7 +171,6 @@ class TestAgentManagerMultiProcessMode:
         assert kwargs == {
             "model_profile": "small",
             "small_model": True,
-            "javascript_available": False,
         }
 
 

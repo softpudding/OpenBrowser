@@ -437,10 +437,8 @@ def initialize_agent():
         from .tools.highlight_tool import HighlightTool
         from .tools.element_interaction_tool import ElementInteractionTool
         from .tools.dialog_tool import DialogTool
-        from .tools.javascript_tool import JavaScriptTool
-
         logger.info(
-            "5 focused OpenBrowser tools registered: tab, highlight, element_interaction, dialog, javascript"
+            "4 focused OpenBrowser tools registered: tab, highlight, element_interaction, dialog"
         )
 
     except Exception as e:

@@ -50,7 +50,6 @@ sys.modules["openhands.tools"] = types.ModuleType("openhands.tools")
 sys.modules["openhands.tools.preset"] = types.ModuleType("openhands.tools.preset")
 
 from server.agent.tools.browser_executor import BrowserExecutor
-from server.agent.tools import javascript_tool
 from server.agent.tools.toolset import OpenBrowserToolSet
 
 
@@ -60,7 +59,7 @@ class TestOpenBrowserToolSet:
 
         executors = {tool.executor for tool in tools}
 
-        assert len(tools) == 5
+        assert len(tools) == 4
         assert len(executors) == 1
         assert isinstance(next(iter(executors)), BrowserExecutor)
 
@@ -80,13 +79,10 @@ class TestOpenBrowserToolSet:
             "highlight",
             "element_interaction",
             "dialog",
-            "javascript",
         ]
         assert all(tool.executor is executor for tool in tools)
 
-    def test_disabling_javascript_removes_only_fallback_tool(self, monkeypatch) -> None:
-        monkeypatch.setattr(javascript_tool, "DISABLE_JAVASCRIPT_EXECUTE", True)
-
+    def test_create_exposes_only_core_browser_tools(self) -> None:
         tools = OpenBrowserToolSet.create(None)
 
         assert [tool.name for tool in tools] == [
@@ -103,4 +99,3 @@ class TestOpenBrowserToolSet:
         assert tools["highlight"].annotations.readOnlyHint is True
         assert tools["element_interaction"].annotations.destructiveHint is True
         assert tools["dialog"].annotations.readOnlyHint is False
-        assert tools["javascript"].annotations.openWorldHint is True

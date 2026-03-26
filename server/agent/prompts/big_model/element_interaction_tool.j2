@@ -116,11 +116,7 @@ Use this to:
 - If highlight shows a target `scrollable` region, use `scroll` on that region rather than clicking nearby paging controls
 - If highlight shows the `swipable` hint, treat the region as a carousel/slider and use `swipe` over `scroll`
 - Do not compensate for a missing highlight target by guessing `next`, `prev`, `close`, or similar keywords
-{% if not disable_javascript %}
-- If scroll/swipe fails twice and the task still requires progress, use the JavaScript tool only as a last-resort fallback for this system
-{% else %}
-- If scroll/swipe fails repeatedly, re-orient around currently visible items because JavaScript fallback is disabled in this environment
-{% endif %}
+- If scroll/swipe fails repeatedly, re-orient around currently visible items and keep recovery inside the visual browser tools
 
 ### swipe
 Swipe a carousel / gallery / swiper region by its visual ID.

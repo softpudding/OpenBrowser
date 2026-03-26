@@ -1,12 +1,11 @@
 """
-BrowserExecutor - Unified executor for handling all 5 OpenBrowser tool actions.
+BrowserExecutor - Unified executor for handling all 4 OpenBrowser tool actions.
 
-This executor can handle actions from all 5 focused tools:
+This executor can handle actions from all 4 focused tools:
 - TabAction (from tab_tool.py)
 - BaseHighlightAction (from highlight_tool.py)
 - ElementInteractionAction (from element_interaction_tool.py)
 - DialogHandleAction (from dialog_tool.py)
-- JavaScriptAction (from javascript_tool.py)
 
 All actions inherit from OpenBrowserAction and share common conversation_id.
 This executor provides consistent command execution and pending confirmation state.
@@ -24,7 +23,6 @@ from server.core.processor import command_processor
 from server.models.commands import (
     TabCommand,
     GetTabsCommand,
-    JavascriptExecuteCommand,
     HandleDialogCommand,
     DialogAction,
     TabAction as TabActionEnum,
@@ -45,10 +43,6 @@ from server.agent.tools.tab_tool import TabAction
 from server.agent.tools.highlight_tool import BaseHighlightAction
 from server.agent.tools.element_interaction_tool import ElementInteractionAction
 from server.agent.tools.dialog_tool import DialogHandleAction
-from server.agent.tools.javascript_tool import (
-    JavaScriptAction,
-    DISABLE_JAVASCRIPT_EXECUTE,
-)
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 
@@ -85,7 +79,7 @@ def remove_browser_executor(conversation_id: str) -> None:
 
 
 class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
-    """Unified executor for all 5 OpenBrowser tool actions.
+    """Unified executor for all 4 OpenBrowser tool actions.
 
     This executor can handle any action that inherits from OpenBrowserAction,
     providing consistent pending confirmation state and command execution
@@ -138,7 +132,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         Args:
             action: Any action that inherits from OpenBrowserAction
                    (TabAction, BaseHighlightAction, ElementInteractionAction,
-                   DialogHandleAction, JavaScriptAction)
+                   DialogHandleAction)
 
         Returns:
             OpenBrowserObservation with results of the operation
@@ -174,8 +168,6 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 return self._execute_element_interaction_action(action)
             elif isinstance(action, DialogHandleAction):
                 return self._execute_dialog_action(action)
-            elif isinstance(action, JavaScriptAction):
-                return self._execute_javascript_action(action)
             else:
                 raise ValueError(f"Unknown action type: {type(action).__name__}")
 
@@ -619,42 +611,6 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
 
         message = f"Dialog handled: {dialog_action_str}"
         return self._build_observation_from_result(result_dict, message)
-
-    def _execute_javascript_action(
-        self, action: JavaScriptAction
-    ) -> OpenBrowserObservation:
-        """Execute a JavaScript execution action."""
-        logger.debug(
-            f"DEBUG: _execute_javascript_action called with script length={len(action.script)}"
-        )
-
-        # Check if javascript_execute is disabled via environment variable
-        if DISABLE_JAVASCRIPT_EXECUTE:
-            return OpenBrowserObservation(
-                success=False,
-                error="javascript_execute command is disabled via OPEN_BROWSER_DISABLE_JAVASCRIPT_EXECUTE environment variable",
-                tabs=[],
-                screenshot_data_url=None,
-            )
-
-        # Validate required parameters
-        if not action.script:
-            raise ValueError("javascript requires script parameter")
-
-        command = JavascriptExecuteCommand(
-            script=action.script, conversation_id=self.conversation_id
-        )
-        result_dict = self._execute_command_sync(command)
-
-        # Truncate long scripts for message
-        script = action.script
-        if len(script) > 50:
-            message = f"Executed JavaScript: '{script[:50]}...'"
-        else:
-            message = f"Executed JavaScript: '{script}'"
-
-        observation = self._build_observation_from_result(result_dict, message)
-        return observation
 
     # ========== 2PC State Management Methods ==========
 
