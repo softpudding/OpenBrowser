@@ -278,11 +278,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         element_type = action.element_type or "any"
         page = action.page or 1
         keywords = getattr(action, "keywords", None)
+        highlight_snapshot_id = action.highlight_snapshot_id
 
         command = HighlightElementsCommand(
             element_type=element_type,
             page=page,
             keywords=keywords,
+            highlight_snapshot_id=highlight_snapshot_id,
             conversation_id=self.conversation_id,
         )
         result_dict = self._execute_command_sync(command)
@@ -303,6 +305,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         total_elements = result_dict.get("data", {}).get("totalElements", 0)
         total_pages = result_dict.get("data", {}).get("totalPages", 1)
         current_page = result_dict.get("data", {}).get("page", 1)
+        returned_snapshot_id = result_dict.get("data", {}).get("highlight_snapshot_id")
 
         # Adjust message based on whether keywords filtering was used
         if keywords:
@@ -310,6 +313,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             message = f"Found {len(elements)} {element_type} elements matching '{keywords_str}' (total: {total_elements})"
         else:
             message = f"Found {len(elements)} {element_type} elements on page {current_page}/{total_pages} (total: {total_elements})"
+        if returned_snapshot_id is not None:
+            message = f"{message} [highlight_snapshot_id={returned_snapshot_id}]"
 
         return self._build_observation_from_result(
             result_dict,
@@ -317,6 +322,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             highlighted_elements=elements,
             total_elements=total_elements,
             element_type=element_type,
+            highlight_snapshot_id=returned_snapshot_id,
         )
 
     def _execute_element_interaction_action(
@@ -334,12 +340,20 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         if action_type == "click":
             if not action.element_id:
                 raise ValueError("click requires element_id parameter")
-            full_html, screenshot = self._get_element_full_html(action.element_id)
+            if action.highlight_snapshot_id is None:
+                raise ValueError("click requires highlight_snapshot_id parameter")
+            full_html, screenshot = self._get_element_full_html(
+                action.element_id, action.highlight_snapshot_id
+            )
             self._set_pending_confirmation(
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
                 action_type="click",
                 full_html=full_html,
-                extra_data={"tab_id": action.tab_id},
+                extra_data={
+                    "tab_id": action.tab_id,
+                    "highlight_snapshot_id": action.highlight_snapshot_id,
+                },
                 screenshot_data_url=screenshot,
             )
             result_dict = {"success": True, "data": {}}
@@ -351,13 +365,17 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 message,
                 screenshot_data_url=screenshot,
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
             )
 
         elif action_type == "hover":
             if not action.element_id:
                 raise ValueError("hover requires element_id parameter")
+            if action.highlight_snapshot_id is None:
+                raise ValueError("hover requires highlight_snapshot_id parameter")
             command = HoverElementCommand(
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
                 conversation_id=self.conversation_id,
                 tab_id=action.tab_id,
             )
@@ -368,12 +386,18 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 result_dict,
                 f"Hovered element: {action.element_id}",
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
             )
 
         elif action_type == "scroll":
             if action.element_id:
+                if action.highlight_snapshot_id is None:
+                    raise ValueError(
+                        "scroll requires highlight_snapshot_id when element_id is provided"
+                    )
                 command = ScrollElementCommand(
                     element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
                     direction=action.direction,
                     scroll_amount=action.scroll_amount or 0.5,
                     conversation_id=self.conversation_id,
@@ -386,6 +410,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     result_dict,
                     f"Scrolled element: {action.element_id}",
                     element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
                 )
             else:
                 command = ScrollElementCommand(
@@ -402,6 +427,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         elif action_type == "swipe":
             if not action.element_id:
                 raise ValueError("swipe requires element_id parameter")
+            if action.highlight_snapshot_id is None:
+                raise ValueError("swipe requires highlight_snapshot_id parameter")
 
             swipe_direction = "next"
             if "direction" in action.model_fields_set:
@@ -411,6 +438,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             swipe_count = action.swipe_count or 1
             command = SwipeElementCommand(
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
                 direction=swipe_direction,
                 swipe_count=swipe_count,
                 conversation_id=self.conversation_id,
@@ -421,6 +449,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 result_dict,
                 f"Swiped element: {action.element_id}",
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
             )
 
         elif action_type == "keyboard_input":
@@ -428,12 +457,21 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError("keyboard_input requires element_id parameter")
             if not action.text:
                 raise ValueError("keyboard_input requires text parameter")
-            full_html, screenshot = self._get_element_full_html(action.element_id)
+            if action.highlight_snapshot_id is None:
+                raise ValueError("keyboard_input requires highlight_snapshot_id parameter")
+            full_html, screenshot = self._get_element_full_html(
+                action.element_id, action.highlight_snapshot_id
+            )
             self._set_pending_confirmation(
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
                 action_type="keyboard_input",
                 full_html=full_html,
-                extra_data={"text": action.text, "tab_id": action.tab_id},
+                extra_data={
+                    "text": action.text,
+                    "tab_id": action.tab_id,
+                    "highlight_snapshot_id": action.highlight_snapshot_id,
+                },
                 screenshot_data_url=screenshot,
             )
             result_dict = {"success": True, "data": {}}
@@ -443,6 +481,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 message,
                 screenshot_data_url=screenshot,
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
             )
 
         elif action_type == "select":
@@ -450,8 +489,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError("select requires element_id parameter")
             if action.value is None:
                 raise ValueError("select requires value parameter")
+            if action.highlight_snapshot_id is None:
+                raise ValueError("select requires highlight_snapshot_id parameter")
             command = SelectElementCommand(
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
                 value=action.value,
                 conversation_id=self.conversation_id,
                 tab_id=action.tab_id,
@@ -463,6 +505,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 result_dict,
                 f"Selected option in element: {action.element_id}",
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
             )
 
         # ========== 2PC Phase 2: Confirm Operations ==========
@@ -472,13 +515,21 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError(
                     "No pending click confirmation found. Please call click first."
                 )
+            if action.highlight_snapshot_id is None:
+                raise ValueError("confirm_click requires highlight_snapshot_id parameter")
             if pending["element_id"] != action.element_id:
                 raise ValueError(
                     f"Element ID mismatch. Expected {pending['element_id']}, got {action.element_id}"
                 )
+            if pending["highlight_snapshot_id"] != action.highlight_snapshot_id:
+                raise ValueError(
+                    f"Highlight snapshot mismatch. Expected {pending['highlight_snapshot_id']}, got {action.highlight_snapshot_id}"
+                )
             # Execute actual click
             command = ClickElementCommand(
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id
+                or pending["extra_data"].get("highlight_snapshot_id"),
                 conversation_id=self.conversation_id,
                 tab_id=action.tab_id or pending["extra_data"].get("tab_id"),
             )
@@ -489,7 +540,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             message = f"Confirmed and clicked element: {action.element_id}"
             self._clear_pending_confirmation()
             return self._build_observation_from_result(
-                result_dict, message, element_id=action.element_id
+                result_dict,
+                message,
+                element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
             )
 
         elif action_type == "confirm_keyboard_input":
@@ -498,12 +552,22 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError(
                     "No pending keyboard_input confirmation found. Please call keyboard_input first."
                 )
+            if action.highlight_snapshot_id is None:
+                raise ValueError(
+                    "confirm_keyboard_input requires highlight_snapshot_id parameter"
+                )
             if pending["element_id"] != action.element_id:
                 raise ValueError(
                     f"Element ID mismatch. Expected {pending['element_id']}, got {action.element_id}"
                 )
+            if pending["highlight_snapshot_id"] != action.highlight_snapshot_id:
+                raise ValueError(
+                    f"Highlight snapshot mismatch. Expected {pending['highlight_snapshot_id']}, got {action.highlight_snapshot_id}"
+                )
             command = KeyboardInputCommand(
                 element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id
+                or pending["extra_data"].get("highlight_snapshot_id"),
                 text=pending["extra_data"].get("text", ""),
                 conversation_id=self.conversation_id,
                 tab_id=action.tab_id or pending["extra_data"].get("tab_id"),
@@ -514,7 +578,12 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise RuntimeError(f"Failed to input text: {ext_error}")
             message = f"Confirmed and input text to element: {action.element_id}"
             self._clear_pending_confirmation()
-            return self._build_observation_from_result(result_dict, message)
+            return self._build_observation_from_result(
+                result_dict,
+                message,
+                element_id=action.element_id,
+                highlight_snapshot_id=action.highlight_snapshot_id,
+            )
 
         else:
             raise ValueError(f"Invalid element interaction action: {action_type}")
@@ -595,6 +664,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
     def _set_pending_confirmation(
         self,
         element_id: str,
+        highlight_snapshot_id: int,
         action_type: str,
         full_html: str,
         extra_data: Dict[str, Any] = None,
@@ -603,6 +673,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         """Set pending confirmation for current conversation"""
         self.pending_confirmations[self.conversation_id] = {
             "element_id": element_id,
+            "highlight_snapshot_id": highlight_snapshot_id,
             "action_type": action_type,
             "full_html": full_html,
             "screenshot_data_url": screenshot_data_url,
@@ -652,14 +723,18 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             raise RuntimeError(f"Failed to {action_description}: {ext_error}")
         return result_dict
 
-    def _get_element_full_html(self, element_id: str) -> tuple[str, Optional[str]]:
+    def _get_element_full_html(
+        self, element_id: str, highlight_snapshot_id: int
+    ) -> tuple[str, Optional[str]]:
         """Get the full HTML of an element from extension's elementCache AND a screenshot with highlight.
 
         This uses HighlightSingleElementCommand to get both HTML and screenshot.
         Returns a tuple of (html, screenshot_data_url).
         """
         command = HighlightSingleElementCommand(
-            element_id=element_id, conversation_id=self.conversation_id
+            element_id=element_id,
+            highlight_snapshot_id=highlight_snapshot_id,
+            conversation_id=self.conversation_id,
         )
         result_dict = self._execute_command_sync(command)
 
@@ -691,6 +766,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         highlighted_elements: Optional[list] = None,
         total_elements: Optional[int] = None,
         element_id: Optional[str] = None,
+        highlight_snapshot_id: Optional[int] = None,
         element_type: Optional[str] = None,
     ) -> OpenBrowserObservation:
         """Build an OpenBrowserObservation from a result dictionary."""
@@ -790,6 +866,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                         highlighted_elements = data["elements"]
                     if total_elements is None and "totalElements" in data:
                         total_elements = data["totalElements"]
+                    if (
+                        highlight_snapshot_id is None
+                        and "highlight_snapshot_id" in data
+                    ):
+                        highlight_snapshot_id = data["highlight_snapshot_id"]
 
                     # Extract new_tabs_created for javascript_execute and confirm_click_element
                     if "new_tabs_created" in data:
@@ -864,6 +945,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             total_elements=total_elements,
             new_tabs_created=new_tabs_created,
             element_id=element_id,
+            highlight_snapshot_id=highlight_snapshot_id,
             element_type=element_type,
             javascript_result=javascript_result,
             console_output=console_output,

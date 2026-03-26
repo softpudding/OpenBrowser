@@ -1,5 +1,7 @@
 # OpenBrowser
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/softpudding/OpenBrowser)
+
 OpenBrowser is a multimodal browser agent for real web tasks.
 
 It treats browser automation as a visual and interactive systems problem, not just a DOM parsing problem. Browsers are among the most complex pieces of software most people use every day. Reading the DOM can help, but understanding the DOM is not the same thing as actually operating the page. The long-term direction we believe in is multimodal control, or at least a strongly hybrid approach.
@@ -33,23 +35,6 @@ What this demo shows:
 - Real browser-side interaction: search, open posts, like, save, and comment
 - Multi-step decision making across multiple candidates
 - End-to-end output instead of isolated single-page actions
-
-### News Collection from WSJ, CNN, and Reuters
-
-OpenBrowser browses major news sites, collects relevant articles, and writes a translated summary of a developing event.
-
-![News Collection Demo](demo/news_collection-preview.gif)
-
-[Watch full video: news_collection.mp4](demo/news_collection.mp4)
-
-#### Collected Articles
-
-OpenBrowser collected the following articles and saved them as markdown files:
-
-- **[伊朗战争新闻汇总_2026-03-08.md](demo/伊朗战争新闻汇总_2026-03-08.md)** - Summary of all collected news with translations
-- **[WSJ_伊朗历史首都成为美以空战震中.md](demo/WSJ_伊朗历史首都成为美以空战震中.md)** - WSJ report on Isfahan air strikes
-- **[WSJ_特朗普不排除向伊朗派遣地面部队_实时更新.md](demo/WSJ_特朗普不排除向伊朗派遣地面部队_实时更新.md)** - WSJ live updates on Trump's Iran policy
-- **[CNN_伊朗战争实时更新_能源设施袭击.md](demo/CNN_伊朗战争实时更新_能源设施袭击.md)** - CNN live coverage of energy facility attacks
 
 ## Why OpenBrowser
 

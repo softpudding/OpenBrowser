@@ -41,6 +41,10 @@ class BaseHighlightAction(OpenBrowserAction):
         ge=1,
         description="Page number for pagination (1-indexed).",
     )
+    highlight_snapshot_id: Optional[int] = Field(
+        default=None,
+        description="Highlight snapshot ID from the previous highlight response. Required when page > 1 so pagination continues on the same frozen inventory.",
+    )
 
 
 class HighlightAction(BaseHighlightAction):

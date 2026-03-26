@@ -15,15 +15,169 @@ import { ELEMENT_CACHE_TTL_DESCRIPTION, elementCache } from './element-cache';
 import { executeJavaScript, type JavaScriptResult } from './javascript';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
 
+function escapeForDoubleQuotedJavaScriptString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 function buildElementCacheMissMessage(
   elementId: string,
-  refreshHint: string = 'Call highlight_elements() first.',
+  refreshHint: string = 'Call highlight_elements() again to get a fresh highlight_snapshot_id.',
 ): string {
-  return `Element '${elementId}' not found in cache. Cache expires after ${ELEMENT_CACHE_TTL_DESCRIPTION}. ${refreshHint}`;
+  return `Element '${elementId}' not found in cache for the referenced highlight snapshot. Highlight snapshots expire after ${ELEMENT_CACHE_TTL_DESCRIPTION}. ${refreshHint}`;
+}
+
+function buildSnapshotIdentityHelpersScript(): string {
+  return `
+    function normalizeIdentityWhitespace(value, maxLength = 240) {
+      const normalized = String(value ?? '')
+        .replace(/\\s+/g, ' ')
+        .trim();
+      return normalized.slice(0, maxLength).toLowerCase();
+    }
+
+    function getIdentityAttributeTokens(el, attributeNames) {
+      const tokens = [];
+
+      for (const attributeName of attributeNames) {
+        const value = el.getAttribute(attributeName);
+        if (!value) {
+          continue;
+        }
+
+        const normalized = normalizeIdentityWhitespace(value, 80);
+        if (normalized) {
+          tokens.push(normalized);
+        }
+      }
+
+      return tokens;
+    }
+
+    function getIdentityClassTokens(el) {
+      return Array.from(el.classList)
+        .filter(
+          (token) =>
+            token.length > 1 &&
+            token.length <= 40 &&
+            /^[a-z0-9_-]+$/i.test(token),
+        )
+        .slice(0, 4)
+        .map((token) => token.toLowerCase());
+    }
+
+    function getElementTextForIdentity(el) {
+      if (el instanceof HTMLInputElement) {
+        const inputType = (el.type || '').toLowerCase();
+        if (
+          inputType === 'button' ||
+          inputType === 'submit' ||
+          inputType === 'reset'
+        ) {
+          return normalizeIdentityWhitespace(el.value, 120);
+        }
+      }
+
+      return normalizeIdentityWhitespace(el.textContent || '', 160);
+    }
+
+    function getCurrentDocumentId() {
+      return \`\${Math.trunc(performance.timeOrigin)}|\${location.href}\`;
+    }
+
+    function getElementFingerprint(el) {
+      const tokens = [
+        el.tagName.toLowerCase(),
+        ...getIdentityAttributeTokens(el, [
+          'role',
+          'type',
+          'name',
+          'id',
+          'aria-label',
+          'title',
+          'placeholder',
+          'data-testid',
+          'data-test-id',
+        ]),
+        ...getIdentityClassTokens(el),
+      ];
+
+      const text = getElementTextForIdentity(el);
+      if (text) {
+        tokens.push(text);
+      }
+
+      return normalizeIdentityWhitespace(tokens.join(' | '), 240);
+    }
+
+    function splitFingerprintTokens(value) {
+      return Array.from(
+        new Set(
+          String(value ?? '')
+            .toLowerCase()
+            .split(/[^a-z0-9]+/i)
+            .filter((token) => token.length > 1),
+        ),
+      );
+    }
+
+    function fingerprintsLookCompatible(expected, current) {
+      if (!expected || !current) {
+        return true;
+      }
+
+      if (expected === current) {
+        return true;
+      }
+
+      const expectedTokens = splitFingerprintTokens(expected);
+      const currentTokens = new Set(splitFingerprintTokens(current));
+      if (expectedTokens.length === 0) {
+        return true;
+      }
+
+      let overlap = 0;
+      for (const token of expectedTokens) {
+        if (currentTokens.has(token)) {
+          overlap += 1;
+        }
+      }
+
+      return overlap >= Math.max(2, Math.min(4, Math.ceil(expectedTokens.length * 0.5)));
+    }
+
+    function validateSnapshotElement(expectedDocumentId, expectedFingerprint, el) {
+      const currentDocumentId = getCurrentDocumentId();
+      if (expectedDocumentId && currentDocumentId !== expectedDocumentId) {
+        return {
+          ok: false,
+          stale: true,
+          error:
+            'Highlight snapshot is stale because the document changed. Call highlight_elements() again.',
+        };
+      }
+
+      const currentFingerprint = getElementFingerprint(el);
+      if (!fingerprintsLookCompatible(expectedFingerprint, currentFingerprint)) {
+        return {
+          ok: false,
+          stale: true,
+          error:
+            'Highlight snapshot is stale because the target element no longer matches the cached identity. Call highlight_elements() again.',
+        };
+      }
+
+      return {
+        ok: true,
+        stale: false,
+        currentFingerprint,
+      };
+    }
+  `;
 }
 
 function buildEditableActivationHelpersScript(): string {
   return `
+    ${buildSnapshotIdentityHelpersScript()}
     ${buildHitTestVisibilityHelpersScript()}
 
     function getInteractiveActivationTarget(target) {
@@ -205,26 +359,33 @@ export interface SelectResult extends ElementActionResult {
  * 4. Return result with dialog info if applicable
  *
  * @param conversationId Session ID for element cache lookup
- * @param elementId Cached element ID (e.g., "click-1", "scroll-1")
+ * @param highlightSnapshotId Highlight snapshot ID returned by highlight_elements
+ * @param elementId Cached element ID from the referenced highlight snapshot (for example, "1")
  * @param tabId Target tab ID
  * @param timeout Maximum execution time in milliseconds (default: 30000)
  * @returns Click result with success status and dialog info
  */
 export async function performElementClick(
   conversationId: string,
+  highlightSnapshotId: number,
   elementId: string,
   tabId: number,
   timeout: number = 30000,
 ): Promise<ClickResult> {
   console.log(
-    `👆 [ElementClick] Clicking element ${elementId} in conversation ${conversationId} on tab ${tabId}`,
+    `👆 [ElementClick] Clicking element ${elementId} from snapshot ${highlightSnapshotId} in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
   // STEP 1: Look up element from cache
   // ============================================================
-  const element = elementCache.getElementById(conversationId, tabId, elementId);
-  if (!element) {
+  const cachedElement = elementCache.getElementById(
+    conversationId,
+    tabId,
+    highlightSnapshotId,
+    elementId,
+  );
+  if (!cachedElement) {
     console.log(`❌ [ElementClick] Element ${elementId} not found in cache`);
     return {
       success: false,
@@ -233,10 +394,11 @@ export async function performElementClick(
       staleElement: false,
       error: buildElementCacheMissMessage(
         elementId,
-        'Call highlight_elements() first to refresh the cache and get updated element IDs.',
+        'Call highlight_elements() again to get a fresh highlight_snapshot_id and element IDs.',
       ),
     };
   }
+  const element = cachedElement.element;
 
   console.log(
     `✅ [ElementClick] Found element: selector="${element.selector}"`,
@@ -246,16 +408,37 @@ export async function performElementClick(
   // STEP 2: Build JavaScript to click with full event sequence
   // ============================================================
   // Escape quotes in selector for safe injection
-  const escapedSelector = element.selector.replace(/"/g, '\\"');
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+    cachedElement.documentId,
+  );
+  const escapedFingerprint = escapeForDoubleQuotedJavaScriptString(
+    element.fingerprint || '',
+  );
 
   const script = `
     (async function() {
       const selector = "${escapedSelector}";
+      const expectedDocumentId = "${escapedDocumentId}";
+      const expectedFingerprint = "${escapedFingerprint}";
       ${buildEditableActivationHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
         return { clicked: false, error: "Element not found in DOM", stale: true };
+      }
+
+      const snapshotValidation = validateSnapshotElement(
+        expectedDocumentId,
+        expectedFingerprint,
+        el,
+      );
+      if (!snapshotValidation.ok) {
+        return {
+          clicked: false,
+          error: snapshotValidation.error,
+          stale: snapshotValidation.stale,
+        };
       }
 
       // Check if element is still visible
@@ -466,26 +649,33 @@ export async function performElementClick(
  * 4. Return result
  *
  * @param conversationId Session ID for element cache lookup
- * @param elementId Cached element ID (e.g., "click-1", "scroll-1")
+ * @param highlightSnapshotId Highlight snapshot ID returned by highlight_elements
+ * @param elementId Cached element ID from the referenced highlight snapshot (for example, "1")
  * @param tabId Target tab ID
  * @param timeout Maximum execution time in milliseconds (default: 30000)
  * @returns Hover result with success status
  */
 export async function performElementHover(
   conversationId: string,
+  highlightSnapshotId: number,
   elementId: string,
   tabId: number,
   timeout: number = 30000,
 ): Promise<HoverResult> {
   console.log(
-    `🖱️ [ElementHover] Hovering element ${elementId} in conversation ${conversationId} on tab ${tabId}`,
+    `🖱️ [ElementHover] Hovering element ${elementId} from snapshot ${highlightSnapshotId} in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
   // STEP 1: Look up element from cache
   // ============================================================
-  const element = elementCache.getElementById(conversationId, tabId, elementId);
-  if (!element) {
+  const cachedElement = elementCache.getElementById(
+    conversationId,
+    tabId,
+    highlightSnapshotId,
+    elementId,
+  );
+  if (!cachedElement) {
     console.log(`❌ [ElementHover] Element ${elementId} not found in cache`);
     return {
       success: false,
@@ -495,6 +685,7 @@ export async function performElementHover(
       error: buildElementCacheMissMessage(elementId),
     };
   }
+  const element = cachedElement.element;
 
   console.log(
     `✅ [ElementHover] Found element: selector="${element.selector}"`,
@@ -503,15 +694,37 @@ export async function performElementHover(
   // ============================================================
   // STEP 2: Build JavaScript to dispatch hover events
   // ============================================================
-  const escapedSelector = element.selector.replace(/"/g, '\\"');
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+    cachedElement.documentId,
+  );
+  const escapedFingerprint = escapeForDoubleQuotedJavaScriptString(
+    element.fingerprint || '',
+  );
 
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      const expectedDocumentId = "${escapedDocumentId}";
+      const expectedFingerprint = "${escapedFingerprint}";
+      ${buildSnapshotIdentityHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
         return { hovered: false, error: "Element not found in DOM", stale: true };
+      }
+
+      const snapshotValidation = validateSnapshotElement(
+        expectedDocumentId,
+        expectedFingerprint,
+        el,
+      );
+      if (!snapshotValidation.ok) {
+        return {
+          hovered: false,
+          error: snapshotValidation.error,
+          stale: snapshotValidation.stale,
+        };
       }
 
       // Check if element is still visible
@@ -709,7 +922,8 @@ export interface SwipeResult extends ElementActionResult {
  * 3. Execute and return result
  *
  * @param conversationId Session ID for element cache lookup
- * @param elementId Cached element ID (e.g., "scroll-1"). Optional - if not provided, scrolls the entire page
+ * @param highlightSnapshotId Highlight snapshot ID returned by highlight_elements. Required when elementId is provided
+ * @param elementId Cached element ID from the referenced highlight snapshot. Optional - if not provided, scrolls the entire page
  * @param direction Swipe direction ('next' or 'prev')
  * @param tabId Target tab ID
  * @param timeout Maximum execution time in milliseconds (default: 30000)
@@ -717,6 +931,7 @@ export interface SwipeResult extends ElementActionResult {
  */
 export async function performElementScroll(
   conversationId: string,
+  highlightSnapshotId: number | undefined,
   elementId: string | undefined,
   direction: ScrollDirection,
   tabId: number,
@@ -747,12 +962,22 @@ export async function performElementScroll(
 
   if (elementId) {
     // Scroll a specific element
-    const element = elementCache.getElementById(
+    if (highlightSnapshotId === undefined || highlightSnapshotId === null) {
+      return {
+        success: false,
+        elementId,
+        scrolled: false,
+        error: 'highlight_snapshot_id is required when scrolling a highlighted element.',
+      };
+    }
+
+    const cachedElement = elementCache.getElementById(
       conversationId,
       tabId,
+      highlightSnapshotId,
       elementId,
     );
-    if (!element) {
+    if (!cachedElement) {
       console.log(`❌ [ElementScroll] Element ${elementId} not found in cache`);
       return {
         success: false,
@@ -761,21 +986,44 @@ export async function performElementScroll(
         error: buildElementCacheMissMessage(elementId),
       };
     }
+    const element = cachedElement.element;
 
     console.log(
       `✅ [ElementScroll] Found element: selector="${element.selector}"`,
     );
-    const escapedSelector = element.selector.replace(/"/g, '\\"');
+    const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+    const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+      cachedElement.documentId,
+    );
+    const escapedFingerprint = escapeForDoubleQuotedJavaScriptString(
+      element.fingerprint || '',
+    );
 
     script = `
       (function() {
         const selector = "${escapedSelector}";
+        const expectedDocumentId = "${escapedDocumentId}";
+        const expectedFingerprint = "${escapedFingerprint}";
         const el = document.querySelector(selector);
         const xMultiplier = ${xMultiplier};
         const yMultiplier = ${yMultiplier};
+        ${buildSnapshotIdentityHelpersScript()}
 
         if (!el) {
           return { scrolled: false, error: "Element not found in DOM", stale: true };
+        }
+
+        const snapshotValidation = validateSnapshotElement(
+          expectedDocumentId,
+          expectedFingerprint,
+          el,
+        );
+        if (!snapshotValidation.ok) {
+          return {
+            scrolled: false,
+            error: snapshotValidation.error,
+            stale: snapshotValidation.stale,
+          };
         }
 
         // Determine the scrollable element
@@ -1045,6 +1293,7 @@ export async function performElementScroll(
  */
 export async function performElementSwipe(
   conversationId: string,
+  highlightSnapshotId: number,
   elementId: string,
   direction: SwipeDirection,
   tabId: number,
@@ -1052,11 +1301,16 @@ export async function performElementSwipe(
   timeout: number = 30000,
 ): Promise<SwipeResult> {
   console.log(
-    `🫳 [ElementSwipe] Swiping element ${elementId} ${direction} (count: ${swipeCount}) in conversation ${conversationId} on tab ${tabId}`,
+    `🫳 [ElementSwipe] Swiping element ${elementId} from snapshot ${highlightSnapshotId} ${direction} (count: ${swipeCount}) in conversation ${conversationId} on tab ${tabId}`,
   );
 
-  const element = elementCache.getElementById(conversationId, tabId, elementId);
-  if (!element) {
+  const cachedElement = elementCache.getElementById(
+    conversationId,
+    tabId,
+    highlightSnapshotId,
+    elementId,
+  );
+  if (!cachedElement) {
     console.log(`❌ [ElementSwipe] Element ${elementId} not found in cache`);
     return {
       success: false,
@@ -1065,22 +1319,45 @@ export async function performElementSwipe(
       error: buildElementCacheMissMessage(elementId),
     };
   }
+  const element = cachedElement.element;
 
   console.log(
     `✅ [ElementSwipe] Found element: selector="${element.selector}"`,
   );
 
-  const escapedSelector = element.selector.replace(/"/g, '\\"');
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+    cachedElement.documentId,
+  );
+  const escapedFingerprint = escapeForDoubleQuotedJavaScriptString(
+    element.fingerprint || '',
+  );
 
   const script = `
     (async function() {
       const selector = "${escapedSelector}";
+      const expectedDocumentId = "${escapedDocumentId}";
+      const expectedFingerprint = "${escapedFingerprint}";
       const direction = "${direction}";
       const swipeCount = ${swipeCount};
+      ${buildSnapshotIdentityHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
         return { swiped: false, error: "Element not found in DOM", stale: true };
+      }
+
+      const snapshotValidation = validateSnapshotElement(
+        expectedDocumentId,
+        expectedFingerprint,
+        el,
+      );
+      if (!snapshotValidation.ok) {
+        return {
+          swiped: false,
+          error: snapshotValidation.error,
+          stale: snapshotValidation.stale,
+        };
       }
 
       const SWIPE_LIBRARY_REGEX =
@@ -2175,7 +2452,8 @@ export interface InputResult extends ElementActionResult {
  * 4. Return result with input value
  *
  * @param conversationId Session ID for element cache lookup
- * @param elementId Cached element ID (e.g., "input-1", "textarea-1")
+ * @param highlightSnapshotId Highlight snapshot ID returned by highlight_elements
+ * @param elementId Cached element ID from the referenced highlight snapshot
  * @param text Text to input into the element
  * @param tabId Target tab ID
  * @param timeout Maximum execution time in milliseconds (default: 30000)
@@ -2183,20 +2461,26 @@ export interface InputResult extends ElementActionResult {
  */
 export async function performKeyboardInput(
   conversationId: string,
+  highlightSnapshotId: number,
   elementId: string,
   text: string,
   tabId: number,
   timeout: number = 30000,
 ): Promise<InputResult> {
   console.log(
-    `⌨️ [KeyboardInput] Inputting text to element ${elementId} in conversation ${conversationId} on tab ${tabId}`,
+    `⌨️ [KeyboardInput] Inputting text to element ${elementId} from snapshot ${highlightSnapshotId} in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
   // STEP 1: Look up element from cache
   // ============================================================
-  const element = elementCache.getElementById(conversationId, tabId, elementId);
-  if (!element) {
+  const cachedElement = elementCache.getElementById(
+    conversationId,
+    tabId,
+    highlightSnapshotId,
+    elementId,
+  );
+  if (!cachedElement) {
     console.log(`❌ [KeyboardInput] Element ${elementId} not found in cache`);
     return {
       success: false,
@@ -2206,6 +2490,7 @@ export async function performKeyboardInput(
       error: buildElementCacheMissMessage(elementId),
     };
   }
+  const element = cachedElement.element;
 
   console.log(
     `✅ [KeyboardInput] Found element: selector="${element.selector}"`,
@@ -2215,20 +2500,39 @@ export async function performKeyboardInput(
   // STEP 2: Build JavaScript to input text
   // ============================================================
   // Escape quotes and backslashes in selector and text for safe injection
-  const escapedSelector = element.selector
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"');
-  const escapedText = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+    cachedElement.documentId,
+  );
+  const escapedFingerprint = escapeForDoubleQuotedJavaScriptString(
+    element.fingerprint || '',
+  );
+  const escapedText = escapeForDoubleQuotedJavaScriptString(text);
 
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      const expectedDocumentId = "${escapedDocumentId}";
+      const expectedFingerprint = "${escapedFingerprint}";
       const text = "${escapedText}";
       ${buildEditableActivationHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
         return { input: false, error: "Element not found in DOM", stale: true };
+      }
+
+      const snapshotValidation = validateSnapshotElement(
+        expectedDocumentId,
+        expectedFingerprint,
+        el,
+      );
+      if (!snapshotValidation.ok) {
+        return {
+          input: false,
+          error: snapshotValidation.error,
+          stale: snapshotValidation.stale,
+        };
       }
 
       // Check if element is still visible
@@ -2447,7 +2751,8 @@ export async function performKeyboardInput(
  * 4. Return result with selected values/labels/indices
  *
  * @param conversationId Session ID for element cache lookup
- * @param elementId Cached element ID (6-char hash)
+ * @param highlightSnapshotId Highlight snapshot ID returned by highlight_elements
+ * @param elementId Cached element ID from the referenced highlight snapshot (for example, "1")
  * @param tabId Target tab ID
  * @param value Option value(s) to select. Use string for single select, array for multi-select
  * @param timeout Maximum execution time in milliseconds (default: 30000)
@@ -2455,20 +2760,26 @@ export async function performKeyboardInput(
  */
 export async function performElementSelect(
   conversationId: string,
+  highlightSnapshotId: number,
   elementId: string,
   tabId: number,
   value: string | string[],
   timeout: number = 30000,
 ): Promise<SelectResult> {
   console.log(
-    `📋 [ElementSelect] Selecting element ${elementId} in conversation ${conversationId} on tab ${tabId}`,
+    `📋 [ElementSelect] Selecting element ${elementId} from snapshot ${highlightSnapshotId} in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
   // STEP 1: Look up element from cache
   // ============================================================
-  const element = elementCache.getElementById(conversationId, tabId, elementId);
-  if (!element) {
+  const cachedElement = elementCache.getElementById(
+    conversationId,
+    tabId,
+    highlightSnapshotId,
+    elementId,
+  );
+  if (!cachedElement) {
     console.log(`❌ [ElementSelect] Element ${elementId} not found in cache`);
     return {
       success: false,
@@ -2478,6 +2789,7 @@ export async function performElementSelect(
       error: buildElementCacheMissMessage(elementId),
     };
   }
+  const element = cachedElement.element;
 
   console.log(
     `✅ [ElementSelect] Found element: selector="${element.selector}"`,
@@ -2487,9 +2799,13 @@ export async function performElementSelect(
   // STEP 2: Build JavaScript to select option(s)
   // ============================================================
   // Escape quotes and backslashes in selector for safe injection
-  const escapedSelector = element.selector
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"');
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+    cachedElement.documentId,
+  );
+  const escapedFingerprint = escapeForDoubleQuotedJavaScriptString(
+    element.fingerprint || '',
+  );
 
   // Serialize value for JavaScript injection
   const valueJson = JSON.stringify(value);
@@ -2497,12 +2813,28 @@ export async function performElementSelect(
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      const expectedDocumentId = "${escapedDocumentId}";
+      const expectedFingerprint = "${escapedFingerprint}";
       const value = ${valueJson};
+      ${buildSnapshotIdentityHelpersScript()}
 
       const el = document.querySelector(selector);
 
       if (!el) {
         return { selected: false, error: "Element not found in DOM", stale: true };
+      }
+
+      const snapshotValidation = validateSnapshotElement(
+        expectedDocumentId,
+        expectedFingerprint,
+        el,
+      );
+      if (!snapshotValidation.ok) {
+        return {
+          selected: false,
+          error: snapshotValidation.error,
+          stale: snapshotValidation.stale,
+        };
       }
 
       // Verify it's a select element

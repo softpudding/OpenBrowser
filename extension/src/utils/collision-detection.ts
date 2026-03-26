@@ -23,6 +23,18 @@ export interface BBox {
 export type LabelPosition = 'above' | 'below' | 'left' | 'right';
 
 const VISUAL_ROW_TOLERANCE_PX = 12;
+const POSITION_PRIORITY: LabelPosition[] = ['above', 'below', 'left', 'right'];
+
+interface RemainingCandidate {
+  sourceIndex: number;
+  element: InteractiveElement;
+}
+
+interface PlacementEvaluation {
+  position: LabelPosition;
+  blockedCandidateCount: number;
+  totalFutureOptions: number;
+}
 
 /**
  * Check if two bounding boxes intersect
@@ -172,8 +184,9 @@ export function isLabelWithinViewport(
 }
 
 /**
- * Select a collision-free page of elements using greedy algorithm
- * Tries label positions in priority order: above → below → left → right
+ * Select a collision-free page of elements using a constraint-aware greedy
+ * algorithm. It places the most-constrained remaining element first, then
+ * chooses the label position that blocks the fewest later elements.
  *
  * @param elements - All elements sorted by priority
  * @param page - 1-indexed page number
@@ -221,64 +234,38 @@ function buildCollisionFreePages(
     return [];
   }
 
-  const positions: LabelPosition[] = ['above', 'below', 'left', 'right'];
-  let remaining = elements.map(cloneInteractiveElement);
+  let remaining = elements.map((element, sourceIndex) => ({
+    sourceIndex,
+    element: cloneInteractiveElement(element),
+  }));
   const pages: InteractiveElement[][] = [];
 
   while (remaining.length > 0) {
     const selected: InteractiveElement[] = [];
+    let pageRemaining = remaining;
 
-    for (const elem of remaining) {
-      for (const pos of positions) {
-        const withinViewport =
-          viewportWidth !== undefined && viewportHeight !== undefined
-            ? isLabelWithinViewport(
-                elem.bbox,
-                pos,
-                viewportWidth,
-                viewportHeight,
-                elem.id,
-              )
-            : true;
+    while (pageRemaining.length > 0) {
+      const nextSelection = chooseNextCandidate(
+        pageRemaining,
+        selected,
+        viewportWidth,
+        viewportHeight,
+      );
 
-        if (!withinViewport) {
-          continue;
-        }
-
-        const labelBBox = getLabelBBox(elem.bbox, pos, elem.id);
-
-        let hasCollision = false;
-
-        for (const s of selected) {
-          const sLabelBBox = getLabelBBox(
-            s.bbox,
-            s.labelPosition ?? 'above',
-            s.id,
-          );
-          const nested =
-            bboxContains(s.bbox, elem.bbox) || bboxContains(elem.bbox, s.bbox);
-
-          if (bboxesIntersect(labelBBox, sLabelBBox)) {
-            hasCollision = true;
-            break;
-          }
-
-          if (!nested && bboxesIntersect(labelBBox, s.bbox)) {
-            hasCollision = true;
-            break;
-          }
-
-          if (!nested && bboxesIntersect(elem.bbox, sLabelBBox)) {
-            hasCollision = true;
-            break;
-          }
-        }
-
-        if (!hasCollision) {
-          selected.push({ ...elem, labelPosition: pos });
-          break;
-        }
+      if (!nextSelection) {
+        break;
       }
+
+      const labelText = String(selected.length + 1);
+      selected.push({
+        ...nextSelection.candidate.element,
+        id: labelText,
+        labelPosition: nextSelection.position,
+      });
+      pageRemaining = pageRemaining.filter(
+        (candidate) =>
+          candidate.sourceIndex !== nextSelection.candidate.sourceIndex,
+      );
     }
 
     if (selected.length === 0) {
@@ -286,11 +273,192 @@ function buildCollisionFreePages(
     }
 
     pages.push(selected);
-    const selectedIds = new Set(selected.map((e) => e.id));
-    remaining = remaining.filter((e) => !selectedIds.has(e.id));
+    remaining = pageRemaining;
   }
 
   return pages;
+}
+
+function chooseNextCandidate(
+  remaining: RemainingCandidate[],
+  selected: InteractiveElement[],
+  viewportWidth?: number,
+  viewportHeight?: number,
+): (PlacementEvaluation & { candidate: RemainingCandidate }) | null {
+  const currentLabelText = String(selected.length + 1);
+  let minFeasiblePositions = Number.POSITIVE_INFINITY;
+  let constrainedCandidate:
+    | {
+        candidate: RemainingCandidate;
+        feasiblePositions: LabelPosition[];
+      }
+    | null = null;
+
+  for (const candidate of remaining) {
+    const feasiblePositions = getFeasiblePositions(
+      candidate.element,
+      currentLabelText,
+      selected,
+      viewportWidth,
+      viewportHeight,
+    );
+
+    if (
+      feasiblePositions.length > 0 &&
+      feasiblePositions.length < minFeasiblePositions
+    ) {
+      minFeasiblePositions = feasiblePositions.length;
+      constrainedCandidate = {
+        candidate,
+        feasiblePositions,
+      };
+    }
+  }
+
+  if (!constrainedCandidate) {
+    return null;
+  }
+
+  return {
+    candidate: constrainedCandidate.candidate,
+    ...chooseLeastBlockingPlacement(
+      constrainedCandidate.candidate,
+      constrainedCandidate.feasiblePositions,
+      remaining,
+      selected,
+      viewportWidth,
+      viewportHeight,
+    ),
+  };
+}
+
+function chooseLeastBlockingPlacement(
+  candidate: RemainingCandidate,
+  feasiblePositions: LabelPosition[],
+  remaining: RemainingCandidate[],
+  selected: InteractiveElement[],
+  viewportWidth?: number,
+  viewportHeight?: number,
+): PlacementEvaluation {
+  const currentLabelText = String(selected.length + 1);
+  const futureCandidates = remaining.filter(
+    (remainingCandidate) => remainingCandidate.sourceIndex !== candidate.sourceIndex,
+  );
+  let bestPlacement: PlacementEvaluation | null = null;
+
+  for (const position of feasiblePositions) {
+    const hypotheticalSelected = [
+      ...selected,
+      {
+        ...candidate.element,
+        id: currentLabelText,
+        labelPosition: position,
+      },
+    ];
+    let blockedCandidateCount = 0;
+    let totalFutureOptions = 0;
+
+    futureCandidates.forEach((candidate, futureIndex) => {
+      const futureLabelText = String(selected.length + 2 + futureIndex);
+      const futureOptions = getFeasiblePositions(
+        candidate.element,
+        futureLabelText,
+        hypotheticalSelected,
+        viewportWidth,
+        viewportHeight,
+      );
+
+      if (futureOptions.length === 0) {
+        blockedCandidateCount++;
+      }
+      totalFutureOptions += futureOptions.length;
+    });
+
+    if (
+      !bestPlacement ||
+      blockedCandidateCount < bestPlacement.blockedCandidateCount ||
+      (blockedCandidateCount === bestPlacement.blockedCandidateCount &&
+        totalFutureOptions > bestPlacement.totalFutureOptions) ||
+      (blockedCandidateCount === bestPlacement.blockedCandidateCount &&
+        totalFutureOptions === bestPlacement.totalFutureOptions &&
+        POSITION_PRIORITY.indexOf(position) <
+          POSITION_PRIORITY.indexOf(bestPlacement.position))
+    ) {
+      bestPlacement = {
+        position,
+        blockedCandidateCount,
+        totalFutureOptions,
+      };
+    }
+  }
+
+  return bestPlacement ?? {
+    position: POSITION_PRIORITY[0],
+    blockedCandidateCount: Number.POSITIVE_INFINITY,
+    totalFutureOptions: Number.NEGATIVE_INFINITY,
+  };
+}
+
+function getFeasiblePositions(
+  element: InteractiveElement,
+  labelText: string,
+  selected: InteractiveElement[],
+  viewportWidth?: number,
+  viewportHeight?: number,
+): LabelPosition[] {
+  const feasiblePositions: LabelPosition[] = [];
+
+  for (const position of POSITION_PRIORITY) {
+    const withinViewport =
+      viewportWidth !== undefined && viewportHeight !== undefined
+        ? isLabelWithinViewport(
+            element.bbox,
+            position,
+            viewportWidth,
+            viewportHeight,
+            labelText,
+          )
+        : true;
+
+    if (!withinViewport) {
+      continue;
+    }
+
+    const labelBBox = getLabelBBox(element.bbox, position, labelText);
+    let hasCollision = false;
+
+    for (const selectedElement of selected) {
+      const selectedLabelBBox = getLabelBBox(
+        selectedElement.bbox,
+        selectedElement.labelPosition ?? 'above',
+        selectedElement.id,
+      );
+      const nested =
+        bboxContains(selectedElement.bbox, element.bbox) ||
+        bboxContains(element.bbox, selectedElement.bbox);
+
+      if (bboxesIntersect(labelBBox, selectedLabelBBox)) {
+        hasCollision = true;
+        break;
+      }
+
+      if (!nested && bboxesIntersect(labelBBox, selectedElement.bbox)) {
+        hasCollision = true;
+        break;
+      }
+
+      if (!nested && bboxesIntersect(element.bbox, selectedLabelBBox)) {
+        hasCollision = true;
+        break;
+      }
+    }
+
+    if (!hasCollision) {
+      feasiblePositions.push(position);
+    }
+  }
+
+  return feasiblePositions;
 }
 
 function cloneInteractiveElement(

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenBrowserAgent - Terminal Interface</title>
+    <title>OpenBrowser</title>
     <style>
         html {
             height: 100%;
@@ -251,25 +251,6 @@
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
         }
         
-        .live-image.fullsize {
-            max-width: 90vw;
-            max-height: 90vh;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.95);
-            z-index: 1000;
-            background: #1a1a1a;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.9);
-            cursor: pointer;
-        }
-        
-        .live-image.fullsize:hover {
-            transform: translate(-50%, -50%) scale(1);
-        }
-        
         .no-image-placeholder {
             color: #666666;
             font-style: italic;
@@ -392,33 +373,36 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
         }
         
-        .event-image.fullsize {
-            max-width: 100%;
-            max-height: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.95);
-            z-index: 1000;
-            background: #1a1a1a;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.8);
-        }
-        
-        .event-image.fullsize:hover {
-            transform: translate(-50%, -50%) scale(1);
-        }
-        
         .image-overlay {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 999;
+            background: rgba(6, 5, 4, 0.88);
+            backdrop-filter: blur(8px);
+            z-index: 4000;
             display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            cursor: zoom-out;
+        }
+
+        .image-overlay.open {
+            display: flex;
+        }
+
+        .image-overlay img {
+            max-width: min(92vw, 1800px);
+            max-height: 92vh;
+            width: auto;
+            height: auto;
+            border-radius: 20px;
+            border: 1px solid rgba(var(--accent-rgb), 0.18);
+            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+            background: #17120e;
+            cursor: auto;
         }
 
         .event-meta {
@@ -771,73 +755,83 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: #1a1a1a;
+            background: rgba(10, 8, 6, 0.76);
+            backdrop-filter: blur(18px);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 2000;
             overflow-y: auto;
-            padding: 20px;
+            padding: 28px;
         }
         
         .config-container {
-            background: #222222;
-            border: 1px solid #444444;
-            border-radius: 8px;
-            padding: 30px;
-            max-width: 600px;
+            background: linear-gradient(180deg, rgba(34, 27, 21, 0.98), rgba(24, 20, 16, 0.96));
+            border: 1px solid var(--panel-border);
+            border-radius: 24px;
+            padding: 28px;
+            max-width: 760px;
             width: 100%;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            max-height: min(88vh, 980px);
+            overflow-y: auto;
+            box-shadow: var(--shadow-strong);
             position: relative;
         }
         
         .config-header {
-            text-align: center;
-            margin-bottom: 30px;
+            text-align: left;
+            margin-bottom: 24px;
         }
         
         .config-header h1 {
-            color: #ffffff;
-            font-size: 24px;
-            margin-bottom: 10px;
+            color: var(--text-primary);
+            font-size: 28px;
+            letter-spacing: -0.03em;
+            margin-bottom: 8px;
         }
         
         .config-subtitle {
-            color: #888888;
+            color: var(--text-muted);
             font-size: 14px;
+            line-height: 1.6;
+            max-width: 56ch;
         }
         
         .config-tabs {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
-            border-bottom: 1px solid #444444;
-            padding-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(204, 175, 140, 0.12);
+            flex-wrap: wrap;
         }
         
         .config-tab {
-            background: #1a1a1a;
-            border: 1px solid #444444;
-            color: #cccccc;
-            padding: 8px 20px;
+            background: rgba(43, 34, 27, 0.84);
+            border: 1px solid var(--panel-border);
+            color: var(--text-secondary);
+            padding: 10px 18px;
             cursor: pointer;
-            border-radius: 4px 4px 0 0;
+            border-radius: 999px;
             font-size: 13px;
+            font-weight: 600;
             transition: all 0.2s;
         }
         
         .config-tab:hover {
-            background: #333333;
+            background: rgba(58, 46, 36, 0.94);
+            border-color: var(--panel-border-strong);
+            color: var(--text-primary);
         }
         
         .config-tab.active {
-            background: #333333;
-            border-bottom-color: #333333;
-            color: #ffffff;
+            background: rgba(var(--accent-rgb), 0.14);
+            border-color: rgba(var(--accent-rgb), 0.28);
+            color: var(--accent-strong);
         }
         
         .config-tab-content {
-            padding: 20px 0;
+            padding: 18px 0;
         }
         
         .config-form {
@@ -853,116 +847,148 @@
         }
         
         .form-group label {
-            color: #cccccc;
-            font-size: 14px;
-            font-weight: bold;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 700;
         }
         
         .form-group input {
-            background: #1a1a1a;
-            border: 1px solid #444444;
-            color: #ffffff;
-            padding: 10px;
-            border-radius: 4px;
+            background: rgba(24, 20, 16, 0.82);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            padding: 12px 14px;
+            border-radius: 14px;
             font-size: 14px;
-            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-family: var(--mono-font);
         }
 
         .form-group select {
-            background: #1a1a1a;
-            border: 1px solid #444444;
-            color: #ffffff;
-            padding: 10px;
-            border-radius: 4px;
+            background: rgba(24, 20, 16, 0.82);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            padding: 12px 14px;
+            border-radius: 14px;
             font-size: 14px;
-            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-family: var(--mono-font);
         }
         
         .form-group input:focus {
             outline: none;
-            border-color: #666666;
+            border-color: var(--panel-border-strong);
+            box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.08);
         }
 
         .form-group select:focus {
             outline: none;
-            border-color: #666666;
+            border-color: var(--panel-border-strong);
+            box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.08);
         }
         
         .form-group input::placeholder {
-            color: #666666;
+            color: var(--text-subtle);
+        }
+
+        .config-page input[type="checkbox"],
+        .config-page input[type="radio"] {
+            accent-color: var(--accent);
         }
         
         .help-text {
-            color: #888888;
+            color: var(--text-muted);
             font-size: 12px;
-            font-style: italic;
+            line-height: 1.5;
         }
         
         .required {
-            color: #999999;
+            color: var(--accent-strong);
         }
         
         .form-actions {
             display: flex;
             gap: 10px;
             margin-top: 10px;
+            flex-wrap: wrap;
         }
         
         .btn-primary {
-            background: #333333;
-            color: #ffffff;
-            padding: 10px 20px;
-            border: 1px solid #555555;
-            border-radius: 4px;
+            background: linear-gradient(135deg, rgba(124, 84, 43, 0.98), rgba(92, 62, 34, 0.96));
+            color: var(--text-primary);
+            padding: 11px 18px;
+            border: 1px solid rgba(var(--accent-rgb), 0.26);
+            border-radius: 999px;
             cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
+            font-size: 13px;
+            font-weight: 700;
             transition: all 0.2s;
         }
         
         .btn-primary:hover {
-            background: #444444;
-            border-color: #777777;
+            background: linear-gradient(135deg, rgba(141, 97, 52, 0.98), rgba(106, 72, 39, 0.96));
         }
 
         .btn-secondary {
-            background: #1f1f1f;
-            color: #cccccc;
-            padding: 10px 20px;
-            border: 1px solid #444444;
-            border-radius: 4px;
+            background: rgba(43, 34, 27, 0.84);
+            color: var(--text-secondary);
+            padding: 11px 18px;
+            border: 1px solid var(--panel-border);
+            border-radius: 999px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
+            font-weight: 600;
             transition: all 0.2s;
         }
 
         .btn-secondary:hover {
-            background: #2c2c2c;
-            border-color: #666666;
+            background: rgba(58, 46, 36, 0.94);
+            border-color: var(--panel-border-strong);
+            color: var(--text-primary);
         }
         
         .btn-success {
-            background: #333333;
-            color: #ffffff;
-            padding: 12px 24px;
-            border: 1px solid #555555;
-            border-radius: 4px;
+            background: linear-gradient(135deg, rgba(124, 84, 43, 0.98), rgba(92, 62, 34, 0.96));
+            color: var(--text-primary);
+            padding: 12px 20px;
+            border: 1px solid rgba(var(--accent-rgb), 0.26);
+            border-radius: 999px;
             cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
+            font-size: 14px;
+            font-weight: 700;
             transition: all 0.2s;
             width: 100%;
         }
         
         .btn-success:hover {
-            background: #444444;
-            border-color: #777777;
+            background: linear-gradient(135deg, rgba(141, 97, 52, 0.98), rgba(106, 72, 39, 0.96));
         }
         
         .config-footer {
             margin-top: 20px;
             padding-top: 20px;
-            border-top: 1px solid #444444;
+            border-top: 1px solid rgba(204, 175, 140, 0.12);
+        }
+
+        .config-close-btn {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            background: rgba(43, 34, 27, 0.84);
+            border: 1px solid var(--panel-border);
+            color: var(--text-secondary);
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .config-close-btn:hover {
+            background: rgba(58, 46, 36, 0.94);
+            border-color: var(--panel-border-strong);
+            color: var(--text-primary);
         }
         
         .settings-btn {
@@ -1013,9 +1039,9 @@
         }
 
         .model-config-card {
-            border: 1px solid #444444;
-            border-radius: 6px;
-            background: #1a1a1a;
+            border: 1px solid rgba(204, 175, 140, 0.12);
+            border-radius: 18px;
+            background: rgba(28, 22, 17, 0.72);
             padding: 16px;
             display: flex;
             flex-direction: column;
@@ -1030,9 +1056,9 @@
         }
 
         .model-config-title {
-            color: #cccccc;
+            color: var(--text-primary);
             font-size: 13px;
-            font-weight: bold;
+            font-weight: 700;
         }
 
         .model-config-actions {
@@ -1046,23 +1072,23 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            color: #aaaaaa;
+            color: var(--text-muted);
             font-size: 12px;
         }
 
         .model-config-remove {
-            background: #2d1515;
-            border: 1px solid #5f2b2b;
-            color: #cccccc;
+            background: rgba(88, 40, 32, 0.58);
+            border: 1px solid rgba(170, 94, 79, 0.32);
+            color: var(--text-secondary);
             padding: 6px 10px;
-            border-radius: 4px;
+            border-radius: 999px;
             cursor: pointer;
             font-size: 12px;
         }
 
         .model-config-remove:hover {
-            background: #4a1d1d;
-            border-color: #7f3d3d;
+            background: rgba(108, 47, 37, 0.76);
+            border-color: rgba(196, 108, 91, 0.42);
         }
         
         /* Main Interface Container */
@@ -1081,16 +1107,16 @@
             position: fixed;
             top: 0;
             left: 0;
-            width: 350px;
+            width: 400px;
             height: 100vh;
-            background: #1e1e1e;
-            border-right: 1px solid #444444;
-            transform: translateX(-350px);
+            background: linear-gradient(180deg, rgba(34, 27, 21, 0.98), rgba(24, 20, 16, 0.96));
+            border-right: 1px solid var(--panel-border);
+            transform: translateX(-400px);
             transition: transform 0.3s ease;
             z-index: 3000;
             display: flex;
             flex-direction: column;
-            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+            box-shadow: var(--shadow-strong);
         }
 
         .session-sidebar.open {
@@ -1098,9 +1124,9 @@
         }
 
         .sidebar-header {
-            padding: 15px;
-            background: #222222;
-            border-bottom: 1px solid #444444;
+            padding: 18px;
+            background: rgba(43, 34, 27, 0.72);
+            border-bottom: 1px solid rgba(204, 175, 140, 0.12);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -1108,40 +1134,45 @@
 
         .sidebar-title {
             font-size: 14px;
-            color: #cccccc;
-            font-weight: bold;
+            color: var(--text-primary);
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.12em;
         }
 
         .sidebar-close-btn {
-            background: transparent;
-            border: none;
-            color: #888888;
+            background: rgba(43, 34, 27, 0.84);
+            border: 1px solid var(--panel-border);
+            color: var(--text-muted);
             cursor: pointer;
-            font-size: 20px;
-            padding: 5px;
-            transition: color 0.2s;
+            font-size: 16px;
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            transition: all 0.2s;
         }
 
         .sidebar-close-btn:hover {
-            color: #cccccc;
+            background: rgba(58, 46, 36, 0.94);
+            color: var(--text-primary);
+            border-color: var(--panel-border-strong);
         }
 
         .sidebar-filters {
-            padding: 10px 15px;
-            background: #222222;
-            border-bottom: 1px solid #444444;
+            padding: 12px 18px;
+            background: rgba(43, 34, 27, 0.72);
+            border-bottom: 1px solid rgba(204, 175, 140, 0.12);
             display: flex;
             gap: 8px;
+            flex-wrap: wrap;
         }
 
         .sidebar-filter-btn {
-            background: #333333;
-            color: #999999;
-            border: 1px solid #444444;
-            padding: 5px 10px;
-            border-radius: 3px;
+            background: rgba(43, 34, 27, 0.84);
+            color: var(--text-muted);
+            border: 1px solid var(--panel-border);
+            padding: 7px 12px;
+            border-radius: 999px;
             cursor: pointer;
             font-family: inherit;
             font-size: 11px;
@@ -1149,52 +1180,51 @@
         }
 
         .sidebar-filter-btn:hover {
-            background: #3a3a3a;
-            color: #cccccc;
+            background: rgba(58, 46, 36, 0.94);
+            color: var(--text-primary);
         }
 
         .sidebar-filter-btn.active {
-            background: #444444;
-            color: white;
-            border-color: #777777;
+            background: rgba(var(--accent-rgb), 0.14);
+            color: var(--accent-strong);
+            border-color: rgba(var(--accent-rgb), 0.28);
         }
 
         .sidebar-content {
             flex: 1;
             overflow-y: auto;
-            padding: 10px;
+            padding: 16px 14px;
         }
 
         .sidebar-footer {
-            padding: 15px;
-            background: #222222;
-            border-top: 1px solid #444444;
+            padding: 16px 18px;
+            background: rgba(43, 34, 27, 0.72);
+            border-top: 1px solid rgba(204, 175, 140, 0.12);
         }
 
         .new-session-btn {
             width: 100%;
-            background: #333333;
-            color: white;
-            border: 1px solid #555555;
-            padding: 10px;
-            border-radius: 4px;
+            background: linear-gradient(135deg, rgba(124, 84, 43, 0.98), rgba(92, 62, 34, 0.96));
+            color: var(--text-primary);
+            border: 1px solid rgba(var(--accent-rgb), 0.26);
+            padding: 12px;
+            border-radius: 999px;
             cursor: pointer;
             font-family: inherit;
             font-size: 13px;
-            font-weight: bold;
+            font-weight: 700;
             transition: all 0.2s;
         }
 
         .new-session-btn:hover {
-            background: #444444;
-            border-color: #777777;
+            background: linear-gradient(135deg, rgba(141, 97, 52, 0.98), rgba(106, 72, 39, 0.96));
         }
 
         .session-card {
-            background: #2a2a2a;
-            border: 1px solid #444444;
-            border-radius: 5px;
-            padding: 10px;
+            background: rgba(32, 25, 20, 0.72);
+            border: 1px solid rgba(204, 175, 140, 0.1);
+            border-radius: 16px;
+            padding: 14px;
             padding-right: 35px;  /* Make room for delete button */
             margin-bottom: 8px;
             cursor: pointer;
@@ -1203,13 +1233,13 @@
         }
 
         .session-card:hover {
-            background: #333333;
-            border-color: #666666;
+            background: rgba(43, 34, 27, 0.92);
+            border-color: rgba(var(--accent-rgb), 0.22);
         }
 
         .session-card.active {
-            border-color: #666666;
-            background: #333333;
+            border-color: rgba(var(--accent-rgb), 0.28);
+            background: rgba(var(--accent-rgb), 0.08);
         }
 
         .session-card-header {
@@ -1222,7 +1252,7 @@
         .session-card-id {
             font-size: 11px;
             font-family: monospace;
-            color: #aaaaaa;
+            color: var(--text-muted);
         }
 
         .session-card-status {
@@ -1234,32 +1264,32 @@
         }
 
         .session-card-status.active {
-            background: #1a1a1a;
-            border-color: #666666;
-            color: #cccccc;
+            background: rgba(var(--accent-rgb), 0.12);
+            border-color: rgba(var(--accent-rgb), 0.28);
+            color: var(--accent-strong);
         }
 
         .session-card-status.idle {
-            background: #1a1a1a;
-            border-color: #555555;
-            color: #aaaaaa;
+            background: rgba(255, 255, 255, 0.02);
+            border-color: rgba(204, 175, 140, 0.2);
+            color: var(--text-muted);
         }
 
         .session-card-status.error {
-            background: #1a1a1a;
-            border-color: #666666;
-            color: #999999;
+            background: rgba(124, 44, 44, 0.16);
+            border-color: rgba(199, 102, 102, 0.28);
+            color: #efb0b0;
         }
 
         .session-card-status.completed {
-            background: #1a1a1a;
-            border-color: #444444;
-            color: #777777;
+            background: rgba(255, 255, 255, 0.02);
+            border-color: rgba(204, 175, 140, 0.16);
+            color: var(--text-muted);
         }
 
         .session-card-preview {
             font-size: 11px;
-            color: #888888;
+            color: var(--text-secondary);
             margin-bottom: 4px;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -1270,7 +1300,8 @@
             display: flex;
             gap: 10px;
             font-size: 10px;
-            color: #666666;
+            color: var(--text-subtle);
+            flex-wrap: wrap;
         }
 
         .session-card-delete-btn {
@@ -1280,7 +1311,7 @@
             transform: translateY(-50%);
             background: transparent;
             border: none;
-            color: #666666;
+            color: var(--text-subtle);
             cursor: pointer;
             font-size: 14px;
             padding: 4px 8px;
@@ -1296,8 +1327,8 @@
         }
 
         .session-card-delete-btn:hover {
-            background: #660000;
-            color: #ffcccc;
+            background: rgba(108, 47, 37, 0.76);
+            color: var(--text-primary);
         }
 
         .session-overlay {
@@ -1306,7 +1337,8 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(10, 8, 6, 0.58);
+            backdrop-filter: blur(8px);
             z-index: 2500;
             opacity: 0;
             visibility: hidden;
@@ -1321,7 +1353,7 @@
         .empty-state {
             text-align: center;
             padding: 40px 20px;
-            color: #666666;
+            color: var(--text-muted);
         }
 
         .empty-state-icon {
@@ -1341,17 +1373,18 @@
         .prompt-textarea {
             flex: 1;
             min-height: 60px;
-            font-family: monospace;
-            font-size: 12px;
-            padding: 8px;
-            background: #222222;
-            border: 1px solid #444444;
-            color: #cccccc;
-            border-radius: 3px;
+            font-family: var(--mono-font);
+            font-size: 13px;
+            padding: 12px 14px;
+            background: rgba(24, 20, 16, 0.82);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            border-radius: 14px;
             resize: vertical;
         }
         .prompt-textarea:focus {
-            border-color: #666666;
+            border-color: var(--panel-border-strong);
+            box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.08);
             outline: none;
         }
         .prompt-item-row {
@@ -1361,19 +1394,1241 @@
         }
         .prompt-remove-btn {
             margin-left: 10px;
-            background: #662222;
-            border: 1px solid #882222;
-            color: #cccccc;
+            background: rgba(88, 40, 32, 0.58);
+            border: 1px solid rgba(170, 94, 79, 0.32);
+            color: var(--text-secondary);
             padding: 4px 12px;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 999px;
             font-size: 11px;
             flex-shrink: 0;
             height: fit-content;
         }
         .prompt-remove-btn:hover {
-            background: #882222;
-            border-color: #aa2222;
+            background: rgba(108, 47, 37, 0.76);
+            border-color: rgba(196, 108, 91, 0.42);
+        }
+
+        :root {
+            --app-bg: #12100d;
+            --app-bg-alt: #1c1712;
+            --panel-bg: rgba(29, 23, 18, 0.88);
+            --panel-bg-strong: rgba(34, 27, 21, 0.96);
+            --panel-bg-soft: rgba(43, 34, 27, 0.8);
+            --panel-border: rgba(204, 175, 140, 0.14);
+            --panel-border-strong: rgba(198, 154, 92, 0.3);
+            --text-primary: #f5efe6;
+            --text-secondary: #d6c9b8;
+            --text-muted: #a89782;
+            --text-subtle: #7a6b5b;
+            --accent-rgb: 198, 154, 92;
+            --accent: #c69a5c;
+            --accent-strong: #e0b777;
+            --accent-soft: rgba(var(--accent-rgb), 0.14);
+            --success-soft: rgba(122, 231, 181, 0.12);
+            --danger-soft: rgba(255, 143, 143, 0.14);
+            --shadow-strong: 0 28px 90px rgba(0, 0, 0, 0.38);
+            --radius-xl: 28px;
+            --radius-lg: 22px;
+            --radius-md: 16px;
+            --radius-sm: 12px;
+            --mono-font: "SFMono-Regular", "Menlo", "Monaco", "Consolas", monospace;
+        }
+
+        body {
+            font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(198, 154, 92, 0.12), transparent 34%),
+                radial-gradient(circle at bottom right, rgba(122, 92, 63, 0.14), transparent 30%),
+                linear-gradient(180deg, #12100d 0%, #17130f 44%, #1d1712 100%);
+            color: var(--text-primary);
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background:
+                linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+            background-size: 36px 36px;
+            mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.36), transparent 92%);
+            opacity: 0.14;
+        }
+
+        #main-interface {
+            padding: 24px;
+            gap: 16px;
+            background: transparent;
+        }
+
+        .terminal-header {
+            padding: 18px 20px;
+            background: linear-gradient(180deg, rgba(33, 27, 21, 0.96), rgba(24, 20, 16, 0.9));
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-xl);
+            backdrop-filter: blur(24px);
+            box-shadow: var(--shadow-strong);
+            gap: 16px;
+            align-items: center;
+        }
+
+        .ascii-title {
+            display: none;
+        }
+
+        .brand-block {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-width: 420px;
+        }
+
+        .brand-kicker,
+        .panel-kicker,
+        .summary-label,
+        .status-item-label,
+        .meta-title,
+        .timeline-clock-label {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+        }
+
+        .brand-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .brand-row h1 {
+            font-size: 32px;
+            line-height: 1;
+            letter-spacing: -0.04em;
+            color: var(--text-primary);
+        }
+
+        .mode-pill,
+        .stage-badge,
+        .empty-state-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--panel-border-strong);
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .mode-pill {
+            display: none;
+        }
+
+        .brand-copy,
+        .panel-copy,
+        .advanced-summary-note,
+        .viewer-status-note,
+        .composer-footnote,
+        .no-image-placeholder p {
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .header-side {
+            margin-left: auto;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .status-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-start;
+            width: auto;
+        }
+
+        .status-item {
+            background: rgba(43, 34, 27, 0.76);
+            border: 1px solid var(--panel-border);
+            border-radius: 999px;
+            padding: 8px 11px;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 2px;
+            min-width: 84px;
+        }
+
+        .status-item-value,
+        #server-status,
+        #browser-status,
+        #event-count,
+        #current-session-id {
+            color: var(--text-primary);
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .status-connected {
+            color: #9be7c1;
+        }
+
+        .status-disconnected {
+            color: #ffb8b8;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .header-action-btn,
+        .ghost-button,
+        .refresh-button {
+            background: rgba(43, 34, 27, 0.84);
+            color: var(--text-secondary);
+            border: 1px solid var(--panel-border);
+            padding: 10px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+        }
+
+        .header-action-btn:hover,
+        .ghost-button:hover,
+        .refresh-button:hover {
+            transform: translateY(-1px);
+            background: rgba(58, 46, 36, 0.94);
+            border-color: var(--panel-border-strong);
+            color: var(--text-primary);
+        }
+
+        .header-action-btn.primary {
+            background: linear-gradient(135deg, rgba(124, 84, 43, 0.98), rgba(92, 62, 34, 0.96));
+            border-color: rgba(var(--accent-rgb), 0.32);
+            color: var(--text-primary);
+        }
+
+        .container {
+            gap: 18px;
+            background: transparent;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .right-panel {
+            order: 1;
+            flex: 1.15 1 auto;
+            min-width: 0;
+            gap: 0;
+        }
+
+        .vertical-resizer {
+            order: 2;
+            width: 8px;
+            border-radius: 999px;
+            background: rgba(var(--accent-rgb), 0.14);
+        }
+
+        .vertical-resizer:hover,
+        .vertical-resizer.dragging,
+        .horizontal-resizer:hover,
+        .horizontal-resizer.dragging {
+            background: rgba(var(--accent-rgb), 0.34);
+        }
+
+        .main-terminal {
+            order: 3;
+            flex: 0 0 540px;
+            max-width: 620px;
+            min-width: 400px;
+            gap: 14px;
+            background: transparent;
+            border: none;
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding-right: 10px;
+            min-height: 0;
+            position: relative;
+        }
+
+        .panel-card,
+        .image-viewer,
+        .sidebar,
+        .advanced-content > .sidebar-section {
+            background: linear-gradient(180deg, rgba(34, 27, 21, 0.94), rgba(24, 20, 16, 0.88));
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-strong);
+            backdrop-filter: blur(24px);
+        }
+
+        .panel-card {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .panel-title,
+        .advanced-summary-title,
+        .viewer-title-text {
+            color: var(--text-primary);
+            font-size: 24px;
+            line-height: 1.15;
+            letter-spacing: -0.03em;
+        }
+
+        .composer-card .panel-title,
+        .timeline-card .panel-title,
+        .sidebar-section .panel-title {
+            font-size: 18px;
+        }
+
+        .control-card {
+            gap: 18px;
+        }
+
+        .agent-voice-card {
+            gap: 18px;
+            border-color: rgba(var(--accent-rgb), 0.22);
+            background:
+                radial-gradient(circle at top left, rgba(var(--accent-rgb), 0.12), transparent 46%),
+                linear-gradient(180deg, rgba(38, 30, 23, 0.98), rgba(23, 19, 15, 0.94));
+        }
+
+        .agent-voice-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .agent-voice-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .agent-voice-time {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .agent-voice-bubble {
+            position: relative;
+            padding: 18px 20px;
+            border-radius: 22px 22px 22px 8px;
+            background:
+                linear-gradient(180deg, rgba(64, 48, 35, 0.62), rgba(37, 29, 23, 0.92));
+            border: 1px solid rgba(var(--accent-rgb), 0.22);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .agent-voice-bubble::after {
+            content: "";
+            position: absolute;
+            left: 18px;
+            bottom: -10px;
+            width: 18px;
+            height: 18px;
+            border-radius: 0 0 0 6px;
+            background: rgba(37, 29, 23, 0.92);
+            border-left: 1px solid rgba(var(--accent-rgb), 0.22);
+            border-bottom: 1px solid rgba(var(--accent-rgb), 0.22);
+            transform: skewY(22deg);
+        }
+
+        .agent-voice-text {
+            color: var(--text-primary);
+            font-size: 16px;
+            line-height: 1.75;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .agent-voice-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .voice-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(24, 19, 15, 0.62);
+            border: 1px solid rgba(204, 175, 140, 0.1);
+            min-width: 0;
+        }
+
+        .voice-stat-label {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .voice-stat-value {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .control-header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .field-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .field-stack label,
+        .field-inline label {
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .field-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 12px;
+        }
+
+        .field-inline {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #browser-id-input,
+        #cwd-input,
+        .model-select {
+            width: 100%;
+            background: rgba(24, 20, 16, 0.82);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            font-family: var(--mono-font);
+            font-size: 13px;
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            outline: none;
+            transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        #browser-id-input:focus,
+        #cwd-input:focus,
+        .model-select:focus {
+            border-color: var(--panel-border-strong);
+            background: rgba(31, 25, 20, 0.94);
+            box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.08);
+        }
+
+        #cwd-input-container {
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .helper-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .summary-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 14px;
+            border-radius: var(--radius-sm);
+            background: rgba(32, 25, 20, 0.66);
+            border: 1px solid rgba(204, 175, 140, 0.1);
+            min-width: 0;
+        }
+
+        .summary-value,
+        .connection-line strong,
+        .timeline-meta strong {
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .quick-prompts {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .quick-prompt {
+            border: 1px solid rgba(var(--accent-rgb), 0.18);
+            background: rgba(var(--accent-rgb), 0.07);
+            color: var(--text-secondary);
+            padding: 10px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .quick-prompt:hover {
+            transform: translateY(-1px);
+            border-color: rgba(var(--accent-rgb), 0.34);
+            background: rgba(var(--accent-rgb), 0.14);
+        }
+
+        .input-area {
+            position: static;
+            border: 1px solid var(--panel-border-strong);
+            padding: 14px 16px;
+            background: linear-gradient(180deg, rgba(29, 24, 19, 0.96), rgba(21, 17, 14, 0.92));
+            border-radius: var(--radius-md);
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: end;
+            gap: 12px;
+        }
+
+        .input-prompt {
+            min-width: 56px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            background: rgba(var(--accent-rgb), 0.12);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .blink {
+            animation: none;
+        }
+
+        .command-input {
+            min-width: 0;
+            width: 100%;
+            min-height: 44px;
+            max-height: 220px;
+            padding: 10px 0 0;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 15px;
+            line-height: 1.5;
+            resize: none;
+            overflow-y: hidden;
+            outline: none;
+        }
+
+        .command-input::placeholder {
+            color: var(--text-subtle);
+        }
+
+        .send-button,
+        .pause-button,
+        .sisyphus-start-button,
+        .sisyphus-stop-button {
+            border-radius: 999px !important;
+            padding: 10px 16px !important;
+            font-family: inherit !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            border: 1px solid transparent !important;
+            margin-left: 0 !important;
+        }
+
+        .send-button {
+            background: linear-gradient(135deg, rgba(124, 84, 43, 0.98), rgba(92, 62, 34, 0.96));
+            color: var(--text-primary);
+            border-color: rgba(var(--accent-rgb), 0.28) !important;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: linear-gradient(135deg, rgba(141, 97, 52, 0.98), rgba(106, 72, 39, 0.96));
+        }
+
+        .pause-button {
+            background: rgba(105, 41, 41, 0.92);
+            color: #ffd9d9;
+            border-color: rgba(255, 165, 165, 0.24) !important;
+        }
+
+        .timeline-card {
+            flex: 1;
+            min-height: 360px;
+            overflow: hidden;
+        }
+
+        .timeline-header,
+        .viewer-header,
+        .viewer-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .timeline-meta,
+        .viewer-status-stack {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .terminal-output {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 14px 0 2px;
+            font-family: var(--mono-font);
+            font-size: 12px;
+        }
+
+        .event-line {
+            padding: 10px 12px;
+            border-left: 3px solid rgba(var(--accent-rgb), 0.12);
+            border-radius: 0 14px 14px 0;
+            background: rgba(25, 20, 16, 0.44);
+            max-width: 100%;
+        }
+
+        .event-line:hover,
+        .event-line.expanded {
+            background: rgba(36, 28, 22, 0.86);
+            border-left-color: rgba(var(--accent-rgb), 0.36);
+        }
+
+        .event-type {
+            font-size: 10px;
+            letter-spacing: 0.16em;
+        }
+
+        .event-timestamp,
+        .expand-toggle,
+        .event-meta,
+        .event-header-summary {
+            color: var(--text-subtle);
+        }
+
+        .event-content,
+        .prompt-line {
+            color: var(--text-secondary);
+        }
+
+        .event-line.message-agent,
+        .event-line.message-user {
+            border-left: none;
+            border-radius: 22px;
+            padding: 14px 16px;
+        }
+
+        .event-line.message-agent {
+            margin-right: 28px;
+            background:
+                linear-gradient(180deg, rgba(57, 44, 33, 0.82), rgba(34, 27, 21, 0.94));
+            border: 1px solid rgba(var(--accent-rgb), 0.24);
+        }
+
+        .event-line.message-user {
+            align-self: flex-end;
+            margin-left: 44px;
+            background: rgba(var(--accent-rgb), 0.1);
+            border: 1px solid rgba(var(--accent-rgb), 0.16);
+        }
+
+        .event-line.event-action,
+        .event-line.event-observation,
+        .event-line.event-system,
+        .event-line.event-error {
+            background: rgba(25, 20, 16, 0.5);
+        }
+
+        .event-line.message-agent .event-content,
+        .event-line.message-user .event-content {
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+
+        .event-line.message-agent .event-type {
+            color: var(--accent-strong) !important;
+        }
+
+        .event-line.message-user .event-type {
+            color: #f0d8a3 !important;
+        }
+
+        .event-line.event-action .event-type {
+            color: #e6c48d !important;
+        }
+
+        .event-line.event-observation .event-type {
+            color: #9be7c1 !important;
+        }
+
+        .event-line.event-error .event-type {
+            color: #ffb8b8 !important;
+        }
+
+        .event-line.event-system .event-type {
+            color: var(--text-muted) !important;
+        }
+
+        .right-panel {
+            overflow: hidden;
+        }
+
+        .image-viewer {
+            flex: 1 1 auto;
+            border-bottom: none;
+            overflow: hidden;
+        }
+
+        .image-viewer-title {
+            padding: 18px 20px;
+            background: transparent;
+            border-bottom: none;
+            text-transform: none;
+            letter-spacing: normal;
+        }
+
+        .viewer-footer {
+            padding-top: 0;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .image-viewer-content {
+            padding: 18px 20px 12px;
+            min-height: 560px;
+            background:
+                radial-gradient(circle at top, rgba(var(--accent-rgb), 0.08), transparent 46%),
+                linear-gradient(180deg, rgba(19, 16, 13, 0.95), rgba(15, 12, 10, 0.92));
+        }
+
+        .stage-conversation-overlay {
+            position: absolute;
+            left: 34px;
+            right: 34px;
+            bottom: 28px;
+            z-index: 2;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: min(520px, calc(100% - 68px));
+            padding: 16px 18px;
+            border-radius: 22px;
+            border: 1px solid rgba(var(--accent-rgb), 0.22);
+            background:
+                linear-gradient(180deg, rgba(20, 17, 14, 0.56), rgba(20, 16, 13, 0.86));
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(18px);
+            max-height: calc(100% - 56px);
+            overflow: hidden;
+        }
+
+        .stage-conversation-overlay.is-empty {
+            border-style: dashed;
+            opacity: 0.84;
+        }
+
+        .stage-conversation-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .stage-conversation-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-strong);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+        }
+
+        .stage-conversation-time {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .stage-conversation-text {
+            color: var(--text-primary);
+            font-size: 14px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: min(36vh, 340px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            pointer-events: auto;
+            padding-right: 8px;
+            scrollbar-gutter: stable;
+        }
+
+        .stage-conversation-text:focus-visible {
+            outline: 1px solid rgba(var(--accent-rgb), 0.42);
+            outline-offset: 4px;
+            border-radius: 12px;
+        }
+
+        .no-image-placeholder {
+            width: min(100%, 380px);
+            padding: 28px;
+            border-radius: 24px;
+            border: 1px dashed rgba(var(--accent-rgb), 0.24);
+            background: rgba(25, 20, 16, 0.78);
+            color: var(--text-secondary);
+            font-style: normal;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: flex-start;
+            text-align: left;
+            margin: auto;
+        }
+
+        .no-image-placeholder h3 {
+            color: var(--text-primary);
+            font-size: 24px;
+            line-height: 1.1;
+            letter-spacing: -0.04em;
+        }
+
+        .empty-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .live-image,
+        .event-image {
+            border: 1px solid rgba(var(--accent-rgb), 0.14);
+            border-radius: 18px;
+            box-shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
+            background-color: #17120e;
+        }
+
+        .sidebar {
+            flex: 0.85;
+            min-height: 240px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: transparent;
+            box-shadow: none;
+            border: none;
+        }
+
+        .sidebar-section {
+            margin-bottom: 0;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .highlight-card {
+            background: linear-gradient(180deg, rgba(34, 27, 21, 0.94), rgba(24, 20, 16, 0.88));
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-strong);
+        }
+
+        .summary-grid,
+        .connection-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .connection-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(32, 25, 20, 0.66);
+            border: 1px solid rgba(204, 175, 140, 0.1);
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .connection-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .refresh-button {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .advanced-shell {
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--panel-border);
+            background: linear-gradient(180deg, rgba(34, 27, 21, 0.94), rgba(24, 20, 16, 0.88));
+            box-shadow: var(--shadow-strong);
+            overflow: hidden;
+            display: none;
+        }
+
+        .advanced-shell summary {
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .advanced-shell summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .advanced-content {
+            display: grid;
+            gap: 14px;
+            padding: 0 18px 18px;
+            max-height: 0;
+            overflow: hidden;
+        }
+
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .tools-grid .send-button {
+            width: 100%;
+        }
+
+        .advanced-content .sidebar-section {
+            background: rgba(28, 22, 17, 0.72);
+            border: 1px solid rgba(204, 175, 140, 0.1);
+            box-shadow: none;
+            padding: 16px;
+        }
+
+        .meta-title {
+            margin-bottom: 2px;
+        }
+
+        .event-stats,
+        .connection-info {
+            background: transparent;
+            padding: 0;
+            border: none;
+            margin-bottom: 0;
+        }
+
+        .stat-item,
+        .info-line {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(204, 175, 140, 0.08);
+            font-size: 12px;
+        }
+
+        .stat-item:last-child,
+        .info-line:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .stat-label,
+        .info-label {
+            color: var(--text-muted);
+        }
+
+        .stat-value,
+        .info-value {
+            color: var(--text-secondary);
+            max-width: none;
+        }
+
+        .horizontal-resizer {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(var(--accent-rgb), 0.14);
+        }
+
+        .scrollbar {
+            scrollbar-color: rgba(var(--accent-rgb), 0.34) transparent;
+        }
+
+        .scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(var(--accent-rgb), 0.22);
+        }
+
+        .scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(var(--accent-rgb), 0.34);
+        }
+
+        #settings-btn {
+            display: none;
+        }
+
+        body.advanced-mode .mode-pill {
+            display: inline-flex;
+            background: rgba(255, 207, 116, 0.12);
+            border-color: rgba(255, 207, 116, 0.28);
+            color: #ffcf74;
+        }
+
+        body.advanced-mode .advanced-shell {
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            inset: 0 10px 0 0;
+            z-index: 6;
+        }
+
+        body.advanced-mode .advanced-shell[open] .advanced-content {
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: none;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        body.advanced-mode .main-terminal {
+            flex-basis: 560px;
+            max-width: 620px;
+            overflow: hidden;
+        }
+
+        body.advanced-mode .composer-card,
+        body.advanced-mode .timeline-card {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        @media (max-width: 1320px) {
+            #main-interface {
+                padding: 18px;
+            }
+
+            .container {
+                flex-direction: column;
+            }
+
+            .right-panel,
+            .main-terminal {
+                order: initial;
+                min-width: 0;
+                width: 100%;
+                max-width: none;
+            }
+
+            .vertical-resizer {
+                display: none;
+            }
+
+            .main-terminal {
+                max-height: none;
+                max-width: none;
+            }
+        }
+
+        @media (max-width: 980px) {
+            .terminal-header {
+                padding: 18px;
+            }
+
+            .header-side {
+                min-width: 0;
+                width: 100%;
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .status-bar {
+                width: 100%;
+            }
+
+            .field-grid,
+            .helper-row,
+            .summary-grid,
+            .control-summary,
+            .quick-prompts,
+            .agent-voice-stats {
+                grid-template-columns: 1fr;
+            }
+
+            body.advanced-mode .advanced-shell {
+                position: static;
+                inset: auto;
+            }
+
+            body.advanced-mode .advanced-shell[open] .advanced-content {
+                max-height: none;
+                overflow-y: visible;
+                padding-right: 0;
+            }
+
+            body.advanced-mode .main-terminal {
+                overflow-y: auto;
+            }
+
+            body.advanced-mode .composer-card,
+            body.advanced-mode .timeline-card {
+                visibility: visible;
+                pointer-events: auto;
+            }
+
+            .timeline-header,
+            .viewer-header,
+            .viewer-footer,
+            .advanced-shell summary,
+            .connection-line,
+            .agent-voice-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .viewer-status-stack,
+            .timeline-meta,
+            .header-actions,
+            .agent-voice-meta {
+                justify-content: flex-start;
+            }
+        }
+
+        @media (max-width: 640px) {
+            html,
+            body {
+                overflow: auto;
+            }
+
+            #main-interface {
+                height: auto;
+                min-height: 100vh;
+                padding: 14px;
+            }
+
+            .brand-row h1 {
+                font-size: 28px;
+            }
+
+            .panel-title,
+            .advanced-summary-title,
+            .viewer-title-text,
+            .no-image-placeholder h3 {
+                font-size: 22px;
+            }
+
+            .status-bar {
+                width: 100%;
+            }
+
+            .input-area {
+                padding: 12px;
+                grid-template-columns: 1fr;
+                align-items: stretch;
+            }
+
+            .command-input {
+                min-width: 0;
+                width: 100%;
+            }
+
+            .image-viewer-content {
+                min-height: 300px;
+                padding: 16px;
+            }
+
+            .stage-conversation-overlay {
+                left: 16px;
+                right: 16px;
+                bottom: 16px;
+                max-width: none;
+                padding: 14px;
+            }
+
+            .stage-conversation-text {
+                max-height: min(32vh, 220px);
+            }
+
+            .no-image-placeholder {
+                width: 100%;
+                padding: 22px;
+            }
+
+            .sidebar {
+                padding: 0;
+                gap: 12px;
+            }
         }
     </style>
 </head>
@@ -1384,7 +2639,7 @@
     <!-- Session Sidebar -->
     <div class="session-sidebar" id="session-sidebar">
         <div class="sidebar-header">
-            <span class="sidebar-title">🗂️ Sessions</span>
+            <span class="sidebar-title">Sessions</span>
             <button class="sidebar-close-btn" onclick="closeSessionSidebar()">×</button>
         </div>
         
@@ -1397,7 +2652,6 @@
         
         <div class="sidebar-content" id="sidebar-content">
             <div class="empty-state">
-                <div class="empty-state-icon">📭</div>
                 <div class="empty-state-text">No sessions found</div>
             </div>
         </div>
@@ -1408,247 +2662,360 @@
     </div>
 
     <div id="main-interface">
-    <div class="terminal-header">
-        <div class="ascii-title">
-    ,----..   ,-.----.                      ,--.                         ,----..                                                     
-   /   /   \  \    /  \      ,---,.       ,--.'|    ,---,. ,-.----.     /   /   \             .---.  .--.--.       ,---,.,-.----.    
-  /   .     : |   :    \   ,'  .' |   ,--,:  : |  ,'  .'  \\    /  \   /   .     :           /. ./| /  /    '.   ,'  .' |\    /  \   
- .   /   ;.  \|   |  .\ :,---.'   |,`--.'`|  ' :,---.' .' |;   :    \ .   /   ;.  \      .--'.  ' ;|  :  /`. / ,---.'   |;   :    \  
-.   ;   /  ` ;.   :  |: ||   |   .'|   :  :  | ||   |  |: ||   | .\ :.   ;   /  ` ;     /__./ \ : |;  |  |--`  |   |   .'|   | .\ :  
-;   |  ; \ ; ||   |   \ ::   :  |-,:   |   \ | ::   :  :  /.   : |: |;   |  ; \ ; | .--'.  '   \' .|  :  ;_    :   :  |-,.   : |: |  
-|   :  | ; | '|   : .   /:   |  ;/||   : '  '; |:   |    ; |   |  \ :|   :  | ; | '/___/ \ |    ' ' \  \    `. :   |  ;/||   |  \ :  
-.   |  ' ' ' :;   | |`-' |   :   .''   ' ;.    ;|   :     \|   : .  /.   |  ' ' ' :;   \  \;      :  `----.   \|   :   .'|   : .  /  
-'   ;  \; /  ||   | ;    |   |  |-,|   | | \   ||   |   . |;   | |  \'   ;  \; /  | \   ;  `      |  __ \  \  ||   |  |-,;   | |  \  
- \   \  ',  / :   ' |    '   :  ;/|'   : |  ; .''   :  '; ||   | ;\  \\   \  ',  /   .   \    .\  ; /  /`--'  /'   :  ;/||   | ;\  \ 
-  ;   :    /  :   : :    |   |    \|   | '`--'  |   |  | ; :   ' | \.' ;   :    /     \   \   ' \ |'--'.     / |   |    \:   ' | \.' 
-   \   \ .'   |   | :    |   :   .''   : |      |   :   /  :   : :-'    \   \ .'       :   '  |--"   `--'---'  |   :   .':   : :-'   
-    `---`     `---'.|    |   | ,'  ;   |.'      |   | ,'   |   |.'       `---`          \   \ ;                |   | ,'  |   |.'     
-                `---`    `----'    '---'        `----'     `---'                         '---"                 `----'    `---'       
-        </div>
-        <div class="status-bar">
-            <div class="status-item" id="server-status">SERVER: <span class="status-disconnected">DISCONNECTED</span></div>
-            <div class="status-item" id="browser-status">BROWSER: <span class="status-disconnected">NOT CONNECTED</span></div>
-            <div class="status-item" id="session-status">
-                SESSION: <span id="current-session-id" class="status-connected">New</span>
-            </div>
-            <div class="status-item" id="event-count">EVENTS: <span>0</span></div>
-            <div class="status-item">
-                <label for="browser-id-input">BROWSER UUID:</label>
-                <input
-                    type="text"
-                    id="browser-id-input"
-                    placeholder="Paste browser UUID from the extension"
-                    spellcheck="false"
-                    autocomplete="off"
-                >
-            </div>
-            <div class="status-item" id="cwd-input-container">
-                <label for="cwd-input">CWD:</label>
-                <input type="text" id="cwd-input" placeholder="Enter working directory" value="/tmp">
-            </div>
-            <div class="status-item">
-                <label for="model-select">MODEL:</label>
-                <select id="model-select" class="model-select" onchange="handleSelectedModelChange()">
-                    <option value="">Loading...</option>
-                </select>
-            </div>
-            <div class="status-item">
-                <button onclick="openSessionManager()" style="background: #333333; border: 1px solid #555555; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;" title="Session Manager">
-                    🗂️ Sessions
-                </button>
-            </div>
-            <div class="status-item">
-                <button onclick="openConfigPage()" style="background: #333333; border: 1px solid #666666; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;" title="Configure LLM Settings">
-                    ⚙️ Settings
-                </button>
-            </div>
-            <div class="status-item">
-                <button onclick="openSisyphusConfig()" style="background: #333333; border: 1px solid #666666; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;" title="Configure Sisyphus Mode">
-                    🔄 Sisyphus
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <div class="container">
-        <div class="main-terminal">
-            <div class="terminal-output scrollbar" id="terminal-output">
-                <!-- Event lines will be dynamically added here -->
-                <div class="event-line expanded" data-type="SystemEvent" data-source="system">
-                    <div class="event-header">
-                        <span class="event-type" style="color: #666666;">SYSTEM</span>
-                        <span class="event-timestamp" id="current-time"></span>
-                        <span class="expand-toggle" onclick="toggleEvent(this)">[collapse]</span>
-                    </div>
-                    <div class="event-content">
-                        <div class="prompt-line">OpenBrowserAgent Terminal Interface v1.0</div>
-                        <div class="prompt-line">Paste your browser UUID before sending commands</div>
-                        <div class="prompt-line">Type commands below to control the browser via AI</div>
-                        <div class="prompt-line">System ready. Waiting for input...</div>
-                    </div>
+        <div class="terminal-header">
+            <div class="brand-block">
+                <div class="brand-kicker">Visual browser agent</div>
+                <div class="brand-row">
+                    <h1>OpenBrowser</h1>
+                    <span class="mode-pill" id="mode-pill">Guided Demo</span>
                 </div>
+                <p class="brand-copy">
+                    Run a task and watch the browser update live.
+                </p>
             </div>
-            
-            <div class="input-area">
-                <div class="input-prompt blink">></div>
-                <input type="text" class="command-input" id="command-input" placeholder="Type a command (e.g., 'open google.com') and press Enter" autofocus>
-                <button class="send-button" id="send-button" onclick="sendCommand()">SEND</button>
-                <button class="pause-button" id="pause-button" onclick="pauseConversation()" style="display: none;">PAUSE</button>
-                <button class="sisyphus-start-button" id="sisyphus-start-btn" onclick="startSisyphus()" style="display: none; background: #224422; border: 1px solid #448844; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">START Sisyphus</button>
-                <button class="sisyphus-stop-button" id="sisyphus-stop-btn" onclick="stopSisyphus()" style="display: none; background: #662222; border: 1px solid #882222; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">STOP Sisyphus</button>
-            </div>
-        </div>
-        
-        <div class="vertical-resizer" id="vertical-resizer"></div>
-        
-        <div class="right-panel">
-            <div class="image-viewer">
-                <div class="image-viewer-title">LIVE VIEW</div>
-                <div class="image-viewer-content" id="image-viewer-content">
-                    <div class="no-image-placeholder" id="no-image-placeholder">
-                        No image available<br>
-                        <span style="font-size: 12px; color: #555555;">Screenshots will appear here</span>
+
+            <div class="header-side">
+                <div class="status-bar">
+                    <div class="status-item">
+                        <span class="status-item-label">Server</span>
+                        <div class="status-item-value" id="server-status">
+                            <span class="status-disconnected">Offline</span>
+                        </div>
                     </div>
-                    <!-- Live image will be dynamically added here -->
-                </div>
-                <div class="image-viewer-title" style="font-size: 12px; text-align: center;">OpenBrowser's Chrome</div>
-            </div>
-            
-            <div class="horizontal-resizer" id="horizontal-resizer"></div>
-            
-            <div class="sidebar scrollbar">
-                <div class="sidebar-section">
-                    <div class="sidebar-title">CONNECTION INFO</div>
-                    <div class="connection-info">
-                        <div class="info-line">
-                            <span class="info-label">Server:</span>
-                            <span class="info-value" id="server-url">http://127.0.0.1:8765</span>
+                    <div class="status-item">
+                        <span class="status-item-label">Browser</span>
+                        <div class="status-item-value" id="browser-status">
+                            <span class="status-disconnected">Not connected</span>
                         </div>
-                        <div class="info-line">
-                            <span class="info-label">Status:</span>
-                            <span class="info-value" id="connection-status">Not connected</span>
+                    </div>
+                    <div class="status-item" id="session-status" style="display: none;">
+                        <span class="status-item-label">Session</span>
+                        <div class="status-item-value">
+                            <span id="current-session-id" class="status-connected">New</span>
                         </div>
-                        <div class="info-line">
-                            <span class="info-label">Browser UUID:</span>
-                            <span class="info-value" id="browser-id-display">Required</span>
-                        </div>
-                        <div class="info-line">
-                            <span class="info-label">Conversation:</span>
-                            <span class="info-value" id="conversation-id">None</span>
-                            <button class="refresh-button" id="refresh-conversation-btn" title="Refresh conversation ID" onclick="refreshConversationId()">↻</button>
+                    </div>
+                    <div class="status-item" id="event-status" style="display: none;">
+                        <span class="status-item-label">Events</span>
+                        <div class="status-item-value" id="event-count">
+                            <span>0</span>
                         </div>
                     </div>
                 </div>
-                
-                <div class="sidebar-section">
-                    <div class="sidebar-title">QUICK COMMANDS</div>
-                    <div class="event-stats">
-                        <div class="stat-item">
-                            <button class="send-button" style="width: 100%; margin: 5px 0; font-size: 11px;" onclick="setCommand('star https://github.com/softpudding/OpenBrowser'); document.getElementById('command-input').focus();">star https://github.com/softpudding/OpenBrowser</button>
-                        </div>
-                        <div class="stat-item">
-                            <button class="send-button" style="width: 100%; margin: 5px 0; font-size: 11px;" onclick="clearTerminal()">CLEAR TERMINAL</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="sidebar-section">
-                    <div class="sidebar-title">EVENT STATISTICS</div>
-                    <div class="event-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">Total Events:</span>
-                            <span class="stat-value" id="stat-total">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Message Events:</span>
-                            <span class="stat-value" id="stat-message">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Action Events:</span>
-                            <span class="stat-value" id="stat-action">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Observation Events:</span>
-                            <span class="stat-value" id="stat-observation">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Errors:</span>
-                            <span class="stat-value" id="stat-error">0</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="sidebar-section">
-                    <div class="sidebar-title">USAGE METRICS</div>
-                    <div class="event-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">Total Cost:</span>
-                            <span class="stat-value" id="usage-cost">$0.00</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Prompt Tokens:</span>
-                            <span class="stat-value" id="usage-prompt-tokens">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Completion Tokens:</span>
-                            <span class="stat-value" id="usage-completion-tokens">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Total Tokens:</span>
-                            <span class="stat-value" id="usage-total-tokens">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Cache Read Tokens:</span>
-                            <span class="stat-value" id="usage-cache-read">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Cache Write Tokens:</span>
-                            <span class="stat-value" id="usage-cache-write">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Reasoning Tokens:</span>
-                            <span class="stat-value" id="usage-reasoning">0</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="sidebar-section">
-                    <div class="sidebar-title">FILTER SETTINGS</div>
-                    <div class="event-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">Show System Events:</span>
-                            <span class="stat-value">
-                                <input type="checkbox" id="filter-system" checked onchange="updateEventVisibility()">
-                            </span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Show User Messages:</span>
-                            <span class="stat-value">
-                                <input type="checkbox" id="filter-user-message" onchange="updateEventVisibility()" checked>
-                            </span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Auto-expand Events:</span>
-                            <span class="stat-value">
-                                <input type="checkbox" id="auto-expand" checked>
-                            </span>
-                        </div>
-                    </div>
+
+                <div class="header-actions">
+                    <button class="header-action-btn" id="advanced-toggle-btn" onclick="toggleAdvancedMode()">Advanced</button>
+                    <button class="header-action-btn primary" onclick="openConfigPage()" title="Configure LLM Settings">Settings</button>
                 </div>
             </div>
         </div>
-    </div>
+
+        <div class="container">
+            <div class="right-panel">
+                <div class="image-viewer">
+                    <div class="image-viewer-title viewer-header">
+                        <div>
+                            <div class="panel-kicker">Live stage</div>
+                            <div class="viewer-title-row">
+                                <span class="viewer-title-text">Browser output</span>
+                            </div>
+                        </div>
+                        <div class="viewer-status-stack">
+                            <span class="stage-badge" id="browser-stage-state">Idle</span>
+                            <span id="live-view-status">Waiting for browser UUID</span>
+                        </div>
+                    </div>
+
+                    <div class="image-viewer-content" id="image-viewer-content">
+                        <div class="stage-conversation-overlay is-empty" id="stage-conversation-overlay">
+                            <div class="stage-conversation-meta">
+                                <span class="stage-conversation-label" id="stage-conversation-label">Agent feed</span>
+                                <span class="stage-conversation-time" id="stage-conversation-time">Waiting</span>
+                            </div>
+                            <div class="stage-conversation-text scrollbar" id="stage-conversation-text" tabindex="0">
+                                Agent narration will stay visible here while the browser updates.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="image-viewer-title viewer-footer">
+                        <span id="live-view-caption">The latest screenshot from your connected Chrome session appears here.</span>
+                    </div>
+                </div>
+                <div class="horizontal-resizer" id="horizontal-resizer" style="display: none;"></div>
+            </div>
+
+            <div class="vertical-resizer" id="vertical-resizer"></div>
+
+            <div class="main-terminal">
+                <section class="panel-card composer-card control-card">
+                    <div class="control-header">
+                        <div>
+                            <div class="panel-kicker">Run a task</div>
+                            <h2 class="panel-title">Tell the browser what to do</h2>
+                        </div>
+                        <p class="panel-copy" id="guided-next-step">
+                            Paste the browser UUID to connect this browser window.
+                        </p>
+                    </div>
+
+                    <div class="field-stack">
+                        <label for="browser-id-input">Browser UUID</label>
+                        <input
+                            type="text"
+                            id="browser-id-input"
+                            placeholder="Paste browser UUID from the extension"
+                            spellcheck="false"
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <div class="field-grid">
+                        <div class="field-inline" id="cwd-input-container">
+                            <label for="cwd-input">Working directory</label>
+                            <input type="text" id="cwd-input" placeholder="Enter working directory" value="/tmp">
+                        </div>
+                        <div class="field-inline">
+                            <label for="model-select">Model</label>
+                            <select id="model-select" class="model-select" onchange="handleSelectedModelChange()">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="quick-prompts">
+                        <button class="quick-prompt" onclick="setCommand('Open https://github.com/softpudding/OpenBrowser and introduce OpenBrowser in a concise way.');">Introduce OpenBrowser</button>
+                        <button class="quick-prompt" onclick="setCommand('Open https://github.com/softpudding/OpenBrowser and star it.');">Star OpenBrowser</button>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="input-prompt blink">Task</div>
+                        <textarea class="command-input scrollbar" id="command-input" placeholder="Describe the result you want" rows="1" autofocus></textarea>
+                        <button class="send-button" id="send-button" onclick="sendCommand()">Run</button>
+                        <button class="pause-button" id="pause-button" onclick="pauseConversation()" style="display: none;">Pause</button>
+                        <button class="sisyphus-start-button" id="sisyphus-start-btn" onclick="startSisyphus()" style="display: none; background: #224422; border: 1px solid #448844; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">Start Sisyphus</button>
+                        <button class="sisyphus-stop-button" id="sisyphus-stop-btn" onclick="stopSisyphus()" style="display: none; background: #662222; border: 1px solid #882222; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">Stop Sisyphus</button>
+                    </div>
+                </section>
+
+                <section class="panel-card agent-voice-card" id="agent-voice-card">
+                    <div class="agent-voice-header">
+                        <div>
+                            <div class="panel-kicker">Agent voice</div>
+                            <h2 class="panel-title">What the agent is saying</h2>
+                        </div>
+                        <div class="agent-voice-meta">
+                            <span class="stage-badge" id="agent-voice-state">Ready</span>
+                            <span class="agent-voice-time" id="agent-voice-time">Waiting</span>
+                        </div>
+                    </div>
+
+                    <div class="agent-voice-bubble">
+                        <div class="agent-voice-text" id="agent-voice-text">
+                            Connect a browser and run a task. The agent's narration will stay visible here.
+                        </div>
+                    </div>
+
+                    <div class="agent-voice-stats">
+                        <div class="voice-stat">
+                            <span class="voice-stat-label">Current step</span>
+                            <strong class="voice-stat-value" id="agent-voice-step">Waiting for a task.</strong>
+                        </div>
+                        <div class="voice-stat">
+                            <span class="voice-stat-label">Agent thinking</span>
+                            <strong class="voice-stat-value" id="agent-voice-thinking">Waiting for agent reasoning.</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel-card timeline-card" id="timeline-card" style="display: none;">
+                    <div class="timeline-header">
+                        <div>
+                            <div class="panel-kicker">Timeline</div>
+                            <h2 class="panel-title">Conversation and steps</h2>
+                        </div>
+                        <div class="timeline-meta">
+                            <span class="timeline-clock-label">Updated</span>
+                            <strong id="current-time"></strong>
+                            <button class="ghost-button" onclick="clearTerminal()">Clear</button>
+                        </div>
+                    </div>
+
+                    <div class="terminal-output scrollbar" id="terminal-output">
+                        <div class="event-line event-system expanded" data-type="SystemEvent" data-source="system">
+                            <div class="event-header">
+                                <span class="event-type" style="color: #7a6b5b;">SYSTEM</span>
+                                <span class="expand-toggle" onclick="toggleEvent(this)">[collapse]</span>
+                            </div>
+                            <div class="event-content">
+                                <div class="prompt-line">OpenBrowser ready.</div>
+                                <div class="prompt-line">Connect a browser and run a task.</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <details class="advanced-shell" id="advanced-panel" style="display: none;">
+                    <summary>
+                        <div>
+                            <div class="panel-kicker">Advanced</div>
+                            <div class="advanced-summary-title">Tools, session state, and diagnostics</div>
+                        </div>
+                        <span class="advanced-summary-note">Show advanced controls</span>
+                    </summary>
+
+                    <div class="advanced-content scrollbar">
+                        <div class="sidebar-section">
+                            <div class="meta-title">Tools</div>
+                            <div class="tools-grid">
+                                <button class="send-button" onclick="openSessionManager()">Sessions</button>
+                                <button class="send-button" onclick="openSisyphusConfig()">Sisyphus</button>
+                                <button class="send-button" onclick="openConfigPage()">Settings</button>
+                                <button class="send-button" onclick="clearTerminal()">Clear timeline</button>
+                            </div>
+                        </div>
+
+                        <section class="sidebar-section highlight-card" id="connection-card" style="display: none;">
+                            <div class="panel-kicker">Connection</div>
+                            <h2 class="panel-title">Bound browser and session</h2>
+                            <div class="connection-grid">
+                                <div class="connection-line">
+                                    <span>Server</span>
+                                    <strong id="server-url">http://127.0.0.1:8765</strong>
+                                </div>
+                                <div class="connection-line">
+                                    <span>Status</span>
+                                    <strong id="connection-status">Not connected</strong>
+                                </div>
+                                <div class="connection-line">
+                                    <span>Browser UUID</span>
+                                    <strong id="browser-id-display">Required</strong>
+                                </div>
+                                <div class="connection-line">
+                                    <span>Conversation</span>
+                                    <div class="connection-actions">
+                                        <strong id="conversation-id">None</strong>
+                                        <button class="refresh-button" id="refresh-conversation-btn" title="Refresh conversation ID" onclick="refreshConversationId()">↻</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="sidebar-section highlight-card" id="recent-activity-card" style="display: none;">
+                            <div class="panel-kicker">Recent activity</div>
+                            <h2 class="panel-title">Latest event snapshot</h2>
+                            <p class="panel-copy" id="recent-activity-text">
+                                No agent activity yet. Run a task to populate this view.
+                            </p>
+                            <div class="summary-grid">
+                                <div class="summary-item">
+                                    <span class="summary-label">Event type</span>
+                                    <strong class="summary-value" id="recent-activity-type">Waiting</strong>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">Updated</span>
+                                    <strong class="summary-value" id="recent-activity-time">Never</strong>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div class="sidebar-section">
+                            <div class="meta-title">Event statistics</div>
+                            <div class="event-stats">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Events</span>
+                                    <span class="stat-value" id="stat-total">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Message Events</span>
+                                    <span class="stat-value" id="stat-message">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Action Events</span>
+                                    <span class="stat-value" id="stat-action">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Observation Events</span>
+                                    <span class="stat-value" id="stat-observation">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Errors</span>
+                                    <span class="stat-value" id="stat-error">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sidebar-section">
+                            <div class="meta-title">Usage metrics</div>
+                            <div class="event-stats">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Cost</span>
+                                    <span class="stat-value" id="usage-cost">$0.00</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Prompt Tokens</span>
+                                    <span class="stat-value" id="usage-prompt-tokens">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Completion Tokens</span>
+                                    <span class="stat-value" id="usage-completion-tokens">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Tokens</span>
+                                    <span class="stat-value" id="usage-total-tokens">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Cache Read Tokens</span>
+                                    <span class="stat-value" id="usage-cache-read">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Cache Write Tokens</span>
+                                    <span class="stat-value" id="usage-cache-write">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Reasoning Tokens</span>
+                                    <span class="stat-value" id="usage-reasoning">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sidebar-section">
+                            <div class="meta-title">Filter settings</div>
+                            <div class="event-stats">
+                                <div class="stat-item">
+                                    <span class="stat-label">Show System Events</span>
+                                    <span class="stat-value">
+                                        <input type="checkbox" id="filter-system" checked onchange="updateEventVisibility()">
+                                    </span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Show User Messages</span>
+                                    <span class="stat-value">
+                                        <input type="checkbox" id="filter-user-message" onchange="updateEventVisibility()" checked>
+                                    </span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Auto-expand Events</span>
+                                    <span class="stat-value">
+                                        <input type="checkbox" id="auto-expand" checked>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </div>
     </div>  <!-- End of main-interface -->
     
     <!-- Configuration Page -->
     <div id="config-page" class="config-page" style="display: none;">
         <div class="config-container">
-            <button onclick="hideConfigPage()" style="position: absolute; top: 15px; right: 15px; background: #444444; border: 1px solid #666666; color: #cccccc; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Close Settings" onmouseover="this.style.background='#666666'" onmouseout="this.style.background='#444444'">
+            <button class="config-close-btn" onclick="hideConfigPage()" title="Close Settings">
                 ✕
             </button>
             <div class="config-header">
-                <h1>OpenBrowser Configuration</h1>
-                <p class="config-subtitle">Configure your LLM API settings to get started</p>
+                <h1>Settings</h1>
+                <p class="config-subtitle">Manage model configuration and the default working directory for new conversations.</p>
             </div>
             
             <div class="config-tabs">
@@ -1698,12 +3065,12 @@
     <!-- Sisyphus Configuration Page -->
     <div id="sisyphus-config-page" class="config-page" style="display: none;">
         <div class="config-container">
-            <button onclick="hideSisyphusConfigPage()" style="position: absolute; top: 15px; right: 15px; background: #444444; border: 1px solid #666666; color: #cccccc; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Close Sisyphus Config" onmouseover="this.style.background='#666666'" onmouseout="this.style.background='#444444'">
+            <button class="config-close-btn" onclick="hideSisyphusConfigPage()" title="Close Sisyphus Config">
                 ✕
             </button>
             <div class="config-header">
-                <h1>Sisyphus Mode Configuration</h1>
-                <p class="config-subtitle">Configure prompts for automatic looping. When enabled, the input box will be replaced with Start/Stop buttons.</p>
+                <h1>Sisyphus</h1>
+                <p class="config-subtitle">Configure prompts for automatic looping. When enabled, the main input is replaced with Start and Stop controls.</p>
             </div>
             
             <div class="config-tabs">
@@ -1742,11 +3109,6 @@
         </div>
     </div>
     
-    <!-- Settings button on main interface -->
-    <button id="settings-btn" class="settings-btn" onclick="openConfigPage()" title="Open Settings">
-        ⚙️
-    </button>
-    
     <script>
         // Global variables
         let currentConversationId = null;
@@ -1766,6 +3128,10 @@
         let currentImageUrl = null; // Track current displayed image URL
         let cwdWarningShown = false; // Track if CWD warning has been shown
         let selectedModelAlias = null;
+        let latestAgentMessage = '';
+        let latestAgentStep = 'Waiting for a task.';
+        let latestAgentThinking = 'Waiting for agent reasoning.';
+        let latestAgentTimestamp = null;
         
         // Sisyphus mode variables
         let sisyphusEnabled = false;
@@ -1781,6 +3147,8 @@
         const serverBaseUrl = isFileProtocol ? 'http://127.0.0.1:8765' : '';
         const BROWSER_ID_STORAGE_KEY = 'openbrowser_browser_id';
         const MODEL_ALIAS_STORAGE_KEY = 'openbrowser_model_alias';
+        const AGENT_STEP_PLACEHOLDER = 'Waiting for a task.';
+        const AGENT_THINKING_PLACEHOLDER = 'Waiting for agent reasoning.';
         
         // Helper function to build API URL
         function apiUrl(path) {
@@ -1793,6 +3161,392 @@
             return (value || '').trim();
         }
 
+        function shortDisplay(value, fallback = 'None') {
+            if (!value) {
+                return fallback;
+            }
+
+            if (value.length <= 18) {
+                return value;
+            }
+
+            return `${value.substring(0, 8)}...${value.substring(value.length - 4)}`;
+        }
+
+        function truncateForSummary(value, maxLength = 140) {
+            const normalized = (value || '').replace(/\s+/g, ' ').trim();
+            if (!normalized) {
+                return '';
+            }
+
+            if (normalized.length <= maxLength) {
+                return normalized;
+            }
+
+            return `${normalized.slice(0, maxLength - 1)}…`;
+        }
+
+        function setNodeText(id, text, title = null) {
+            const node = document.getElementById(id);
+            if (!node) {
+                return;
+            }
+
+            node.textContent = text;
+            if (title !== null) {
+                node.title = title;
+            }
+        }
+
+        function setStatusNode(id, text, className) {
+            const node = document.getElementById(id);
+            if (!node) {
+                return;
+            }
+
+            node.innerHTML = `<span class="${className}">${escapeHtml(text)}</span>`;
+        }
+
+        function setSectionVisibility(id, visible) {
+            const node = document.getElementById(id);
+            if (!node) {
+                return;
+            }
+
+            node.style.display = visible ? '' : 'none';
+        }
+
+        function getAgentVoiceFallback() {
+            if (isProcessing) {
+                return 'The agent is working. Follow the browser stage and the step feed below.';
+            }
+
+            if (currentImageUrl) {
+                return 'The latest browser state is ready. Send the next instruction when you want to continue.';
+            }
+
+            if (currentBrowserId) {
+                return 'Browser connected. Describe the outcome you want and the agent will narrate each step.';
+            }
+
+            return 'Connect a browser and run a task. The agent\'s narration will stay visible here.';
+        }
+
+        function parseActionSections(content) {
+            const text = String(content || '');
+            const markerPattern = /^(Summary|Reasoning|Finish with message|Thought|Action)\s*:/gim;
+            const matches = [];
+            let match;
+
+            while ((match = markerPattern.exec(text)) !== null) {
+                matches.push({
+                    key: match[1].toLowerCase(),
+                    start: match.index,
+                    bodyStart: markerPattern.lastIndex
+                });
+            }
+
+            if (matches.length === 0) {
+                return {
+                    hasStructuredSections: false,
+                    summary: '',
+                    reasoning: '',
+                    finishMessage: '',
+                    thought: '',
+                    action: '',
+                    preamble: text.trim()
+                };
+            }
+
+            const result = {
+                hasStructuredSections: true,
+                summary: '',
+                reasoning: '',
+                finishMessage: '',
+                thought: '',
+                action: '',
+                preamble: text.slice(0, matches[0].start).trim()
+            };
+
+            for (let index = 0; index < matches.length; index++) {
+                const current = matches[index];
+                const next = matches[index + 1];
+                const rawValue = text.slice(
+                    current.bodyStart,
+                    next ? next.start : text.length
+                ).trim();
+
+                if (current.key === 'summary') {
+                    result.summary = rawValue;
+                } else if (current.key === 'reasoning') {
+                    result.reasoning = rawValue;
+                } else if (current.key === 'finish with message') {
+                    result.finishMessage = rawValue;
+                } else if (current.key === 'thought') {
+                    result.thought = rawValue;
+                } else if (current.key === 'action') {
+                    result.action = rawValue;
+                }
+            }
+
+            if (!result.reasoning && result.thought) {
+                result.reasoning = result.thought;
+            }
+
+            if (!result.reasoning && result.preamble) {
+                result.reasoning = result.preamble;
+            }
+
+            if (!result.summary && result.action) {
+                const compactAction = result.action
+                    .replace(/\s+/g, ' ')
+                    .replace(/\s+kind:\s*"[^"]+"/i, '')
+                    .trim();
+                result.summary = compactAction;
+            }
+
+            return result;
+        }
+
+        function renderAgentVoice() {
+            const hasMessage = Boolean((latestAgentMessage || '').trim());
+            const hasThinking = Boolean((latestAgentThinking || '').trim()) && latestAgentThinking !== AGENT_THINKING_PLACEHOLDER;
+            const hasStep = Boolean((latestAgentStep || '').trim()) && latestAgentStep !== AGENT_STEP_PLACEHOLDER;
+            const timestamp = latestAgentTimestamp ? new Date(latestAgentTimestamp) : null;
+            const timeText = timestamp
+                ? timestamp.toLocaleTimeString('en-US', { hour12: false })
+                : 'Waiting';
+            const voiceText = hasMessage
+                ? latestAgentMessage
+                : isProcessing
+                    ? 'No final reply yet. The agent is still working.'
+                    : getAgentVoiceFallback();
+            const stageText = hasMessage
+                ? latestAgentMessage
+                : hasStep
+                    ? latestAgentStep
+                    : hasThinking
+                        ? latestAgentThinking
+                        : getAgentVoiceFallback();
+            const stateText = isProcessing
+                ? hasStep ? 'Acting' : hasThinking ? 'Reasoning' : 'Speaking'
+                : hasMessage ? 'Latest reply'
+                : currentBrowserId ? 'Ready'
+                : 'Idle';
+            const stageLabel = hasMessage
+                ? 'Latest reply'
+                : hasThinking
+                    ? 'Agent thinking'
+                    : hasStep
+                        ? 'Current step'
+                        : 'Agent feed';
+            const overlay = document.getElementById('stage-conversation-overlay');
+
+            setNodeText('agent-voice-state', stateText);
+            setNodeText('agent-voice-time', timeText);
+            setNodeText('agent-voice-text', voiceText, voiceText);
+            setNodeText('agent-voice-step', latestAgentStep, latestAgentStep);
+            setNodeText('agent-voice-thinking', latestAgentThinking, latestAgentThinking);
+            setNodeText('stage-conversation-label', stageLabel);
+            setNodeText('stage-conversation-time', timeText);
+            setNodeText('stage-conversation-text', stageText, stageText);
+
+            if (overlay) {
+                overlay.classList.toggle('is-empty', !hasMessage && !isProcessing);
+            }
+        }
+
+        function resetStageConversationScroll() {
+            const node = document.getElementById('stage-conversation-text');
+            if (!node) {
+                return;
+            }
+
+            node.scrollTop = 0;
+        }
+
+        function resetAgentVoice() {
+            latestAgentMessage = '';
+            latestAgentStep = AGENT_STEP_PLACEHOLDER;
+            latestAgentThinking = AGENT_THINKING_PLACEHOLDER;
+            latestAgentTimestamp = null;
+            renderAgentVoice();
+            resetStageConversationScroll();
+        }
+
+        function updateAgentVoice(event) {
+            const timestamp = event.timestamp || new Date().toISOString();
+            const content = event.error || event.message || event.text || '';
+            let shouldResetStageScroll = false;
+
+            if (event.type === 'MessageEvent' && event.source === 'user') {
+                latestAgentMessage = '';
+                latestAgentStep = truncateForSummary(content.replace(/^User:\s*/i, ''), 140) || latestAgentStep;
+                latestAgentThinking = AGENT_THINKING_PLACEHOLDER;
+                latestAgentTimestamp = timestamp;
+                shouldResetStageScroll = true;
+            } else if (event.type === 'MessageEvent' && event.source !== 'user') {
+                latestAgentMessage = content.trim() || latestAgentMessage;
+                latestAgentTimestamp = timestamp;
+                shouldResetStageScroll = true;
+            } else if (event.type === 'ActionEvent') {
+                const parsed = parseActionSections(content);
+                latestAgentStep = truncateForSummary(
+                    event.summary || parsed.summary || content,
+                    140
+                ) || latestAgentStep;
+                if (parsed.reasoning) {
+                    latestAgentThinking = truncateForSummary(
+                        parsed.reasoning,
+                        220
+                    ) || latestAgentThinking;
+                } else {
+                    latestAgentThinking = AGENT_THINKING_PLACEHOLDER;
+                }
+                if (parsed.finishMessage) {
+                    latestAgentMessage = parsed.finishMessage;
+                    shouldResetStageScroll = true;
+                }
+                latestAgentTimestamp = timestamp;
+            } else if (event.type === 'ObservationEvent') {
+                latestAgentStep = truncateForSummary(
+                    event.message || content || (event.image ? 'Browser screenshot updated.' : ''),
+                    140
+                ) || latestAgentStep;
+                latestAgentTimestamp = timestamp;
+            } else if (event.type === 'ErrorEvent') {
+                latestAgentThinking = truncateForSummary(content || 'An error occurred.', 220);
+                latestAgentTimestamp = timestamp;
+            } else if (event.type === 'SystemEvent' && !latestAgentMessage) {
+                latestAgentThinking = truncateForSummary(content || latestAgentThinking, 220);
+            }
+
+            renderAgentVoice();
+            if (shouldResetStageScroll) {
+                resetStageConversationScroll();
+            }
+        }
+
+        function syncCommandInputHeight() {
+            const input = document.getElementById('command-input');
+            if (!input) {
+                return;
+            }
+
+            input.style.height = 'auto';
+            const nextHeight = Math.min(input.scrollHeight, 220);
+            input.style.height = `${Math.max(nextHeight, 44)}px`;
+            input.style.overflowY = input.scrollHeight > 220 ? 'auto' : 'hidden';
+        }
+
+        function setAdvancedMode(enabled) {
+            document.body.classList.toggle('advanced-mode', enabled);
+
+            const toggleButton = document.getElementById('advanced-toggle-btn');
+            if (toggleButton) {
+                toggleButton.textContent = enabled ? 'Close Advanced' : 'Advanced';
+            }
+
+            const modePill = document.getElementById('mode-pill');
+            if (modePill) {
+                modePill.textContent = enabled ? 'Advanced Tools' : 'Guided Demo';
+            }
+
+            const advancedPanel = document.getElementById('advanced-panel');
+            if (advancedPanel) {
+                advancedPanel.style.display = enabled ? '' : 'none';
+                advancedPanel.open = enabled;
+            }
+        }
+
+        function toggleAdvancedMode() {
+            setAdvancedMode(!document.body.classList.contains('advanced-mode'));
+        }
+
+        function resetRecentActivity() {
+            setNodeText('recent-activity-type', 'Waiting');
+            setNodeText('recent-activity-time', 'Never');
+            setNodeText(
+                'recent-activity-text',
+                'No agent activity yet.'
+            );
+        }
+
+        function updateRecentActivity(event) {
+            const timestamp = new Date(event.timestamp || Date.now());
+            const baseText =
+                event.error ||
+                event.text ||
+                event.message ||
+                (event.image ? 'Browser screenshot updated.' : '');
+            let label = event.type ? event.type.replace('Event', '') : 'System';
+
+            if (event.type === 'MessageEvent' && event.source === 'user') {
+                label = 'User task';
+            } else if (event.type === 'SystemEvent') {
+                label = 'System';
+            }
+
+            setNodeText('recent-activity-type', label || 'Activity');
+            setNodeText(
+                'recent-activity-text',
+                truncateForSummary(baseText, 160) || 'Activity updated.'
+            );
+            setNodeText(
+                'recent-activity-time',
+                timestamp.toLocaleTimeString('en-US', { hour12: false })
+            );
+        }
+
+        function updateGuidedPanels() {
+            const hasTimeline = isProcessing || Boolean(currentConversationId) || eventCounters.total > 0;
+            const hasBoundSession = Boolean(currentBrowserId || currentConversationId || currentImageUrl || isProcessing);
+            const hasRecentActivity = Boolean(currentImageUrl || eventCounters.total > 0);
+
+            setSectionVisibility('timeline-card', hasTimeline);
+            setSectionVisibility('connection-card', hasBoundSession);
+            setSectionVisibility('recent-activity-card', hasRecentActivity);
+            setSectionVisibility('session-status', Boolean(currentConversationId));
+            setSectionVisibility('event-status', hasTimeline);
+
+            let nextStep = 'Paste the browser UUID to connect this browser window.';
+            if (!appConfig?.is_configured) {
+                nextStep = 'Open Settings and add a model before running tasks.';
+            } else if (sisyphusEnabled && sisyphusRunning) {
+                nextStep = 'Sisyphus is running. Watch the browser stage or stop the loop.';
+            } else if (sisyphusEnabled) {
+                nextStep = 'Sisyphus is armed. Press Start Sisyphus or type a task.';
+            } else if (!currentBrowserId) {
+                nextStep = 'Paste the browser UUID to connect this browser window.';
+            } else if (isProcessing) {
+                nextStep = 'The agent is running. Watch the browser stage.';
+            } else if (!currentConversationId) {
+                nextStep = 'Describe the result you want, then click Run.';
+            } else if (currentImageUrl) {
+                nextStep = 'Review the latest browser state or send the next instruction.';
+            }
+            setNodeText('guided-next-step', nextStep);
+
+            const stageState = isProcessing ? 'Running' : currentImageUrl ? 'Live' : currentBrowserId ? 'Ready' : 'Idle';
+            const liveStatus = currentImageUrl
+                ? 'Latest screenshot ready'
+                : isProcessing
+                    ? 'Waiting for browser update'
+                    : currentBrowserId
+                        ? 'Connected and ready'
+                        : 'Waiting for browser UUID';
+
+            setNodeText('browser-stage-state', stageState);
+            setNodeText('live-view-status', liveStatus);
+            setNodeText(
+                'live-view-caption',
+                currentImageUrl
+                    ? `Latest screenshot from ${shortDisplay(currentBrowserId, 'the connected browser')}.`
+                    : 'The latest screenshot from your connected Chrome session appears here.'
+            );
+            renderAgentVoice();
+        }
+
         function updateBrowserIdDisplay() {
             const display = document.getElementById('browser-id-display');
             if (!display) {
@@ -1800,12 +3554,14 @@
             }
 
             if (currentBrowserId) {
-                display.textContent = currentBrowserId;
+                display.textContent = shortDisplay(currentBrowserId, currentBrowserId);
                 display.title = currentBrowserId;
             } else {
                 display.textContent = 'Required';
                 display.title = '';
             }
+
+            updateGuidedPanels();
         }
 
         function setBrowserId(browserId, options = {}) {
@@ -1913,6 +3669,7 @@
                 select.disabled = true;
                 selectedModelAlias = null;
                 localStorage.removeItem(MODEL_ALIAS_STORAGE_KEY);
+                updateGuidedPanels();
                 return;
             }
 
@@ -1931,6 +3688,7 @@
             if (normalizedSelectedAlias) {
                 localStorage.setItem(MODEL_ALIAS_STORAGE_KEY, normalizedSelectedAlias);
             }
+            updateGuidedPanels();
         }
 
         function clearConversationForModelChange(alias) {
@@ -1969,6 +3727,8 @@
             if (previousAlias && nextAlias && previousAlias !== nextAlias) {
                 clearConversationForModelChange(nextAlias);
             }
+
+            updateGuidedPanels();
         }
 
         function createModelConfigCard(config = {}, isDefault = false) {
@@ -2121,7 +3881,7 @@
             promptItem.innerHTML = `
                 <div class="prompt-item-row">
                     <textarea class="prompt-textarea" placeholder="Enter prompt text...">${promptText}</textarea>
-                    <button type="button" class="prompt-remove-btn" onclick="removeSisyphusPrompt('${promptId}')" title="Remove prompt">🗑️</button>
+                    <button type="button" class="prompt-remove-btn" onclick="removeSisyphusPrompt('${promptId}')" title="Remove prompt">Remove</button>
                 </div>
             `;
             list.appendChild(promptItem);
@@ -2212,12 +3972,16 @@
             const pauseButton = document.getElementById('pause-button');
             const startBtn = document.getElementById('sisyphus-start-btn');
             const stopBtn = document.getElementById('sisyphus-stop-btn');
+            const inputPrompt = document.querySelector('.input-prompt');
             
             if (sisyphusEnabled) {
                 // Hide regular input and buttons
                 commandInput.style.display = 'none';
                 sendButton.style.display = 'none';
                 pauseButton.style.display = 'none';
+                if (inputPrompt) {
+                    inputPrompt.style.display = 'none';
+                }
                 // Show appropriate Sisyphus button
                 if (sisyphusRunning) {
                     startBtn.style.display = 'none';
@@ -2231,9 +3995,15 @@
                 commandInput.style.display = '';
                 sendButton.style.display = '';
                 pauseButton.style.display = 'none'; // Only shown when conversation is running
+                if (inputPrompt) {
+                    inputPrompt.style.display = '';
+                }
                 startBtn.style.display = 'none';
                 stopBtn.style.display = 'none';
             }
+
+            syncCommandInputHeight();
+            updateGuidedPanels();
         }
         
         function startSisyphus() {
@@ -2305,6 +4075,7 @@
                     currentConversationId = sisyphusCurrentConversationId;
                     console.log(`[Sisyphus] Created conversation: ${sisyphusCurrentConversationId}`);
                     updateConversationIdDisplay();
+                    updateSessionDisplay();
                 } catch (error) {
                     addEvent({
                         type: 'ErrorEvent',
@@ -2322,6 +4093,7 @@
             // Set the command input value and send
             const input = document.getElementById('command-input');
             input.value = prompt;
+            syncCommandInputHeight();
             
             // Send the command using existing sendCommand function
             console.log(`[Sisyphus] Calling sendCommand for prompt ${sisyphusCurrentPromptIndex}`);
@@ -2422,7 +4194,6 @@
                 console.error('Error loading sessions:', error);
                 document.getElementById('sidebar-content').innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">❌</div>
                         <div class="empty-state-text">Failed to load sessions: ${error.message}</div>
                     </div>
                 `;
@@ -2435,7 +4206,6 @@
             if (sessions.length === 0) {
                 content.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">📭</div>
                         <div class="empty-state-text">No sessions found</div>
                     </div>
                 `;
@@ -2460,10 +4230,10 @@
                                 'No messages yet'}
                         </div>
                         <div class="session-card-meta">
-                            <span>💬 ${session.message_count || 0}</span>
-                            <span>🕐 ${lastActive}</span>
+                            <span>${session.message_count || 0} messages</span>
+                            <span>Updated ${lastActive}</span>
                         </div>
-                        <button class="session-card-delete-btn" onclick="event.stopPropagation(); deleteSession('${session.id}')" title="Delete session">🗑️</button>
+                        <button class="session-card-delete-btn" onclick="event.stopPropagation(); deleteSession('${session.id}')" title="Delete session">Delete</button>
                     </div>
                 `;
             }).join('');
@@ -2538,6 +4308,7 @@
                     currentConversationId = null;
                     localStorage.removeItem('openbrowser_conversation_id');
                     updateConversationIdDisplay();
+                    updateSessionDisplay();
                     addEvent({
                         type: 'SystemEvent',
                         text: `Session ${sessionId.substring(0, 8)}... deleted. New conversation will be created on next command.`,
@@ -2588,6 +4359,7 @@
                 text: 'Conversation paused by user',
                 timestamp: new Date().toISOString()
             });
+            updateGuidedPanels();
         }
         
         function updateSessionDisplay() {
@@ -2600,6 +4372,7 @@
                 sessionDisplay.textContent = 'New';
                 sessionDisplay.className = 'status-connected';
             }
+            updateGuidedPanels();
         }
         
         // Check URL parameters for conversation_id
@@ -2615,6 +4388,9 @@
                     while (terminalOutput.children.length > 1) {
                         terminalOutput.removeChild(terminalOutput.lastChild);
                     }
+                    resetEventCounters();
+                    resetRecentActivity();
+                    resetAgentVoice();
                     
                     // Replay events
                     for (const event of data.events) {
@@ -2633,6 +4409,7 @@
                             role: eventData.role
                         };
                         
+                        updateEventCounters(frontendEvent.type);
                         addEvent(frontendEvent);
                     }
                     
@@ -2668,7 +4445,6 @@
         // Update live image viewer - reuses existing image element for smooth transitions
         function updateLiveImage(imageUrl) {
             const imageViewerContent = document.getElementById('image-viewer-content');
-            const noImagePlaceholder = document.getElementById('no-image-placeholder');
             
             // If no image URL provided, clear the viewer
             if (!imageUrl) {
@@ -2678,10 +4454,7 @@
                 if (existingImage) {
                     existingImage.remove();
                 }
-                // Show placeholder
-                if (noImagePlaceholder) {
-                    noImagePlaceholder.style.display = 'block';
-                }
+                updateGuidedPanels();
                 return;
             }
             
@@ -2691,11 +4464,6 @@
             }
             
             currentImageUrl = imageUrl;
-            
-            // Hide placeholder
-            if (noImagePlaceholder) {
-                noImagePlaceholder.style.display = 'none';
-            }
             
             // Get existing image or create new one
             let img = imageViewerContent.querySelector('.live-image');
@@ -2739,11 +4507,13 @@
                 }, 50);
                 
                 console.log(`[Frontend] Updated live image viewer with new screenshot`);
+                updateGuidedPanels();
             };
             
             tempImg.onerror = function() {
                 img.classList.remove('fade-out');
                 console.error(`[Frontend] Failed to load image: ${imageUrl}`);
+                updateGuidedPanels();
             };
             
             tempImg.src = imageUrl;
@@ -2753,6 +4523,9 @@
         document.addEventListener('DOMContentLoaded', function() {
             updateCurrentTime();
             setInterval(updateCurrentTime, 1000);
+            setAdvancedMode(false);
+            resetRecentActivity();
+            resetAgentVoice();
             checkServerStatus();
             
             // Check configuration and load saved settings
@@ -2773,8 +4546,12 @@
             checkConversationId();
             
             // Set up event listeners
-            document.getElementById('command-input').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
+            document.getElementById('command-input').addEventListener('input', function() {
+                syncCommandInputHeight();
+            });
+            document.getElementById('command-input').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
                     sendCommand();
                 }
             });
@@ -2786,6 +4563,7 @@
             
             // Focus on input
             document.getElementById('command-input').focus();
+            syncCommandInputHeight();
             
             // Initialize image viewer
             updateLiveImage(null);
@@ -2809,6 +4587,7 @@
                 
                 // Reset CWD warning flag when CWD changes
                 cwdWarningShown = false;
+                updateGuidedPanels();
             });
 
             document.getElementById('browser-id-input').addEventListener('change', function() {
@@ -2817,6 +4596,7 @@
             
             // Initialize image click handlers
             setupImageClickHandlers();
+            updateGuidedPanels();
         });
         
         // Update current time display
@@ -2833,26 +4613,28 @@
                 const data = await response.json();
                 
                 if (data.status === 'healthy') {
-                    document.getElementById('server-status').innerHTML = 'SERVER: <span class="status-connected">CONNECTED</span>';
+                    setStatusNode('server-status', 'Connected', 'status-connected');
                     document.getElementById('connection-status').textContent = 'Connected';
-                    document.getElementById('connection-status').style.color = '#cccccc';
+                    document.getElementById('connection-status').style.color = '';
                     
                     if (data.websocket_connected) {
-                        document.getElementById('browser-status').innerHTML = 'BROWSER: <span class="status-connected">CONNECTED</span>';
+                        setStatusNode('browser-status', 'Connected', 'status-connected');
                     } else {
-                        document.getElementById('browser-status').innerHTML = 'BROWSER: <span class="status-disconnected">NOT CONNECTED</span>';
+                        setStatusNode('browser-status', 'Not connected', 'status-disconnected');
                     }
                 } else {
-                    document.getElementById('server-status').innerHTML = 'SERVER: <span class="status-disconnected">ERROR</span>';
+                    setStatusNode('server-status', 'Error', 'status-disconnected');
                     document.getElementById('connection-status').textContent = 'Error';
-                    document.getElementById('connection-status').style.color = '#888888';
+                    document.getElementById('connection-status').style.color = '';
+                    setStatusNode('browser-status', 'Unavailable', 'status-disconnected');
                 }
             } catch (error) {
-                document.getElementById('server-status').innerHTML = 'SERVER: <span class="status-disconnected">OFFLINE</span>';
+                setStatusNode('server-status', 'Offline', 'status-disconnected');
                 document.getElementById('connection-status').textContent = 'Offline';
-                document.getElementById('connection-status').style.color = '#888888';
-                document.getElementById('browser-status').innerHTML = 'BROWSER: <span class="status-disconnected">UNKNOWN</span>';
+                document.getElementById('connection-status').style.color = '';
+                setStatusNode('browser-status', 'Unknown', 'status-disconnected');
             }
+            updateGuidedPanels();
         }
         
         // Send command to agent
@@ -2866,6 +4648,7 @@
             
             // Clear input
             input.value = '';
+            syncCommandInputHeight();
             
             // Add user command to terminal (always show user message)
             console.log(`[Frontend] Sending command: "${command}"`);
@@ -2881,6 +4664,7 @@
             // Disable send button and show pause button
             isProcessing = true;
             isConversationRunning = true;
+            updateGuidedPanels();
             
             if (sisyphusRunning) {
                 // In Sisyphus mode, only update the running state
@@ -2903,7 +4687,11 @@
                     timestamp: new Date().toISOString()
                 });
                 isProcessing = false;
+                isConversationRunning = false;
                 document.getElementById('send-button').disabled = false;
+                document.getElementById('send-button').style.display = 'inline-block';
+                document.getElementById('pause-button').style.display = 'none';
+                updateGuidedPanels();
                 return;
             }
             
@@ -2925,6 +4713,7 @@
                 document.getElementById('send-button').disabled = false;
                 document.getElementById('send-button').style.display = 'inline-block';
                 document.getElementById('pause-button').style.display = 'none';
+                updateGuidedPanels();
                 return;
             }
             
@@ -2947,6 +4736,7 @@
                     currentConversationId = conversationId;
                     // Don't save to localStorage - always start fresh on page reload
                     updateConversationIdDisplay();
+                    updateSessionDisplay();
                     
                     // Update cwd display
                     document.getElementById('cwd-input').value = data.cwd || cwd;
@@ -2957,7 +4747,11 @@
                         timestamp: new Date().toISOString()
                     });
                     isProcessing = false;
+                    isConversationRunning = false;
                     document.getElementById('send-button').disabled = false;
+                    document.getElementById('send-button').style.display = 'inline-block';
+                    document.getElementById('pause-button').style.display = 'none';
+                    updateGuidedPanels();
                     return;
                 }
             }
@@ -3019,6 +4813,7 @@
                             document.getElementById('send-button').disabled = false;
                             document.getElementById('send-button').style.display = 'inline-block';
                             document.getElementById('pause-button').style.display = 'none';
+                            updateGuidedPanels();
                             // Abort the ongoing fetch request
                             if (abortController) {
                                 abortController.abort();
@@ -3055,6 +4850,7 @@
                         // Mark conversation as stopped for Sisyphus mode
                         isProcessing = false;
                         isConversationRunning = false;
+                        updateGuidedPanels();
                     } else if (eventType === 'error') {
                         let errorMessage = 'SSE connection error';
                         try {
@@ -3082,6 +4878,7 @@
                         // Mark conversation as stopped for Sisyphus mode
                         isProcessing = false;
                         isConversationRunning = false;
+                        updateGuidedPanels();
                     } else if (eventType === 'connected') {
                         console.log(`[Frontend] SSE connected: ${eventData}`);
                     } else if (eventType === 'usage_metrics') {
@@ -3254,6 +5051,7 @@
                     completionTimeout = null;
                 }
                 abortController = null;
+                updateGuidedPanels();
             });
             
 
@@ -3274,6 +5072,7 @@
                     document.getElementById('send-button').disabled = false;
                     document.getElementById('send-button').style.display = 'inline-block';
                     document.getElementById('pause-button').style.display = 'none';
+                    updateGuidedPanels();
                     // Abort the ongoing fetch request
                     if (abortController) {
                         abortController.abort();
@@ -3373,12 +5172,13 @@
             }
             
             // Update display
-            document.getElementById('event-count').innerHTML = `EVENTS: <span>${escapeHtml(eventCounters.total)}</span>`;
+            document.getElementById('event-count').innerHTML = `<span>${escapeHtml(eventCounters.total)}</span>`;
             document.getElementById('stat-total').textContent = eventCounters.total;
             document.getElementById('stat-message').textContent = eventCounters.message;
             document.getElementById('stat-action').textContent = eventCounters.action;
             document.getElementById('stat-observation').textContent = eventCounters.observation;
             document.getElementById('stat-error').textContent = eventCounters.error;
+            updateGuidedPanels();
         }
         
         // Add event to terminal display
@@ -3388,22 +5188,33 @@
             
             // Create event line
             const eventLine = document.createElement('div');
+            const eventId = event.id || `event-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
             eventLine.className = 'event-line collapsed';
-            eventLine.id = event.id;
-            eventLine.dataset.type = event.type;
+            eventLine.id = eventId;
+            eventLine.dataset.type = event.type || 'SystemEvent';
             eventLine.dataset.source = event.source || 'system';
+            const eventKind = (event.type || 'SystemEvent').replace('Event', '').toLowerCase();
+            eventLine.classList.add(`event-${eventKind}`);
+            if (event.type === 'MessageEvent') {
+                eventLine.classList.add(event.source === 'user' ? 'message-user' : 'message-agent');
+            }
             console.log(`[Frontend] Created eventLine with dataset.type: "${eventLine.dataset.type}", dataset.source: "${eventLine.dataset.source}"`);
             
             // Determine event type color
             let typeColor = '#666666'; // Default system color
+            let typeLabel = event.type ? event.type.replace('Event', '').toUpperCase() : 'SYSTEM';
             if (event.type === 'MessageEvent') {
-                typeColor = event.source === 'user' ? '#aaaaaa' : '#cccccc';
+                typeColor = event.source === 'user' ? '#f0d8a3' : '#e0b777';
+                typeLabel = event.source === 'user' ? 'YOU' : 'AGENT';
             } else if (event.type === 'ActionEvent') {
-                typeColor = '#aaaaaa';
+                typeColor = '#e6c48d';
+                typeLabel = 'STEP';
             } else if (event.type === 'ObservationEvent') {
-                typeColor = '#aaaaaa';
+                typeColor = '#9be7c1';
+                typeLabel = 'RESULT';
             } else if (event.type === 'ErrorEvent') {
-                typeColor = '#888888';
+                typeColor = '#ffb8b8';
+                typeLabel = 'ERROR';
             }
             
             // Format timestamp
@@ -3415,6 +5226,11 @@
             if (event.error) {
                 content = `ERROR: ${event.error}`;
             }
+            const headerSummary = event.summary || (
+                event.type === 'MessageEvent'
+                    ? truncateForSummary(content, 72)
+                    : null
+            );
             
             // Add metadata for MessageEvent
             let metadataHtml = '';
@@ -3433,8 +5249,8 @@
             // Create HTML
             eventLine.innerHTML = `
                 <div class="event-header">
-                    <span class="event-type" style="color: ${typeColor}">${event.type.replace('Event', '').toUpperCase()}</span>
-                    ${event.summary ? `<span class="event-header-summary">: ${escapeHtml(event.summary)}</span>` : ''}
+                    <span class="event-type" style="color: ${typeColor}">${typeLabel}</span>
+                    ${headerSummary ? `<span class="event-header-summary">: ${escapeHtml(headerSummary)}</span>` : ''}
                     <span class="event-timestamp">${timeStr}</span>
                     <span class="expand-toggle" onclick="toggleEvent(this)">[expand]</span>
                 </div>
@@ -3451,10 +5267,12 @@
             
             // Add to terminal
             terminalOutput.appendChild(eventLine);
+            updateRecentActivity(event);
+            updateAgentVoice(event);
             
             // Auto-expand if setting is enabled
             const autoExpand = document.getElementById('auto-expand').checked;
-            if (autoExpand) {
+            if (autoExpand || event.type === 'MessageEvent' || event.type === 'ErrorEvent') {
                 expandEvent(eventLine);
             }
             
@@ -3560,6 +5378,7 @@
         // Set command in input field
         function setCommand(command) {
             document.getElementById('command-input').value = command;
+            syncCommandInputHeight();
             document.getElementById('command-input').focus();
         }
         
@@ -3576,6 +5395,8 @@
             // Clear events array and counters
             events = [];
             resetEventCounters();
+            resetRecentActivity();
+            resetAgentVoice();
             
             // Clear image viewer
             updateLiveImage(null);
@@ -3599,24 +5420,26 @@
             };
             
             // Update display
-            document.getElementById('event-count').innerHTML = 'EVENTS: <span>0</span>';
+            document.getElementById('event-count').innerHTML = '<span>0</span>';
             document.getElementById('stat-total').textContent = '0';
             document.getElementById('stat-message').textContent = '0';
             document.getElementById('stat-action').textContent = '0';
             document.getElementById('stat-observation').textContent = '0';
             document.getElementById('stat-error').textContent = '0';
+            updateGuidedPanels();
         }
         
         // Update conversation ID display
         function updateConversationIdDisplay() {
             const display = document.getElementById('conversation-id');
             if (currentConversationId) {
-                display.textContent = currentConversationId;
+                display.textContent = shortDisplay(currentConversationId, currentConversationId);
                 display.title = currentConversationId;
             } else {
                 display.textContent = 'None';
                 display.title = '';
             }
+            updateGuidedPanels();
         }
         
         // Refresh conversation ID from server
@@ -3626,6 +5449,7 @@
             currentConversationId = null;
             localStorage.removeItem('openbrowser_conversation_id');
             updateConversationIdDisplay();
+            updateSessionDisplay();
             
             if (oldConversationId) {
                 addEvent({
@@ -3656,26 +5480,22 @@
         function toggleImageFullsize(event) {
             const img = event.currentTarget;
             const overlay = document.getElementById('image-overlay') || createImageOverlay();
+            const overlayImage = overlay.querySelector('img');
             
-            if (img.classList.contains('fullsize')) {
-                // Restore to normal size
-                img.classList.remove('fullsize');
-                overlay.style.display = 'none';
+            if (overlay.classList.contains('open')) {
+                overlay.classList.remove('open');
+                if (overlayImage) {
+                    overlayImage.removeAttribute('src');
+                    overlayImage.removeAttribute('alt');
+                }
                 document.removeEventListener('keydown', handleEscapeKey);
             } else {
-                // Show fullsize
-                img.classList.add('fullsize');
-                overlay.style.display = 'block';
+                if (overlayImage) {
+                    overlayImage.src = img.currentSrc || img.src;
+                    overlayImage.alt = img.alt || 'Expanded image';
+                }
+                overlay.classList.add('open');
                 document.addEventListener('keydown', handleEscapeKey);
-                
-                // Click overlay to close
-                overlay.onclick = function(e) {
-                    if (e.target === overlay) {
-                        img.classList.remove('fullsize');
-                        overlay.style.display = 'none';
-                        document.removeEventListener('keydown', handleEscapeKey);
-                    }
-                };
             }
         }
         
@@ -3683,18 +5503,30 @@
             const overlay = document.createElement('div');
             overlay.id = 'image-overlay';
             overlay.className = 'image-overlay';
+            const overlayImage = document.createElement('img');
+            overlay.appendChild(overlayImage);
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) {
+                    overlay.classList.remove('open');
+                    overlayImage.removeAttribute('src');
+                    overlayImage.removeAttribute('alt');
+                    document.removeEventListener('keydown', handleEscapeKey);
+                }
+            });
             document.body.appendChild(overlay);
             return overlay;
         }
         
         function handleEscapeKey(event) {
             if (event.key === 'Escape') {
-                // Look for both event-image and live-image classes
-                const fullsizeImg = document.querySelector('.event-image.fullsize, .live-image.fullsize');
-                if (fullsizeImg) {
-                    fullsizeImg.classList.remove('fullsize');
-                    const overlay = document.getElementById('image-overlay');
-                    if (overlay) overlay.style.display = 'none';
+                const overlay = document.getElementById('image-overlay');
+                if (overlay && overlay.classList.contains('open')) {
+                    const overlayImage = overlay.querySelector('img');
+                    overlay.classList.remove('open');
+                    if (overlayImage) {
+                        overlayImage.removeAttribute('src');
+                        overlayImage.removeAttribute('alt');
+                    }
                     document.removeEventListener('keydown', handleEscapeKey);
                 }
             }
@@ -3734,9 +5566,11 @@
                     // Set default CWD in the input field
                     document.getElementById('cwd-input').value = appConfig.default_cwd || '/tmp';
                 }
+                updateGuidedPanels();
             } catch (error) {
                 console.error('Error checking configuration:', error);
                 showConfigPage();
+                updateGuidedPanels();
             }
         }
         
@@ -3783,6 +5617,7 @@
                 
                 // Populate CWD config form
                 document.getElementById('config-default-cwd').value = appConfig.default_cwd || '/tmp';
+                updateGuidedPanels();
             } catch (error) {
                 console.error('Error loading configuration:', error);
                 addEvent({
@@ -3884,6 +5719,7 @@
                     });
                 }
 
+                updateGuidedPanels();
                 alert('LLM configuration saved successfully!');
             } catch (error) {
                 console.error('Error saving LLM configuration:', error);
@@ -3928,6 +5764,7 @@
                 // Update main interface CWD input
                 document.getElementById('cwd-input').value = data.default_cwd;
                 
+                updateGuidedPanels();
                 alert('Default working directory saved successfully!');
             } catch (error) {
                 console.error('Error saving CWD configuration:', error);
@@ -3980,27 +5817,28 @@
             const horizontalResizer = document.getElementById('horizontal-resizer');
             const container = document.querySelector('.container');
             const rightPanel = document.querySelector('.right-panel');
+            const mainTerminal = document.querySelector('.main-terminal');
             const imageViewer = document.querySelector('.image-viewer');
             const sidebar = document.querySelector('.sidebar');
             
-            console.log('Resizer elements:', { verticalResizer, horizontalResizer, rightPanel, imageViewer, sidebar });
+            console.log('Resizer elements:', { verticalResizer, horizontalResizer, rightPanel, mainTerminal, imageViewer, sidebar });
             
-            if (!verticalResizer || !horizontalResizer || !rightPanel || !imageViewer || !sidebar) {
+            if (!verticalResizer || !rightPanel || !mainTerminal || !imageViewer || !container) {
                 console.error('Missing required elements for resizers');
                 return;
             }
             
             let isVerticalDragging = false;
             let isHorizontalDragging = false;
-            let startX, startY, startRightPanelWidth, startImageViewerHeight;
+            let startX, startY, startMainTerminalWidth, startImageViewerHeight;
             
-            // Vertical resizer (adjust width of right-panel)
+            // Vertical resizer (adjust width of the right-side control column)
             verticalResizer.addEventListener('mousedown', (e) => {
                 console.log('Vertical resizer mousedown', e.clientX, e.clientY);
                 isVerticalDragging = true;
                 startX = e.clientX;
-                startRightPanelWidth = rightPanel.offsetWidth;
-                console.log('Initial right panel width:', startRightPanelWidth);
+                startMainTerminalWidth = mainTerminal.offsetWidth;
+                console.log('Initial main terminal width:', startMainTerminalWidth);
                 verticalResizer.classList.add('dragging');
                 document.addEventListener('mousemove', handleVerticalMouseMove);
                 document.addEventListener('mouseup', handleVerticalMouseUp);
@@ -4010,25 +5848,19 @@
             function handleVerticalMouseMove(e) {
                 if (!isVerticalDragging) return;
                 e.preventDefault();
-                // Reverse deltaX direction to match intuitive dragging
+                // Dragging left should make the right-side control column wider.
                 const deltaX = startX - e.clientX;
-                // Calculate new width for right-panel based on initial width
-                const newWidth = startRightPanelWidth + deltaX;
-                const minWidth = 350;
-                // Maximum width is 50% of container width, but not less than minWidth
-                const maxWidth = Math.max(minWidth, Math.floor(container.offsetWidth * 0.5));
+                const newWidth = startMainTerminalWidth + deltaX;
+                const minWidth = 360;
+                const maxWidth = Math.max(minWidth, Math.floor(container.offsetWidth * 0.45));
                 const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-                console.log('Vertical move - deltaX:', deltaX, 'newWidth:', newWidth, 'clampedWidth:', clampedWidth, 'maxWidth(50%):', maxWidth, 'containerWidth:', container.offsetWidth);
-                // Use width and disable flex to allow manual sizing
-                rightPanel.style.flex = 'none';
-                rightPanel.style.width = clampedWidth + 'px';
-                rightPanel.style.minWidth = clampedWidth + 'px';
-                rightPanel.style.maxWidth = clampedWidth + 'px'; // Override CSS max-width
-                // Let main-terminal take remaining space
-                const mainTerminal = document.querySelector('.main-terminal');
-                if (mainTerminal) {
-                    mainTerminal.style.flex = '1 1 auto';
-                }
+                console.log('Vertical move - deltaX:', deltaX, 'newWidth:', newWidth, 'clampedWidth:', clampedWidth, 'maxWidth(45%):', maxWidth, 'containerWidth:', container.offsetWidth);
+
+                mainTerminal.style.flex = 'none';
+                mainTerminal.style.width = clampedWidth + 'px';
+                mainTerminal.style.minWidth = clampedWidth + 'px';
+                mainTerminal.style.maxWidth = clampedWidth + 'px';
+                rightPanel.style.flex = '1 1 auto';
             }
             
             function handleVerticalMouseUp() {
@@ -4038,40 +5870,42 @@
                 document.removeEventListener('mouseup', handleVerticalMouseUp);
             }
             
-            // Horizontal resizer (adjust height of image-viewer)
-            horizontalResizer.addEventListener('mousedown', (e) => {
-                console.log('Horizontal resizer mousedown', e.clientX, e.clientY);
-                isHorizontalDragging = true;
-                startY = e.clientY;
-                startImageViewerHeight = imageViewer.offsetHeight;
-                console.log('Initial image viewer height:', startImageViewerHeight, 'right panel height:', rightPanel.offsetHeight);
-                horizontalResizer.classList.add('dragging');
-                document.addEventListener('mousemove', handleHorizontalMouseMove);
-                document.addEventListener('mouseup', handleHorizontalMouseUp);
-                e.preventDefault();
-            });
-            
+            if (horizontalResizer && sidebar) {
+                horizontalResizer.addEventListener('mousedown', (e) => {
+                    console.log('Horizontal resizer mousedown', e.clientX, e.clientY);
+                    isHorizontalDragging = true;
+                    startY = e.clientY;
+                    startImageViewerHeight = imageViewer.offsetHeight;
+                    console.log('Initial image viewer height:', startImageViewerHeight, 'right panel height:', rightPanel.offsetHeight);
+                    horizontalResizer.classList.add('dragging');
+                    document.addEventListener('mousemove', handleHorizontalMouseMove);
+                    document.addEventListener('mouseup', handleHorizontalMouseUp);
+                    e.preventDefault();
+                });
+            }
+
             function handleHorizontalMouseMove(e) {
-                if (!isHorizontalDragging) return;
+                if (!isHorizontalDragging || !sidebar) return;
                 e.preventDefault();
                 const deltaY = e.clientY - startY;
-                // Calculate new height for image-viewer based on initial height
                 const newHeight = startImageViewerHeight + deltaY;
-                const minHeight = 200; // minimum height for image viewer
+                const minHeight = 200;
                 const rightPanelHeight = rightPanel.offsetHeight;
-                const maxHeight = rightPanelHeight - 100; // leave some space for sidebar
+                const maxHeight = rightPanelHeight - 100;
                 const clampedHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
                 console.log('Horizontal move - deltaY:', deltaY, 'newHeight:', newHeight, 'clampedHeight:', clampedHeight, 'rightPanelHeight:', rightPanelHeight);
-                // Use height and disable flex to allow manual sizing
                 imageViewer.style.flex = 'none';
                 imageViewer.style.height = clampedHeight + 'px';
                 imageViewer.style.minHeight = clampedHeight + 'px';
-                // Let sidebar take remaining space and remove min-height restriction
                 sidebar.style.flex = '1 1 auto';
-                sidebar.style.minHeight = '100px'; // Reduced min-height to allow more flexibility
+                sidebar.style.minHeight = '100px';
             }
-            
+
             function handleHorizontalMouseUp() {
+                if (!horizontalResizer) {
+                    return;
+                }
+
                 isHorizontalDragging = false;
                 horizontalResizer.classList.remove('dragging');
                 document.removeEventListener('mousemove', handleHorizontalMouseMove);
@@ -4123,6 +5957,7 @@
             
             const currencySymbol = isDashScopeModel ? '¥' : '$';
             console.log(`[Frontend] Updated usage metrics: ${currencySymbol}${accumulatedCost}, ${totalTokens} tokens (model: ${modelName})`);
+            updateGuidedPanels();
         }
         
         // Initialize resizers when page loads

@@ -29,13 +29,15 @@ When you use the highlight tool, elements are marked with **BLUE boxes**:
 1. Look at the screenshot - find blue boxes
 2. Match visual position with your intent
 3. Read HTML semantics to confirm
-4. Note the element_id of your target
+4. Note both the `highlight_snapshot_id` and the `element_id` of your target
 
 ## Element ID Format
 
-Element IDs are unique 6-character base36 hashes (e.g., `a3f2b1`, `9z8x7c`).
-Each element is assigned a stable hash based on its DOM position and attributes.
-This hash remains consistent across highlight tool calls for the same page state.
+Each `highlight` response returns a numeric `highlight_snapshot_id` plus page-local numeric `element_id` labels such as `1`, `2`, `3`.
+`element_id` values are only meaningful together with the matching `highlight_snapshot_id`.
+Each new `highlight` response creates a fresh `highlight_snapshot_id`.
+To continue pagination on the same frozen inventory, pass the previous `highlight_snapshot_id` into the next `highlight` call.
+The confirmation-only `highlight_single_element` flow does not create a new `highlight_snapshot_id`.
 
 ## Collision-Aware Pagination
 
@@ -58,13 +60,14 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 { "element_type": "hoverable" }  // Hoverable elements
 { "element_type": "selectable" } // Select dropdowns
 { "element_type": "any" }        // All interactive elements combined
-{ "page": 2 }                 // Next page of any interactive elements
+{ "page": 2, "highlight_snapshot_id": 17 } // Next page of the same frozen any inventory
 { "keywords": ["Continue with Email"] } // Exact observed readable text only
 ```
 
 **Parameters**:
 - `element_type`: Single type to highlight - "any" (default), "scrollable", "inputable", "hoverable", or "selectable"
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
+- `highlight_snapshot_id`: Previous highlight snapshot ID. Required when `page > 1` so pagination continues on the same frozen inventory instead of rescanning the page.
 - `keywords`: Exact literal text already visible on the target itself in the current screenshot that you can copy verbatim. Use this only to accelerate a known text match, not to discover guessed controls. When provided, only matching elements are returned without pagination. Example: ["Continue with Email", "View comments"]
 
 **When to Use Pagination**:
@@ -76,6 +79,7 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 - Treat pages as reliable collision-free slices of the same candidate set, not random samples
 - Continue to the next page until you find the most appropriate element for your task or exhaust the relevant pages
 - Stay on the same `element_type` across pages to browse through all elements of that category
+- When paginating, reuse the previous `highlight_snapshot_id` so each next page comes from the same frozen inventory
 - Do not jump from a first-page miss to `keywords`
 - Exhaust relevant highlight pages before switching strategies unless the page state changed or you already see the target's exact literal text on the target itself in the screenshot
 - Use `any` to inventory the changed page first, then use type-specific pagination only if you have a narrower reason on the same unchanged page state
@@ -131,11 +135,11 @@ Examples of exact-text search:
 3. **Visual + Semantic Verification**: At the BLUE stage, verify using BOTH visual AND semantic information:
    - **Visual Check**: Is the blue box where you expect?
    - **Semantic Check**: Does the HTML match your goal?
-4. **Select Element**: Note the `element_id` of your target.
-   - Returned IDs can include the primary type plus extra hints, for example `abc123(scrollable, swipable)`.
+4. **Select Element**: Note the `highlight_snapshot_id` and the `element_id` of your target.
+   - Returned IDs can include the primary type plus extra hints, for example `1(scrollable, swipable)`.
    - `swipable` means the element is in a carousel/slider/swiper-like region. Do not assume normal page/container scroll will move it.
    - When you later use `swipe`, `direction: "next"` means show the next picture/item and `direction: "prev"` means show the previous picture/item. These are semantic content directions, not gesture directions.
-5. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and the selected element_id.
+5. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and pass both the selected `highlight_snapshot_id` and `element_id`.
    - For any `inputable` target, always `click` it first and complete that confirmation before `keyboard_input`.
 
 ## Element Types
