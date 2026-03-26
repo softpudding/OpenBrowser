@@ -19,6 +19,7 @@ from openhands.sdk.event import (
 )
 
 from server.api.sse import SSEEvent
+from server.agent.user_help import PLEASE_HELP_ME_TOOL_NAME
 from server.core.session_manager import session_manager
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ class QueueVisualizer(ConversationVisualizerBase):
                 "type": event_type,
                 "text": text_content,
                 "timestamp": getattr(event, "timestamp", None),
+                "source": getattr(event, "source", None),
             }
 
             # Handle different event types using isinstance for clarity
@@ -97,13 +99,22 @@ class QueueVisualizer(ConversationVisualizerBase):
 
             # Process specific event types (mutually exclusive)
             if isinstance(event, ActionEvent):
+                sse_data["tool_name"] = event.tool_name
+                sse_data["tool_call_id"] = event.tool_call_id
                 # ActionEvent has action attribute
                 if event.action:
                     sse_data["action"] = str(event.action)
                 if event.summary:
                     sse_data["summary"] = str(event.summary)
+                if event.tool_name == PLEASE_HELP_ME_TOOL_NAME and event.action:
+                    help_request = getattr(event.action, "message", None)
+                    if isinstance(help_request, str) and help_request.strip():
+                        sse_data["help_request"] = help_request
+                        sse_data["awaiting_user_help"] = True
 
             elif isinstance(event, ObservationEvent):
+                sse_data["tool_name"] = event.tool_name
+                sse_data["tool_call_id"] = event.tool_call_id
                 # ObservationEvent has observation attribute with possible image content
                 obs = event.observation
                 # Extract observation properties (same as original hasattr checks)
@@ -121,6 +132,11 @@ class QueueVisualizer(ConversationVisualizerBase):
                     sse_data["image"] = obs.image_url
                 elif hasattr(obs, "image") and obs.image:
                     sse_data["image"] = obs.image
+                if event.tool_name == PLEASE_HELP_ME_TOOL_NAME:
+                    sse_data["awaiting_user_help"] = True
+                    help_request = getattr(obs, "help_message", None)
+                    if isinstance(help_request, str) and help_request.strip():
+                        sse_data["help_request"] = help_request
 
             elif isinstance(event, MessageEvent):
                 # MessageEvent has llm_message with role information

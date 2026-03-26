@@ -65,9 +65,8 @@ class TestAgentManagerMultiProcessMode:
 
     def test_large_models_keep_full_browser_toolset(self) -> None:
         """Large models should keep javascript plus general tools."""
-        manager = OpenBrowserAgentManager()
-
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
+            manager = OpenBrowserAgentManager()
             mock_llm_config.reload_config.return_value = MagicMock()
             mock_llm_config.get_llm_config.return_value = MagicMock(
                 model="dashscope/qwen3.5-plus",
@@ -86,6 +85,7 @@ class TestAgentManagerMultiProcessMode:
             "element_interaction",
             "dialog",
             "javascript",
+            "please_help_me",
             "terminal",
             "file_editor",
             "task_tracker",
@@ -93,9 +93,8 @@ class TestAgentManagerMultiProcessMode:
 
     def test_small_models_drop_javascript_only(self) -> None:
         """Small models keep general tools but lose javascript."""
-        manager = OpenBrowserAgentManager()
-
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
+            manager = OpenBrowserAgentManager()
             mock_llm_config.reload_config.return_value = MagicMock()
             mock_llm_config.get_llm_config.return_value = MagicMock(
                 model="dashscope/qwen3.5-flash",
@@ -113,6 +112,7 @@ class TestAgentManagerMultiProcessMode:
             "highlight",
             "element_interaction",
             "dialog",
+            "please_help_me",
             "terminal",
             "file_editor",
             "task_tracker",
@@ -120,9 +120,8 @@ class TestAgentManagerMultiProcessMode:
 
     def test_unknown_models_default_to_large_profile(self) -> None:
         """Unconfigured models should keep the large-model toolset."""
-        manager = OpenBrowserAgentManager()
-
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
+            manager = OpenBrowserAgentManager()
             mock_llm_config.reload_config.return_value = MagicMock()
             mock_llm_config.get_llm_config.return_value = MagicMock(
                 model="dashscope/qwen3.5-plus",
@@ -135,6 +134,7 @@ class TestAgentManagerMultiProcessMode:
             ]
 
         assert "javascript" in tool_names
+        assert "please_help_me" in tool_names
 
     def test_system_prompt_kwargs_follow_large_model_profile(self) -> None:
         """Large models should advertise full browser freedom in system prompt."""

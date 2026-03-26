@@ -1675,8 +1675,8 @@ requires-dist = [
     { name = "litellm", git = "https://github.com/softpudding/litellm.git?rev=bfba5e3889829067baeab3b12d38008360913771" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "numpy", specifier = ">=1.24.0" },
-    { name = "openhands-sdk", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=4e6dab44f253b3c03c46f7469dc58aba97540c88" },
-    { name = "openhands-tools", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=4e6dab44f253b3c03c46f7469dc58aba97540c88" },
+    { name = "openhands-sdk", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=e8ed7c2da95f861d48d624c2cb24df4fe6b84fe5" },
+    { name = "openhands-tools", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=e8ed7c2da95f861d48d624c2cb24df4fe6b84fe5" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pydantic", specifier = ">=2.5.0" },
@@ -2221,7 +2221,7 @@ wheels = [
 [[package]]
 name = "openhands-sdk"
 version = "1.12.0"
-source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=4e6dab44f253b3c03c46f7469dc58aba97540c88#4e6dab44f253b3c03c46f7469dc58aba97540c88" }
+source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=e8ed7c2da95f861d48d624c2cb24df4fe6b84fe5#e8ed7c2da95f861d48d624c2cb24df4fe6b84fe5" }
 dependencies = [
     { name = "agent-client-protocol" },
     { name = "deprecation" },
@@ -2241,7 +2241,7 @@ dependencies = [
 [[package]]
 name = "openhands-tools"
 version = "1.12.0"
-source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=4e6dab44f253b3c03c46f7469dc58aba97540c88#4e6dab44f253b3c03c46f7469dc58aba97540c88" }
+source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=e8ed7c2da95f861d48d624c2cb24df4fe6b84fe5#e8ed7c2da95f861d48d624c2cb24df4fe6b84fe5" }
 dependencies = [
     { name = "bashlex" },
     { name = "binaryornot" },

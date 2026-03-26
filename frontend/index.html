@@ -1350,6 +1350,129 @@
             visibility: visible;
         }
 
+        .help-request-modal {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(8, 6, 4, 0.72);
+            backdrop-filter: blur(10px);
+            z-index: 3200;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+
+        .help-request-modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .help-request-card {
+            width: min(640px, 100%);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 24px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 210, 140, 0.32);
+            background: linear-gradient(180deg, rgba(42, 29, 17, 0.97), rgba(29, 21, 15, 0.98));
+            box-shadow: 0 32px 90px rgba(0, 0, 0, 0.42);
+        }
+
+        .help-request-kicker {
+            color: #ffd28c;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        .help-request-title {
+            font-size: 28px;
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+        }
+
+        .help-request-copy,
+        .help-request-conversation {
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .help-request-message {
+            padding: 16px 18px;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 210, 140, 0.18);
+            background: rgba(255, 210, 140, 0.08);
+            color: var(--text-primary);
+            font-size: 15px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        .help-request-textarea {
+            min-height: 112px;
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid var(--panel-border);
+            background: rgba(21, 17, 13, 0.92);
+            color: var(--text-primary);
+            font: inherit;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: vertical;
+        }
+
+        .help-request-textarea:focus {
+            outline: none;
+            border-color: rgba(255, 210, 140, 0.42);
+            box-shadow: 0 0 0 4px rgba(255, 210, 140, 0.08);
+        }
+
+        .help-request-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .help-request-primary,
+        .help-request-secondary {
+            border: none;
+            border-radius: 999px;
+            padding: 12px 18px;
+            cursor: pointer;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            transition: transform 0.18s ease, opacity 0.18s ease;
+        }
+
+        .help-request-primary {
+            background: #ffd28c;
+            color: #2b1b0c;
+        }
+
+        .help-request-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-secondary);
+            border: 1px solid var(--panel-border);
+        }
+
+        .help-request-primary:hover,
+        .help-request-secondary:hover {
+            transform: translateY(-1px);
+        }
+
+        body.help-needed .terminal-header {
+            border-color: rgba(255, 210, 140, 0.34);
+            box-shadow: 0 28px 90px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 210, 140, 0.14);
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -2635,6 +2758,37 @@
 <body>
     <!-- Session Sidebar Overlay -->
     <div class="session-overlay" id="session-overlay" onclick="closeSessionSidebar()"></div>
+
+    <div class="help-request-modal" id="help-request-modal">
+        <div class="help-request-card">
+            <div class="help-request-kicker">Human Help Needed</div>
+            <div class="help-request-title">The agent is waiting for you</div>
+            <div class="help-request-copy">Complete the manual browser step below, then resume the same conversation.</div>
+            <div class="help-request-conversation">Conversation: <span id="help-request-conversation">Current conversation</span></div>
+            <div class="help-request-message" id="help-request-message">The agent needs your help before it can continue.</div>
+            <textarea
+                class="help-request-textarea"
+                id="help-request-input"
+                placeholder="Optional custom reply to the agent, for example: 我已经通过验证码了，请继续。"
+            ></textarea>
+            <div class="help-request-actions">
+                <button
+                    type="button"
+                    class="help-request-primary"
+                    onclick="resolveHelpWithDefaultReply()"
+                >
+                    I've resolved it
+                </button>
+                <button
+                    type="button"
+                    class="help-request-secondary"
+                    onclick="resolvePendingHelpRequest(document.getElementById('help-request-input').value)"
+                >
+                    Send custom reply
+                </button>
+            </div>
+        </div>
+    </div>
     
     <!-- Session Sidebar -->
     <div class="session-sidebar" id="session-sidebar">
@@ -3132,6 +3286,9 @@
         let latestAgentStep = 'Waiting for a task.';
         let latestAgentThinking = 'Waiting for agent reasoning.';
         let latestAgentTimestamp = null;
+        let pendingHelpRequest = null;
+        let helpAttentionTimer = null;
+        let defaultDocumentTitle = document.title;
         
         // Sisyphus mode variables
         let sisyphusEnabled = false;
@@ -3149,6 +3306,8 @@
         const MODEL_ALIAS_STORAGE_KEY = 'openbrowser_model_alias';
         const AGENT_STEP_PLACEHOLDER = 'Waiting for a task.';
         const AGENT_THINKING_PLACEHOLDER = 'Waiting for agent reasoning.';
+        const DEFAULT_HELP_RESUME_MESSAGE = 'I have completed the human step you needed. Please continue based on the current page state.';
+        const HELP_REQUEST_TITLE = 'Human Help Needed · OpenBrowser';
         
         // Helper function to build API URL
         function apiUrl(path) {
@@ -3171,6 +3330,214 @@
             }
 
             return `${value.substring(0, 8)}...${value.substring(value.length - 4)}`;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function waitForProcessingToFinish(timeoutMs = 5000) {
+            const start = Date.now();
+            while (isProcessing && Date.now() - start < timeoutMs) {
+                await sleep(50);
+            }
+        }
+
+        function getHelpRequestText(event) {
+            return (
+                event.help_request ||
+                event.message ||
+                event.text ||
+                'The agent needs your help before it can continue.'
+            );
+        }
+
+        function clearHelpAttention() {
+            if (helpAttentionTimer) {
+                clearInterval(helpAttentionTimer);
+                helpAttentionTimer = null;
+            }
+            document.title = defaultDocumentTitle;
+            document.body.classList.remove('help-needed');
+        }
+
+        function startHelpAttention() {
+            clearHelpAttention();
+            document.body.classList.add('help-needed');
+
+            let highlighted = false;
+            document.title = HELP_REQUEST_TITLE;
+            helpAttentionTimer = setInterval(() => {
+                highlighted = !highlighted;
+                document.title = highlighted ? HELP_REQUEST_TITLE : defaultDocumentTitle;
+            }, 1200);
+        }
+
+        function focusHelpRequestUi() {
+            try {
+                window.focus();
+            } catch (error) {
+                console.debug('Unable to focus window:', error);
+            }
+
+            setTimeout(() => {
+                try {
+                    window.focus();
+                } catch (error) {
+                    console.debug('Unable to refocus window:', error);
+                }
+                const customInput = document.getElementById('help-request-input');
+                if (customInput) {
+                    customInput.focus();
+                }
+            }, 120);
+        }
+
+        function hideHelpRequestModal() {
+            const modal = document.getElementById('help-request-modal');
+            if (modal) {
+                modal.classList.remove('show');
+            }
+        }
+
+        function clearPendingHelpRequest() {
+            pendingHelpRequest = null;
+            clearHelpAttention();
+            hideHelpRequestModal();
+        }
+
+        function showHelpRequestModal(request, options = {}) {
+            if (
+                pendingHelpRequest &&
+                pendingHelpRequest.toolCallId &&
+                request.toolCallId &&
+                pendingHelpRequest.toolCallId === request.toolCallId
+            ) {
+                if (!options.silent) {
+                    focusHelpRequestUi();
+                }
+                return;
+            }
+
+            pendingHelpRequest = request;
+
+            const modal = document.getElementById('help-request-modal');
+            const messageNode = document.getElementById('help-request-message');
+            const conversationNode = document.getElementById('help-request-conversation');
+            const inputNode = document.getElementById('help-request-input');
+
+            if (!modal || !messageNode || !conversationNode || !inputNode) {
+                return;
+            }
+
+            messageNode.textContent = request.message;
+            conversationNode.textContent = shortDisplay(
+                request.conversationId || currentConversationId,
+                'Current conversation'
+            );
+            inputNode.value = request.customReply || '';
+            modal.classList.add('show');
+            startHelpAttention();
+
+            if (!options.silent) {
+                focusHelpRequestUi();
+            }
+
+            if (sisyphusRunning) {
+                stopSisyphus();
+                addEvent({
+                    type: 'SystemEvent',
+                    text: 'Sisyphus stopped because the agent requested human help.',
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+
+        async function resolvePendingHelpRequest(messageText) {
+            if (!pendingHelpRequest) {
+                return;
+            }
+
+            const trimmed = (messageText || '').trim();
+            if (!trimmed) {
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: 'Please enter a reply for the agent, or use “I\'ve resolved it”.',
+                    timestamp: new Date().toISOString()
+                });
+                return;
+            }
+
+            const request = pendingHelpRequest;
+            clearPendingHelpRequest();
+            await waitForProcessingToFinish();
+
+            if (isProcessing) {
+                showHelpRequestModal(request, { silent: true });
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: 'The previous turn is still closing. Please try again in a moment.',
+                    timestamp: new Date().toISOString()
+                });
+                return;
+            }
+
+            if (request.conversationId && currentConversationId && request.conversationId !== currentConversationId) {
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: 'The pending help request belongs to a different conversation.',
+                    timestamp: new Date().toISOString()
+                });
+                return;
+            }
+
+            const input = document.getElementById('command-input');
+            if (input) {
+                input.value = trimmed;
+                syncCommandInputHeight();
+            }
+
+            await sendCommandText(trimmed, { preserveInput: false });
+        }
+
+        async function resolveHelpWithDefaultReply() {
+            await resolvePendingHelpRequest(DEFAULT_HELP_RESUME_MESSAGE);
+        }
+
+        function isHelpRequestEvent(event) {
+            return (
+                event.type === 'ActionEvent' &&
+                event.tool_name === 'please_help_me'
+            );
+        }
+
+        function normalizeFrontendEvent(data, fallback = {}) {
+            const eventType = data.type || fallback.type || 'SystemEvent';
+            let source = data.source || fallback.source || 'agent';
+
+            if (eventType === 'MessageEvent') {
+                source = data.source || fallback.source || (data.role === 'user' ? 'user' : 'agent');
+            }
+
+            return {
+                id: fallback.id || `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                type: eventType,
+                text: data.text || fallback.text || '',
+                timestamp: data.timestamp || fallback.timestamp || new Date().toISOString(),
+                image: data.image || fallback.image || null,
+                success: data.success,
+                message: data.message,
+                error: data.error,
+                role: data.role || fallback.role || null,
+                activated_skills: data.activated_skills || fallback.activated_skills || null,
+                sender: data.sender || fallback.sender || null,
+                source: source,
+                summary: data.summary || fallback.summary || null,
+                tool_name: data.tool_name || fallback.tool_name || null,
+                tool_call_id: data.tool_call_id || fallback.tool_call_id || null,
+                help_request: data.help_request || fallback.help_request || null,
+                awaiting_user_help: Boolean(data.awaiting_user_help || fallback.awaiting_user_help)
+            };
         }
 
         function truncateForSummary(value, maxLength = 140) {
@@ -3217,6 +3584,10 @@
         }
 
         function getAgentVoiceFallback() {
+            if (pendingHelpRequest) {
+                return pendingHelpRequest.message;
+            }
+
             if (isProcessing) {
                 return 'The agent is working. Follow the browser stage and the step feed below.';
             }
@@ -3390,6 +3761,20 @@
                 latestAgentTimestamp = timestamp;
                 shouldResetStageScroll = true;
             } else if (event.type === 'ActionEvent') {
+                if (event.tool_name === 'please_help_me') {
+                    const helpText = getHelpRequestText(event);
+                    latestAgentStep = 'Needs human help';
+                    latestAgentThinking = truncateForSummary(helpText, 220);
+                    latestAgentMessage = helpText;
+                    latestAgentTimestamp = timestamp;
+                    shouldResetStageScroll = true;
+                    renderAgentVoice();
+                    if (shouldResetStageScroll) {
+                        resetStageConversationScroll();
+                    }
+                    return;
+                }
+
                 const parsed = parseActionSections(content);
                 latestAgentStep = truncateForSummary(
                     event.summary || parsed.summary || content,
@@ -3483,6 +3868,8 @@
 
             if (event.type === 'MessageEvent' && event.source === 'user') {
                 label = 'User task';
+            } else if (event.tool_name === 'please_help_me') {
+                label = 'Help';
             } else if (event.type === 'SystemEvent') {
                 label = 'System';
             }
@@ -3512,6 +3899,8 @@
             let nextStep = 'Paste the browser UUID to connect this browser window.';
             if (!appConfig?.is_configured) {
                 nextStep = 'Open Settings and add a model before running tasks.';
+            } else if (pendingHelpRequest) {
+                nextStep = 'Human help requested. Complete the manual step and resume the same conversation.';
             } else if (sisyphusEnabled && sisyphusRunning) {
                 nextStep = 'Sisyphus is running. Watch the browser stage or stop the loop.';
             } else if (sisyphusEnabled) {
@@ -3590,6 +3979,7 @@
                 currentConversationId
             ) {
                 const oldConversationId = currentConversationId;
+                clearPendingHelpRequest();
                 currentConversationId = null;
                 sisyphusCurrentConversationId = null;
                 updateConversationIdDisplay();
@@ -3697,6 +4087,7 @@
             }
 
             const oldConversationId = currentConversationId;
+            clearPendingHelpRequest();
             currentConversationId = null;
             sisyphusCurrentConversationId = null;
             updateConversationIdDisplay();
@@ -4305,6 +4696,7 @@
                 
                 // If deleted session was current, clear it
                 if (sessionId === currentConversationId) {
+                    clearPendingHelpRequest();
                     currentConversationId = null;
                     localStorage.removeItem('openbrowser_conversation_id');
                     updateConversationIdDisplay();
@@ -4391,6 +4783,9 @@
                     resetEventCounters();
                     resetRecentActivity();
                     resetAgentVoice();
+                    clearPendingHelpRequest();
+
+                    let unresolvedHelpRequest = null;
                     
                     // Replay events
                     for (const event of data.events) {
@@ -4402,15 +4797,27 @@
                         }
                         
                         // Convert to frontend event format
-                        const frontendEvent = {
-                            type: eventData.type || event.event_type,
-                            text: eventData.text || eventData.action || eventData.observation || '',
-                            timestamp: eventData.timestamp || event.created_at,
-                            role: eventData.role
-                        };
+                        const frontendEvent = normalizeFrontendEvent(eventData, {
+                            type: event.event_type,
+                            timestamp: event.created_at
+                        });
                         
                         updateEventCounters(frontendEvent.type);
                         addEvent(frontendEvent);
+
+                        if (frontendEvent.type === 'MessageEvent' && frontendEvent.source === 'user') {
+                            unresolvedHelpRequest = null;
+                        } else if (isHelpRequestEvent(frontendEvent)) {
+                            unresolvedHelpRequest = {
+                                conversationId: conversationId,
+                                toolCallId: frontendEvent.tool_call_id,
+                                message: getHelpRequestText(frontendEvent)
+                            };
+                        }
+                    }
+
+                    if (unresolvedHelpRequest) {
+                        showHelpRequestModal(unresolvedHelpRequest, { silent: true });
                     }
                     
                     console.log(`Loaded ${data.events.length} events for session ${conversationId}`);
@@ -4573,6 +4980,7 @@
                 // When cwd changes, clear current conversation to force new creation
                 if (currentConversationId) {
                     console.log(`[Frontend] CWD changed to "${this.value}", clearing current conversation`);
+                    clearPendingHelpRequest();
                     currentConversationId = null;
                     localStorage.removeItem('openbrowser_conversation_id');
                     updateConversationIdDisplay();
@@ -4640,15 +5048,25 @@
         // Send command to agent
         async function sendCommand() {
             const input = document.getElementById('command-input');
-            const command = input.value.trim();
-            
+            return sendCommandText(input.value.trim(), { inputElement: input });
+        }
+
+        async function sendCommandText(command, options = {}) {
+            const input = options.inputElement || document.getElementById('command-input');
+
             if (!command || isProcessing) {
                 return;
             }
-            
+
+            if (pendingHelpRequest) {
+                clearPendingHelpRequest();
+            }
+
             // Clear input
-            input.value = '';
-            syncCommandInputHeight();
+            if (!options.preserveInput && input) {
+                input.value = '';
+                syncCommandInputHeight();
+            }
             
             // Add user command to terminal (always show user message)
             console.log(`[Frontend] Sending command: "${command}"`);
@@ -4828,9 +5246,10 @@
                         processEvent(data);
                     } else if (eventType === 'complete') {
                         let message = 'Conversation completed';
+                        let completionData = null;
                         try {
-                            const data = JSON.parse(eventData);
-                            message = data.message || message;
+                            completionData = JSON.parse(eventData);
+                            message = completionData.message || message;
                         } catch (e) {
                             // Use default message
                         }
@@ -4851,6 +5270,14 @@
                         isProcessing = false;
                         isConversationRunning = false;
                         updateGuidedPanels();
+
+                        if (completionData && completionData.needs_user_help) {
+                            showHelpRequestModal({
+                                conversationId: completionData.conversation_id || currentConversationId,
+                                toolCallId: completionData.tool_call_id || null,
+                                message: completionData.help_request || message
+                            });
+                        }
                     } else if (eventType === 'error') {
                         let errorMessage = 'SSE connection error';
                         try {
@@ -5108,32 +5535,7 @@
                 return;
             }
             
-            // Determine source based on role or event type
-            let source = 'agent'; // default
-            if (eventType === 'MessageEvent') {
-                // Use role field for MessageEvent
-                source = data.role === 'user' ? 'user' : 'agent';
-            } else if (data.text && data.text.includes('user:')) {
-                // Fallback for other event types that might have user text
-                source = 'user';
-            }
-            
-            // Create event object
-            const event = {
-                id: `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                type: eventType,
-                text: data.text || '',
-                timestamp: data.timestamp || new Date().toISOString(),
-                image: data.image || null,
-                success: data.success,
-                message: data.message,
-                error: data.error,
-                role: data.role || null, // Include role field
-                activated_skills: data.activated_skills || null,
-                sender: data.sender || null,
-                source: source,
-                summary: data.summary || null // Include summary field for collapsed display
-            };
+            const event = normalizeFrontendEvent(data);
             
             console.log(`[Frontend] Created event:`, event);
             
@@ -5150,6 +5552,16 @@
             
             // Render event (without image in the event line)
             addEvent(event);
+
+            if (isHelpRequestEvent(event)) {
+                if (!pendingHelpRequest || pendingHelpRequest.toolCallId !== event.tool_call_id) {
+                    showHelpRequestModal({
+                        conversationId: currentConversationId,
+                        toolCallId: event.tool_call_id,
+                        message: getHelpRequestText(event)
+                    });
+                }
+            }
         }
         
         // Update event counters and display
@@ -5216,6 +5628,11 @@
                 typeColor = '#ffb8b8';
                 typeLabel = 'ERROR';
             }
+
+            if (event.tool_name === 'please_help_me') {
+                typeColor = '#ffd28c';
+                typeLabel = 'HELP';
+            }
             
             // Format timestamp
             const timestamp = new Date(event.timestamp);
@@ -5225,9 +5642,13 @@
             let content = event.text || event.message || '';
             if (event.error) {
                 content = `ERROR: ${event.error}`;
+            } else if (event.tool_name === 'please_help_me') {
+                content = getHelpRequestText(event);
             }
             const headerSummary = event.summary || (
-                event.type === 'MessageEvent'
+                event.tool_name === 'please_help_me'
+                    ? truncateForSummary(getHelpRequestText(event), 96)
+                    : event.type === 'MessageEvent'
                     ? truncateForSummary(content, 72)
                     : null
             );
@@ -5446,6 +5867,7 @@
         async function refreshConversationId() {
             // Clear current conversation ID to force creation of a new one on next command
             const oldConversationId = currentConversationId;
+            clearPendingHelpRequest();
             currentConversationId = null;
             localStorage.removeItem('openbrowser_conversation_id');
             updateConversationIdDisplay();
@@ -5708,6 +6130,7 @@
 
                 if (currentConversationId) {
                     const oldConversationId = currentConversationId;
+                    clearPendingHelpRequest();
                     currentConversationId = null;
                     sisyphusCurrentConversationId = null;
                     updateConversationIdDisplay();

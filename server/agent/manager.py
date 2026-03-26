@@ -30,6 +30,8 @@ from openhands.sdk.tool import Tool
 from server.api.sse import SSEEvent
 from server.agent.visualizer import QueueVisualizer
 from server.agent.conversation import ConversationState
+from server.agent.user_help import PLEASE_HELP_ME_TOOL_NAME
+import server.agent.tools.help_tool  # noqa: F401
 from server.agent.tools.browser_executor import remove_browser_executor
 from server.core.ipc_router import IPCRouter
 from server.core.ipc_types import BrowserCommandMessage
@@ -97,10 +99,25 @@ class OpenBrowserAgentManager:
             Tool(name="javascript"),  # JavaScript execution fallback
         ]
         self.general_tools = [
+            Tool(name=PLEASE_HELP_ME_TOOL_NAME),
             Tool(name=TerminalTool.name),  # Terminal access
             Tool(name=FileEditorTool.name),  # File editing
             Tool(name=TaskTrackerTool.name),  # Task tracking
         ]
+
+    def _build_agent_context(self) -> AgentContext:
+        """Create the shared AgentContext used for OpenBrowser conversations."""
+        help_suffix = (
+            "When you need a human to complete a manual step, do not only say it in "
+            "assistant text. Call `please_help_me` with a concise, actionable "
+            "message, then stop and wait for the user's next message. Use this for "
+            "CAPTCHA, MFA, approvals, account-specific choices, or any step that "
+            "requires the real human user."
+        )
+        return AgentContext(
+            current_datetime=datetime.now(),
+            system_message_suffix=help_suffix,
+        )
 
     def _resolve_llm_settings(
         self,
@@ -282,7 +299,7 @@ class OpenBrowserAgentManager:
             The conversation ID
         """
         # Create agent with tools
-        agent_context = AgentContext(current_datetime=datetime.now())
+        agent_context = self._build_agent_context()
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
         agent = Agent(
@@ -508,7 +525,7 @@ class OpenBrowserAgentManager:
 
         # Create new conversation with the given ID
         # Create agent with tools
-        agent_context = AgentContext(current_datetime=datetime.now())
+        agent_context = self._build_agent_context()
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
         agent = Agent(
