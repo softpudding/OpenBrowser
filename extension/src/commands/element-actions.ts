@@ -207,6 +207,33 @@ function buildEditableActivationHelpersScript(): string {
       return { target, point: fallbackPoint };
     }
 
+    function resolveActivationDispatchTarget(target, activationTarget) {
+      if (!(target instanceof Element)) {
+        return activationTarget instanceof Element ? activationTarget : null;
+      }
+
+      if (!(activationTarget instanceof Element)) {
+        return target;
+      }
+
+      // Placeholder covers for text inputs need the visible overlay surface.
+      if (isPlaceholderCoverForInput(activationTarget, target)) {
+        return activationTarget;
+      }
+
+      // If highlight selected a structured interactive element such as <a> or <button>,
+      // keep dispatch on that exact element instead of drifting to a non-interactive ancestor.
+      if (isStructuredInteractiveElement(target)) {
+        return target;
+      }
+
+      if (isStructuredInteractiveElement(activationTarget)) {
+        return activationTarget;
+      }
+
+      return activationTarget;
+    }
+
     function getActivationEventPoint(target, point) {
       if (
         point &&
@@ -479,7 +506,10 @@ export async function performElementClick(
       try {
         const activation = getInteractiveActivationTarget(el);
         const activationTarget =
-          activation.target instanceof Element ? activation.target : el;
+          resolveActivationDispatchTarget(
+            el,
+            activation.target instanceof Element ? activation.target : el,
+          ) || el;
 
         dispatchActivationPress(activationTarget, activation.point);
         const focused = focusInteractionTarget(
@@ -2561,7 +2591,10 @@ export async function performKeyboardInput(
       try {
         const activation = getInteractiveActivationTarget(el);
         const activationTarget =
-          activation.target instanceof Element ? activation.target : el;
+          resolveActivationDispatchTarget(
+            el,
+            activation.target instanceof Element ? activation.target : el,
+          ) || el;
         const alreadyFocused =
           (el instanceof HTMLElement && document.activeElement === el) ||
           (el instanceof HTMLElement &&

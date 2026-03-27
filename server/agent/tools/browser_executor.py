@@ -12,6 +12,7 @@ This executor provides consistent command execution and pending confirmation sta
 """
 
 import asyncio
+from collections import OrderedDict
 import logging
 import threading
 from typing import Any, Dict, Optional, Union
@@ -47,6 +48,9 @@ from server.agent.tools.dialog_tool import DialogHandleAction
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 
 logger = logging.getLogger(__name__)
+
+CONFIRMED_CLICK_HTML_CACHE_SIZE = 10
+ELEMENT_HTML_CACHE_MISS_PLACEHOLDER = "<element not found in cache>"
 
 # Global registry for shared BrowserExecutor instances per conversation
 # Key: conversation_id (str), Value: BrowserExecutor instance
@@ -96,6 +100,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         self.conversation_id = None
         # Pending confirmations per conversation for 2PC actions.
         self.pending_confirmations: Dict[str, Dict[str, Any]] = {}
+        # Recently confirmed element targets keyed by action_type then exact element HTML.
+        self.confirmed_action_html_lru: Dict[
+            str, Dict[str, OrderedDict[str, None]]
+        ] = {}
 
     def __call__(
         self, action: OpenBrowserAction, conversation
@@ -337,6 +345,21 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             full_html, screenshot = self._get_element_full_html(
                 action.element_id, action.highlight_snapshot_id
             )
+            if self._has_confirmed_action_html("click", full_html):
+                command = ClickElementCommand(
+                    element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id,
+                )
+                result_dict = self._execute_element_command(command, "click element")
+                self._remember_confirmed_action_html("click", full_html)
+                return self._build_observation_from_result(
+                    result_dict,
+                    f"Clicked element: {action.element_id}",
+                    element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
+                )
             self._set_pending_confirmation(
                 element_id=action.element_id,
                 highlight_snapshot_id=action.highlight_snapshot_id,
@@ -454,6 +477,22 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             full_html, screenshot = self._get_element_full_html(
                 action.element_id, action.highlight_snapshot_id
             )
+            if self._has_confirmed_action_html("keyboard_input", full_html):
+                command = KeyboardInputCommand(
+                    element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
+                    text=action.text,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id,
+                )
+                result_dict = self._execute_element_command(command, "input text")
+                self._remember_confirmed_action_html("keyboard_input", full_html)
+                return self._build_observation_from_result(
+                    result_dict,
+                    f"Input text to element: {action.element_id}",
+                    element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
+                )
             self._set_pending_confirmation(
                 element_id=action.element_id,
                 highlight_snapshot_id=action.highlight_snapshot_id,
@@ -531,6 +570,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if not result_dict or not result_dict.get("success"):
                 ext_error = self._extract_result_error(result_dict)
                 raise RuntimeError(f"Failed to click element: {ext_error}")
+            self._remember_confirmed_action_html("click", pending.get("full_html"))
             message = f"Confirmed and clicked element: {pending_element_id}"
             self._clear_pending_confirmation()
             return self._build_observation_from_result(
@@ -570,6 +610,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if not result_dict or not result_dict.get("success"):
                 ext_error = self._extract_result_error(result_dict)
                 raise RuntimeError(f"Failed to input text: {ext_error}")
+            self._remember_confirmed_action_html(
+                "keyboard_input", pending.get("full_html")
+            )
             message = f"Confirmed and input text to element: {pending_element_id}"
             self._clear_pending_confirmation()
             return self._build_observation_from_result(
@@ -641,6 +684,59 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
     def _get_pending_confirmation(self) -> Optional[Dict[str, Any]]:
         """Get pending confirmation for current conversation"""
         return self.pending_confirmations.get(self.conversation_id)
+
+    def _normalize_confirmed_action_html(self, full_html: Optional[str]) -> Optional[str]:
+        """Normalize cached element HTML used for repeat-click shortcut matching."""
+        if not isinstance(full_html, str):
+            return None
+
+        normalized = full_html.strip()
+        if (
+            not normalized
+            or normalized == ELEMENT_HTML_CACHE_MISS_PLACEHOLDER
+        ):
+            return None
+
+        return normalized
+
+    def _get_confirmed_action_html_lru(self, action_type: str) -> OrderedDict[str, None]:
+        """Get or create the confirmed-action LRU cache for current conversation."""
+        conversation_lru = self.confirmed_action_html_lru.setdefault(
+            self.conversation_id, {}
+        )
+        return conversation_lru.setdefault(action_type, OrderedDict())
+
+    def _has_confirmed_action_html(
+        self, action_type: str, full_html: Optional[str]
+    ) -> bool:
+        """Return whether this exact HTML was recently confirmed for the action."""
+        normalized = self._normalize_confirmed_action_html(full_html)
+        if normalized is None:
+            return False
+
+        lru = self._get_confirmed_action_html_lru(action_type)
+        if normalized not in lru:
+            return False
+
+        lru.move_to_end(normalized)
+        return True
+
+    def _remember_confirmed_action_html(
+        self, action_type: str, full_html: Optional[str]
+    ) -> None:
+        """Record a confirmed-action HTML entry in the per-conversation LRU cache."""
+        normalized = self._normalize_confirmed_action_html(full_html)
+        if normalized is None:
+            return
+
+        lru = self._get_confirmed_action_html_lru(action_type)
+        if normalized in lru:
+            lru.move_to_end(normalized)
+        else:
+            lru[normalized] = None
+
+        while len(lru) > CONFIRMED_CLICK_HTML_CACHE_SIZE:
+            lru.popitem(last=False)
 
     def _extract_result_error(
         self, result_dict: Optional[Dict[str, Any]], default: str = "Unknown error"

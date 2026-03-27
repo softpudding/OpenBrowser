@@ -27,10 +27,25 @@ describe('Element action regressions', () => {
       'function getInteractiveActivationTarget(target)',
     );
     expect(elementActionsSource).toContain(
+      'function resolveActivationDispatchTarget(target, activationTarget)',
+    );
+    expect(elementActionsSource).toContain(
       'dispatchActivationPress(activationTarget, activation.point);',
     );
     expect(elementActionsSource).toContain(
       'dispatchActivationRelease(activationTarget, activation.point);',
+    );
+  });
+
+  test('performElementClick preserves structured interactive targets like anchors', () => {
+    expect(elementActionsSource).toContain(
+      'if (isPlaceholderCoverForInput(activationTarget, target))',
+    );
+    expect(elementActionsSource).toContain(
+      'if (isStructuredInteractiveElement(target))',
+    );
+    expect(elementActionsSource).toContain(
+      'keep dispatch on that exact element instead of drifting to a non-interactive ancestor',
     );
   });
 

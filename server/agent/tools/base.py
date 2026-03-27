@@ -120,10 +120,6 @@ class OpenBrowserObservation(Observation):
         text_parts = [
             "## Pending Confirmation",
             "",
-            "Inspect the screenshot first.",
-            "Confirm only if the single highlighted element is exactly the intended target.",
-            "The pending element and highlight snapshot are already stored by the system.",
-            "",
             f"**Highlight Snapshot ID**: {highlight_snapshot_id}",
             f"**Element ID**: {element_id}",
             f"**Action Type**: {action_type}",
@@ -142,8 +138,6 @@ class OpenBrowserObservation(Observation):
 
         text_parts.append("**Confirm with:**")
         text_parts.append(f"```json\n{confirm_cmd}\n```")
-        text_parts.append("")
-        text_parts.append("Use a different action to cancel.")
 
         content_items.append(TextContent(text="\n".join(text_parts)))
         return content_items
