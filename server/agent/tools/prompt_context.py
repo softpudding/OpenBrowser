@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from server.core.llm_config import llm_config_manager
@@ -41,13 +40,8 @@ def get_prompt_render_context(conv_state: Any = None) -> dict[str, Any]:
                         model_name = None
 
     profile = get_model_profile(model_name)
-    disable_javascript = os.getenv(
-        "OPEN_BROWSER_DISABLE_JAVASCRIPT_EXECUTE", ""
-    ).lower() in ("1", "true", "yes")
-
     return {
         "model_name": model_name,
         "model_profile": profile,
         "small_model": is_small_model(model_name),
-        "disable_javascript": disable_javascript,
     }

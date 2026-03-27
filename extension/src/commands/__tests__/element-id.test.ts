@@ -25,7 +25,11 @@ describe('element-id', () => {
     ]);
 
     expect(result.map((element) => element.id)).toEqual(['1', '2', '3']);
-    expect(result.map((element) => element.selector)).toEqual(['#a', '#b', '#c']);
+    expect(result.map((element) => element.selector)).toEqual([
+      '#a',
+      '#b',
+      '#c',
+    ]);
   });
 
   test('does not mutate the caller-owned element objects', () => {
@@ -49,10 +53,7 @@ describe('element-cache highlight snapshots', () => {
       documentId: 'doc-1',
       elementType: 'any',
       totalElements: 2,
-      pages: [
-        [createElement('1', '#page-1')],
-        [createElement('1', '#page-2')],
-      ],
+      pages: [[createElement('1', '#page-1')], [createElement('1', '#page-2')]],
       page: 1,
     });
 
@@ -62,7 +63,12 @@ describe('element-cache highlight snapshots', () => {
       '#page-1',
     ]);
 
-    const lookup = elementCache.getElementById('conv-1', 101, snapshot.snapshotId, '1');
+    const lookup = elementCache.getElementById(
+      'conv-1',
+      101,
+      snapshot.snapshotId,
+      '1',
+    );
     expect(lookup?.element.selector).toBe('#page-1');
     expect(lookup?.documentId).toBe('doc-1');
   });
@@ -102,8 +108,8 @@ describe('element-cache highlight snapshots', () => {
         .selector,
     ).toBe('#first-page');
     expect(
-      elementCache.getElementById('conv-2', 101, page2!.snapshotId, '1')?.element
-        .selector,
+      elementCache.getElementById('conv-2', 101, page2!.snapshotId, '1')
+        ?.element.selector,
     ).toBe('#second-page');
   });
 });

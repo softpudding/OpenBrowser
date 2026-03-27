@@ -123,9 +123,8 @@ describe('TabManager cleanup behavior', () => {
     const onTabClosed = mock(() => {});
     manager.addTabClosedListener(onTabClosed);
 
-    const [tabRemovedListener] = (globalThis as any).__tabRemovedListeners as Array<
-      (tabId: number) => void
-    >;
+    const [tabRemovedListener] = (globalThis as any)
+      .__tabRemovedListeners as Array<(tabId: number) => void>;
     tabRemovedListener(11);
 
     expect(onTabClosed).toHaveBeenCalledWith('conv-last-tab', 11);
@@ -133,8 +132,9 @@ describe('TabManager cleanup behavior', () => {
   });
 
   test('cleanup sweep removes sessions whose tracked tabs are already gone', async () => {
-    const chromeTabsQuery = (globalThis as any).chrome.tabs
-      .query as ReturnType<typeof mock>;
+    const chromeTabsQuery = (globalThis as any).chrome.tabs.query as ReturnType<
+      typeof mock
+    >;
     chromeTabsQuery.mockResolvedValue([{ id: 99 }]);
 
     const manager = new TabManager();

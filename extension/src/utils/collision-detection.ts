@@ -287,12 +287,10 @@ function chooseNextCandidate(
 ): (PlacementEvaluation & { candidate: RemainingCandidate }) | null {
   const currentLabelText = String(selected.length + 1);
   let minFeasiblePositions = Number.POSITIVE_INFINITY;
-  let constrainedCandidate:
-    | {
-        candidate: RemainingCandidate;
-        feasiblePositions: LabelPosition[];
-      }
-    | null = null;
+  let constrainedCandidate: {
+    candidate: RemainingCandidate;
+    feasiblePositions: LabelPosition[];
+  } | null = null;
 
   for (const candidate of remaining) {
     const feasiblePositions = getFeasiblePositions(
@@ -342,7 +340,8 @@ function chooseLeastBlockingPlacement(
 ): PlacementEvaluation {
   const currentLabelText = String(selected.length + 1);
   const futureCandidates = remaining.filter(
-    (remainingCandidate) => remainingCandidate.sourceIndex !== candidate.sourceIndex,
+    (remainingCandidate) =>
+      remainingCandidate.sourceIndex !== candidate.sourceIndex,
   );
   let bestPlacement: PlacementEvaluation | null = null;
 
@@ -392,11 +391,13 @@ function chooseLeastBlockingPlacement(
     }
   }
 
-  return bestPlacement ?? {
-    position: POSITION_PRIORITY[0],
-    blockedCandidateCount: Number.POSITIVE_INFINITY,
-    totalFutureOptions: Number.NEGATIVE_INFINITY,
-  };
+  return (
+    bestPlacement ?? {
+      position: POSITION_PRIORITY[0],
+      blockedCandidateCount: Number.POSITIVE_INFINITY,
+      totalFutureOptions: Number.NEGATIVE_INFINITY,
+    }
+  );
 }
 
 function getFeasiblePositions(

@@ -117,7 +117,9 @@ function buildStoredHighlightPages(options: {
       viewportWidth,
       viewportHeight,
     );
-    pages.push(assignSequentialElementIds(sortElementsByVisualOrder(pageElements)));
+    pages.push(
+      assignSequentialElementIds(sortElementsByVisualOrder(pageElements)),
+    );
   }
 
   return pages;
@@ -126,8 +128,9 @@ function buildStoredHighlightPages(options: {
 function buildSnapshotPageRefreshScript(options: {
   elements: InteractiveElement[];
   expectedDocumentId?: string;
+  highlightSnapshotId?: number;
 }): string {
-  const { elements, expectedDocumentId } = options;
+  const { elements, expectedDocumentId, highlightSnapshotId } = options;
   const refreshTargets = elements.map((element) => ({
     id: element.id,
     selector: element.selector,
@@ -137,6 +140,7 @@ function buildSnapshotPageRefreshScript(options: {
   return `
     (() => {
       const expectedDocumentId = ${JSON.stringify(expectedDocumentId || '')};
+      const highlightSnapshotId = ${highlightSnapshotId ?? 'null'};
       const refreshTargets = ${JSON.stringify(refreshTargets)};
 
       function normalizeIdentityWhitespace(value, maxLength = 240) {
@@ -259,7 +263,7 @@ function buildSnapshotPageRefreshScript(options: {
           ok: false,
           stale: true,
           error:
-            'Highlight snapshot is stale because the document changed. Call highlight_elements() again.',
+            \`Highlight snapshot \${highlightSnapshotId} is stale because the document changed. Call highlight_elements() again.\`,
         };
       }
 
@@ -350,6 +354,7 @@ async function renderHighlightSnapshotPage(options: {
     buildSnapshotPageRefreshScript({
       elements,
       expectedDocumentId,
+      highlightSnapshotId,
     }),
     true,
     false,
@@ -1880,10 +1885,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         const highlightSnapshotId = command.highlight_snapshot_id;
         const requestedKeywords = normalizeHighlightKeywords(keywords);
 
-        if (
-          highlightSnapshotId !== undefined &&
-          highlightSnapshotId !== null
-        ) {
+        if (highlightSnapshotId !== undefined && highlightSnapshotId !== null) {
           const baseSnapshot = elementCache.getSnapshotPage(
             conversationId,
             activeTabId,
@@ -1897,7 +1899,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             };
           }
 
-          const cachedKeywords = normalizeHighlightKeywords(baseSnapshot.keywords);
+          const cachedKeywords = normalizeHighlightKeywords(
+            baseSnapshot.keywords,
+          );
           if (baseSnapshot.elementType !== elementType) {
             return {
               success: false,
@@ -2119,9 +2123,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             1;
           const viewportWidth = screenshotResult.metadata?.viewportWidth || 0;
           const viewportHeight = screenshotResult.metadata?.viewportHeight || 0;
-          console.log(
-            `📐 [HighlightElements] Image scale: ${imageScale}`,
-          );
+          console.log(`📐 [HighlightElements] Image scale: ${imageScale}`);
           console.log(
             `📐 [HighlightElements] Viewport: ${viewportWidth}x${viewportHeight} CSS pixels`,
           );
@@ -2830,7 +2832,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ok: false,
                 stale: true,
                 error:
-                  "Highlight snapshot is stale because the document changed. Call highlight_elements() again."
+                  "Highlight snapshot ${highlightSnapshotId} is stale because the document changed. Call highlight_elements() again."
               };
             }
             if (!el) {
@@ -2886,9 +2888,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               JSON.stringify(freshBbox),
             );
           } else if (
-            bboxResult.success
-            && bboxResult.result?.value
-            && bboxResult.result.value.ok === false
+            bboxResult.success &&
+            bboxResult.result?.value &&
+            bboxResult.result.value.ok === false
           ) {
             return {
               success: false,

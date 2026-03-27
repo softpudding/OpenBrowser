@@ -19,12 +19,16 @@ describe('Background cleanup regressions', () => {
 
   test('tab close events are wired into browser-state cleanup', () => {
     expect(backgroundSource).toContain('tabManager.addTabClosedListener');
-    expect(backgroundSource).toContain('cleanupTabState(conversationId, tabId);');
+    expect(backgroundSource).toContain(
+      'cleanupTabState(conversationId, tabId);',
+    );
   });
 
   test('swipe screenshots reuse tab-view warmup capture options', () => {
     expect(backgroundSource).toContain("case 'swipe_element': {");
     expect(backgroundSource).toContain('          900,');
-    expect(backgroundSource).toContain('          TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,');
+    expect(backgroundSource).toContain(
+      '          TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,',
+    );
   });
 });

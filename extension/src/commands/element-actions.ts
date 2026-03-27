@@ -145,14 +145,14 @@ function buildSnapshotIdentityHelpersScript(): string {
       return overlap >= Math.max(2, Math.min(4, Math.ceil(expectedTokens.length * 0.5)));
     }
 
-    function validateSnapshotElement(expectedDocumentId, expectedFingerprint, el) {
+    function validateSnapshotElement(expectedHighlightSnapshotId, expectedDocumentId, expectedFingerprint, el) {
       const currentDocumentId = getCurrentDocumentId();
       if (expectedDocumentId && currentDocumentId !== expectedDocumentId) {
         return {
           ok: false,
           stale: true,
           error:
-            'Highlight snapshot is stale because the document changed. Call highlight_elements() again.',
+            \`Highlight snapshot \${expectedHighlightSnapshotId} is stale because the document changed. Call highlight_elements() again.\`,
         };
       }
 
@@ -205,6 +205,33 @@ function buildEditableActivationHelpersScript(): string {
         };
 
       return { target, point: fallbackPoint };
+    }
+
+    function resolveActivationDispatchTarget(target, activationTarget) {
+      if (!(target instanceof Element)) {
+        return activationTarget instanceof Element ? activationTarget : null;
+      }
+
+      if (!(activationTarget instanceof Element)) {
+        return target;
+      }
+
+      // Placeholder covers for text inputs need the visible overlay surface.
+      if (isPlaceholderCoverForInput(activationTarget, target)) {
+        return activationTarget;
+      }
+
+      // If highlight selected a structured interactive element such as <a> or <button>,
+      // keep dispatch on that exact element instead of drifting to a non-interactive ancestor.
+      if (isStructuredInteractiveElement(target)) {
+        return target;
+      }
+
+      if (isStructuredInteractiveElement(activationTarget)) {
+        return activationTarget;
+      }
+
+      return activationTarget;
     }
 
     function getActivationEventPoint(target, point) {
@@ -408,7 +435,9 @@ export async function performElementClick(
   // STEP 2: Build JavaScript to click with full event sequence
   // ============================================================
   // Escape quotes in selector for safe injection
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );
@@ -419,6 +448,7 @@ export async function performElementClick(
   const script = `
     (async function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       ${buildEditableActivationHelpersScript()}
@@ -429,6 +459,7 @@ export async function performElementClick(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,
@@ -477,7 +508,10 @@ export async function performElementClick(
       try {
         const activation = getInteractiveActivationTarget(el);
         const activationTarget =
-          activation.target instanceof Element ? activation.target : el;
+          resolveActivationDispatchTarget(
+            el,
+            activation.target instanceof Element ? activation.target : el,
+          ) || el;
 
         dispatchActivationPress(activationTarget, activation.point);
         const focused = focusInteractionTarget(
@@ -694,7 +728,9 @@ export async function performElementHover(
   // ============================================================
   // STEP 2: Build JavaScript to dispatch hover events
   // ============================================================
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );
@@ -705,6 +741,7 @@ export async function performElementHover(
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       ${buildSnapshotIdentityHelpersScript()}
@@ -715,6 +752,7 @@ export async function performElementHover(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,
@@ -967,7 +1005,8 @@ export async function performElementScroll(
         success: false,
         elementId,
         scrolled: false,
-        error: 'highlight_snapshot_id is required when scrolling a highlighted element.',
+        error:
+          'highlight_snapshot_id is required when scrolling a highlighted element.',
       };
     }
 
@@ -991,7 +1030,9 @@ export async function performElementScroll(
     console.log(
       `✅ [ElementScroll] Found element: selector="${element.selector}"`,
     );
-    const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+    const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+      element.selector,
+    );
     const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
       cachedElement.documentId,
     );
@@ -1002,6 +1043,7 @@ export async function performElementScroll(
     script = `
       (function() {
         const selector = "${escapedSelector}";
+        const expectedHighlightSnapshotId = ${highlightSnapshotId};
         const expectedDocumentId = "${escapedDocumentId}";
         const expectedFingerprint = "${escapedFingerprint}";
         const el = document.querySelector(selector);
@@ -1014,6 +1056,7 @@ export async function performElementScroll(
         }
 
         const snapshotValidation = validateSnapshotElement(
+          expectedHighlightSnapshotId,
           expectedDocumentId,
           expectedFingerprint,
           el,
@@ -1325,7 +1368,9 @@ export async function performElementSwipe(
     `✅ [ElementSwipe] Found element: selector="${element.selector}"`,
   );
 
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );
@@ -1336,6 +1381,7 @@ export async function performElementSwipe(
   const script = `
     (async function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       const direction = "${direction}";
@@ -1348,6 +1394,7 @@ export async function performElementSwipe(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,
@@ -2500,7 +2547,9 @@ export async function performKeyboardInput(
   // STEP 2: Build JavaScript to input text
   // ============================================================
   // Escape quotes and backslashes in selector and text for safe injection
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );
@@ -2512,6 +2561,7 @@ export async function performKeyboardInput(
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       const text = "${escapedText}";
@@ -2523,6 +2573,7 @@ export async function performKeyboardInput(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,
@@ -2551,7 +2602,10 @@ export async function performKeyboardInput(
       try {
         const activation = getInteractiveActivationTarget(el);
         const activationTarget =
-          activation.target instanceof Element ? activation.target : el;
+          resolveActivationDispatchTarget(
+            el,
+            activation.target instanceof Element ? activation.target : el,
+          ) || el;
         const alreadyFocused =
           (el instanceof HTMLElement && document.activeElement === el) ||
           (el instanceof HTMLElement &&
@@ -2799,7 +2853,9 @@ export async function performElementSelect(
   // STEP 2: Build JavaScript to select option(s)
   // ============================================================
   // Escape quotes and backslashes in selector for safe injection
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );
@@ -2813,6 +2869,7 @@ export async function performElementSelect(
   const script = `
     (function() {
       const selector = "${escapedSelector}";
+      const expectedHighlightSnapshotId = ${highlightSnapshotId};
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
       const value = ${valueJson};
@@ -2825,6 +2882,7 @@ export async function performElementSelect(
       }
 
       const snapshotValidation = validateSnapshotElement(
+        expectedHighlightSnapshotId,
         expectedDocumentId,
         expectedFingerprint,
         el,

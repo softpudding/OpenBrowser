@@ -16,6 +16,7 @@ from typing import Dict, List, Any, Optional, AsyncGenerator, Callable
 from server.api.sse import SSEEvent
 from server.agent.manager import agent_manager
 from server.agent.conversation import ConversationState
+from server.agent.user_help import build_completion_event_payload
 from server.core.session_manager import session_manager, SessionStatus
 
 logger = logging.getLogger(__name__)
@@ -280,10 +281,10 @@ async def process_agent_message(
             event_queue.put(
                 SSEEvent(
                     "complete",
-                    {
-                        "conversation_id": conversation_id,
-                        "message": "Conversation completed",
-                    },
+                    build_completion_event_payload(
+                        conversation_id,
+                        conv_state.conversation.state.events,
+                    ),
                 )
             )
             logger.debug(f"DEBUG: Complete event put into queue")
@@ -436,10 +437,9 @@ def initialize_agent():
         from .tools.highlight_tool import HighlightTool
         from .tools.element_interaction_tool import ElementInteractionTool
         from .tools.dialog_tool import DialogTool
-        from .tools.javascript_tool import JavaScriptTool
 
         logger.info(
-            "5 focused OpenBrowser tools registered: tab, highlight, element_interaction, dialog, javascript"
+            "4 focused OpenBrowser tools registered: tab, highlight, element_interaction, dialog"
         )
 
     except Exception as e:

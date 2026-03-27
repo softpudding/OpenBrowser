@@ -450,6 +450,36 @@ function getSemanticClickableSignal(el) {
   return null;
 }
 
+function isSemanticControlElement(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tag = el.tagName.toLowerCase();
+  const role = (el.getAttribute('role') || '').toLowerCase();
+
+  if (tag === 'button' || tag === 'summary') {
+    return true;
+  }
+
+  if (tag === 'a' && (el.getAttribute('href') || el.hasAttribute('target'))) {
+    return true;
+  }
+
+  if (tag === 'input') {
+    const inputType = (el.getAttribute('type') || 'text').toLowerCase();
+    if (
+      ['button', 'submit', 'reset', 'image', 'checkbox', 'radio'].includes(
+        inputType,
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return POINTER_ROLE_SET.has(role);
+}
+
 function isMeaningfulPointerCandidate(el) {
   if (!(el instanceof HTMLElement)) {
     return false;
@@ -1439,6 +1469,7 @@ function toInteractiveElement(candidate) {
   const interactionHints = getInteractionHints(candidate.element);
   const displayType =
     candidate.type === 'clickable' &&
+    !isSemanticControlElement(candidate.element) &&
     (interactionHints.includes('swipable') ||
       isScrollableCandidate(candidate.element))
       ? 'scrollable'

@@ -3,9 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { InteractiveElement } from '../../types';
 import { calculateConfirmationPreviewLayout } from '../single-highlight';
 
-function createElement(
-  bbox: InteractiveElement['bbox'],
-): InteractiveElement {
+function createElement(bbox: InteractiveElement['bbox']): InteractiveElement {
   return {
     id: 'abc123',
     type: 'clickable',

@@ -31,7 +31,6 @@ def test_prompt_context_defaults_to_large_profile_without_conversation() -> None
         "model_name": None,
         "model_profile": "large",
         "small_model": False,
-        "disable_javascript": False,
     }
 
 

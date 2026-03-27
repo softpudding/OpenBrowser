@@ -55,9 +55,13 @@ describe('Highlight Screenshot', () => {
     expect(HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS.maxOutputHeight).toBe(1080);
     expect(HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS.warmupBeforeCapture).toBe(true);
     expect(HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS.warmupMaxAttempts).toBe(2);
-    expect(HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS.settleBeforeCapture).toBeUndefined();
+    expect(
+      HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS.settleBeforeCapture,
+    ).toBeUndefined();
     expect(TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS.warmupBeforeCapture).toBe(true);
     expect(TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS.warmupMaxAttempts).toBe(3);
-    expect(TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS.settleBeforeCapture).toBeUndefined();
+    expect(
+      TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS.settleBeforeCapture,
+    ).toBeUndefined();
   });
 });

@@ -113,22 +113,14 @@ class OpenBrowserObservation(Observation):
         action_type = str(pending.get("action_type", "unknown"))
         element_id = str(pending.get("element_id", "unknown"))
         highlight_snapshot_id = str(
-            pending.get("highlight_snapshot_id", self.highlight_snapshot_id or "unknown")
+            pending.get(
+                "highlight_snapshot_id", self.highlight_snapshot_id or "unknown"
+            )
         )
-        snapshot_json_value = (
-            highlight_snapshot_id
-            if highlight_snapshot_id.isdigit()
-            else f'"{highlight_snapshot_id}"'
-        )
-        confirm_cmd = (
-            f'{{"action": "confirm_{action_type}", "highlight_snapshot_id": {snapshot_json_value}, "element_id": "{element_id}"}}'
-        )
+        confirm_cmd = f'{{"action": "confirm_{action_type}"}}'
 
         text_parts = [
             "## Pending Confirmation",
-            "",
-            "Inspect the screenshot first.",
-            "Confirm only if the single highlighted element is exactly the intended target.",
             "",
             f"**Highlight Snapshot ID**: {highlight_snapshot_id}",
             f"**Element ID**: {element_id}",
@@ -148,8 +140,6 @@ class OpenBrowserObservation(Observation):
 
         text_parts.append("**Confirm with:**")
         text_parts.append(f"```json\n{confirm_cmd}\n```")
-        text_parts.append("")
-        text_parts.append("Use a different action to cancel.")
 
         content_items.append(TextContent(text="\n".join(text_parts)))
         return content_items

@@ -122,7 +122,9 @@ class ElementCacheImpl {
     for (const [snapshotKey, snapshot] of this.snapshotViews.entries()) {
       if (this.isExpired(snapshot.createdAt)) {
         this.snapshotViews.delete(snapshotKey);
-        console.log(`⏰ [ElementCache] Snapshot expired for key ${snapshotKey}`);
+        console.log(
+          `⏰ [ElementCache] Snapshot expired for key ${snapshotKey}`,
+        );
         continue;
       }
 
@@ -140,7 +142,10 @@ class ElementCacheImpl {
         continue;
       }
 
-      if (!activeInventoryKeys.has(inventoryKey) && this.isExpired(inventory.createdAt)) {
+      if (
+        !activeInventoryKeys.has(inventoryKey) &&
+        this.isExpired(inventory.createdAt)
+      ) {
         inventoryKeysToDelete.push(inventoryKey);
       }
     }
@@ -195,8 +200,16 @@ class ElementCacheImpl {
     const inventoryId = this.nextInventoryId++;
     const snapshotId = this.nextSnapshotId++;
     const now = Date.now();
-    const inventoryKey = this.buildInventoryKey(conversationId, tabId, inventoryId);
-    const snapshotKey = this.buildSnapshotKey(conversationId, tabId, snapshotId);
+    const inventoryKey = this.buildInventoryKey(
+      conversationId,
+      tabId,
+      inventoryId,
+    );
+    const snapshotKey = this.buildSnapshotKey(
+      conversationId,
+      tabId,
+      snapshotId,
+    );
 
     this.inventories.set(inventoryKey, {
       tabId,
@@ -223,7 +236,11 @@ class ElementCacheImpl {
 
     this.pruneInventoriesForTab(conversationId, tabId);
 
-    const snapshotPage = this.getSnapshotPage(conversationId, tabId, snapshotId);
+    const snapshotPage = this.getSnapshotPage(
+      conversationId,
+      tabId,
+      snapshotId,
+    );
     if (!snapshotPage) {
       throw new Error(
         `Failed to retrieve newly stored highlight snapshot ${snapshotId}`,
@@ -244,13 +261,21 @@ class ElementCacheImpl {
   ): HighlightSnapshotPage | undefined {
     this.cleanupExpired();
 
-    const baseSnapshot = this.getSnapshotView(conversationId, tabId, baseSnapshotId);
+    const baseSnapshot = this.getSnapshotView(
+      conversationId,
+      tabId,
+      baseSnapshotId,
+    );
     if (!baseSnapshot) {
       return undefined;
     }
 
     const snapshotId = this.nextSnapshotId++;
-    const snapshotKey = this.buildSnapshotKey(conversationId, tabId, snapshotId);
+    const snapshotKey = this.buildSnapshotKey(
+      conversationId,
+      tabId,
+      snapshotId,
+    );
     const now = Date.now();
 
     this.snapshotViews.set(snapshotKey, {
@@ -260,12 +285,20 @@ class ElementCacheImpl {
       page,
     });
 
-    const inventory = this.getInventory(conversationId, tabId, baseSnapshot.inventoryId);
+    const inventory = this.getInventory(
+      conversationId,
+      tabId,
+      baseSnapshot.inventoryId,
+    );
     if (inventory) {
       this.touchInventory(inventory);
     }
 
-    const snapshotPage = this.getSnapshotPage(conversationId, tabId, snapshotId);
+    const snapshotPage = this.getSnapshotPage(
+      conversationId,
+      tabId,
+      snapshotId,
+    );
     if (snapshotPage) {
       console.log(
         `📄 [ElementCache] Forked snapshot ${snapshotId} from base ${baseSnapshotId} for conversation ${conversationId}, tab ${tabId}, page ${page}`,
@@ -286,7 +319,11 @@ class ElementCacheImpl {
       return undefined;
     }
 
-    const inventory = this.getInventory(conversationId, tabId, snapshot.inventoryId);
+    const inventory = this.getInventory(
+      conversationId,
+      tabId,
+      snapshot.inventoryId,
+    );
     if (!inventory) {
       return undefined;
     }
@@ -318,7 +355,11 @@ class ElementCacheImpl {
     snapshotId: number,
     elementId: string,
   ): CachedElementLookup | undefined {
-    const snapshotPage = this.getSnapshotPage(conversationId, tabId, snapshotId);
+    const snapshotPage = this.getSnapshotPage(
+      conversationId,
+      tabId,
+      snapshotId,
+    );
     if (!snapshotPage) {
       return undefined;
     }
@@ -352,7 +393,11 @@ class ElementCacheImpl {
       return undefined;
     }
 
-    const snapshotKey = this.buildSnapshotKey(conversationId, tabId, snapshotId);
+    const snapshotKey = this.buildSnapshotKey(
+      conversationId,
+      tabId,
+      snapshotId,
+    );
     const snapshot = this.snapshotViews.get(snapshotKey);
     if (!snapshot) {
       return undefined;
@@ -360,7 +405,9 @@ class ElementCacheImpl {
 
     if (snapshot.tabId !== tabId || this.isExpired(snapshot.createdAt)) {
       this.snapshotViews.delete(snapshotKey);
-      console.log(`⏰ [ElementCache] Snapshot expired or mismatched for key ${snapshotKey}`);
+      console.log(
+        `⏰ [ElementCache] Snapshot expired or mismatched for key ${snapshotKey}`,
+      );
       return undefined;
     }
 
@@ -376,7 +423,11 @@ class ElementCacheImpl {
       return undefined;
     }
 
-    const inventoryKey = this.buildInventoryKey(conversationId, tabId, inventoryId);
+    const inventoryKey = this.buildInventoryKey(
+      conversationId,
+      tabId,
+      inventoryId,
+    );
     const inventory = this.inventories.get(inventoryKey);
     if (!inventory) {
       return undefined;
@@ -400,11 +451,11 @@ class ElementCacheImpl {
         ? `${conversationId}:${tabId}:snapshot:`
         : `${conversationId}:`;
 
-    const inventoryKeysToDelete = Array.from(this.inventories.keys()).filter((key) =>
-      key.startsWith(inventoryPrefix),
+    const inventoryKeysToDelete = Array.from(this.inventories.keys()).filter(
+      (key) => key.startsWith(inventoryPrefix),
     );
-    const snapshotKeysToDelete = Array.from(this.snapshotViews.keys()).filter((key) =>
-      key.startsWith(snapshotPrefix),
+    const snapshotKeysToDelete = Array.from(this.snapshotViews.keys()).filter(
+      (key) => key.startsWith(snapshotPrefix),
     );
 
     for (const key of inventoryKeysToDelete) {

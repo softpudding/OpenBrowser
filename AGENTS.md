@@ -39,8 +39,7 @@ OpenBrowser/
 | Highlight tool | `server/agent/tools/highlight_tool.py` | HighlightTool for element discovery |
 | Element interaction | `server/agent/tools/element_interaction_tool.py` | ElementInteractionTool with 2PC flow |
 | Dialog tool | `server/agent/tools/dialog_tool.py` | DialogTool for dialog handling |
-| JavaScript tool | `server/agent/tools/javascript_tool.py` | JavaScriptTool for fallback execution |
-| ToolSet aggregator | `server/agent/tools/toolset.py` | OpenBrowserToolSet aggregates all 5 tools |
+| ToolSet aggregator | `server/agent/tools/toolset.py` | OpenBrowserToolSet aggregates all 4 tools |
 | Extension entry | `extension/src/background/index.ts` | Command handler, dialog processing |
 | Dialog manager | `extension/src/commands/dialog.ts` | CDP dialog events, cascading |
 | JavaScript execution | `extension/src/commands/javascript.ts` | CDP Runtime.evaluate, dialog race |
@@ -154,26 +153,15 @@ OpenBrowser uses Jinja2 templates for agent prompts, enabling dynamic content in
 ### Template Structure
 - **Location**: `server/agent/prompts/` directory
 - **Format**: `.j2` extension with Jinja2 syntax
-- **5 Tool Templates**: Each of the 5 focused tools has its own template:
+- **4 Tool Templates**: Each of the 4 focused tools has its own template:
   - `tab_tool.j2` - Tab management documentation
   - `highlight_tool.j2` - Element discovery with color coding
   - `element_interaction_tool.j2` - 2PC flow with orange confirmations
   - `dialog_tool.j2` - Dialog handling
-  - `javascript_tool.j2` - JavaScript fallback
-
-### Dynamic JavaScript Control
-The `javascript_execute` command can be disabled via environment variable:
-```bash
-export OPEN_BROWSER_DISABLE_JAVASCRIPT_EXECUTE=1
-```
-When disabled:
-- Template removes all `javascript_execute` references using `{% if not disable_javascript %}` conditionals
-- `OpenBrowserAction.type` description excludes `'javascript_execute'`
-- Command execution returns error if attempted
 
 ### Template Features
 - **Conditional rendering**: Use `{% if %}` blocks for configurable sections
-- **Variable injection**: Pass context variables like `disable_javascript` at render time
+- **Variable injection**: Pass context variables like model profile flags at render time
 - **Clean output**: `trim_blocks=True` and `lstrip_blocks=True` remove extra whitespace
 - **Caching**: Templates are cached after first load for performance
 
@@ -246,8 +234,8 @@ Elements are identified by a 6-character hash string:
 | `scroll_element` | Scroll by element ID | `{element_id: "m5k2p8", direction: "down"}` |
 | `keyboard_input` | Type into element | `{element_id: "j4n7q1", text: "hello"}` |
 
-### Tool Mapping (5-Tool Architecture)
-The visual interaction workflow is implemented across 5 focused tools:
+### Tool Mapping (4-Tool Architecture)
+The visual interaction workflow is implemented across 4 focused tools:
 
 | Tool | Commands | Purpose |
 |------|----------|---------|
@@ -255,24 +243,8 @@ The visual interaction workflow is implemented across 5 focused tools:
 | `highlight` | `highlight_elements` | Element discovery with blue overlays |
 | `element_interaction` | `click_element`, `confirm_click_element`, `hover_element`, `scroll_element`, `keyboard_input`, `confirm_keyboard_input`, `select_element` | Element interaction with 2PC only for click and keyboard input |
 | `dialog` | `handle_dialog` | Dialog handling (accept/dismiss) |
-| `javascript` | `javascript_execute` | JavaScript fallback execution |
 
 ## UNIQUE PATTERNS
-
-### JavaScript-First Automation (Fallback)
-For complex interactions not covered by visual commands:
-```javascript
-// Click by visible text (universal pattern)
-(() => {
-    const text = 'YOUR_TEXT';
-    const leaf = Array.from(document.querySelectorAll('*'))
-        .find(el => el.children.length === 0 && el.textContent.includes(text));
-    if (!leaf) return 'not found';
-    const target = leaf.closest('a, button, [role="button"]') || leaf;
-    target.click();
-    return 'clicked: ' + target.tagName;
-})()
-```
 
 ### Multi-Session Tab Isolation
 - `tab init <url>` creates managed session with tab group

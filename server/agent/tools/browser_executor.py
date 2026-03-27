@@ -1,18 +1,18 @@
 """
-BrowserExecutor - Unified executor for handling all 5 OpenBrowser tool actions.
+BrowserExecutor - Unified executor for handling all 4 OpenBrowser tool actions.
 
-This executor can handle actions from all 5 focused tools:
+This executor can handle actions from all 4 focused tools:
 - TabAction (from tab_tool.py)
 - BaseHighlightAction (from highlight_tool.py)
 - ElementInteractionAction (from element_interaction_tool.py)
 - DialogHandleAction (from dialog_tool.py)
-- JavaScriptAction (from javascript_tool.py)
 
 All actions inherit from OpenBrowserAction and share common conversation_id.
 This executor provides consistent command execution and pending confirmation state.
 """
 
 import asyncio
+from collections import OrderedDict
 import logging
 import threading
 from typing import Any, Dict, Optional, Union
@@ -24,7 +24,6 @@ from server.core.processor import command_processor
 from server.models.commands import (
     TabCommand,
     GetTabsCommand,
-    JavascriptExecuteCommand,
     HandleDialogCommand,
     DialogAction,
     TabAction as TabActionEnum,
@@ -45,14 +44,13 @@ from server.agent.tools.tab_tool import TabAction
 from server.agent.tools.highlight_tool import BaseHighlightAction
 from server.agent.tools.element_interaction_tool import ElementInteractionAction
 from server.agent.tools.dialog_tool import DialogHandleAction
-from server.agent.tools.javascript_tool import (
-    JavaScriptAction,
-    DISABLE_JAVASCRIPT_EXECUTE,
-)
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 
 logger = logging.getLogger(__name__)
+
+CONFIRMED_CLICK_HTML_CACHE_SIZE = 10
+ELEMENT_HTML_CACHE_MISS_PLACEHOLDER = "<element not found in cache>"
 
 # Global registry for shared BrowserExecutor instances per conversation
 # Key: conversation_id (str), Value: BrowserExecutor instance
@@ -85,7 +83,7 @@ def remove_browser_executor(conversation_id: str) -> None:
 
 
 class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
-    """Unified executor for all 5 OpenBrowser tool actions.
+    """Unified executor for all 4 OpenBrowser tool actions.
 
     This executor can handle any action that inherits from OpenBrowserAction,
     providing consistent pending confirmation state and command execution
@@ -102,6 +100,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         self.conversation_id = None
         # Pending confirmations per conversation for 2PC actions.
         self.pending_confirmations: Dict[str, Dict[str, Any]] = {}
+        # Recently confirmed element targets keyed by action_type then exact element HTML.
+        self.confirmed_action_html_lru: Dict[str, Dict[str, OrderedDict[str, None]]] = (
+            {}
+        )
 
     def __call__(
         self, action: OpenBrowserAction, conversation
@@ -138,7 +140,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         Args:
             action: Any action that inherits from OpenBrowserAction
                    (TabAction, BaseHighlightAction, ElementInteractionAction,
-                   DialogHandleAction, JavaScriptAction)
+                   DialogHandleAction)
 
         Returns:
             OpenBrowserObservation with results of the operation
@@ -174,8 +176,6 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 return self._execute_element_interaction_action(action)
             elif isinstance(action, DialogHandleAction):
                 return self._execute_dialog_action(action)
-            elif isinstance(action, JavaScriptAction):
-                return self._execute_javascript_action(action)
             else:
                 raise ValueError(f"Unknown action type: {type(action).__name__}")
 
@@ -345,6 +345,21 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             full_html, screenshot = self._get_element_full_html(
                 action.element_id, action.highlight_snapshot_id
             )
+            if self._has_confirmed_action_html("click", full_html):
+                command = ClickElementCommand(
+                    element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id,
+                )
+                result_dict = self._execute_element_command(command, "click element")
+                self._remember_confirmed_action_html("click", full_html)
+                return self._build_observation_from_result(
+                    result_dict,
+                    f"Clicked element: {action.element_id}",
+                    element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
+                )
             self._set_pending_confirmation(
                 element_id=action.element_id,
                 highlight_snapshot_id=action.highlight_snapshot_id,
@@ -379,9 +394,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 conversation_id=self.conversation_id,
                 tab_id=action.tab_id,
             )
-            result_dict = self._execute_element_command(
-                command, "hover element"
-            )
+            result_dict = self._execute_element_command(command, "hover element")
             return self._build_observation_from_result(
                 result_dict,
                 f"Hovered element: {action.element_id}",
@@ -403,9 +416,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     conversation_id=self.conversation_id,
                     tab_id=action.tab_id,
                 )
-                result_dict = self._execute_element_command(
-                    command, "scroll element"
-                )
+                result_dict = self._execute_element_command(command, "scroll element")
                 return self._build_observation_from_result(
                     result_dict,
                     f"Scrolled element: {action.element_id}",
@@ -458,10 +469,28 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if not action.text:
                 raise ValueError("keyboard_input requires text parameter")
             if action.highlight_snapshot_id is None:
-                raise ValueError("keyboard_input requires highlight_snapshot_id parameter")
+                raise ValueError(
+                    "keyboard_input requires highlight_snapshot_id parameter"
+                )
             full_html, screenshot = self._get_element_full_html(
                 action.element_id, action.highlight_snapshot_id
             )
+            if self._has_confirmed_action_html("keyboard_input", full_html):
+                command = KeyboardInputCommand(
+                    element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
+                    text=action.text,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id,
+                )
+                result_dict = self._execute_element_command(command, "input text")
+                self._remember_confirmed_action_html("keyboard_input", full_html)
+                return self._build_observation_from_result(
+                    result_dict,
+                    f"Input text to element: {action.element_id}",
+                    element_id=action.element_id,
+                    highlight_snapshot_id=action.highlight_snapshot_id,
+                )
             self._set_pending_confirmation(
                 element_id=action.element_id,
                 highlight_snapshot_id=action.highlight_snapshot_id,
@@ -498,9 +527,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 conversation_id=self.conversation_id,
                 tab_id=action.tab_id,
             )
-            result_dict = self._execute_element_command(
-                command, "select option"
-            )
+            result_dict = self._execute_element_command(command, "select option")
             return self._build_observation_from_result(
                 result_dict,
                 f"Selected option in element: {action.element_id}",
@@ -515,35 +542,38 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError(
                     "No pending click confirmation found. Please call click first."
                 )
-            if action.highlight_snapshot_id is None:
-                raise ValueError("confirm_click requires highlight_snapshot_id parameter")
-            if pending["element_id"] != action.element_id:
+            pending_element_id = pending.get("element_id")
+            pending_snapshot_id = pending.get("highlight_snapshot_id")
+            pending_extra_data = pending.get("extra_data", {})
+            if pending_snapshot_id is None:
+                pending_snapshot_id = pending_extra_data.get("highlight_snapshot_id")
+            if not pending_element_id:
                 raise ValueError(
-                    f"Element ID mismatch. Expected {pending['element_id']}, got {action.element_id}"
+                    "Pending click confirmation is missing element_id state."
                 )
-            if pending["highlight_snapshot_id"] != action.highlight_snapshot_id:
+            if pending_snapshot_id is None:
                 raise ValueError(
-                    f"Highlight snapshot mismatch. Expected {pending['highlight_snapshot_id']}, got {action.highlight_snapshot_id}"
+                    "Pending click confirmation is missing highlight_snapshot_id state."
                 )
             # Execute actual click
             command = ClickElementCommand(
-                element_id=action.element_id,
-                highlight_snapshot_id=action.highlight_snapshot_id
-                or pending["extra_data"].get("highlight_snapshot_id"),
+                element_id=pending_element_id,
+                highlight_snapshot_id=pending_snapshot_id,
                 conversation_id=self.conversation_id,
-                tab_id=action.tab_id or pending["extra_data"].get("tab_id"),
+                tab_id=pending_extra_data.get("tab_id"),
             )
             result_dict = self._execute_command_sync(command)
             if not result_dict or not result_dict.get("success"):
                 ext_error = self._extract_result_error(result_dict)
                 raise RuntimeError(f"Failed to click element: {ext_error}")
-            message = f"Confirmed and clicked element: {action.element_id}"
+            self._remember_confirmed_action_html("click", pending.get("full_html"))
+            message = f"Confirmed and clicked element: {pending_element_id}"
             self._clear_pending_confirmation()
             return self._build_observation_from_result(
                 result_dict,
                 message,
-                element_id=action.element_id,
-                highlight_snapshot_id=action.highlight_snapshot_id,
+                element_id=pending_element_id,
+                highlight_snapshot_id=pending_snapshot_id,
             )
 
         elif action_type == "confirm_keyboard_input":
@@ -552,37 +582,40 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError(
                     "No pending keyboard_input confirmation found. Please call keyboard_input first."
                 )
-            if action.highlight_snapshot_id is None:
+            pending_element_id = pending.get("element_id")
+            pending_snapshot_id = pending.get("highlight_snapshot_id")
+            pending_extra_data = pending.get("extra_data", {})
+            if pending_snapshot_id is None:
+                pending_snapshot_id = pending_extra_data.get("highlight_snapshot_id")
+            if not pending_element_id:
                 raise ValueError(
-                    "confirm_keyboard_input requires highlight_snapshot_id parameter"
+                    "Pending keyboard_input confirmation is missing element_id state."
                 )
-            if pending["element_id"] != action.element_id:
+            if pending_snapshot_id is None:
                 raise ValueError(
-                    f"Element ID mismatch. Expected {pending['element_id']}, got {action.element_id}"
-                )
-            if pending["highlight_snapshot_id"] != action.highlight_snapshot_id:
-                raise ValueError(
-                    f"Highlight snapshot mismatch. Expected {pending['highlight_snapshot_id']}, got {action.highlight_snapshot_id}"
+                    "Pending keyboard_input confirmation is missing highlight_snapshot_id state."
                 )
             command = KeyboardInputCommand(
-                element_id=action.element_id,
-                highlight_snapshot_id=action.highlight_snapshot_id
-                or pending["extra_data"].get("highlight_snapshot_id"),
-                text=pending["extra_data"].get("text", ""),
+                element_id=pending_element_id,
+                highlight_snapshot_id=pending_snapshot_id,
+                text=pending_extra_data.get("text", ""),
                 conversation_id=self.conversation_id,
-                tab_id=action.tab_id or pending["extra_data"].get("tab_id"),
+                tab_id=pending_extra_data.get("tab_id"),
             )
             result_dict = self._execute_command_sync(command)
             if not result_dict or not result_dict.get("success"):
                 ext_error = self._extract_result_error(result_dict)
                 raise RuntimeError(f"Failed to input text: {ext_error}")
-            message = f"Confirmed and input text to element: {action.element_id}"
+            self._remember_confirmed_action_html(
+                "keyboard_input", pending.get("full_html")
+            )
+            message = f"Confirmed and input text to element: {pending_element_id}"
             self._clear_pending_confirmation()
             return self._build_observation_from_result(
                 result_dict,
                 message,
-                element_id=action.element_id,
-                highlight_snapshot_id=action.highlight_snapshot_id,
+                element_id=pending_element_id,
+                highlight_snapshot_id=pending_snapshot_id,
             )
 
         else:
@@ -618,42 +651,6 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         message = f"Dialog handled: {dialog_action_str}"
         return self._build_observation_from_result(result_dict, message)
 
-    def _execute_javascript_action(
-        self, action: JavaScriptAction
-    ) -> OpenBrowserObservation:
-        """Execute a JavaScript execution action."""
-        logger.debug(
-            f"DEBUG: _execute_javascript_action called with script length={len(action.script)}"
-        )
-
-        # Check if javascript_execute is disabled via environment variable
-        if DISABLE_JAVASCRIPT_EXECUTE:
-            return OpenBrowserObservation(
-                success=False,
-                error="javascript_execute command is disabled via OPEN_BROWSER_DISABLE_JAVASCRIPT_EXECUTE environment variable",
-                tabs=[],
-                screenshot_data_url=None,
-            )
-
-        # Validate required parameters
-        if not action.script:
-            raise ValueError("javascript requires script parameter")
-
-        command = JavascriptExecuteCommand(
-            script=action.script, conversation_id=self.conversation_id
-        )
-        result_dict = self._execute_command_sync(command)
-
-        # Truncate long scripts for message
-        script = action.script
-        if len(script) > 50:
-            message = f"Executed JavaScript: '{script[:50]}...'"
-        else:
-            message = f"Executed JavaScript: '{script}'"
-
-        observation = self._build_observation_from_result(result_dict, message)
-        return observation
-
     # ========== 2PC State Management Methods ==========
 
     def _clear_pending_confirmation(self):
@@ -683,6 +680,60 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
     def _get_pending_confirmation(self) -> Optional[Dict[str, Any]]:
         """Get pending confirmation for current conversation"""
         return self.pending_confirmations.get(self.conversation_id)
+
+    def _normalize_confirmed_action_html(
+        self, full_html: Optional[str]
+    ) -> Optional[str]:
+        """Normalize cached element HTML used for repeat-click shortcut matching."""
+        if not isinstance(full_html, str):
+            return None
+
+        normalized = full_html.strip()
+        if not normalized or normalized == ELEMENT_HTML_CACHE_MISS_PLACEHOLDER:
+            return None
+
+        return normalized
+
+    def _get_confirmed_action_html_lru(
+        self, action_type: str
+    ) -> OrderedDict[str, None]:
+        """Get or create the confirmed-action LRU cache for current conversation."""
+        conversation_lru = self.confirmed_action_html_lru.setdefault(
+            self.conversation_id, {}
+        )
+        return conversation_lru.setdefault(action_type, OrderedDict())
+
+    def _has_confirmed_action_html(
+        self, action_type: str, full_html: Optional[str]
+    ) -> bool:
+        """Return whether this exact HTML was recently confirmed for the action."""
+        normalized = self._normalize_confirmed_action_html(full_html)
+        if normalized is None:
+            return False
+
+        lru = self._get_confirmed_action_html_lru(action_type)
+        if normalized not in lru:
+            return False
+
+        lru.move_to_end(normalized)
+        return True
+
+    def _remember_confirmed_action_html(
+        self, action_type: str, full_html: Optional[str]
+    ) -> None:
+        """Record a confirmed-action HTML entry in the per-conversation LRU cache."""
+        normalized = self._normalize_confirmed_action_html(full_html)
+        if normalized is None:
+            return
+
+        lru = self._get_confirmed_action_html_lru(action_type)
+        if normalized in lru:
+            lru.move_to_end(normalized)
+        else:
+            lru[normalized] = None
+
+        while len(lru) > CONFIRMED_CLICK_HTML_CACHE_SIZE:
+            lru.popitem(last=False)
 
     def _extract_result_error(
         self, result_dict: Optional[Dict[str, Any]], default: str = "Unknown error"

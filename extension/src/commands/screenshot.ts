@@ -702,12 +702,16 @@ async function inspectImageDimensions(dataUrl: string): Promise<{
   height: number;
 }> {
   if (!dataUrl.startsWith('data:')) {
-    throw new Error('[Screenshot] Invalid data URL while inspecting dimensions');
+    throw new Error(
+      '[Screenshot] Invalid data URL while inspecting dimensions',
+    );
   }
 
   const commaIndex = dataUrl.indexOf(',');
   if (commaIndex === -1) {
-    throw new Error('[Screenshot] Screenshot data URL missing payload separator');
+    throw new Error(
+      '[Screenshot] Screenshot data URL missing payload separator',
+    );
   }
 
   const header = dataUrl.slice(0, commaIndex);

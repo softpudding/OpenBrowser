@@ -72,37 +72,61 @@ class TestPromptContracts:
         assert "icon-only controls" in description
         assert "Stay on the same `element_type` across pages" in description
         assert "actual button may simply be on the next page" in description
-        assert "Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`" in description
-        assert '`clickable`' not in description
+        assert (
+            "Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`"
+            in description
+        )
+        assert "`clickable`" not in description
 
-    def test_highlight_prompt_requires_exact_text_keywords_and_pagination_before_guessing(self) -> None:
+    def test_highlight_prompt_requires_exact_text_keywords_and_pagination_before_guessing(
+        self,
+    ) -> None:
         description = get_highlight_tool_description()
 
-        assert "Treat pages as reliable collision-free slices of the same candidate set" in description
+        assert (
+            "Treat pages as reliable collision-free slices of the same candidate set"
+            in description
+        )
         assert "Do not jump from a first-page miss to `keywords`" in description
-        assert "Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot" in description
+        assert (
+            "Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot"
+            in description
+        )
         assert '`{"keywords": ["52"]}`' in description
         assert '`["star"]`, `["favorite"]`, or `["bookmark"]`' in description
         assert "DO NOT use synonym bundles like" in description
         assert "Examples of broad search" not in description
         assert "Phase 2: Broad Search" not in description
 
-    def test_highlight_prompt_requires_rehighlight_after_significant_page_change(self) -> None:
+    def test_highlight_prompt_requires_rehighlight_after_significant_page_change(
+        self,
+    ) -> None:
         description = get_highlight_tool_description()
 
         assert "After any significant page-state change" in description
-        assert 'call `highlight` with `element_type: "any"` again before choosing the next element' in description
-        assert "Do not jump straight to `keywords` or another narrower type on that changed page" in description
+        assert (
+            'call `highlight` with `element_type: "any"` again before choosing the next element'
+            in description
+        )
+        assert (
+            "Do not jump straight to `keywords` or another narrower type on that changed page"
+            in description
+        )
 
     def test_highlight_prompt_omits_clickable_mode_from_agent_guidance(self) -> None:
         description = get_highlight_tool_description()
 
-        assert '`clickable`' not in description
+        assert "`clickable`" not in description
 
-    def test_highlight_prompt_requires_click_before_keyboard_input_for_inputable_targets(self) -> None:
+    def test_highlight_prompt_requires_click_before_keyboard_input_for_inputable_targets(
+        self,
+    ) -> None:
         description = get_highlight_tool_description()
 
-        assert "always `click` it first and complete that confirmation before `keyboard_input`" in description
+        assert (
+            "always `click` it first and complete that confirmation before `keyboard_input`"
+            in description
+        )
 
     def test_small_model_highlight_prompt_omits_keywords_guidance(self) -> None:
         with patch.object(
@@ -139,11 +163,19 @@ class TestPromptContracts:
         assert "tab view" in description
         assert "clean screenshot" in description.lower()
 
-    def test_element_interaction_prompt_requires_click_before_keyboard_input(self) -> None:
+    def test_element_interaction_prompt_requires_click_before_keyboard_input(
+        self,
+    ) -> None:
         description = get_element_interaction_tool_description()
 
-        assert "Always `click` the target first and complete that confirmation before `keyboard_input`." in description
-        assert "only after you already clicked the same input target and completed that click confirmation" in description
+        assert (
+            "Always `click` the target first and complete that confirmation before `keyboard_input`."
+            in description
+        )
+        assert (
+            "only after you already clicked the same input target and completed that click confirmation"
+            in description
+        )
 
     def test_element_interaction_prompt_explains_swipe_semantics(self) -> None:
         description = get_element_interaction_tool_description()
@@ -151,6 +183,20 @@ class TestPromptContracts:
         assert '`direction: "next"` means show the next picture' in description
         assert '`direction: "prev"` means show the previous picture' in description
         assert "not finger or gesture directions" in description
+
+    def test_element_interaction_confirm_examples_use_pending_state_only(self) -> None:
+        description = get_element_interaction_tool_description()
+
+        assert '{ "action": "confirm_click" }' in description
+        assert '{ "action": "confirm_keyboard_input" }' in description
+        assert (
+            '{ "action": "confirm_click", "highlight_snapshot_id": 17, "element_id": "3", "tab_id": 123 }'
+            not in description
+        )
+        assert (
+            '{ "action": "confirm_keyboard_input", "highlight_snapshot_id": 17, "element_id": "1", "tab_id": 123 }'
+            not in description
+        )
 
     def test_element_interaction_action_schema_explains_swipe_semantics(self) -> None:
         description = ElementInteractionAction.model_fields["direction"].description

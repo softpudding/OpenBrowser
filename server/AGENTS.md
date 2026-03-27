@@ -22,7 +22,6 @@ FastAPI backend handling REST API, WebSocket communication with Chrome extension
 | Highlight tool | `agent/tools/highlight_tool.py` | `HighlightTool`, `HighlightAction` |
 | Element interaction | `agent/tools/element_interaction_tool.py` | `ElementInteractionTool`, `ElementInteractionAction` |
 | Dialog tool | `agent/tools/dialog_tool.py` | `DialogTool`, `DialogHandleAction` |
-| JavaScript tool | `agent/tools/javascript_tool.py` | `JavaScriptTool`, `JavaScriptAction` |
 | ToolSet aggregator | `agent/tools/toolset.py` | `OpenBrowserToolSet` |
 ## STRUCTURE
 
@@ -209,9 +208,9 @@ After the screenshot refactor, the server layer no longer proactively triggers s
 
 **Best Practice:** Use `tab view` when you need a clean screenshot after navigation or JavaScript execution.
 
-## 5-TOOL ARCHITECTURE
+## 4-TOOL ARCHITECTURE
 
-OpenBrowser now uses 5 focused tools instead of a single monolithic tool:
+OpenBrowser now uses 4 focused tools instead of a single monolithic tool:
 
 ### 1. Tab Tool (`tab`)
 - **Purpose**: Browser tab management with session isolation
@@ -235,22 +234,17 @@ OpenBrowser now uses 5 focused tools instead of a single monolithic tool:
 - **Dialog types**: `alert` (auto-accepted), `confirm`, `prompt`, `beforeunload`
 - **Required**: Handle dialogs before continuing browser operations
 
-### 5. JavaScript Tool (`javascript`)
-- **Purpose**: Custom JavaScript execution as fallback mechanism
-- **When to use**: When visual commands fail (2-Strike Rule) or for complex DOM manipulation
-- **Guidelines**: Return JSON-serializable values, 30-second timeout
-
 ### Shared Architecture
-- **Shared executor**: All 5 tools share executor for 2PC state management
+- **Shared executor**: All 4 tools share executor for 2PC state management
 - **Conversation isolation**: Each conversation has isolated state
 - **Backward compatibility**: `OpenBrowserTool` still available with deprecation warning
-- **ToolSet**: `OpenBrowserToolSet` aggregates all 5 tools for registration
+- **ToolSet**: `OpenBrowserToolSet` aggregates all 4 tools for registration
 
 ## NOTES
 
 - WebSocket runs on port 8766, HTTP on 8765
 - `conversation_id` links all commands to session context
-- Agent uses OpenHands SDK with 5 focused tools (tab, highlight, element_interaction, dialog, javascript)
+- Agent uses OpenHands SDK with 4 focused tools (tab, highlight, element_interaction, dialog)
 - Dialogs block screenshot/JS until handled
 
 ## ANTI-PATTERNS

@@ -175,11 +175,15 @@ class TestOpenBrowserObservation:
         text = _text_content(observation)
 
         assert "## Pending Confirmation" in text
-        assert "Inspect the screenshot first." in text
-        assert '"action": "confirm_click"' in text
-        assert '"element_id": "a1b2c3"' in text
+        assert '{"action": "confirm_click"}' in text
+        assert '"highlight_snapshot_id"' not in text
+        assert '"element_id"' not in text
+        assert "**Element ID**: a1b2c3" in text
+        assert "**Action Type**: click" in text
 
-    def test_pending_keyboard_confirmation_uses_matching_follow_up_command(self) -> None:
+    def test_pending_keyboard_confirmation_uses_matching_follow_up_command(
+        self,
+    ) -> None:
         observation = OpenBrowserObservation(
             success=True,
             pending_confirmation={
@@ -191,10 +195,15 @@ class TestOpenBrowserObservation:
 
         text = _text_content(observation)
 
-        assert '"action": "confirm_keyboard_input"' in text
-        assert '"element_id": "inp789"' in text
+        assert '{"action": "confirm_keyboard_input"}' in text
+        assert '"highlight_snapshot_id"' not in text
+        assert '"element_id"' not in text
+        assert "**Element ID**: inp789" in text
+        assert "**Action Type**: keyboard_input" in text
 
-    def test_pending_confirmation_with_screenshot_is_image_first_and_text_minimal(self) -> None:
+    def test_pending_confirmation_with_screenshot_is_image_first_and_text_minimal(
+        self,
+    ) -> None:
         observation = OpenBrowserObservation(
             success=True,
             screenshot_data_url="data:image/png;base64,confirm123",

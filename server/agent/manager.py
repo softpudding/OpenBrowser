@@ -30,6 +30,8 @@ from openhands.sdk.tool import Tool
 from server.api.sse import SSEEvent
 from server.agent.visualizer import QueueVisualizer
 from server.agent.conversation import ConversationState
+from server.agent.user_help import PLEASE_HELP_ME_TOOL_NAME
+import server.agent.tools.help_tool  # noqa: F401
 from server.agent.tools.browser_executor import remove_browser_executor
 from server.core.ipc_router import IPCRouter
 from server.core.ipc_types import BrowserCommandMessage
@@ -94,13 +96,27 @@ class OpenBrowserAgentManager:
             Tool(name="highlight"),  # Element discovery with visual overlays
             Tool(name="element_interaction"),  # Click/input with 2PC, others direct
             Tool(name="dialog"),  # Browser dialog handling
-            Tool(name="javascript"),  # JavaScript execution fallback
         ]
         self.general_tools = [
+            Tool(name=PLEASE_HELP_ME_TOOL_NAME),
             Tool(name=TerminalTool.name),  # Terminal access
             Tool(name=FileEditorTool.name),  # File editing
             Tool(name=TaskTrackerTool.name),  # Task tracking
         ]
+
+    def _build_agent_context(self) -> AgentContext:
+        """Create the shared AgentContext used for OpenBrowser conversations."""
+        help_suffix = (
+            "When you need a human to complete a manual step, do not only say it in "
+            "assistant text. Call `please_help_me` with a concise, actionable "
+            "message, then stop and wait for the user's next message. Use this for "
+            "CAPTCHA, MFA, approvals, account-specific choices, or any step that "
+            "requires the real human user."
+        )
+        return AgentContext(
+            current_datetime=datetime.now(),
+            system_message_suffix=help_suffix,
+        )
 
     def _resolve_llm_settings(
         self,
@@ -118,22 +134,9 @@ class OpenBrowserAgentManager:
     def _get_tools_for_model(
         self, model: Optional[str] = None, model_alias: Optional[str] = None
     ) -> list[Tool]:
-        """Return the tool list for a model tier.
-
-        Small models keep the general agentic tools but use a narrower browser
-        toolset to reduce risky action branching.
-        """
-        resolved_model, _, _ = self._resolve_llm_settings(
-            model=model, model_alias=model_alias
-        )
-
-        browser_tools = list(self.browser_tools)
-        if is_small_model(resolved_model):
-            browser_tools = [
-                tool for tool in browser_tools if tool.name != "javascript"
-            ]
-
-        return browser_tools + list(self.general_tools)
+        """Return the tool list for a model tier."""
+        self._resolve_llm_settings(model=model, model_alias=model_alias)
+        return list(self.browser_tools) + list(self.general_tools)
 
     def _create_llm_from_config(
         self,
@@ -179,7 +182,6 @@ class OpenBrowserAgentManager:
         return {
             "model_profile": get_model_profile(resolved_model),
             "small_model": small_model,
-            "javascript_available": not small_model,
         }
 
     def _build_session_metadata(
@@ -282,7 +284,7 @@ class OpenBrowserAgentManager:
             The conversation ID
         """
         # Create agent with tools
-        agent_context = AgentContext(current_datetime=datetime.now())
+        agent_context = self._build_agent_context()
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
         agent = Agent(
@@ -508,7 +510,7 @@ class OpenBrowserAgentManager:
 
         # Create new conversation with the given ID
         # Create agent with tools
-        agent_context = AgentContext(current_datetime=datetime.now())
+        agent_context = self._build_agent_context()
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
         agent = Agent(

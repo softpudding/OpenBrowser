@@ -42,15 +42,15 @@ class ElementInteractionAction(OpenBrowserAction):
         "confirm_click",
         "confirm_keyboard_input",
     ] = Field(
-        description="Element interaction action (click and keyboard_input require confirm_* follow-up; hover/scroll/swipe/select execute directly)"
+        description="Element interaction action (click and keyboard_input require confirm_* follow-up; confirm_* executes the current pending confirmation; hover/scroll/swipe/select execute directly)"
     )
     element_id: Optional[str] = Field(
         default=None,
-        description="Element ID (page-local numeric string) from a specific highlight_elements snapshot",
+        description="Element ID (page-local numeric string) from a specific highlight_elements snapshot. Required for click, hover, element scroll/swipe, keyboard_input, and select. Ignored for confirm_* actions.",
     )
     highlight_snapshot_id: Optional[int] = Field(
         default=None,
-        description="Highlight snapshot ID returned by highlight_elements. Required for all element-targeted actions.",
+        description="Highlight snapshot ID returned by highlight_elements. Required for click, hover, element scroll/swipe, keyboard_input, and select. Ignored for confirm_* actions.",
     )
     direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",
@@ -83,7 +83,7 @@ class ElementInteractionAction(OpenBrowserAction):
     )
     tab_id: Optional[int] = Field(
         default=None,
-        description="Tab ID (optional, uses active tab if not specified)",
+        description="Tab ID (optional, uses active tab if not specified). confirm_* actions use the tab stored in the pending confirmation.",
     )
 
 

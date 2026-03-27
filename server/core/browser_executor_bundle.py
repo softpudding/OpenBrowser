@@ -19,6 +19,7 @@ from typing import Any, Optional
 
 from server.agent.manager import OpenBrowserAgentManager
 from server.api.sse import SSEEvent
+from server.agent.user_help import build_completion_event_payload
 from server.core.processor import CommandProcessor
 from server.models.commands import parse_command, CommandResponse
 
@@ -300,10 +301,10 @@ class BrowserExecutorBundle:
             event_queue.put(
                 SSEEvent(
                     "complete",
-                    {
-                        "conversation_id": self.conversation_id,
-                        "message": "Conversation completed",
-                    },
+                    build_completion_event_payload(
+                        self.conversation_id,
+                        conv_state.conversation.state.events,
+                    ),
                 )
             )
 

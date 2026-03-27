@@ -48,7 +48,6 @@ tools_module = types.ModuleType("server.agent.tools")
 tools_module.__path__ = [str(tools_dir)]
 sys.modules.setdefault("server.agent.tools", tools_module)
 
-from server.agent.tools import javascript_tool
 from server.agent.tools.toolset import OpenBrowserToolSet
 
 
@@ -60,6 +59,7 @@ class TestToolSetIntegration:
 
         shared_executor._set_pending_confirmation(
             element_id="abc123",
+            highlight_snapshot_id=17,
             action_type="click",
             full_html="<button>Delete</button>",
         )
@@ -72,29 +72,36 @@ class TestToolSetIntegration:
             tools["tab"].executor._get_pending_confirmation()["action_type"] == "click"
         )
 
-    def test_confirmed_element_cache_is_isolated_by_conversation(self) -> None:
+    def test_pending_confirmation_is_isolated_by_conversation(self) -> None:
         tools = {tool.name: tool for tool in OpenBrowserToolSet.create(None)}
         executor = tools["element_interaction"].executor
 
         executor.conversation_id = "conv-1"
-        executor._add_confirmed_element("elem-1")
+        executor._set_pending_confirmation(
+            element_id="elem-1",
+            highlight_snapshot_id=11,
+            action_type="click",
+            full_html="<button>First</button>",
+        )
 
         executor.conversation_id = "conv-2"
 
-        assert executor._is_element_confirmed("elem-1") is False
+        assert executor._get_pending_confirmation() is None
 
-        executor._add_confirmed_element("elem-2")
-        assert executor._is_element_confirmed("elem-2") is True
+        executor._set_pending_confirmation(
+            element_id="elem-2",
+            highlight_snapshot_id=22,
+            action_type="keyboard_input",
+            full_html='<input value="second" />',
+        )
+        assert executor._get_pending_confirmation()["element_id"] == "elem-2"
+        assert executor._get_pending_confirmation()["highlight_snapshot_id"] == 22
 
         executor.conversation_id = "conv-1"
-        assert executor._is_element_confirmed("elem-1") is True
-        assert executor._is_element_confirmed("elem-2") is False
+        assert executor._get_pending_confirmation()["element_id"] == "elem-1"
+        assert executor._get_pending_confirmation()["highlight_snapshot_id"] == 11
 
-    def test_disabling_javascript_keeps_core_workflow_tools_available(
-        self, monkeypatch
-    ) -> None:
-        monkeypatch.setattr(javascript_tool, "DISABLE_JAVASCRIPT_EXECUTE", True)
-
+    def test_toolset_keeps_core_workflow_tools_available(self) -> None:
         tools = OpenBrowserToolSet.create(None)
 
         assert [tool.name for tool in tools] == [
