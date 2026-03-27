@@ -122,7 +122,8 @@ class SessionManager:
             cursor = conn.cursor()
 
             # Create sessions table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS sessions (
                     conversation_id TEXT PRIMARY KEY,
                     status TEXT NOT NULL DEFAULT 'idle',
@@ -135,13 +136,15 @@ class SessionManager:
                     tags TEXT DEFAULT '[]',
                     metadata TEXT DEFAULT '{}'
                 )
-            """)
+            """
+            )
 
             # Run migrations to add missing columns
             self._migrate_database(cursor)
 
             # Create user_messages table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS user_messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     conversation_id TEXT NOT NULL,
@@ -151,10 +154,12 @@ class SessionManager:
                     FOREIGN KEY (conversation_id) REFERENCES sessions(conversation_id),
                     UNIQUE(conversation_id, message_index)
                 )
-            """)
+            """
+            )
 
             # Create session_events table for SSE event history
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS session_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     conversation_id TEXT NOT NULL,
@@ -164,23 +169,30 @@ class SessionManager:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (conversation_id) REFERENCES sessions(conversation_id)
                 )
-            """)
+            """
+            )
 
             # Create indexes for faster queries
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_user_messages_conversation 
                 ON user_messages(conversation_id)
-            """)
+            """
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_session_events_conversation 
                 ON session_events(conversation_id)
-            """)
+            """
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_session_events_index 
                 ON session_events(conversation_id, event_index)
-            """)
+            """
+            )
 
             conn.commit()
             conn.close()
@@ -198,9 +210,11 @@ class SessionManager:
 
             if "first_user_message" not in columns:
                 logger.info("Adding missing column: first_user_message")
-                cursor.execute("""
+                cursor.execute(
+                    """
                     ALTER TABLE sessions ADD COLUMN first_user_message TEXT
-                """)
+                """
+                )
                 logger.info("Migration completed: first_user_message column added")
 
         except Exception as e:

@@ -4,7 +4,11 @@ import server.agent.tools.browser_executor as browser_executor_module
 
 from server.agent.tools.browser_executor import BrowserExecutor
 from server.agent.tools.element_interaction_tool import ElementInteractionAction
-from server.models.commands import ClickElementCommand, HoverElementCommand, SwipeElementCommand
+from server.models.commands import (
+    ClickElementCommand,
+    HoverElementCommand,
+    SwipeElementCommand,
+)
 
 
 class _FakeResponse:
@@ -103,7 +107,10 @@ def test_keyboard_input_sets_pending_confirmation(monkeypatch) -> None:
     )
 
     assert observation.success is True
-    assert observation.message == "Keyboard input action pending confirmation for element: inp123"
+    assert (
+        observation.message
+        == "Keyboard input action pending confirmation for element: inp123"
+    )
     assert observation.pending_confirmation is not None
     assert observation.pending_confirmation["action_type"] == "keyboard_input"
     assert observation.pending_confirmation["element_id"] == "inp123"
@@ -125,7 +132,10 @@ def test_confirm_click_uses_pending_confirmation_state(monkeypatch) -> None:
 
     def fake_execute(command):
         captured["command"] = command
-        return {"success": True, "data": {"screenshot": "data:image/png;base64,clicked"}}
+        return {
+            "success": True,
+            "data": {"screenshot": "data:image/png;base64,clicked"},
+        }
 
     monkeypatch.setattr(executor, "_execute_command_sync", fake_execute)
 
@@ -151,7 +161,7 @@ def test_repeat_click_with_confirmed_html_executes_without_pending_confirmation(
     executor.conversation_id = "conv-repeat-click"
     executor._remember_confirmed_action_html(
         "click",
-        '<a href="/gbr/articles/opinion-article2.html">Why the Fed Must Act Decisively</a>'
+        '<a href="/gbr/articles/opinion-article2.html">Why the Fed Must Act Decisively</a>',
     )
 
     monkeypatch.setattr(
@@ -197,9 +207,7 @@ def test_repeat_click_with_confirmed_html_executes_without_pending_confirmation(
 def test_repeat_click_does_not_shortcut_cache_miss_placeholder(monkeypatch) -> None:
     executor = BrowserExecutor()
     executor.conversation_id = "conv-repeat-placeholder"
-    executor._remember_confirmed_action_html(
-        "click", "<element not found in cache>"
-    )
+    executor._remember_confirmed_action_html("click", "<element not found in cache>")
 
     monkeypatch.setattr(
         executor,
@@ -227,7 +235,9 @@ def test_repeat_click_does_not_shortcut_cache_miss_placeholder(monkeypatch) -> N
     assert observation.success is True
     assert observation.message == "Click action pending confirmation for element: 15"
     assert observation.pending_confirmation is not None
-    assert observation.pending_confirmation["full_html"] == "<element not found in cache>"
+    assert (
+        observation.pending_confirmation["full_html"] == "<element not found in cache>"
+    )
 
 
 def test_confirmed_action_html_lru_keeps_only_most_recent_ten_entries() -> None:
@@ -235,7 +245,9 @@ def test_confirmed_action_html_lru_keeps_only_most_recent_ten_entries() -> None:
     executor.conversation_id = "conv-repeat-lru"
 
     for i in range(11):
-        executor._remember_confirmed_action_html("click", f"<button>Action {i}</button>")
+        executor._remember_confirmed_action_html(
+            "click", f"<button>Action {i}</button>"
+        )
 
     lru = executor._get_confirmed_action_html_lru("click")
 
@@ -371,10 +383,7 @@ def test_confirm_keyboard_input_reports_nested_extension_error(monkeypatch) -> N
     )
 
     assert observation.success is False
-    assert (
-        observation.error
-        == "Failed to input text: Input element is detached"
-    )
+    assert observation.error == "Failed to input text: Input element is detached"
     assert captured["command"].element_id == "inp123"
     assert captured["command"].highlight_snapshot_id == 17
     assert captured["command"].tab_id == 321

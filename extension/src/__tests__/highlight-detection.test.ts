@@ -29,7 +29,12 @@ function createElement(
 describe('highlight-detection helpers', () => {
   test('normalizeHighlightKeywords trims, lowercases, removes whitespace, and deduplicates', () => {
     expect(
-      normalizeHighlightKeywords([' Like ', 'like', ' REPLY ', " John's   reply "]),
+      normalizeHighlightKeywords([
+        ' Like ',
+        'like',
+        ' REPLY ',
+        " John's   reply ",
+      ]),
     ).toEqual(['like', 'reply', "john'sreply"]);
   });
 
@@ -75,7 +80,7 @@ describe('highlight-detection helpers', () => {
           selector: 'button.reply-target',
           text: "John's reply",
           searchText: "john ' s    reply",
-          html: '<button>John <span>\'s</span> reply</button>',
+          html: "<button>John <span>'s</span> reply</button>",
         }),
         createElement({
           id: 'reply456',
@@ -133,7 +138,9 @@ describe('highlight-detection helpers', () => {
     const script = buildHighlightDetectionScript({ elementType: 'inputable' });
 
     expect(script).toContain('return el.isContentEditable;');
-    expect(script).not.toContain("return el.getAttribute('contenteditable') === 'true';");
+    expect(script).not.toContain(
+      "return el.getAttribute('contenteditable') === 'true';",
+    );
   });
 
   test("buildHighlightDetectionScript keeps 'any' candidate selection across all element types", () => {
@@ -216,7 +223,10 @@ describe('highlight-detection helpers', () => {
   test('buildHighlightDetectionScript keeps semantic controls clickable in swipe regions', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
     const start = script.indexOf('function toInteractiveElement');
-    const end = script.indexOf('function countVisibleClickableCandidates', start);
+    const end = script.indexOf(
+      'function countVisibleClickableCandidates',
+      start,
+    );
     const toInteractiveElementSource = script.slice(start, end);
 
     expect(script).toContain('function isSemanticControlElement');
@@ -230,7 +240,7 @@ describe('highlight-detection helpers', () => {
       "interactionHints.includes('swipable')",
     );
     expect(toInteractiveElementSource).toContain(
-      "isScrollableCandidate(candidate.element)",
+      'isScrollableCandidate(candidate.element)',
     );
     expect(toInteractiveElementSource).toContain("? 'scrollable'");
   });

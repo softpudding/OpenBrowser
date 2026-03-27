@@ -108,8 +108,8 @@ class TestHighlightElements:
                 assert re.match(
                     r"^\d+$", element_id
                 ), f"Element ID should be numeric: {element_id}"
-                assert (
-                    element_id == str(index)
+                assert element_id == str(
+                    index
                 ), f"Element ID should follow response order: expected {index}, got {element_id}"
 
 

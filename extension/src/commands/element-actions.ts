@@ -435,7 +435,9 @@ export async function performElementClick(
   // STEP 2: Build JavaScript to click with full event sequence
   // ============================================================
   // Escape quotes in selector for safe injection
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );
@@ -726,7 +728,9 @@ export async function performElementHover(
   // ============================================================
   // STEP 2: Build JavaScript to dispatch hover events
   // ============================================================
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );
@@ -1001,7 +1005,8 @@ export async function performElementScroll(
         success: false,
         elementId,
         scrolled: false,
-        error: 'highlight_snapshot_id is required when scrolling a highlighted element.',
+        error:
+          'highlight_snapshot_id is required when scrolling a highlighted element.',
       };
     }
 
@@ -1025,7 +1030,9 @@ export async function performElementScroll(
     console.log(
       `✅ [ElementScroll] Found element: selector="${element.selector}"`,
     );
-    const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+    const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+      element.selector,
+    );
     const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
       cachedElement.documentId,
     );
@@ -1361,7 +1368,9 @@ export async function performElementSwipe(
     `✅ [ElementSwipe] Found element: selector="${element.selector}"`,
   );
 
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );
@@ -2538,7 +2547,9 @@ export async function performKeyboardInput(
   // STEP 2: Build JavaScript to input text
   // ============================================================
   // Escape quotes and backslashes in selector and text for safe injection
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );
@@ -2842,7 +2853,9 @@ export async function performElementSelect(
   // STEP 2: Build JavaScript to select option(s)
   // ============================================================
   // Escape quotes and backslashes in selector for safe injection
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );

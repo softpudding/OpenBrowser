@@ -252,9 +252,7 @@ def test_run_test_cleans_managed_tabs_before_delete(tmp_path) -> None:
     evaluator.openbrowser.create_conversation.return_value = "conv-123"
     evaluator.openbrowser.send_message.return_value = MessageRunResult(events=[])
     evaluator.openbrowser.cleanup_managed_tabs.side_effect = (
-        lambda conversation_id: teardown_calls.append(
-            f"cleanup:{conversation_id}"
-        )
+        lambda conversation_id: teardown_calls.append(f"cleanup:{conversation_id}")
         or False
     )
     evaluator.openbrowser.delete_conversation.side_effect = (

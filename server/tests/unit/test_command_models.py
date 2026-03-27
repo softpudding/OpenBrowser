@@ -64,15 +64,21 @@ class TestVisualInteractionContracts:
     def test_keyboard_input_allows_empty_text_for_clear_style_interactions(
         self,
     ) -> None:
-        command = KeyboardInputCommand(element_id="field123", text="")
+        command = KeyboardInputCommand(
+            element_id="field123",
+            highlight_snapshot_id=101,
+            text="",
+        )
 
         assert command.text == ""
+        assert command.highlight_snapshot_id == 101
 
     def test_swipe_defaults_match_carousel_workflow(self) -> None:
-        command = SwipeElementCommand(element_id="carousel1")
+        command = SwipeElementCommand(element_id="carousel1", highlight_snapshot_id=202)
 
         assert command.direction == "next"
         assert command.swipe_count == 1
+        assert command.highlight_snapshot_id == 202
 
     def test_swipe_direction_description_uses_content_semantics(self) -> None:
         description = SwipeElementCommand.model_fields["direction"].description
@@ -84,7 +90,11 @@ class TestVisualInteractionContracts:
 
     @pytest.mark.parametrize("count", [1, 5])
     def test_swipe_accepts_documented_count_boundaries(self, count: int) -> None:
-        command = SwipeElementCommand(element_id="carousel1", swipe_count=count)
+        command = SwipeElementCommand(
+            element_id="carousel1",
+            highlight_snapshot_id=202,
+            swipe_count=count,
+        )
 
         assert command.swipe_count == count
 
@@ -107,6 +117,7 @@ class TestParseCommandContracts:
                 {
                     "type": "click_element",
                     "element_id": "abc123",
+                    "highlight_snapshot_id": 11,
                     "conversation_id": "conv-1",
                     "browser_id": "browser-1",
                 },
@@ -116,6 +127,7 @@ class TestParseCommandContracts:
                 {
                     "type": "keyboard_input",
                     "element_id": "field123",
+                    "highlight_snapshot_id": 12,
                     "text": "hello",
                     "tab_id": 7,
                     "conversation_id": "conv-2",
@@ -136,6 +148,7 @@ class TestParseCommandContracts:
                 {
                     "type": "swipe_element",
                     "element_id": "carousel1",
+                    "highlight_snapshot_id": 13,
                     "direction": "prev",
                     "swipe_count": 2,
                     "conversation_id": "conv-4",
@@ -153,6 +166,8 @@ class TestParseCommandContracts:
         assert isinstance(command, expected_type)
         assert command.conversation_id == payload["conversation_id"]
         assert command.browser_id == payload["browser_id"]
+        if "highlight_snapshot_id" in payload:
+            assert command.highlight_snapshot_id == payload["highlight_snapshot_id"]
 
     def test_parse_command_rejects_missing_type(self) -> None:
         with pytest.raises(ValueError, match="must have 'type' field"):

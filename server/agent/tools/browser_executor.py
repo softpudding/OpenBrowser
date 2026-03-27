@@ -101,9 +101,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         # Pending confirmations per conversation for 2PC actions.
         self.pending_confirmations: Dict[str, Dict[str, Any]] = {}
         # Recently confirmed element targets keyed by action_type then exact element HTML.
-        self.confirmed_action_html_lru: Dict[
-            str, Dict[str, OrderedDict[str, None]]
-        ] = {}
+        self.confirmed_action_html_lru: Dict[str, Dict[str, OrderedDict[str, None]]] = (
+            {}
+        )
 
     def __call__(
         self, action: OpenBrowserAction, conversation
@@ -394,9 +394,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 conversation_id=self.conversation_id,
                 tab_id=action.tab_id,
             )
-            result_dict = self._execute_element_command(
-                command, "hover element"
-            )
+            result_dict = self._execute_element_command(command, "hover element")
             return self._build_observation_from_result(
                 result_dict,
                 f"Hovered element: {action.element_id}",
@@ -418,9 +416,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     conversation_id=self.conversation_id,
                     tab_id=action.tab_id,
                 )
-                result_dict = self._execute_element_command(
-                    command, "scroll element"
-                )
+                result_dict = self._execute_element_command(command, "scroll element")
                 return self._build_observation_from_result(
                     result_dict,
                     f"Scrolled element: {action.element_id}",
@@ -473,7 +469,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if not action.text:
                 raise ValueError("keyboard_input requires text parameter")
             if action.highlight_snapshot_id is None:
-                raise ValueError("keyboard_input requires highlight_snapshot_id parameter")
+                raise ValueError(
+                    "keyboard_input requires highlight_snapshot_id parameter"
+                )
             full_html, screenshot = self._get_element_full_html(
                 action.element_id, action.highlight_snapshot_id
             )
@@ -529,9 +527,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 conversation_id=self.conversation_id,
                 tab_id=action.tab_id,
             )
-            result_dict = self._execute_element_command(
-                command, "select option"
-            )
+            result_dict = self._execute_element_command(command, "select option")
             return self._build_observation_from_result(
                 result_dict,
                 f"Selected option in element: {action.element_id}",
@@ -685,21 +681,22 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         """Get pending confirmation for current conversation"""
         return self.pending_confirmations.get(self.conversation_id)
 
-    def _normalize_confirmed_action_html(self, full_html: Optional[str]) -> Optional[str]:
+    def _normalize_confirmed_action_html(
+        self, full_html: Optional[str]
+    ) -> Optional[str]:
         """Normalize cached element HTML used for repeat-click shortcut matching."""
         if not isinstance(full_html, str):
             return None
 
         normalized = full_html.strip()
-        if (
-            not normalized
-            or normalized == ELEMENT_HTML_CACHE_MISS_PLACEHOLDER
-        ):
+        if not normalized or normalized == ELEMENT_HTML_CACHE_MISS_PLACEHOLDER:
             return None
 
         return normalized
 
-    def _get_confirmed_action_html_lru(self, action_type: str) -> OrderedDict[str, None]:
+    def _get_confirmed_action_html_lru(
+        self, action_type: str
+    ) -> OrderedDict[str, None]:
         """Get or create the confirmed-action LRU cache for current conversation."""
         conversation_lru = self.confirmed_action_html_lru.setdefault(
             self.conversation_id, {}

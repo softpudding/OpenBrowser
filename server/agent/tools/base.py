@@ -113,7 +113,9 @@ class OpenBrowserObservation(Observation):
         action_type = str(pending.get("action_type", "unknown"))
         element_id = str(pending.get("element_id", "unknown"))
         highlight_snapshot_id = str(
-            pending.get("highlight_snapshot_id", self.highlight_snapshot_id or "unknown")
+            pending.get(
+                "highlight_snapshot_id", self.highlight_snapshot_id or "unknown"
+            )
         )
         confirm_cmd = f'{{"action": "confirm_{action_type}"}}'
 

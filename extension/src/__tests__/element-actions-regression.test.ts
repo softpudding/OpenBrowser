@@ -55,7 +55,9 @@ describe('Element action regressions', () => {
   });
 
   test('performElementSwipe includes gesture fallback and settle wait', () => {
-    expect(elementActionsSource).toContain('async function performGestureSwipe');
+    expect(elementActionsSource).toContain(
+      'async function performGestureSwipe',
+    );
     expect(elementActionsSource).toContain('await waitForSwipeToSettle(');
     expect(elementActionsSource).toContain("stepMethod = 'gesture';");
   });
@@ -71,6 +73,8 @@ describe('Element action regressions', () => {
     expect(elementActionsSource).toContain('currentApi.slideNext(0)');
     expect(elementActionsSource).toContain('currentApi.slidePrev(0)');
     expect(elementActionsSource).toContain('currentApi.scrollNext(true)');
-    expect(elementActionsSource).toContain('currentApi.slideTo(targetIndex, 0)');
+    expect(elementActionsSource).toContain(
+      'currentApi.slideTo(targetIndex, 0)',
+    );
   });
 });

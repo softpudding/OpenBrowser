@@ -57,9 +57,7 @@ class PleaseHelpMeObservation(OpenBrowserObservation):
         return [TextContent(text="Pending user's decision")]
 
 
-class PleaseHelpMeExecutor(
-    ToolExecutor[PleaseHelpMeAction, PleaseHelpMeObservation]
-):
+class PleaseHelpMeExecutor(ToolExecutor[PleaseHelpMeAction, PleaseHelpMeObservation]):
     """Executor that pauses the current turn and surfaces a user-help request."""
 
     def __call__(
@@ -76,9 +74,7 @@ class PleaseHelpMeExecutor(
         )
 
 
-class PleaseHelpMeTool(
-    ToolDefinition[PleaseHelpMeAction, PleaseHelpMeObservation]
-):
+class PleaseHelpMeTool(ToolDefinition[PleaseHelpMeAction, PleaseHelpMeObservation]):
     """Tool for requesting human intervention."""
 
     name = PLEASE_HELP_ME_TOOL_NAME

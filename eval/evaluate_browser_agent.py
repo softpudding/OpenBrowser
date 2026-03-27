@@ -546,6 +546,7 @@ class OpenBrowserClient:
 
         return all_closed
 
+
 class EvalServerClient:
     """Client for evaluation server tracking API"""
 
@@ -609,7 +610,8 @@ class ServiceManager:
                 return True
 
             root_dir = EVAL_DIR.parent
-            logger.error(f"""
+            logger.error(
+                f"""
 ❌ OpenBrowser server is not running!
    Please start the OpenBrowser server manually with:
 
@@ -617,7 +619,8 @@ class ServiceManager:
    uv run local-chrome-server serve
 
    The server should start on port 8765 (REST API) and 8766 (WebSocket).
-""")
+"""
+            )
             return False
 
         except Exception as e:
@@ -634,7 +637,8 @@ class ServiceManager:
 
             eval_dir = EVAL_DIR
             root_dir = EVAL_DIR.parent
-            logger.error(f"""
+            logger.error(
+                f"""
 ❌ Eval server is not running!
    Please start the eval server manually with:
 
@@ -646,7 +650,8 @@ class ServiceManager:
    uv run python eval/server.py
 
    The server should start on port 16605.
-""")
+"""
+            )
             return False
 
         except Exception as e:
@@ -1397,6 +1402,7 @@ class Evaluator:
 
     def _event_matches_expected(self, event: Dict, expected: Dict) -> bool:
         """Check if a track event matches expected criteria"""
+
         def normalize_text(value: Any) -> str:
             return str(value or "").casefold()
 
