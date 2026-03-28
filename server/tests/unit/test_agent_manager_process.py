@@ -173,6 +173,30 @@ class TestAgentManagerMultiProcessMode:
             "small_model": True,
         }
 
+    def test_single_process_agent_receives_tool_image_window(self) -> None:
+        """Single-process conversations should pass tool_image_window to Agent."""
+        manager = OpenBrowserAgentManager()
+
+        with (
+            patch("server.agent.manager.Agent") as mock_agent,
+            patch("server.agent.manager.Conversation"),
+            patch("server.agent.manager.QueueVisualizer"),
+            patch("server.agent.manager.get_context_image_window", return_value=2),
+            patch.object(manager, "_build_agent_context", return_value=MagicMock()),
+            patch.object(manager, "_create_llm_from_config", return_value=MagicMock()),
+            patch.object(manager, "_get_tools_for_model", return_value=[]),
+            patch.object(
+                manager,
+                "_get_system_prompt_kwargs",
+                return_value={"model_profile": "large", "small_model": False},
+            ),
+            patch("server.agent.manager.get_default_condenser", return_value=None),
+        ):
+            manager._create_conversation_in_process(str(uuid.uuid4()), cwd="/tmp/demo")
+
+        assert mock_agent.call_args is not None
+        assert mock_agent.call_args.kwargs["tool_image_window"] == 2
+
 
 class TestConversationCreationMultiProcess:
     """Tests for conversation creation in multi-process mode."""

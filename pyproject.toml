@@ -17,8 +17,8 @@ dependencies = [
     "pillow>=10.0.0",
     "numpy>=1.24.0",
     "requests>=2.31.0",
-    "openhands-sdk @ git+https://github.com/softpudding/agent-sdk.git@df47da7429a04cc2a5681e701331d85fcb798f1e#subdirectory=openhands-sdk",
-    "openhands-tools @ git+https://github.com/softpudding/agent-sdk.git@df47da7429a04cc2a5681e701331d85fcb798f1e#subdirectory=openhands-tools",
+    "openhands-sdk",
+    "openhands-tools",
     "litellm @ git+https://github.com/softpudding/litellm.git@bfba5e3889829067baeab3b12d38008360913771",
 ]
 
@@ -69,3 +69,7 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.uv.sources]
+openhands-sdk = { path = "/Users/yangxiao/git/agent-sdk-context-image-window-sdk/openhands-sdk", editable = true }
+openhands-tools = { path = "/Users/yangxiao/git/agent-sdk-context-image-window-sdk/openhands-tools", editable = true }

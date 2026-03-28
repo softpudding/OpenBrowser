@@ -1675,8 +1675,8 @@ requires-dist = [
     { name = "litellm", git = "https://github.com/softpudding/litellm.git?rev=bfba5e3889829067baeab3b12d38008360913771" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "numpy", specifier = ">=1.24.0" },
-    { name = "openhands-sdk", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=df47da7429a04cc2a5681e701331d85fcb798f1e" },
-    { name = "openhands-tools", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=df47da7429a04cc2a5681e701331d85fcb798f1e" },
+    { name = "openhands-sdk", editable = "../agent-sdk-context-image-window-sdk/openhands-sdk" },
+    { name = "openhands-tools", editable = "../agent-sdk-context-image-window-sdk/openhands-tools" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pydantic", specifier = ">=2.5.0" },
@@ -2221,7 +2221,7 @@ wheels = [
 [[package]]
 name = "openhands-sdk"
 version = "1.12.0"
-source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=df47da7429a04cc2a5681e701331d85fcb798f1e#df47da7429a04cc2a5681e701331d85fcb798f1e" }
+source = { editable = "../agent-sdk-context-image-window-sdk/openhands-sdk" }
 dependencies = [
     { name = "agent-client-protocol" },
     { name = "deprecation" },
@@ -2238,10 +2238,29 @@ dependencies = [
     { name = "websockets" },
 ]
 
+[package.metadata]
+requires-dist = [
+    { name = "agent-client-protocol", specifier = ">=0.8.1" },
+    { name = "boto3", marker = "extra == 'boto3'", specifier = ">=1.35.0" },
+    { name = "deprecation", specifier = ">=2.1.0" },
+    { name = "fakeredis", extras = ["lua"], specifier = ">=2.32.1" },
+    { name = "fastmcp", specifier = ">=3.0.0" },
+    { name = "filelock", specifier = ">=3.20.1" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "litellm", git = "https://github.com/softpudding/litellm.git?rev=bfba5e3889829067baeab3b12d38008360913771" },
+    { name = "lmnr", specifier = ">=0.7.24" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "python-frontmatter", specifier = ">=1.1.0" },
+    { name = "python-json-logger", specifier = ">=3.3.0" },
+    { name = "tenacity", specifier = ">=9.1.2" },
+    { name = "websockets", specifier = ">=12" },
+]
+provides-extras = ["boto3"]
+
 [[package]]
 name = "openhands-tools"
 version = "1.12.0"
-source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=df47da7429a04cc2a5681e701331d85fcb798f1e#df47da7429a04cc2a5681e701331d85fcb798f1e" }
+source = { editable = "../agent-sdk-context-image-window-sdk/openhands-tools" }
 dependencies = [
     { name = "bashlex" },
     { name = "binaryornot" },
@@ -2252,6 +2271,19 @@ dependencies = [
     { name = "openhands-sdk" },
     { name = "pydantic" },
     { name = "tom-swe" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "bashlex", specifier = ">=0.18" },
+    { name = "binaryornot", specifier = ">=0.4.4" },
+    { name = "browser-use", specifier = ">=0.8.0" },
+    { name = "cachetools" },
+    { name = "func-timeout", specifier = ">=4.3.5" },
+    { name = "libtmux", specifier = ">=0.53.0" },
+    { name = "openhands-sdk", editable = "../agent-sdk-context-image-window-sdk/openhands-sdk" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "tom-swe", specifier = ">=1.0.3" },
 ]
 
 [[package]]
