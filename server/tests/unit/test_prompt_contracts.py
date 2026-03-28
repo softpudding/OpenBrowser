@@ -64,6 +64,7 @@ class TestPromptContracts:
         assert '"any" (default)' in description
         assert "default first pass for each new page state" in description
         assert "extension-derived page insight across element types" in description
+        assert '{ "page": 2, "highlight_snapshot_id": 17 }' not in description
         assert '"clickable" (default without keywords)' not in description
 
     def test_highlight_prompt_keeps_icon_targets_on_any_pagination(self) -> None:
@@ -84,7 +85,7 @@ class TestPromptContracts:
         description = get_highlight_tool_description()
 
         assert (
-            "Treat pages as reliable collision-free slices of the same candidate set"
+            "Treat pages as reliable collision-free slices of the current page state's candidate set"
             in description
         )
         assert "Do not jump from a first-page miss to `keywords`" in description
@@ -112,6 +113,15 @@ class TestPromptContracts:
             "Do not jump straight to `keywords` or another narrower type on that changed page"
             in description
         )
+
+    def test_highlight_prompt_uses_page_number_pagination_without_snapshot_reuse(
+        self,
+    ) -> None:
+        description = get_highlight_tool_description()
+
+        assert '{ "page": 2 }' in description
+        assert "reuse the previous `highlight_snapshot_id`" not in description
+        assert "same frozen inventory" not in description
 
     def test_highlight_prompt_omits_clickable_mode_from_agent_guidance(self) -> None:
         description = get_highlight_tool_description()

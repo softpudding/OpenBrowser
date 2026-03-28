@@ -213,7 +213,7 @@ Elements are paginated to ensure **no visual overlap** in each screenshot:
 ```
 # Highlight mixed elements first (default)
 highlight_elements()                              → Page 1 of any interactive elements
-highlight_elements(page=2)                         → Page 2 of the same any inventory
+highlight_elements(page=2)                         → Page 2 of the current page state's any results
 highlight_elements(element_type="any", page=1)    → Explicit any-first discovery
 
 # Highlight other types (one at a time)

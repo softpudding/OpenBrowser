@@ -7,7 +7,7 @@ Find elements before interacting.
 1. `element_type: "any"` is the default first pass for each new page state because it exposes extension-derived page insight across element types, neighboring controls, and other actionable structure that you cannot reliably infer from intent alone.
 2. After any significant page-state change, immediately call `highlight` with `element_type: "any"` before choosing the next element. Significant changes include navigation to a different page or tab, opening a modal or expanded detail view, or any major layout change.
 3. Do not jump away from `element_type: "any"` on a newly changed page before rebuilding the mixed-type inventory.
-4. Treat highlight pagination as reliable. If the target is not on the current page, keep the same `element_type`, reuse the previous `highlight_snapshot_id`, and increment `page`.
+4. Treat highlight pagination as reliable. If the target is not on the current page, keep the same `element_type` and increment `page`.
 5. If the page state is unchanged and you cannot find the element you want to act on, your first reaction should be to continue `element_type: "any"` to the next page.
 6. Buttons, links, icon-only controls, and dense toolbars should still be discovered through `any` pagination.
 7. Stay inside pagination and supported `element_type` changes; do not replace a miss with guessed text, labels, or icon semantics.
@@ -21,7 +21,7 @@ Find elements before interacting.
 { "element_type": "inputable" }
 { "element_type": "scrollable" }
 { "element_type": "selectable" }
-{ "page": 2, "highlight_snapshot_id": 17 }
+{ "page": 2 }
 ```
 
 ## Selection Strategy
@@ -31,8 +31,8 @@ Find elements before interacting.
 - Treat returned `element_id` values as page-local numeric labels such as `1`, `2`, `3`
 - Every highlight response also returns a `highlight_snapshot_id`
 - Use `element_id` together with `highlight_snapshot_id`
-- To continue pagination on the same unchanged page state, reuse the previous `highlight_snapshot_id`
-- A new `highlight` response returns a new `highlight_snapshot_id`
+- Pagination is based on the current page state. Use `page=2,3...` directly; do not pass an old `highlight_snapshot_id` back into `highlight`
+- A new `highlight` response always returns a new `highlight_snapshot_id`
 - After any significant page-state change, restart discovery with `highlight` and `element_type: "any"` before selecting the next target
 - Do not narrow a newly changed page just because you expect a button, submit control, close control, or toolbar icon
 - If the target is not on the first page, continue `page=2,3...` in the same highlight mode before changing strategy

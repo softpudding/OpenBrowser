@@ -126,7 +126,6 @@ export interface HighlightElementsCommand extends BaseCommand {
   element_type?: ElementType; // Single element type for stable pagination
   page?: number; // 1-indexed page number for collision-aware pagination
   keywords?: string[]; // Keywords list to filter elements by detected semantic text (no pagination needed when provided)
-  highlight_snapshot_id?: number; // Previous highlight snapshot ID to continue the same frozen inventory across pages
 }
 
 export interface ClickElementCommand extends BaseCommand {
