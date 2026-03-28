@@ -179,6 +179,8 @@ def test_small_model_element_interaction_requires_click_before_keyboard_input() 
         "If the target is `inputable`, always `click` it first and complete that confirmation before `keyboard_input`."
         in description
     )
+    assert "YELLOW preview" in description
+    assert "reminder text" in description
     assert "always `click` first, then use `keyboard_input`" in description
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description
@@ -205,6 +207,8 @@ def test_large_model_element_interaction_requires_click_before_keyboard_input() 
         "only after you already clicked the same input target and completed that click confirmation"
         in description
     )
+    assert "YELLOW preview screenshot" in description
+    assert "Is this the element you wanted to click?" in description
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description
     assert "not finger or gesture directions" in description

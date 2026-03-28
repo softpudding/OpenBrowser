@@ -256,10 +256,8 @@ function buildCollisionFreePages(
         break;
       }
 
-      const labelText = String(selected.length + 1);
       selected.push({
         ...nextSelection.candidate.element,
-        id: labelText,
         labelPosition: nextSelection.position,
       });
       pageRemaining = pageRemaining.filter(
@@ -285,7 +283,6 @@ function chooseNextCandidate(
   viewportWidth?: number,
   viewportHeight?: number,
 ): (PlacementEvaluation & { candidate: RemainingCandidate }) | null {
-  const currentLabelText = String(selected.length + 1);
   let minFeasiblePositions = Number.POSITIVE_INFINITY;
   let constrainedCandidate: {
     candidate: RemainingCandidate;
@@ -295,7 +292,7 @@ function chooseNextCandidate(
   for (const candidate of remaining) {
     const feasiblePositions = getFeasiblePositions(
       candidate.element,
-      currentLabelText,
+      candidate.element.id,
       selected,
       viewportWidth,
       viewportHeight,
@@ -338,7 +335,6 @@ function chooseLeastBlockingPlacement(
   viewportWidth?: number,
   viewportHeight?: number,
 ): PlacementEvaluation {
-  const currentLabelText = String(selected.length + 1);
   const futureCandidates = remaining.filter(
     (remainingCandidate) =>
       remainingCandidate.sourceIndex !== candidate.sourceIndex,
@@ -350,18 +346,16 @@ function chooseLeastBlockingPlacement(
       ...selected,
       {
         ...candidate.element,
-        id: currentLabelText,
         labelPosition: position,
       },
     ];
     let blockedCandidateCount = 0;
     let totalFutureOptions = 0;
 
-    futureCandidates.forEach((candidate, futureIndex) => {
-      const futureLabelText = String(selected.length + 2 + futureIndex);
+    futureCandidates.forEach((candidate) => {
       const futureOptions = getFeasiblePositions(
         candidate.element,
-        futureLabelText,
+        candidate.element.id,
         hypotheticalSelected,
         viewportWidth,
         viewportHeight,

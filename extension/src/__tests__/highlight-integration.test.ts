@@ -109,8 +109,8 @@ describe('Highlight Integration', () => {
       // Run selectCollisionFreePage
       const page1 = selectCollisionFreePage(elements, 1);
 
-      expect(page1.map((element) => element.id)).toEqual(
-        page1.map((_, index) => String(index + 1)),
+      expect(new Set(page1.map((element) => element.id)).size).toBe(
+        page1.length,
       );
 
       // Verify no label collisions on the same page
@@ -161,15 +161,19 @@ describe('Highlight Integration', () => {
       const positions = new Set(page1.map((e) => e.labelPosition));
       expect(positions.size).toBe(page1.length);
 
-      // Verify elements on different pages while numeric ids reset per page.
+      // Verify elements on different pages while preserving each element's ID.
       const page1Selectors = new Set(page1.map((e) => e.selector));
+      const expectedIdsBySelector = Object.fromEntries(
+        elements.map((element) => [element.selector, element.id]),
+      );
       const page2 = selectCollisionFreePage(elements, 2);
       expect(page2.length).toBeGreaterThan(0);
-      expect(page2.map((element) => element.id)).toEqual(
-        page2.map((_, index) => String(index + 1)),
-      );
       for (const elem of page2) {
         expect(page1Selectors.has(elem.selector)).toBe(false);
+        expect(expectedIdsBySelector[elem.selector]).toBe(elem.id);
+      }
+      for (const elem of page1) {
+        expect(expectedIdsBySelector[elem.selector]).toBe(elem.id);
       }
     });
 
@@ -331,7 +335,7 @@ describe('Highlight Integration', () => {
 
       const page1 = selectCollisionFreePage(elements, 1, 1728, 891);
 
-      expect(page1.map((e) => e.id)).toEqual(['1', '2', '3']);
+      expect(page1.map((e) => e.id)).toEqual(['modal', 'like', 'reply']);
       expect(page1[0].labelPosition).toBeDefined();
       expect(page1[1].labelPosition).toBeDefined();
       expect(page1[2].labelPosition).toBeDefined();

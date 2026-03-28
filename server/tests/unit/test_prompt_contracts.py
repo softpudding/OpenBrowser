@@ -64,7 +64,7 @@ class TestPromptContracts:
         assert '"any" (default)' in description
         assert "default first pass for each new page state" in description
         assert "extension-derived page insight across element types" in description
-        assert '{ "page": 2, "highlight_snapshot_id": 17 }' not in description
+        assert "element_id" in description
         assert '"clickable" (default without keywords)' not in description
 
     def test_highlight_prompt_keeps_icon_targets_on_any_pagination(self) -> None:
@@ -120,7 +120,6 @@ class TestPromptContracts:
         description = get_highlight_tool_description()
 
         assert '{ "page": 2 }' in description
-        assert "reuse the previous `highlight_snapshot_id`" not in description
         assert "same frozen inventory" not in description
 
     def test_highlight_prompt_omits_clickable_mode_from_agent_guidance(self) -> None:
@@ -186,6 +185,8 @@ class TestPromptContracts:
             "only after you already clicked the same input target and completed that click confirmation"
             in description
         )
+        assert "YELLOW preview screenshot" in description
+        assert "Is this the element you wanted to click?" in description
 
     def test_element_interaction_prompt_explains_swipe_semantics(self) -> None:
         description = get_element_interaction_tool_description()
@@ -199,14 +200,7 @@ class TestPromptContracts:
 
         assert '{ "action": "confirm_click" }' in description
         assert '{ "action": "confirm_keyboard_input" }' in description
-        assert (
-            '{ "action": "confirm_click", "highlight_snapshot_id": 17, "element_id": "3", "tab_id": 123 }'
-            not in description
-        )
-        assert (
-            '{ "action": "confirm_keyboard_input", "highlight_snapshot_id": 17, "element_id": "1", "tab_id": 123 }'
-            not in description
-        )
+        assert '"element_id": "A1H"' in description
 
     def test_element_interaction_action_schema_explains_swipe_semantics(self) -> None:
         description = ElementInteractionAction.model_fields["direction"].description

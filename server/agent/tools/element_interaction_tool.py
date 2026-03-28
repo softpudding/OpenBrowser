@@ -46,11 +46,7 @@ class ElementInteractionAction(OpenBrowserAction):
     )
     element_id: Optional[str] = Field(
         default=None,
-        description="Element ID (page-local numeric string) from a specific highlight_elements snapshot. Required for click, hover, element scroll/swipe, keyboard_input, and select. Ignored for confirm_* actions.",
-    )
-    highlight_snapshot_id: Optional[int] = Field(
-        default=None,
-        description="Highlight snapshot ID returned by highlight_elements. Required for click, hover, element scroll/swipe, keyboard_input, and select. Ignored for confirm_* actions.",
+        description="Element ID (short opaque string) from highlight. Required for click, hover, element scroll/swipe, keyboard_input, and select. Ignored for confirm_* actions.",
     )
     direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",

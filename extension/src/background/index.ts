@@ -23,7 +23,10 @@ import { clearScreenshotCache } from '../commands/computer';
 import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
 import { elementCache } from '../commands/element-cache';
-import { assignSequentialElementIds } from '../commands/element-id';
+import {
+  assignHashedElementIds,
+  normalizeVisualElementIdInput,
+} from '../commands/element-id';
 import {
   buildHighlightDetectionScript,
   filterHighlightElementsByKeywords,
@@ -127,11 +130,7 @@ function buildStoredHighlightPages(options: {
   } = options;
 
   if (keywordMode) {
-    return [
-      assignSequentialElementIds(
-        sortElementsByVisualOrder(assignSequentialElementIds(filteredElements)),
-      ),
-    ];
+    return [sortElementsByVisualOrder(filteredElements)];
   }
 
   const pages: InteractiveElement[][] = [];
@@ -142,9 +141,7 @@ function buildStoredHighlightPages(options: {
       viewportWidth,
       viewportHeight,
     );
-    pages.push(
-      assignSequentialElementIds(sortElementsByVisualOrder(pageElements)),
-    );
+    pages.push(sortElementsByVisualOrder(pageElements));
   }
 
   return pages;
@@ -1631,7 +1628,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             keywords,
           );
           const keywordList = keywordFiltering.keywords;
-          const filteredElements = keywordFiltering.elements;
+          const filteredElements = assignHashedElementIds(
+            keywordFiltering.elements,
+          );
 
           if (keywordList.length > 0) {
             console.log(
@@ -1648,9 +1647,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
           if (keywordList.length > 0) {
             // Keyword mode: return all matching elements, no pagination.
-            // Assign temporary numeric IDs so the consistency check can
-            // correlate samples before the final display-order renumbering.
-            paginatedElements = assignSequentialElementIds(filteredElements);
+            paginatedElements = filteredElements;
             totalPages = 1;
             currentPage = 1;
             console.log(
@@ -1778,9 +1775,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           }
 
           // Preserve the original highlight pipeline order for detection,
-          // pagination, and consistency checks. Only sort and renumber at the
-          // rendering boundary so the screenshot/response stay intuitive
-          // without changing the stability gate.
+          // pagination, and consistency checks. Only sort at the rendering
+          // boundary so the screenshot/response stay intuitive without
+          // changing the stability gate or element IDs.
           const storedPages = buildStoredHighlightPages({
             filteredElements,
             totalPages,
@@ -1791,18 +1788,19 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           const displayOrderedElements = storedPages[currentPage - 1] ?? [];
 
           const cacheStoreStart = Date.now();
-          const storedSnapshot = elementCache.storeSnapshot({
+          const storedPage = elementCache.storeHighlightResult({
             conversationId,
             tabId: activeTabId,
             documentId: detectedDocumentId,
             elementType,
             keywords: keywordList,
             totalElements: filteredElements.length,
+            totalPages: totalPages,
             pages: storedPages,
             page: currentPage,
           });
           console.log(
-            `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (snapshot=${storedSnapshot.snapshotId}, count=${displayOrderedElements.length})`,
+            `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (page=${storedPage.page}, count=${displayOrderedElements.length})`,
           );
 
           // Log first few element bboxes for debugging
@@ -1817,7 +1815,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           const drawHighlightsStart = Date.now();
           const highlightedScreenshot = await drawHighlights(
             screenshotResult.imageData,
-            storedSnapshot.elements,
+            storedPage.elements,
             {
               scale: imageScale,
               viewportWidth,
@@ -1825,7 +1823,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             },
           );
           console.log(
-            `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${storedSnapshot.elements.length})`,
+            `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${storedPage.elements.length})`,
           );
 
           const compressStart = Date.now();
@@ -1843,8 +1841,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           return {
             success: true,
             data: {
-              highlight_snapshot_id: storedSnapshot.snapshotId,
-              elements: storedSnapshot.elements,
+              elements: storedPage.elements,
               totalElements: filteredElements.length,
               totalPages: totalPages,
               page: currentPage,
@@ -1883,7 +1880,6 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const clickResult = await performElementClick(
           command.conversation_id,
-          command.highlight_snapshot_id,
           command.element_id,
           clickTabId,
         );
@@ -1954,7 +1950,6 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const hoverResult = await performElementHover(
           command.conversation_id,
-          command.highlight_snapshot_id,
           command.element_id,
           hoverTabId,
         );
@@ -2003,7 +1998,6 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         // element_id is optional - if not provided, scrolls the entire page
         const scrollResult = await performElementScroll(
           command.conversation_id,
-          command.highlight_snapshot_id,
           command.element_id,
           command.direction || 'down',
           scrollTabId,
@@ -2053,7 +2047,6 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const swipeResult = await performElementSwipe(
           command.conversation_id,
-          command.highlight_snapshot_id,
           command.element_id,
           command.direction || 'next',
           swipeTabId,
@@ -2104,7 +2097,6 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const inputResult = await performKeyboardInput(
           command.conversation_id,
-          command.highlight_snapshot_id,
           command.element_id,
           command.text,
           inputTabId,
@@ -2153,7 +2145,6 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const selectResult = await performElementSelect(
           command.conversation_id,
-          command.highlight_snapshot_id,
           command.element_id,
           selectTabId,
           command.value,
@@ -2198,15 +2189,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           throw new Error('conversation_id required for get_element_html');
         const conversationId = command.conversation_id;
         const elementId = command.element_id;
-        const highlightSnapshotId = command.highlight_snapshot_id;
 
         if (!elementId) {
           throw new Error('element_id is required for get_element_html');
-        }
-        if (highlightSnapshotId === undefined || highlightSnapshotId === null) {
-          throw new Error(
-            'highlight_snapshot_id is required for get_element_html',
-          );
         }
 
         // Get current active tab for this conversation
@@ -2221,20 +2206,22 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         const element = elementCache.getElementById(
           conversationId,
           activeTabId,
-          highlightSnapshotId,
           elementId,
         );
 
         if (!element) {
+          const normalizedElementId = normalizeVisualElementIdInput(elementId);
           console.warn(
-            `⚠️ [GetElementHtml] Element ${elementId} not found in cache for conversation ${conversationId}, tab ${activeTabId}, snapshot ${highlightSnapshotId}`,
+            `⚠️ [GetElementHtml] Element ${elementId} not found in cache for conversation ${conversationId}, tab ${activeTabId}`,
           );
           return {
             success: false,
-            error: `Element ${elementId} not found in cache for highlight snapshot ${highlightSnapshotId}. The snapshot may have expired or the page may have changed. Try highlight_elements again.`,
+            error:
+              normalizedElementId !== elementId
+                ? `Element ${elementId} was interpreted as ${normalizedElementId} for visual-safe ID matching, but no cached element matched. The highlight cache may have expired or the page may have changed. Try highlight_elements again.`
+                : `Element ${elementId} not found in cache. The highlight cache may have expired or the page may have changed. Try highlight_elements again.`,
             data: {
               element_id: elementId,
-              highlight_snapshot_id: highlightSnapshotId,
               html: null,
             },
             timestamp: Date.now(),
@@ -2249,10 +2236,15 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         return {
           success: true,
-          message: `Retrieved HTML for element ${elementId}`,
+          message:
+            element.elementIdCorrected && element.resolvedElementId !== elementId
+              ? `Retrieved HTML for element ${element.resolvedElementId} (matched from requested ${elementId})`
+              : `Retrieved HTML for element ${element.resolvedElementId}`,
           data: {
-            element_id: elementId,
-            highlight_snapshot_id: highlightSnapshotId,
+            element_id: element.resolvedElementId,
+            requested_element_id: elementId,
+            resolved_element_id: element.resolvedElementId,
+            element_id_corrected: element.elementIdCorrected,
             html: html,
             tagName: element.element.tagName,
             type: element.element.type,
@@ -2269,27 +2261,26 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         }
         const conversationId = command.conversation_id;
         const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
-        const highlightSnapshotId = command.highlight_snapshot_id;
         if (!activeTabId) {
           throw new Error(`No active tab for conversation ${conversationId}`);
-        }
-        if (highlightSnapshotId === undefined || highlightSnapshotId === null) {
-          throw new Error(
-            'highlight_snapshot_id is required for highlight_single_element command',
-          );
         }
 
         // Get element from cache
         const element = elementCache.getElementById(
           conversationId,
           activeTabId,
-          highlightSnapshotId,
           command.element_id,
         );
         if (!element) {
+          const normalizedElementId = normalizeVisualElementIdInput(
+            command.element_id,
+          );
           return {
             success: false,
-            error: `Element ${command.element_id} not found in cache for highlight snapshot ${highlightSnapshotId}. Call highlight_elements() again.`,
+            error:
+              normalizedElementId !== command.element_id
+                ? `Element ${command.element_id} was interpreted as ${normalizedElementId} for visual-safe ID matching, but no cached element matched. Call highlight_elements() again.`
+                : `Element ${command.element_id} not found in cache. Call highlight_elements() again.`,
             timestamp: Date.now(),
           };
         }
@@ -2424,7 +2415,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ok: false,
                 stale: true,
                 error:
-                  "Highlight snapshot ${highlightSnapshotId} is stale because the document changed. Call highlight_elements() again."
+                  "The highlighted element is stale because the document changed. Call highlight_elements() again."
               };
             }
             if (!el) {
@@ -2432,7 +2423,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ok: false,
                 stale: true,
                 error:
-                  "Element not found in DOM for this highlight snapshot. Call highlight_elements() again."
+                  "Element not found in DOM for the cached highlight result. Call highlight_elements() again."
               };
             }
             const currentFingerprint = getElementFingerprint(el);
@@ -2441,7 +2432,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ok: false,
                 stale: true,
                 error:
-                  "Highlight snapshot is stale because the target element identity changed. Call highlight_elements() again."
+                  "The cached highlight result is stale because the target element identity changed. Call highlight_elements() again."
               };
             }
             const rect = el.getBoundingClientRect();
@@ -2488,7 +2479,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               success: false,
               error:
                 bboxResult.result.value.error ||
-                `Element ${command.element_id} is stale for highlight snapshot ${highlightSnapshotId}. Call highlight_elements() again.`,
+                `Element ${command.element_id} is stale. Call highlight_elements() again.`,
               timestamp: Date.now(),
             };
           } else {
@@ -2554,7 +2545,6 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               `Element ${element.element.id} is not visible in the current viewport. ${scrollHint}`.trim(),
             data: {
               elementId: element.element.id,
-              highlight_snapshot_id: highlightSnapshotId,
               bbox: freshBbox,
               viewportWidth,
               viewportHeight,
@@ -2574,6 +2564,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           screenshotResult.imageData,
           elementWithFreshBbox,
           {
+            intendedAction: command.intended_action,
             scale:
               screenshotResult.metadata?.imageScale ||
               screenshotResult.metadata?.devicePixelRatio ||
@@ -2591,8 +2582,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               highlightedScreenshot,
               getCompressionThreshold(),
             ),
-            elementId: command.element_id,
-            highlight_snapshot_id: highlightSnapshotId,
+            elementId: element.resolvedElementId,
+            requestedElementId: command.element_id,
+            resolvedElementId: element.resolvedElementId,
+            elementIdCorrected: element.elementIdCorrected,
             ...(screenshotResult?.dialog_auto_accepted
               ? { dialog_auto_accepted: screenshotResult.dialog_auto_accepted }
               : {}),

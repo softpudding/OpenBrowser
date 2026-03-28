@@ -23,21 +23,20 @@ When you use the highlight tool, elements are marked with **BLUE boxes**:
 **You see**:
 - Screenshot with **multiple blue boxes** (one per element)
 - Each box has an **element ID label**
-- List of element IDs with their HTML
+- List of non-clickable element IDs with their HTML
 
 **Your task**:
 1. Look at the screenshot - find blue boxes
 2. Match visual position with your intent
 3. Read HTML semantics to confirm
-4. Note both the `highlight_snapshot_id` and the `element_id` of your target
+4. Note the `element_id` of your target
 
 ## Element ID Format
 
-Each `highlight` response returns a numeric `highlight_snapshot_id` plus page-local numeric `element_id` labels such as `1`, `2`, `3`.
-`element_id` values are only meaningful together with the matching `highlight_snapshot_id`.
-Each new `highlight` response creates a fresh `highlight_snapshot_id`.
+Each `highlight` response returns short opaque `element_id` labels such as `A1H`, `Q7M`, `X4Y`.
 Highlight pagination is based on the current page state, so use `page=2,3...` directly.
-The confirmation-only `highlight_single_element` flow does not create a new `highlight_snapshot_id`.
+If the page changed significantly, re-run `highlight` before acting and treat old IDs as stale.
+`element_id` labels intentionally use a visual-safe uppercase alphabet. Lowercase letters never appear. Confusable characters such as `0`, `o`, `I`, `l`, and other lookalikes like `B/8`, `S/5`, `Z/2`, and `G/6` are excluded. Copy the label exactly as shown instead of normalizing similar-looking characters.
 
 ## Collision-Aware Pagination
 
@@ -51,7 +50,7 @@ Elements are paginated to ensure **no visual overlap** in each screenshot:
 ## Commands
 
 ### highlight
-Capture a screenshot with numbered visual markers on interactive elements of ONE type.
+Capture a screenshot with labeled visual markers on interactive elements of ONE type.
 
 ```json
 {}                           // Default: any interactive elements, page 1
@@ -78,7 +77,6 @@ Capture a screenshot with numbered visual markers on interactive elements of ONE
 - Treat pages as reliable collision-free slices of the current page state's candidate set, not random samples
 - Continue to the next page until you find the most appropriate element for your task or exhaust the relevant pages
 - Stay on the same `element_type` across pages to browse through all elements of that category
-- Each pagination call returns a fresh `highlight_snapshot_id`; use the newest one for any later element action
 - Do not jump from a first-page miss to `keywords`
 - Exhaust relevant highlight pages before switching strategies unless the page state changed or you already see the target's exact literal text on the target itself in the screenshot
 - Use `any` to inventory the changed page first, then use type-specific pagination only if you have a narrower reason on the same unchanged page state
@@ -134,11 +132,11 @@ Examples of exact-text search:
 3. **Visual + Semantic Verification**: At the BLUE stage, verify using BOTH visual AND semantic information:
    - **Visual Check**: Is the blue box where you expect?
    - **Semantic Check**: Does the HTML match your goal?
-4. **Select Element**: Note the `highlight_snapshot_id` and the `element_id` of your target.
+4. **Select Element**: Note the `element_id` of your target.
    - Returned IDs can include the primary type plus extra hints, for example `1(scrollable, swipable)`.
    - `swipable` means the element is in a carousel/slider/swiper-like region. Do not assume normal page/container scroll will move it.
    - When you later use `swipe`, `direction: "next"` means show the next picture/item and `direction: "prev"` means show the previous picture/item. These are semantic content directions, not gesture directions.
-5. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and pass both the selected `highlight_snapshot_id` and `element_id`.
+5. **Proceed to Interaction**: Use the element_interaction tool with appropriate action (click, hover, scroll, swipe, keyboard_input, or select) and pass the selected `element_id`.
    - For any `inputable` target, always `click` it first and complete that confirmation before `keyboard_input`.
 
 ## Element Types

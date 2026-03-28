@@ -79,9 +79,6 @@ class OpenBrowserObservation(Observation):
     total_elements: Optional[int] = Field(
         default=None, description="Total number of elements found"
     )
-    highlight_snapshot_id: Optional[int] = Field(
-        default=None, description="Highlight snapshot ID associated with the result"
-    )
     element_id: Optional[str] = Field(
         default=None, description="ID of the element that was acted upon"
     )
@@ -112,21 +109,31 @@ class OpenBrowserObservation(Observation):
         pending = self.pending_confirmation or {}
         action_type = str(pending.get("action_type", "unknown"))
         element_id = str(pending.get("element_id", "unknown"))
-        highlight_snapshot_id = str(
-            pending.get(
-                "highlight_snapshot_id", self.highlight_snapshot_id or "unknown"
-            )
-        )
+        requested_element_id = pending.get("requested_element_id")
+        resolution_note = pending.get("element_id_resolution_note")
         confirm_cmd = f'{{"action": "confirm_{action_type}"}}'
 
         text_parts = [
             "## Pending Confirmation",
             "",
-            f"**Highlight Snapshot ID**: {highlight_snapshot_id}",
             f"**Element ID**: {element_id}",
+        ]
+        if (
+            isinstance(requested_element_id, str)
+            and requested_element_id
+            and requested_element_id != element_id
+        ):
+            text_parts.append(
+                f"**Matched Requested ID**: {requested_element_id} -> {element_id}"
+            )
+        if isinstance(resolution_note, str) and resolution_note:
+            text_parts.append(f"**Match Note**: {resolution_note}")
+        text_parts.extend(
+            [
             f"**Action Type**: {action_type}",
             "",
-        ]
+            ]
+        )
 
         full_html = str(pending.get("full_html", "")).strip()
         if full_html:
@@ -353,19 +360,19 @@ class OpenBrowserObservation(Observation):
         if self.highlighted_elements:
             text_parts.append("## Highlighted Elements")
             text_parts.append("")
-            if self.highlight_snapshot_id is not None:
-                text_parts.append(
-                    f"**Highlight Snapshot ID**: {self.highlight_snapshot_id}"
-                )
             text_parts.append(
                 f"**Total Elements**: {self.total_elements if self.total_elements is not None else len(self.highlighted_elements)}"
             )
             text_parts.append("")
             # Format: id: <html> for each element
             element_descriptions = []
+            clickable_count = 0
             for el in self.highlighted_elements:
                 el_id = el.get("id", "unknown")
                 el_type = el.get("type")
+                if el_type == "clickable":
+                    clickable_count += 1
+                    continue
                 raw_hints = (
                     el.get("interactionHints") or el.get("interaction_hints") or []
                 )
@@ -390,16 +397,22 @@ class OpenBrowserObservation(Observation):
                 else:
                     tag = el.get("tagName", "").upper()
                     element_descriptions.append(f"{display_id} ({tag})")
+            if clickable_count:
+                clickable_label = (
+                    f"{clickable_count} clickable element"
+                    if clickable_count == 1
+                    else f"{clickable_count} clickable elements"
+                )
+                if element_descriptions:
+                    element_descriptions.append(f"... and {clickable_label}")
+                else:
+                    element_descriptions.append(clickable_label)
             text_parts.append("\n".join(element_descriptions))
             text_parts.append("")
 
         if self.element_id:
             text_parts.append("## Element Action Result")
             text_parts.append("")
-            if self.highlight_snapshot_id is not None:
-                text_parts.append(
-                    f"**Highlight Snapshot ID**: {self.highlight_snapshot_id}"
-                )
             text_parts.append(f"**Element ID**: {self.element_id}")
             text_parts.append("")
 

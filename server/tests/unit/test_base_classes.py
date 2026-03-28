@@ -81,22 +81,42 @@ class TestOpenBrowserObservation:
         assert "**[99]** Example" in llm_content[0].text
         assert llm_content[1].image_urls == ["data:image/png;base64,abc123"]
 
-    def test_highlighted_elements_truncate_long_html_for_non_selectable_results(
-        self,
-    ) -> None:
-        long_html = "<button>" + ("x" * 220) + "</button>"
+    def test_highlighted_clickable_elements_are_summarized(self) -> None:
         observation = OpenBrowserObservation(
             success=True,
             element_type="clickable",
             highlighted_elements=[
-                {"id": "abc123", "type": "clickable", "html": long_html}
+                {
+                    "id": "abc123",
+                    "type": "clickable",
+                    "html": "<button>Submit</button>",
+                }
             ],
             total_elements=1,
         )
 
         text = _text_content(observation)
 
-        assert "abc123(clickable):" in text
+        assert "1 clickable element" in text
+        assert "abc123(clickable):" not in text
+        assert "<button>Submit</button>" not in text
+
+    def test_highlighted_elements_truncate_long_html_for_non_selectable_results(
+        self,
+    ) -> None:
+        long_html = "<button>" + ("x" * 220) + "</button>"
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="inputable",
+            highlighted_elements=[
+                {"id": "abc123", "type": "inputable", "html": long_html}
+            ],
+            total_elements=1,
+        )
+
+        text = _text_content(observation)
+
+        assert "abc123(inputable):" in text
         assert "...(Truncated)" in text
 
     def test_selectable_elements_keep_full_html_so_options_remain_visible(self) -> None:
@@ -140,8 +160,8 @@ class TestOpenBrowserObservation:
 
         text = _text_content(observation)
 
-        assert "vrtbj5(clickable):" in text
         assert "q4w08w(inputable):" in text
+        assert "... and 1 clickable element" in text
 
     def test_highlighted_elements_include_interaction_hints_in_suffix(self) -> None:
         observation = OpenBrowserObservation(
@@ -176,7 +196,6 @@ class TestOpenBrowserObservation:
 
         assert "## Pending Confirmation" in text
         assert '{"action": "confirm_click"}' in text
-        assert '"highlight_snapshot_id"' not in text
         assert '"element_id"' not in text
         assert "**Element ID**: a1b2c3" in text
         assert "**Action Type**: click" in text
@@ -196,10 +215,30 @@ class TestOpenBrowserObservation:
         text = _text_content(observation)
 
         assert '{"action": "confirm_keyboard_input"}' in text
-        assert '"highlight_snapshot_id"' not in text
         assert '"element_id"' not in text
         assert "**Element ID**: inp789" in text
         assert "**Action Type**: keyboard_input" in text
+
+    def test_pending_confirmation_includes_corrected_element_id_note(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            pending_confirmation={
+                "element_id": "DO2",
+                "requested_element_id": "D02",
+                "element_id_resolution_note": "Matched requested element ID 'D02' to 'DO2'.",
+                "action_type": "click",
+                "full_html": "<button>Delete</button>",
+            },
+        )
+
+        text = _text_content(observation)
+
+        assert "**Element ID**: DO2" in text
+        assert "**Matched Requested ID**: D02 -> DO2" in text
+        assert (
+            "**Match Note**: Matched requested element ID 'D02' to 'DO2'."
+            in text
+        )
 
     def test_pending_confirmation_with_screenshot_is_image_first_and_text_minimal(
         self,

@@ -1,16 +1,21 @@
 /**
- * Highlight snapshot cache manager.
+ * Document-scoped element cache manager.
  *
- * Two cache layers are maintained:
- * 1. Per-call highlight inventories used to serve requested pages and keep
- *    page-local element IDs stable within one highlight response.
- * 2. Page-scoped highlight snapshots returned to callers and used for
- *    element interactions together with page-local element IDs.
+ * Each conversation/tab keeps one active cache for the current highlighted
+ * document:
+ * 1. Persistent element-id assignments for the current document
+ * 2. A merged element lookup table keyed only by element_id
+ * 3. Latest highlight metadata for the current document
  */
 
 import type { ElementType, InteractiveElement } from '../types';
+import {
+  buildElementIdentityKey,
+  generateUniqueHash,
+  normalizeVisualElementIdInput,
+} from './element-id';
 
-interface HighlightInventoryEntry {
+interface DocumentElementCacheEntry {
   tabId: number;
   createdAt: number;
   lastAccessedAt: number;
@@ -18,19 +23,13 @@ interface HighlightInventoryEntry {
   elementType: ElementType;
   keywords: string[];
   totalElements: number;
-  pages: InteractiveElement[][];
+  totalPages: number;
+  idByIdentityKey: Map<string, string>;
+  usedIds: Set<string>;
+  elementsById: Map<string, InteractiveElement>;
 }
 
-interface HighlightSnapshotViewEntry {
-  tabId: number;
-  inventoryId: number;
-  createdAt: number;
-  page: number;
-}
-
-export interface HighlightSnapshotPage {
-  snapshotId: number;
-  inventoryId: number;
+export interface StoredHighlightPage {
   page: number;
   totalPages: number;
   totalElements: number;
@@ -41,178 +40,88 @@ export interface HighlightSnapshotPage {
 }
 
 export interface CachedElementLookup {
-  snapshotId: number;
-  inventoryId: number;
-  page: number;
-  totalPages: number;
-  totalElements: number;
   documentId: string;
   elementType: ElementType;
   keywords: string[];
+  totalElements: number;
+  totalPages: number;
+  requestedElementId: string;
+  resolvedElementId: string;
+  normalizedRequestedElementId: string;
+  elementIdCorrected: boolean;
   element: InteractiveElement;
 }
 
 export const ELEMENT_CACHE_TTL_MS = 1_200_000; // 20 minutes
 export const ELEMENT_CACHE_TTL_DESCRIPTION = `${ELEMENT_CACHE_TTL_MS / 60_000} minutes`;
-const MAX_HIGHLIGHT_INVENTORIES_PER_TAB = 12;
 
 class ElementCacheImpl {
-  private inventories = new Map<string, HighlightInventoryEntry>();
+  private documents = new Map<string, DocumentElementCacheEntry>();
 
-  private snapshotViews = new Map<string, HighlightSnapshotViewEntry>();
-
-  private nextInventoryId = 1;
-
-  private nextSnapshotId = 1;
-
-  private buildInventoryKey(
-    conversationId: string,
-    tabId: number,
-    inventoryId: number,
-  ): string {
-    return `${conversationId}:${tabId}:inventory:${inventoryId}`;
-  }
-
-  private buildSnapshotKey(
-    conversationId: string,
-    tabId: number,
-    snapshotId: number,
-  ): string {
-    return `${conversationId}:${tabId}:snapshot:${snapshotId}`;
-  }
-
-  private touchInventory(entry: HighlightInventoryEntry): void {
-    entry.lastAccessedAt = Date.now();
+  private buildDocumentKey(conversationId: string, tabId: number): string {
+    return `${conversationId}:${tabId}`;
   }
 
   private isExpired(timestamp: number): boolean {
     return Date.now() - timestamp > ELEMENT_CACHE_TTL_MS;
   }
 
-  private removeInventoryByKey(key: string): void {
-    const inventory = this.inventories.get(key);
-    if (!inventory) {
-      return;
-    }
-
-    this.inventories.delete(key);
-
-    const snapshotKeysToDelete: string[] = [];
-    for (const [snapshotKey, snapshot] of this.snapshotViews.entries()) {
-      if (snapshot.inventoryId === this.parseInventoryIdFromKey(key)) {
-        snapshotKeysToDelete.push(snapshotKey);
-      }
-    }
-    for (const snapshotKey of snapshotKeysToDelete) {
-      this.snapshotViews.delete(snapshotKey);
-    }
-
-    console.log(
-      `🗑️ [ElementCache] Removed highlight inventory ${key} (${inventory.pages.length} pages, ${snapshotKeysToDelete.length} snapshots)`,
-    );
+  private cloneElement(element: InteractiveElement, id: string): InteractiveElement {
+    return {
+      ...element,
+      bbox: { ...element.bbox },
+      id,
+    };
   }
 
-  private parseInventoryIdFromKey(key: string): number {
-    const maybeId = Number.parseInt(key.split(':').at(-1) ?? '', 10);
-    return Number.isFinite(maybeId) ? maybeId : -1;
+  private touchEntry(entry: DocumentElementCacheEntry): void {
+    entry.lastAccessedAt = Date.now();
   }
 
   private cleanupExpired(): void {
-    const activeInventoryKeys = new Set<string>();
-
-    for (const [snapshotKey, snapshot] of this.snapshotViews.entries()) {
-      if (this.isExpired(snapshot.createdAt)) {
-        this.snapshotViews.delete(snapshotKey);
-        console.log(
-          `⏰ [ElementCache] Snapshot expired for key ${snapshotKey}`,
-        );
-        continue;
+    for (const [key, entry] of this.documents.entries()) {
+      if (this.isExpired(entry.lastAccessedAt)) {
+        this.documents.delete(key);
+        console.log(`⏰ [ElementCache] Document cache expired for key ${key}`);
       }
-
-      const inventoryKey = snapshotKey.replace(
-        /:snapshot:\d+$/,
-        `:inventory:${snapshot.inventoryId}`,
-      );
-      activeInventoryKeys.add(inventoryKey);
-    }
-
-    const inventoryKeysToDelete: string[] = [];
-    for (const [inventoryKey, inventory] of this.inventories.entries()) {
-      if (this.isExpired(inventory.lastAccessedAt)) {
-        inventoryKeysToDelete.push(inventoryKey);
-        continue;
-      }
-
-      if (
-        !activeInventoryKeys.has(inventoryKey) &&
-        this.isExpired(inventory.createdAt)
-      ) {
-        inventoryKeysToDelete.push(inventoryKey);
-      }
-    }
-
-    for (const inventoryKey of inventoryKeysToDelete) {
-      this.removeInventoryByKey(inventoryKey);
     }
   }
 
-  private pruneInventoriesForTab(conversationId: string, tabId: number): void {
-    const prefix = `${conversationId}:${tabId}:inventory:`;
-    const matchingInventories = Array.from(this.inventories.entries())
-      .filter(([key]) => key.startsWith(prefix))
-      .sort((a, b) => a[1].createdAt - b[1].createdAt);
-
-    if (matchingInventories.length <= MAX_HIGHLIGHT_INVENTORIES_PER_TAB) {
-      return;
-    }
-
-    const toDelete = matchingInventories.slice(
-      0,
-      matchingInventories.length - MAX_HIGHLIGHT_INVENTORIES_PER_TAB,
-    );
-    for (const [inventoryKey] of toDelete) {
-      this.removeInventoryByKey(inventoryKey);
-    }
-  }
-
-  storeSnapshot(options: {
+  private getOrCreateEntry(options: {
     conversationId: string;
     tabId: number;
     documentId: string;
     elementType: ElementType;
-    keywords?: string[];
+    keywords: string[];
     totalElements: number;
-    pages: InteractiveElement[][];
-    page: number;
-  }): HighlightSnapshotPage {
+    totalPages: number;
+  }): DocumentElementCacheEntry {
     const {
       conversationId,
       tabId,
       documentId,
       elementType,
-      keywords = [],
+      keywords,
       totalElements,
-      pages,
-      page,
+      totalPages,
     } = options;
 
     this.cleanupExpired();
 
-    const inventoryId = this.nextInventoryId++;
-    const snapshotId = this.nextSnapshotId++;
+    const key = this.buildDocumentKey(conversationId, tabId);
+    const existing = this.documents.get(key);
     const now = Date.now();
-    const inventoryKey = this.buildInventoryKey(
-      conversationId,
-      tabId,
-      inventoryId,
-    );
-    const snapshotKey = this.buildSnapshotKey(
-      conversationId,
-      tabId,
-      snapshotId,
-    );
 
-    this.inventories.set(inventoryKey, {
+    if (existing && existing.documentId === documentId) {
+      existing.lastAccessedAt = now;
+      existing.elementType = elementType;
+      existing.keywords = [...keywords];
+      existing.totalElements = totalElements;
+      existing.totalPages = totalPages;
+      return existing;
+    }
+
+    const created: DocumentElementCacheEntry = {
       tabId,
       createdAt: now,
       lastAccessedAt: now,
@@ -220,214 +129,197 @@ class ElementCacheImpl {
       elementType,
       keywords: [...keywords],
       totalElements,
-      pages: pages.map((snapshotPage) =>
-        snapshotPage.map((element) => ({
-          ...element,
-          bbox: { ...element.bbox },
-        })),
-      ),
-    });
+      totalPages,
+      idByIdentityKey: new Map(),
+      usedIds: new Set(),
+      elementsById: new Map(),
+    };
 
-    this.snapshotViews.set(snapshotKey, {
-      tabId,
-      inventoryId,
-      createdAt: now,
-      page,
-    });
-
-    this.pruneInventoriesForTab(conversationId, tabId);
-
-    const snapshotPage = this.getSnapshotPage(
-      conversationId,
-      tabId,
-      snapshotId,
-    );
-    if (!snapshotPage) {
-      throw new Error(
-        `Failed to retrieve newly stored highlight snapshot ${snapshotId}`,
-      );
-    }
-
+    this.documents.set(key, created);
     console.log(
-      `📁 [ElementCache] Stored highlight inventory ${inventoryId} and snapshot ${snapshotId} for conversation ${conversationId}, tab ${tabId} (${pages.length} pages, ${totalElements} total elements)`,
+      `📁 [ElementCache] Started new document cache for conversation ${conversationId}, tab ${tabId}, document ${documentId}`,
     );
-    return snapshotPage;
+    return created;
   }
 
-  getSnapshotPage(
-    conversationId: string,
-    tabId: number,
-    snapshotId: number,
-  ): HighlightSnapshotPage | undefined {
-    this.cleanupExpired();
+  private assignIdsForEntry(
+    entry: DocumentElementCacheEntry,
+    elements: InteractiveElement[],
+  ): InteractiveElement[] {
+    const assignedIds = new Array<string>(elements.length);
 
-    const snapshot = this.getSnapshotView(conversationId, tabId, snapshotId);
-    if (!snapshot) {
-      return undefined;
+    const elementsByStableKey = elements
+      .map((element, index) => ({
+        element,
+        index,
+        identityKey: buildElementIdentityKey(element),
+      }))
+      .sort((left, right) => {
+        const keyOrder = left.identityKey.localeCompare(right.identityKey);
+        if (keyOrder !== 0) {
+          return keyOrder;
+        }
+        return left.index - right.index;
+      });
+
+    for (const { element, index, identityKey } of elementsByStableKey) {
+      let elementId = entry.idByIdentityKey.get(identityKey);
+      if (!elementId) {
+        if (element.id && !entry.usedIds.has(element.id)) {
+          elementId = element.id;
+        } else {
+          const { hash } = generateUniqueHash(
+            element.selector,
+            entry.usedIds,
+            element.html,
+          );
+          elementId = hash;
+        }
+        entry.idByIdentityKey.set(identityKey, elementId);
+        entry.usedIds.add(elementId);
+      }
+      assignedIds[index] = elementId;
     }
 
-    const inventory = this.getInventory(
+    return elements.map((element, index) =>
+      this.cloneElement(element, assignedIds[index] || element.id),
+    );
+  }
+
+  storeHighlightResult(options: {
+    conversationId: string;
+    tabId: number;
+    documentId: string;
+    elementType: ElementType;
+    keywords?: string[];
+    totalElements: number;
+    totalPages: number;
+    page: number;
+    pages: InteractiveElement[][];
+  }): StoredHighlightPage {
+    const {
       conversationId,
       tabId,
-      snapshot.inventoryId,
+      documentId,
+      elementType,
+      keywords = [],
+      totalElements,
+      totalPages,
+      page,
+      pages,
+    } = options;
+
+    const entry = this.getOrCreateEntry({
+      conversationId,
+      tabId,
+      documentId,
+      elementType,
+      keywords,
+      totalElements,
+      totalPages,
+    });
+
+    const assignedPages = pages.map((pageElements) =>
+      this.assignIdsForEntry(entry, pageElements),
     );
-    if (!inventory) {
-      return undefined;
+
+    for (const pageElements of assignedPages) {
+      for (const element of pageElements) {
+        entry.elementsById.set(element.id, this.cloneElement(element, element.id));
+      }
     }
 
-    this.touchInventory(inventory);
+    this.touchEntry(entry);
 
-    const pageIndex = Math.max(0, snapshot.page - 1);
-    const elements = inventory.pages[pageIndex] ?? [];
+    console.log(
+      `📁 [ElementCache] Stored ${assignedPages.length} highlight pages for conversation ${conversationId}, tab ${tabId} (${totalElements} total elements on document ${documentId})`,
+    );
 
     return {
-      snapshotId,
-      inventoryId: snapshot.inventoryId,
-      page: snapshot.page,
-      totalPages: inventory.pages.length,
-      totalElements: inventory.totalElements,
-      elementType: inventory.elementType,
-      keywords: [...inventory.keywords],
-      documentId: inventory.documentId,
-      elements: elements.map((element) => ({
-        ...element,
-        bbox: { ...element.bbox },
-      })),
+      page,
+      totalPages,
+      totalElements,
+      elementType,
+      keywords: [...keywords],
+      documentId,
+      elements: (assignedPages[Math.max(0, page - 1)] ?? []).map((element) =>
+        this.cloneElement(element, element.id),
+      ),
     };
   }
 
   getElementById(
     conversationId: string,
     tabId: number,
-    snapshotId: number,
     elementId: string,
   ): CachedElementLookup | undefined {
-    const snapshotPage = this.getSnapshotPage(
-      conversationId,
-      tabId,
-      snapshotId,
-    );
-    if (!snapshotPage) {
+    this.cleanupExpired();
+
+    const key = this.buildDocumentKey(conversationId, tabId);
+    const entry = this.documents.get(key);
+    if (!entry || entry.tabId !== tabId) {
       return undefined;
     }
 
-    const element = snapshotPage.elements.find(
-      (candidate) => candidate.id === elementId,
-    );
+    this.touchEntry(entry);
+    const requestedElementId = elementId;
+    const normalizedRequestedElementId =
+      normalizeVisualElementIdInput(requestedElementId);
+    let resolvedElementId = requestedElementId;
+    let element = entry.elementsById.get(requestedElementId);
+
+    if (!element && normalizedRequestedElementId !== requestedElementId) {
+      element = entry.elementsById.get(normalizedRequestedElementId);
+      if (element) {
+        resolvedElementId = normalizedRequestedElementId;
+      }
+    }
+
     if (!element) {
       return undefined;
     }
 
     return {
-      snapshotId,
-      inventoryId: snapshotPage.inventoryId,
-      page: snapshotPage.page,
-      totalPages: snapshotPage.totalPages,
-      totalElements: snapshotPage.totalElements,
-      documentId: snapshotPage.documentId,
-      elementType: snapshotPage.elementType,
-      keywords: snapshotPage.keywords,
-      element,
+      documentId: entry.documentId,
+      elementType: entry.elementType,
+      keywords: [...entry.keywords],
+      totalElements: entry.totalElements,
+      totalPages: entry.totalPages,
+      requestedElementId,
+      resolvedElementId,
+      normalizedRequestedElementId,
+      elementIdCorrected: requestedElementId !== resolvedElementId,
+      element: this.cloneElement(element, element.id),
     };
   }
 
-  getSnapshotView(
-    conversationId: string,
-    tabId: number,
-    snapshotId: number,
-  ): HighlightSnapshotViewEntry | undefined {
-    if (!conversationId) {
-      return undefined;
-    }
-
-    const snapshotKey = this.buildSnapshotKey(
-      conversationId,
-      tabId,
-      snapshotId,
-    );
-    const snapshot = this.snapshotViews.get(snapshotKey);
-    if (!snapshot) {
-      return undefined;
-    }
-
-    if (snapshot.tabId !== tabId || this.isExpired(snapshot.createdAt)) {
-      this.snapshotViews.delete(snapshotKey);
-      console.log(
-        `⏰ [ElementCache] Snapshot expired or mismatched for key ${snapshotKey}`,
-      );
-      return undefined;
-    }
-
-    return snapshot;
-  }
-
-  getInventory(
-    conversationId: string,
-    tabId: number,
-    inventoryId: number,
-  ): HighlightInventoryEntry | undefined {
-    if (!conversationId) {
-      return undefined;
-    }
-
-    const inventoryKey = this.buildInventoryKey(
-      conversationId,
-      tabId,
-      inventoryId,
-    );
-    const inventory = this.inventories.get(inventoryKey);
-    if (!inventory) {
-      return undefined;
-    }
-
-    if (inventory.tabId !== tabId || this.isExpired(inventory.lastAccessedAt)) {
-      this.removeInventoryByKey(inventoryKey);
-      return undefined;
-    }
-
-    return inventory;
-  }
-
   invalidate(conversationId: string, tabId?: number): void {
-    const inventoryPrefix =
-      tabId !== undefined
-        ? `${conversationId}:${tabId}:inventory:`
-        : `${conversationId}:`;
-    const snapshotPrefix =
-      tabId !== undefined
-        ? `${conversationId}:${tabId}:snapshot:`
-        : `${conversationId}:`;
+    const keysToDelete = Array.from(this.documents.keys()).filter((key) => {
+      if (tabId === undefined) {
+        return key.startsWith(`${conversationId}:`);
+      }
+      return key === this.buildDocumentKey(conversationId, tabId);
+    });
 
-    const inventoryKeysToDelete = Array.from(this.inventories.keys()).filter(
-      (key) => key.startsWith(inventoryPrefix),
-    );
-    const snapshotKeysToDelete = Array.from(this.snapshotViews.keys()).filter(
-      (key) => key.startsWith(snapshotPrefix),
-    );
-
-    for (const key of inventoryKeysToDelete) {
-      this.inventories.delete(key);
-    }
-    for (const key of snapshotKeysToDelete) {
-      this.snapshotViews.delete(key);
+    for (const key of keysToDelete) {
+      this.documents.delete(key);
     }
 
-    if (inventoryKeysToDelete.length > 0 || snapshotKeysToDelete.length > 0) {
+    if (keysToDelete.length > 0) {
       const scope = tabId !== undefined ? `tab ${tabId}` : 'all tabs';
       console.log(
-        `🗑️ [ElementCache] Invalidated ${inventoryKeysToDelete.length} inventories and ${snapshotKeysToDelete.length} snapshots for conversation ${conversationId} (${scope})`,
+        `🗑️ [ElementCache] Invalidated ${keysToDelete.length} document caches for conversation ${conversationId} (${scope})`,
       );
     }
   }
 
   clearAll(): void {
-    this.inventories.clear();
-    this.snapshotViews.clear();
+    this.documents.clear();
     console.log('🧹 [ElementCache] Cleared all caches');
   }
 
   get size(): number {
-    return this.snapshotViews.size;
+    return this.documents.size;
   }
 }
 

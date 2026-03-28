@@ -28,11 +28,10 @@ Find elements before interacting.
 
 - Start with `element_type: "any"` for general exploration
 - Treat `any` as the authoritative first-pass inventory for the current page state because it reflects extension-derived structure you do not know in advance
-- Treat returned `element_id` values as page-local numeric labels such as `1`, `2`, `3`
-- Every highlight response also returns a `highlight_snapshot_id`
-- Use `element_id` together with `highlight_snapshot_id`
-- Pagination is based on the current page state. Use `page=2,3...` directly; do not pass an old `highlight_snapshot_id` back into `highlight`
-- A new `highlight` response always returns a new `highlight_snapshot_id`
+- Treat returned `element_id` values as short opaque labels such as `A1H`, `Q7M`, `X4Y`
+- These labels use a visual-safe uppercase alphabet. Lowercase letters never appear, and confusable characters such as `0`, `o`, `I`, `l`, `B/8`, `S/5`, `Z/2`, and `G/6` are excluded. Copy the label exactly as shown.
+- Pagination is based on the current page state. Use `page=2,3...` directly
+- If the page changed significantly, re-run `highlight` before acting and treat old IDs as stale
 - After any significant page-state change, restart discovery with `highlight` and `element_type: "any"` before selecting the next target
 - Do not narrow a newly changed page just because you expect a button, submit control, close control, or toolbar icon
 - If the target is not on the first page, continue `page=2,3...` in the same highlight mode before changing strategy
@@ -57,6 +56,6 @@ Find elements before interacting.
 
 ## After Highlight
 
-- Pick one `element_id` and keep its matching `highlight_snapshot_id`
+- Pick one `element_id`
 - Use the matching action in `element_interaction`
 - If the chosen element is wrong, highlight again instead of guessing
