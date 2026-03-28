@@ -139,7 +139,7 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
         in description
     )
     assert (
-        "Treat pages as reliable collision-free slices of the same candidate set"
+        "Treat pages as reliable collision-free slices of the current page state's candidate set"
         in description
     )
     assert "Do not jump from a first-page miss to `keywords`" in description

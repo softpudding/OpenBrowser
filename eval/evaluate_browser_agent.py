@@ -1322,8 +1322,7 @@ class Evaluator:
                 candidate_expectations.extend(alternatives)
 
             if any(
-                candidate
-                and self._check_criterion(candidate, track_events, sse_events)
+                candidate and self._check_criterion(candidate, track_events, sse_events)
                 for candidate in candidate_expectations
             ):
                 score += points
