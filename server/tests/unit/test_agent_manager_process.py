@@ -6,6 +6,8 @@ import types
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
+from openhands.sdk import LLM
+from openhands.sdk.context.condenser import LLMSummarizingCondenser
 
 
 # Mock openhands.tools imports used by server.agent.manager in test environments
@@ -196,6 +198,42 @@ class TestAgentManagerMultiProcessMode:
 
         assert mock_agent.call_args is not None
         assert mock_agent.call_args.kwargs["tool_image_window"] == 2
+
+    def test_single_process_agent_receives_browser_tuned_condenser(self) -> None:
+        """Single-process conversations should tune condenser for browser workflows."""
+        manager = OpenBrowserAgentManager()
+        llm = LLM.model_construct(model="test-model", max_input_tokens=100_000)
+        default_condenser = LLMSummarizingCondenser(
+            llm=llm.model_copy(update={"usage_id": "condenser"}),
+            max_size=80,
+            keep_first=4,
+        )
+
+        with (
+            patch("server.agent.manager.Agent") as mock_agent,
+            patch("server.agent.manager.Conversation"),
+            patch("server.agent.manager.QueueVisualizer"),
+            patch("server.agent.manager.get_context_image_window", return_value=1),
+            patch.object(manager, "_build_agent_context", return_value=MagicMock()),
+            patch.object(manager, "_create_llm_from_config", return_value=llm),
+            patch.object(manager, "_get_tools_for_model", return_value=[]),
+            patch.object(
+                manager,
+                "_get_system_prompt_kwargs",
+                return_value={"model_profile": "large", "small_model": False},
+            ),
+            patch(
+                "server.agent.manager.get_default_condenser",
+                return_value=default_condenser,
+            ),
+        ):
+            manager._create_conversation_in_process(str(uuid.uuid4()), cwd="/tmp/demo")
+
+        assert mock_agent.call_args is not None
+        condenser = mock_agent.call_args.kwargs["condenser"]
+        assert isinstance(condenser, LLMSummarizingCondenser)
+        assert condenser.max_size == 1000
+        assert condenser.max_tokens == 70_000
 
 
 class TestConversationCreationMultiProcess:

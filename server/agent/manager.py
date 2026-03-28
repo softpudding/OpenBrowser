@@ -28,6 +28,7 @@ from openhands.tools.preset.default import get_default_condenser
 from openhands.sdk.tool import Tool
 
 from server.api.sse import SSEEvent
+from server.agent.browser_condenser import configure_browser_condenser
 from server.agent.visualizer import QueueVisualizer
 from server.agent.conversation import ConversationState
 from server.agent.context_image_window import get_context_image_window
@@ -289,11 +290,15 @@ class OpenBrowserAgentManager:
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
         tool_image_window = get_context_image_window()
+        condenser_llm = llm_instance.model_copy(update={"usage_id": "condenser"})
         agent = Agent(
             llm=llm_instance,
             tools=tools,
-            condenser=get_default_condenser(
-                llm=llm_instance.model_copy(update={"usage_id": "condenser"})
+            condenser=configure_browser_condenser(
+                get_default_condenser(
+                    llm=condenser_llm,
+                ),
+                llm_instance,
             ),
             agent_context=agent_context,
             system_prompt_kwargs=self._get_system_prompt_kwargs(
@@ -517,9 +522,16 @@ class OpenBrowserAgentManager:
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
         tool_image_window = get_context_image_window()
+        condenser_llm = llm_instance.model_copy(update={"usage_id": "condenser"})
         agent = Agent(
             llm=llm_instance,
             tools=tools,
+            condenser=configure_browser_condenser(
+                get_default_condenser(
+                    llm=condenser_llm,
+                ),
+                llm_instance,
+            ),
             agent_context=agent_context,
             system_prompt_kwargs=self._get_system_prompt_kwargs(
                 model=model, model_alias=model_alias
