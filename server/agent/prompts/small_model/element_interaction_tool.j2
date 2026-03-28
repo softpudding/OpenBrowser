@@ -15,11 +15,11 @@ Interact with one highlighted element at a time.
 
 Never skip from intent directly to action without a matching `highlight_snapshot_id` + `element_id` pair from highlight.
 
-If the right `element_id` is missing, return to highlight and continue pagination instead of guessing a control name or target. On the same unchanged page state, your first reaction should be to continue `element_type: "any"` pagination with the previous `highlight_snapshot_id`.
+If the right `element_id` is missing, return to highlight and continue pagination instead of guessing a control name or target. On the same unchanged page state, your first reaction should be to continue `element_type: "any"` pagination with the next `page` value.
 
 After any significant page-state change caused by your last action, such as navigation, tab switch, modal expansion, or opening a detail view, the next discovery step must be `highlight` with `element_type: "any"` because it exposes extension-derived page insight you cannot infer reliably from intent alone.
 
-If the page did not significantly change, stay on the current `any` inventory and continue pagination until the target appears. Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and the current `any` inventory was not enough.
+If the page did not significantly change, stay on the current `any` discovery path and continue pagination until the target appears. Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and the current `any` results were not enough.
 
 ## Commands
 

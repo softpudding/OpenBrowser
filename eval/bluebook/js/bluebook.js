@@ -612,6 +612,12 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
     return notes;
   }
 
+  function stabilizeDefaultFeedOrder(notes) {
+    keepNoteAwayFromTop(notes, 'note-openclaw-config', 18);
+    keepNoteAwayFromTop(notes, 'note-arigato-ai', 24);
+    return notes;
+  }
+
   function getCurrentNote() {
     return state.notes.find((note) => note.id === state.currentNoteId) || null;
   }
@@ -1059,7 +1065,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
       state.notes[swapIndex] = temp;
     }
 
-    keepNoteAwayFromTop(state.notes, 'note-openclaw-config', 18);
+    stabilizeDefaultFeedOrder(state.notes);
   }
 
   function handleFeedReload() {
@@ -1467,7 +1473,7 @@ window.tracker = new AgentTracker('bluebook.life', 'hard');
 
   function initialize() {
     state.notes = buildNotes();
-    keepNoteAwayFromTop(state.notes, 'note-openclaw-config', 18);
+    stabilizeDefaultFeedOrder(state.notes);
     state.query = getSearchQueryFromUrl();
 
     cacheDom();

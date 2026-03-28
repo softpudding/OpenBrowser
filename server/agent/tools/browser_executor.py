@@ -278,13 +278,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         element_type = action.element_type or "any"
         page = action.page or 1
         keywords = getattr(action, "keywords", None)
-        highlight_snapshot_id = action.highlight_snapshot_id
 
         command = HighlightElementsCommand(
             element_type=element_type,
             page=page,
             keywords=keywords,
-            highlight_snapshot_id=highlight_snapshot_id,
             conversation_id=self.conversation_id,
         )
         result_dict = self._execute_command_sync(command)

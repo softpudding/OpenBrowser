@@ -24,10 +24,14 @@ criteria:
       event_type: click
       element_id: "das-agent-toggle"
       page: "/cloudstack/das.html"
-    alternative:
-      event_type: click
-      element_id: "open-chat-btn"
-      page: "/cloudstack/das.html"
+    alternatives:
+      - event_type: click
+        element_id: "open-chat-btn"
+        page: "/cloudstack/das.html"
+      - event_type: click
+        element_text: "DAS Agent"
+        parent_text_contains: "AI"
+        page: "/cloudstack/das.html"
   
   # New: Send initial greeting
   - type: greet_das_agent

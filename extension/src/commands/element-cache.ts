@@ -2,7 +2,8 @@
  * Highlight snapshot cache manager.
  *
  * Two cache layers are maintained:
- * 1. Frozen highlight inventories used for stable pagination across pages.
+ * 1. Per-call highlight inventories used to serve requested pages and keep
+ *    page-local element IDs stable within one highlight response.
  * 2. Page-scoped highlight snapshots returned to callers and used for
  *    element interactions together with page-local element IDs.
  */
@@ -250,60 +251,6 @@ class ElementCacheImpl {
     console.log(
       `📁 [ElementCache] Stored highlight inventory ${inventoryId} and snapshot ${snapshotId} for conversation ${conversationId}, tab ${tabId} (${pages.length} pages, ${totalElements} total elements)`,
     );
-    return snapshotPage;
-  }
-
-  forkSnapshotPage(
-    conversationId: string,
-    tabId: number,
-    baseSnapshotId: number,
-    page: number,
-  ): HighlightSnapshotPage | undefined {
-    this.cleanupExpired();
-
-    const baseSnapshot = this.getSnapshotView(
-      conversationId,
-      tabId,
-      baseSnapshotId,
-    );
-    if (!baseSnapshot) {
-      return undefined;
-    }
-
-    const snapshotId = this.nextSnapshotId++;
-    const snapshotKey = this.buildSnapshotKey(
-      conversationId,
-      tabId,
-      snapshotId,
-    );
-    const now = Date.now();
-
-    this.snapshotViews.set(snapshotKey, {
-      tabId,
-      inventoryId: baseSnapshot.inventoryId,
-      createdAt: now,
-      page,
-    });
-
-    const inventory = this.getInventory(
-      conversationId,
-      tabId,
-      baseSnapshot.inventoryId,
-    );
-    if (inventory) {
-      this.touchInventory(inventory);
-    }
-
-    const snapshotPage = this.getSnapshotPage(
-      conversationId,
-      tabId,
-      snapshotId,
-    );
-    if (snapshotPage) {
-      console.log(
-        `📄 [ElementCache] Forked snapshot ${snapshotId} from base ${baseSnapshotId} for conversation ${conversationId}, tab ${tabId}, page ${page}`,
-      );
-    }
     return snapshotPage;
   }
 

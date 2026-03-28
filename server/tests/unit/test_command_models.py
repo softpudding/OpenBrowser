@@ -41,6 +41,19 @@ class TestHighlightCommandContracts:
         with pytest.raises(ValidationError):
             HighlightElementsCommand(page=page)
 
+    def test_highlight_allows_pagination_without_snapshot_id(self) -> None:
+        command = HighlightElementsCommand(page=2)
+
+        assert command.page == 2
+
+    def test_highlight_ignores_snapshot_id_input_for_backward_compatibility(
+        self,
+    ) -> None:
+        command = HighlightElementsCommand(page=2, highlight_snapshot_id=101)
+
+        assert command.page == 2
+        assert "highlight_snapshot_id" not in command.model_dump()
+
 
 class TestVisualInteractionContracts:
     def test_scroll_supports_page_level_scrolling_without_element_id(self) -> None:

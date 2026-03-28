@@ -72,44 +72,4 @@ describe('element-cache highlight snapshots', () => {
     expect(lookup?.element.selector).toBe('#page-1');
     expect(lookup?.documentId).toBe('doc-1');
   });
-
-  test('forks a new snapshot page from the same frozen inventory', () => {
-    elementCache.clearAll();
-
-    const page1 = elementCache.storeSnapshot({
-      conversationId: 'conv-2',
-      tabId: 101,
-      documentId: 'doc-2',
-      elementType: 'any',
-      totalElements: 2,
-      pages: [
-        [createElement('1', '#first-page')],
-        [createElement('1', '#second-page')],
-      ],
-      page: 1,
-    });
-
-    const page2 = elementCache.forkSnapshotPage(
-      'conv-2',
-      101,
-      page1.snapshotId,
-      2,
-    );
-
-    expect(page2).toBeDefined();
-    expect(page2?.snapshotId).not.toBe(page1.snapshotId);
-    expect(page2?.page).toBe(2);
-    expect(page2?.elements.map((element) => element.selector)).toEqual([
-      '#second-page',
-    ]);
-
-    expect(
-      elementCache.getElementById('conv-2', 101, page1.snapshotId, '1')?.element
-        .selector,
-    ).toBe('#first-page');
-    expect(
-      elementCache.getElementById('conv-2', 101, page2!.snapshotId, '1')
-        ?.element.selector,
-    ).toBe('#second-page');
-  });
 });

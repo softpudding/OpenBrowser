@@ -268,18 +268,6 @@ class HighlightElementsCommand(BaseCommand):
         default=None,
         description="Exact observed text or stable tokens to filter by detected semantic text (visible text, labels, roles, and stable element tokens). Use only for wording already seen in the screenshot or returned HTML. When provided, only matching elements are returned (no pagination). Example: ['Continue with Email', 'View comments']",
     )
-    highlight_snapshot_id: Optional[int] = Field(
-        default=None,
-        description="Highlight snapshot ID from a previous highlight_elements response. Required when page > 1 so pagination continues on the same frozen inventory.",
-    )
-
-    @model_validator(mode="after")
-    def validate_snapshot_pagination(self) -> "HighlightElementsCommand":
-        if (self.page or 1) > 1 and self.highlight_snapshot_id is None:
-            raise ValueError(
-                "highlight_snapshot_id is required when page > 1 so pagination stays on the same frozen highlight inventory"
-            )
-        return self
 
 
 class ClickElementCommand(BaseCommand):
