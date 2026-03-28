@@ -6,7 +6,6 @@ from typing import Any
 from openhands.sdk.event import ActionEvent, MessageEvent
 from openhands.sdk.event.base import Event
 
-
 PLEASE_HELP_ME_TOOL_NAME = "please_help_me"
 
 
