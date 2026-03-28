@@ -46,7 +46,9 @@ class TestHighlightCommandContracts:
 
         assert command.page == 2
 
-    def test_highlight_ignores_snapshot_id_input_for_backward_compatibility(self) -> None:
+    def test_highlight_ignores_snapshot_id_input_for_backward_compatibility(
+        self,
+    ) -> None:
         command = HighlightElementsCommand(page=2, highlight_snapshot_id=101)
 
         assert command.page == 2

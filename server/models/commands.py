@@ -269,6 +269,7 @@ class HighlightElementsCommand(BaseCommand):
         description="Exact observed text or stable tokens to filter by detected semantic text (visible text, labels, roles, and stable element tokens). Use only for wording already seen in the screenshot or returned HTML. When provided, only matching elements are returned (no pagination). Example: ['Continue with Email', 'View comments']",
     )
 
+
 class ClickElementCommand(BaseCommand):
     """Click a highlighted element by its ID
 

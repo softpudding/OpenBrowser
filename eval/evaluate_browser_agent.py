@@ -1304,6 +1304,7 @@ class Evaluator:
             expected = criterion.get("expected")
             points = criterion.get("points", 1)
             alternative = criterion.get("alternative")
+            alternatives = criterion.get("alternatives", [])
             optional = criterion.get("optional", False)
 
             # For optional criteria, we give the points automatically (treat as satisfied)
@@ -1314,9 +1315,16 @@ class Evaluator:
                 )
                 continue
 
-            if self._check_criterion(expected, track_events, sse_events) or (
-                alternative
-                and self._check_criterion(alternative, track_events, sse_events)
+            candidate_expectations = [expected]
+            if alternative:
+                candidate_expectations.append(alternative)
+            if alternatives:
+                candidate_expectations.extend(alternatives)
+
+            if any(
+                candidate
+                and self._check_criterion(candidate, track_events, sse_events)
+                for candidate in candidate_expectations
             ):
                 score += points
                 logger.debug(
