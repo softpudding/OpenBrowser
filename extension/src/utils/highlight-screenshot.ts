@@ -22,6 +22,12 @@ export const HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
   warmupMaxAttempts: 2,
 };
 
+export const HIGHLIGHT_PRECONDITION_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
+  ...DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
+  warmupBeforeCapture: true,
+  warmupMaxAttempts: 3,
+};
+
 export const TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
   ...DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
   warmupBeforeCapture: true,

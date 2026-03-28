@@ -204,6 +204,9 @@ Elements are paginated to ensure **no visual overlap** in each screenshot:
 
 - `highlight_elements` now uses a **snapshot-first** readiness check instead of page-side polling loops.
 - Reason: OpenBrowser intentionally keeps automated tabs in the browser background, and Chrome may heavily throttle hidden-tab timers. A page-side `setTimeout` stability loop can therefore take far longer than its nominal budget and become the main cause of highlight timeouts.
+- In practice, the main cause of unstable first-highlight screenshots is often **missing warmup**, not a bad readiness classifier. A background tab may answer lightweight `Runtime.evaluate` probes while still sitting in a partially painted / partially decoded state.
+- A screenshot-style warmup is therefore the default precondition for `highlight_elements`. It helps force hidden-tab paint/compositor/image-decode work before interactive-element detection runs.
+- If `highlight_elements` keeps returning `not_ready` but `tab view` immediately makes the next highlight succeed, treat that as a warmup issue first.
 - The extension samples viewport readiness signals once per attempt: document readiness, viewport text/media density, pending images, and loading placeholders such as skeleton/shimmer/spinner indicators.
 - Readiness is graded as `ready`, `provisionally_ready`, or `not_ready`.
 - If readiness is `not_ready`, the extension performs only a couple of short **background-side** retries before proceeding or returning the latest result.
@@ -311,6 +314,8 @@ cd extension && npm run build
 ## SCREENSHOT BEHAVIOR
 
 OpenBrowser has explicit screenshot control for maximum flexibility:
+
+- Screenshots also serve as a practical page warmup mechanism for background tabs. They can unblock page paint and media decode work that passive DOM/readiness inspection does not reliably trigger on its own.
 
 ### Commands That Return Screenshots
 

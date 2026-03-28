@@ -59,6 +59,7 @@ import {
   type HighlightPageState,
 } from '../utils/layout-stability';
 import {
+  HIGHLIGHT_PRECONDITION_CAPTURE_OPTIONS,
   HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
   TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
 } from '../utils/highlight-screenshot';
@@ -81,6 +82,33 @@ async function compressScreenshotResult<T extends { imageData?: string }>(
   );
 
   return (compressedResult as T | null | undefined) ?? screenshotResult;
+}
+
+async function runHighlightPreconditionWarmup(options: {
+  tabId: number;
+  conversationId: string;
+  elementType: string;
+  page: number;
+}): Promise<void> {
+  const { tabId, conversationId, elementType, page } = options;
+  const warmupStart = Date.now();
+  console.log(
+    `🔥 [HighlightElements] Starting screenshot warmup precondition for elementType=${elementType}, page=${page}`,
+  );
+
+  await captureScreenshot(
+    tabId,
+    conversationId,
+    true,
+    90,
+    false,
+    350,
+    HIGHLIGHT_PRECONDITION_CAPTURE_OPTIONS,
+  );
+
+  console.log(
+    `🔥 [HighlightElements] Screenshot warmup precondition completed in ${Date.now() - warmupStart}ms`,
+  );
 }
 
 function buildStoredHighlightPages(options: {
@@ -1519,6 +1547,13 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
         const detectionScript = buildHighlightDetectionScript({
           elementType,
+        });
+
+        await runHighlightPreconditionWarmup({
+          tabId: activeTabId,
+          conversationId,
+          elementType,
+          page,
         });
 
         const maxHighlightAttempts = 3;
