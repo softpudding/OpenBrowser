@@ -165,6 +165,13 @@ OpenBrowser uses Jinja2 templates for agent prompts, enabling dynamic content in
 - **Clean output**: `trim_blocks=True` and `lstrip_blocks=True` remove extra whitespace
 - **Caching**: Templates are cached after first load for performance
 
+### Model Profile Differences
+- Model profile is resolved from session metadata and exposed to prompt rendering as `model_profile` / `small_model`; see `server/agent/manager.py` and `server/agent/tools/prompt_context.py`
+- Tool prompt variants are split by model profile under `server/agent/prompts/small_model/` and `server/agent/prompts/big_model/`
+- Small-model browser guidance intentionally avoids `keywords` fallback and leans harder on same-mode highlight pagination when dense UI may be split across collision-aware pages
+- Observation rendering also differs by model profile: large models keep clickable highlights compact (`... and N clickable elements`), while small models include clickable element HTML in the LLM-visible observation text for extra semantic grounding
+- The small-model clickable-observation branch is implemented in `server/agent/tools/base.py`; the per-conversation `small_model` flag is attached in `server/agent/tools/browser_executor.py`
+
 ### Keyword Discipline
 - Highlight pagination remains the default discovery flow for controls and dense UI
 - After any significant page-state change, restart discovery with `highlight_elements(element_type="any")` before choosing the next element
