@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Northstar Outfitters - Commuter Shell</title>
+    <link rel="stylesheet" href="/northstar/css/northstar.css">
+</head>
+<body>
+    <div class="announcement-bar">
+        Free two-day shipping on commuting layers and rain shells
+    </div>
+
+    <header class="site-header">
+        <div class="brand">
+            <div class="brand-mark">N</div>
+            <div class="brand-copy">
+                <div class="brand-name">Northstar Outfitters</div>
+                <div class="brand-tag">Technical layers for city weather</div>
+            </div>
+        </div>
+        <nav class="site-nav">
+            <a href="#" class="site-link">New Arrivals</a>
+            <a href="#" class="site-link">Shells</a>
+            <a href="#" class="site-link">Commute</a>
+            <a href="#" class="site-link">Journal</a>
+        </nav>
+        <div class="header-actions">
+            <div class="search-shell">
+                <input id="header-search" type="text" placeholder="Search jackets, bags, accessories">
+            </div>
+            <button class="header-btn">Stores</button>
+            <button class="header-btn">Account</button>
+        </div>
+    </header>
+
+    <main class="page-shell">
+        <div class="breadcrumbs">
+            <span>Men</span>
+            <span class="crumb-sep">/</span>
+            <span>Shells</span>
+            <span class="crumb-sep">/</span>
+            <span>Commuter Shell</span>
+        </div>
+
+        <section class="product-layout">
+            <div class="gallery-column">
+                <article class="hero-card hero-1">
+                    <div class="media-badge">Waterproof 20k</div>
+                    <div class="hero-copy">
+                        <p class="eyebrow">Commuter Shell</p>
+                        <h1>Storm-proof layer built for train platforms, bike lanes, and late meetings.</h1>
+                    </div>
+                </article>
+                <article class="hero-card hero-2">
+                    <div class="hero-copy slim">
+                        <p class="eyebrow">Lightweight membrane</p>
+                        <h2>Quiet stretch face fabric and taped seams for all-day wear.</h2>
+                    </div>
+                </article>
+                <article class="hero-card hero-3">
+                    <div class="hero-copy slim">
+                        <p class="eyebrow">Packable hood</p>
+                        <h2>Helmet-friendly shape with hidden visor and storm collar.</h2>
+                    </div>
+                </article>
+            </div>
+
+            <aside class="detail-column">
+                <section class="product-summary">
+                    <span class="collection-label">Transit Layer / Spring 26</span>
+                    <h2 class="product-name">Commuter Shell</h2>
+                    <div class="price-row">
+                        <span class="price">$248</span>
+                        <span class="price-note">Free hem sealing through Sunday</span>
+                    </div>
+                    <p class="summary-copy">
+                        A three-layer city shell with a clean silhouette, two-way zip, oversized dump pocket,
+                        and enough structure to wear over a blazer or knit.
+                    </p>
+
+                    <div class="swatch-row">
+                        <button class="swatch active" data-color="obsidian">Obsidian</button>
+                        <button class="swatch" data-color="granite">Granite</button>
+                        <button class="swatch" data-color="moss">Moss</button>
+                    </div>
+
+                    <div class="feature-pills">
+                        <span class="feature-pill">Windproof</span>
+                        <span class="feature-pill">Helmet hood</span>
+                        <span class="feature-pill">Bike cut hem</span>
+                    </div>
+                </section>
+
+                <section class="panel-card" id="purchase-rail">
+                    <div class="section-kicker">Choose size</div>
+                    <div class="size-grid">
+                        <button class="size-option" data-size="XS">XS</button>
+                        <button class="size-option" data-size="S">S</button>
+                        <button class="size-option" data-size="M" id="size-option-m">M</button>
+                        <button class="size-option" data-size="L">L</button>
+                        <button class="size-option" data-size="XL">XL</button>
+                    </div>
+                    <div class="fit-note">
+                        Model is 183 cm, wears M over a merino crew and commuter shirt.
+                    </div>
+                    <div class="purchase-actions">
+                        <button id="add-to-bag" class="add-btn" disabled>Add to bag</button>
+                        <button id="open-fit-guide" class="secondary-btn">Open fit guide</button>
+                    </div>
+                    <div class="shipping-banner">
+                        Ships from Shanghai warehouse. Locker pickup and office delivery available.
+                    </div>
+                </section>
+
+                <section class="panel-card">
+                    <div class="section-kicker">Need social proof?</div>
+                    <h3 class="panel-title">Read full owner reviews</h3>
+                    <p class="panel-copy">
+                        Reviews are organized in a slide-over drawer with field-tested commute notes, rain reports,
+                        and long-form fit observations.
+                    </p>
+                    <button id="open-reviews" class="secondary-btn">Read all reviews</button>
+                </section>
+            </aside>
+        </section>
+
+        <section class="story-grid">
+            <article class="story-card">
+                <span class="story-label">Weather proofing</span>
+                <h3>20k / 20k membrane with seam tape on the shoulder line and hood crown.</h3>
+            </article>
+            <article class="story-card">
+                <span class="story-label">Bike commute fit</span>
+                <h3>Dropped rear hem and articulated sleeves keep the cuff line steady on the bars.</h3>
+            </article>
+            <article class="story-card">
+                <span class="story-label">Storage</span>
+                <h3>Front chest entry plus inside drop pocket sized for notebook, gloves, and compact charger.</h3>
+            </article>
+        </section>
+    </main>
+
+    <div class="sticky-cta">
+        <div>
+            <div class="sticky-label">Commuter Shell</div>
+            <div class="sticky-meta">Locker pickup available</div>
+        </div>
+        <button class="sticky-btn" type="button">Need sizing help?</button>
+    </div>
+
+    <div class="drawer-overlay hidden" id="reviews-overlay">
+        <aside class="drawer reviews-drawer" aria-labelledby="reviews-title">
+            <div class="drawer-header">
+                <div>
+                    <p class="drawer-kicker">Field reports</p>
+                    <h2 id="reviews-title">Owner reviews</h2>
+                </div>
+                <button class="drawer-close" type="button" data-close="reviews-overlay">Close</button>
+            </div>
+            <div class="drawer-subhead">
+                Scroll inside the drawer to find the most useful commute report.
+            </div>
+            <div class="drawer-scroll" id="reviews-scroll">
+                <article class="review-card">
+                    <div class="review-topline">M / 178 cm / bike messenger</div>
+                    <h3>Dry through the underpass</h3>
+                    <p>Stayed dry in sideways rain, but I would size up if you always layer a fleece underneath.</p>
+                    <button class="review-action" data-review-id="review-underpass">Helpful</button>
+                </article>
+                <article class="review-card">
+                    <div class="review-topline">S / 171 cm / design lead</div>
+                    <h3>Looks clean over tailoring</h3>
+                    <p>The matte face fabric works over trousers and a knit. Hood shape is surprisingly good.</p>
+                    <button class="review-action" data-review-id="review-tailoring">Helpful</button>
+                </article>
+                <article class="review-card">
+                    <div class="review-topline">L / 186 cm / film producer</div>
+                    <h3>Roomy enough for camera day</h3>
+                    <p>I carried batteries and a tiny shotgun mic in the dump pocket without it sagging badly.</p>
+                    <button class="review-action" data-review-id="review-camera-day">Helpful</button>
+                </article>
+                <article class="review-card">
+                    <div class="review-topline">M / 180 cm / strategist</div>
+                    <h3>Quiet fabric on trains</h3>
+                    <p>No noisy crinkle when moving from platform to carriage. Good if you hate loud shell fabrics.</p>
+                    <button class="review-action" data-review-id="review-quiet-train">Helpful</button>
+                </article>
+                <article class="review-card">
+                    <div class="review-topline">M / 182 cm / architect</div>
+                    <h3 id="target-review-title">Trail commute mix</h3>
+                    <p>
+                        Used it on rainy office mornings and a weekend gravel ride. Best when the chest pocket sits
+                        slightly above the sticky bottom bar in the viewport; then the helpful button is easy to read.
+                    </p>
+                    <button class="review-action target-action" data-review-id="review-trail-commute">Helpful</button>
+                </article>
+                <article class="review-card">
+                    <div class="review-topline">XL / 191 cm / set designer</div>
+                    <h3>Hood cord is easy with gloves</h3>
+                    <p>The cord locks are large enough to pull even with damp fingers and winter gloves on.</p>
+                    <button class="review-action" data-review-id="review-hood-cord">Helpful</button>
+                </article>
+                <article class="review-card">
+                    <div class="review-topline">S / 169 cm / consultant</div>
+                    <h3>Locker pickup was smooth</h3>
+                    <p>The package fit in a small station locker with room for gloves. Jacket packs flatter than expected.</p>
+                    <button class="review-action" data-review-id="review-locker-pickup">Helpful</button>
+                </article>
+            </div>
+        </aside>
+    </div>
+
+    <div class="drawer-overlay hidden" id="fit-guide-overlay">
+        <aside class="drawer guide-drawer" aria-labelledby="fit-guide-title">
+            <div class="drawer-header">
+                <div>
+                    <p class="drawer-kicker">Sizing and care</p>
+                    <h2 id="fit-guide-title">Fit guide</h2>
+                </div>
+                <button class="drawer-close" type="button" data-close="fit-guide-overlay">Close</button>
+            </div>
+            <div class="drawer-scroll guide-scroll" id="fit-guide-scroll">
+                <section class="guide-section">
+                    <h3>How it should sit</h3>
+                    <p>The front hem should clear the hip bone and the rear should cover the saddle line.</p>
+                </section>
+                <section class="guide-section">
+                    <h3>Layering advice</h3>
+                    <p>Choose your normal size for a tee or merino base. Size up if you wear a compact blazer beneath.</p>
+                </section>
+                <section class="guide-section">
+                    <h3>Shoulder and sleeve check</h3>
+                    <p>The sleeve articulation should not pull when you lift your arm to shoulder height.</p>
+                </section>
+                <section class="guide-section target-guide-section" id="care-wash-section">
+                    <h3>Care &amp; Wash</h3>
+                    <p>
+                        Zip every pocket, use cold water, skip softener, and tumble low for ten minutes to refresh the
+                        DWR finish. Reproof after thirty commuter wears or two heavy-rain weeks.
+                    </p>
+                    <button id="save-fit-guide" class="add-btn">Save guide</button>
+                </section>
+                <section class="guide-section">
+                    <h3>Repair support</h3>
+                    <p>Panel tape and storm flap replacements are available through the repairs desk.</p>
+                </section>
+            </div>
+        </aside>
+    </div>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/northstar/js/northstar.js"></script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+id: northstar_review_helpful
+name: "Northstar Reviews Drawer Geometry Test"
+difficulty: hard
+description: "Open the full reviews drawer, scroll inside it until the target review is comfortably visible, and mark it helpful."
+start_url: "http://localhost:16605/northstar/"
+instruction: "On the Northstar Outfitters Commuter Shell page, open the full reviews drawer, find the review titled \"Trail commute mix\", and mark that review as Helpful."
+time_limit: 420.0
+cost_limit: 1.0
+
+criteria:
+  - type: open_reviews_drawer
+    description: "Open the slide-over reviews drawer"
+    points: 1.0
+    expected:
+      event_type: reviews_drawer_open
+      page: "/northstar/"
+      drawer: "reviews"
+
+  - type: reposition_target_review
+    description: "Scroll inside the reviews drawer until the target review is comfortably positioned"
+    points: 2.0
+    expected:
+      event_type: reviews_drawer_geometry_ready
+      page: "/northstar/"
+      reviewId: "review-trail-commute"
+
+  - type: mark_review_helpful
+    description: "Mark the target review as Helpful"
+    points: 2.0
+    expected:
+      event_type: review_helpful
+      page: "/northstar/"
+      reviewId: "review-trail-commute"
+      helpful: true

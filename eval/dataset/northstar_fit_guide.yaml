@@ -1,0 +1,33 @@
+id: northstar_fit_guide
+name: "Northstar Fit Guide Geometry Test"
+difficulty: medium
+description: "Open the fit guide, scroll inside the drawer to the care section, and save the guide."
+start_url: "http://localhost:16605/northstar/"
+instruction: "On the Northstar Outfitters Commuter Shell page, open the fit guide, scroll to the Care & Wash section, and save the guide from that section."
+time_limit: 360.0
+cost_limit: 0.8
+
+criteria:
+  - type: open_fit_guide
+    description: "Open the fit guide drawer"
+    points: 1.0
+    expected:
+      event_type: fit_guide_open
+      page: "/northstar/"
+      drawer: "fit-guide"
+
+  - type: reposition_care_section
+    description: "Scroll inside the fit guide until the Care & Wash section is comfortably positioned"
+    points: 2.0
+    expected:
+      event_type: fit_guide_geometry_ready
+      page: "/northstar/"
+      section: "care-wash"
+
+  - type: save_fit_guide
+    description: "Save the fit guide from the Care & Wash section"
+    points: 2.0
+    expected:
+      event_type: fit_guide_save
+      page: "/northstar/"
+      section: "care-wash"

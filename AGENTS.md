@@ -370,7 +370,7 @@ Automated testing framework for evaluating AI agent performance on browser autom
 ```
 OpenBrowser/eval/
 ├── evaluate_browser_agent.py    # Main evaluation entry point
-├── dataset/                     # YAML test case definitions (9 tests)
+├── dataset/                     # YAML test case definitions (14 tests)
 │   ├── gbr.yaml                # GBR search test
 │   ├── gbr_detailed.yaml       # GBR detailed search test
 │   ├── techforum.yaml          # TechForum upvote test
@@ -379,10 +379,13 @@ OpenBrowser/eval/
 │   ├── cloudstack_interactive.yaml  # CloudStack DAS interactive test
 │   ├── finviz_simple.yaml      # Finviz simple screener test
 │   ├── finviz_complex.yaml     # Finviz multi-filter test
-│   └── dataflow.yaml           # DataFlow visual challenge test
+│   ├── dataflow.yaml           # DataFlow visual challenge test
+│   ├── northstar_add_bag.yaml  # Product-page geometry test (page scroll)
+│   ├── northstar_review_helpful.yaml  # Reviews drawer geometry test
+│   └── northstar_fit_guide.yaml # Fit guide drawer geometry test
 ├── output/                      # Generated results and images
 ├── server.py                    # Mock websites server with tracking API
-└── (mock websites: gbr/, techforum/, cloudstack/, dataflow/, finviz/)
+└── (mock websites: gbr/, techforum/, cloudstack/, dataflow/, finviz/, bluebook/, northstar/)
 ```
 
 ### Key Features
@@ -556,6 +559,8 @@ Tests are defined in YAML format with:
 | `gbr_detailed` | GBR Detailed Search & Read Test | medium | 600s (10min) | 1.5 RMB | Search for "fed", click into each article (3 articles), and summarize content |
 | `finviz_complex` | Finviz Multi-Filter Screener Test | medium | 400s (~6.7min) | 1.0 RMB | Multi-filter stock screener: market cap, P/E, volume |
 | `dataflow` | DataFlow Visual Challenge Test | medium | 300s (5min) | 0.5 RMB | Dashboard interactions: settings, reports, navigation |
+| `northstar_add_bag` | Northstar Add To Bag Geometry Test | medium | 360s (6min) | 0.8 RMB | Scroll product page to a stable purchase rail, choose size M, and add to bag |
+| `northstar_fit_guide` | Northstar Fit Guide Geometry Test | medium | 360s (6min) | 0.8 RMB | Open fit guide, scroll its drawer to Care & Wash, and save the guide |
 
 #### Advanced Tests
 | ID | Name | Difficulty | Time Limit | Cost Limit | Description |
@@ -563,6 +568,7 @@ Tests are defined in YAML format with:
 | `cloudstack` | CloudStack DAS Agent Test | hard | 500s (~8.3min) | 1.2 RMB | Find DAS console and greet DAS agent |
 | `techforum_reply` | TechForum Comment Reply Test | hard | 500s (~8.3min) | 1.0 RMB | Open comments, find "Graduate Student" comment, reply with paper name |
 | `cloudstack_interactive` | CloudStack DAS Interactive Test | very hard | 700s (~11.7min) | 2.0 RMB | Multi-turn conversation with DAS agent: greeting, system status, storage check |
+| `northstar_review_helpful` | Northstar Reviews Drawer Geometry Test | hard | 420s (7min) | 1.0 RMB | Open reviews drawer, scroll the container to the target review, and mark it helpful |
 
 #### Event Matching Notes
 - **Standard events**: `page_view`, `click`, `input`, `submit`, `hover`, `scroll`, `answer_action`
@@ -588,6 +594,10 @@ Criteria match tracked events using flexible pattern matching:
 - Event type, element IDs, classes, text content
 - Page URLs, input values, custom fields
 - Alternative conditions for flexible scoring
+
+### Deferred Prompt And Observation Follow-Ups
+- Observation design: add structured geometry hints such as `partly_visible`, `near_viewport_edge`, `occluded_by_sticky_ui`, explicit scroll-container identity, and structured stale-element causes before expanding prompt text again.
+- Prompt compaction: after geometry-focused eval results stabilize, reduce duplicated rules between the SDK system prompt and tool prompts so tool templates keep only tool-local contracts and recovery guidance.
 
 ## NOTES
 

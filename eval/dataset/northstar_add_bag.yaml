@@ -1,0 +1,35 @@
+id: northstar_add_bag
+name: "Northstar Add To Bag Geometry Test"
+difficulty: medium
+description: "Scroll the product page until the purchase rail is comfortably positioned, choose size M, and add the shell to bag."
+start_url: "http://localhost:16605/northstar/"
+instruction: "On the Northstar Outfitters Commuter Shell page, choose size Medium and add the jacket to your bag."
+time_limit: 360.0
+cost_limit: 0.8
+
+criteria:
+  - type: purchase_rail_geometry_ready
+    description: "Reposition the purchase rail into a comfortable viewport area before acting"
+    points: 1.5
+    expected:
+      event_type: purchase_rail_geometry_ready
+      page: "/northstar/"
+      section: "purchase-rail"
+
+  - type: select_medium_size
+    description: "Select size Medium"
+    points: 1.5
+    expected:
+      event_type: product_size_select
+      page: "/northstar/"
+      productId: "commuter-shell"
+      size: "M"
+
+  - type: add_to_bag
+    description: "Add the selected shell to bag"
+    points: 2.0
+    expected:
+      event_type: product_add_to_bag
+      page: "/northstar/"
+      productId: "commuter-shell"
+      size: "M"

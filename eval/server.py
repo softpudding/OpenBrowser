@@ -177,6 +177,8 @@ URL_MAPPINGS = {
     "/finviz/index.html": ("/finviz/index.html", "text/html"),
     "/bluebook/": ("/bluebook/index.html", "text/html"),
     "/bluebook/index.html": ("/bluebook/index.html", "text/html"),
+    "/northstar/": ("/northstar/index.html", "text/html"),
+    "/northstar/index.html": ("/northstar/index.html", "text/html"),
 }
 
 CSS_MIMETYPE = "text/css"
@@ -248,6 +250,12 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                         "url": "/bluebook/",
                         "description": "Xiaohongshu-like feed - test search, note modal, comment actions, and dense visual layouts",
                     },
+                    {
+                        "name": "northstaroutfitters.com",
+                        "difficulty": "hard",
+                        "url": "/northstar/",
+                        "description": "Apparel product page - test geometry-first scrolling, sticky UI, and drawer-scoped scrolling",
+                    },
                 ]
             }
             self.send_json_response(sites)
@@ -268,6 +276,7 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                     "/dataflow/": "DataFlow analytics dashboard mock (medium)",
                     "/finviz/": "Finviz stock screener mock (hard)",
                     "/bluebook/": "BlueBook lifestyle feed mock (hard)",
+                    "/northstar/": "Northstar Outfitters product page mock (hard)",
                 },
             }
             self.send_json_response(help_text)
@@ -317,6 +326,7 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             "dataflow",
             "finviz",
             "bluebook",
+            "northstar",
         ]:
             if path.startswith(f"/{site}/js/") and path.endswith(".js"):
                 self.send_file(path, JS_MIMETYPE)
@@ -330,6 +340,7 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             "dataflow",
             "finviz",
             "bluebook",
+            "northstar",
         ]:
             if path.startswith(f"/{site}/css/") and path.endswith(".css"):
                 self.send_file(path, CSS_MIMETYPE)
