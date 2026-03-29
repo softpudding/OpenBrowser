@@ -42,19 +42,18 @@ document.addEventListener("DOMContentLoaded", () => {
     return Math.min(Math.max(value, min), max);
   }
 
-  function hideFitGuideRefreshBlocker() {
+  function resetFitGuideRefreshPlacement() {
     if (!fitGuideRefreshBtn) {
       return;
     }
 
-    fitGuideRefreshBtn.classList.remove("is-visible");
     fitGuideRefreshBtn.style.removeProperty("--fit-guide-refresh-left");
     fitGuideRefreshBtn.style.removeProperty("--fit-guide-refresh-top");
   }
 
   function placeFitGuideRefreshBlocker() {
     if (!fitGuideRefreshBtn || !saveFitGuideBtn || fitGuideOverlay.classList.contains("hidden")) {
-      hideFitGuideRefreshBlocker();
+      resetFitGuideRefreshPlacement();
       return;
     }
 
@@ -78,7 +77,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     fitGuideRefreshBtn.style.setProperty("--fit-guide-refresh-left", `${Math.round(left)}px`);
     fitGuideRefreshBtn.style.setProperty("--fit-guide-refresh-top", `${Math.round(top)}px`);
-    fitGuideRefreshBtn.classList.add("is-visible");
   }
 
   function queueFitGuideRefreshPlacement() {
@@ -262,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       document.getElementById(overlayId)?.classList.add("hidden");
       if (overlayId === "fit-guide-overlay") {
-        hideFitGuideRefreshBlocker();
+        resetFitGuideRefreshPlacement();
       }
       tracker.track("drawer_close", {
         drawer: overlayId,
@@ -283,7 +281,7 @@ document.addEventListener("DOMContentLoaded", () => {
   fitGuideOverlay.addEventListener("click", (event) => {
     if (event.target === fitGuideOverlay) {
       fitGuideOverlay.classList.add("hidden");
-      hideFitGuideRefreshBlocker();
+      resetFitGuideRefreshPlacement();
       tracker.track("drawer_close", {
         drawer: "fit-guide-overlay",
         method: "overlay",

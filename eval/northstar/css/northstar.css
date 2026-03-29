@@ -452,8 +452,8 @@ input {
 
 .fit-guide-refresh-fab {
     position: fixed;
-    left: var(--fit-guide-refresh-left, -9999px);
-    top: var(--fit-guide-refresh-top, -9999px);
+    left: var(--fit-guide-refresh-left, calc(100vw - min(520px, 100vw) + 78px));
+    top: var(--fit-guide-refresh-top, calc(100vh - 150px));
     z-index: 60;
     width: 82px;
     height: 82px;
@@ -465,14 +465,7 @@ input {
     color: #1d1a17;
     box-shadow: 0 18px 34px rgba(28, 21, 16, 0.18);
     backdrop-filter: blur(12px);
-    opacity: 0;
-    pointer-events: none;
     transition: opacity 140ms ease, box-shadow 140ms ease;
-}
-
-.fit-guide-refresh-fab.is-visible {
-    opacity: 1;
-    pointer-events: auto;
 }
 
 .fit-guide-refresh-fab svg {

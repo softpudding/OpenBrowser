@@ -370,7 +370,7 @@ Automated testing framework for evaluating AI agent performance on browser autom
 ```
 OpenBrowser/eval/
 ├── evaluate_browser_agent.py    # Main evaluation entry point
-├── dataset/                     # YAML test case definitions (14 tests)
+├── dataset/                     # YAML test case definitions (13 tests)
 │   ├── gbr.yaml                # GBR search test
 │   ├── gbr_detailed.yaml       # GBR detailed search test
 │   ├── techforum.yaml          # TechForum upvote test
@@ -381,7 +381,6 @@ OpenBrowser/eval/
 │   ├── finviz_complex.yaml     # Finviz multi-filter test
 │   ├── dataflow.yaml           # DataFlow visual challenge test
 │   ├── northstar_add_bag.yaml  # Product-page geometry test (page scroll)
-│   ├── northstar_review_helpful.yaml  # Reviews drawer geometry test
 │   └── northstar_fit_guide.yaml # Fit guide drawer geometry test
 ├── output/                      # Generated results and images
 ├── server.py                    # Mock websites server with tracking API
@@ -568,8 +567,6 @@ Tests are defined in YAML format with:
 | `cloudstack` | CloudStack DAS Agent Test | hard | 500s (~8.3min) | 1.2 RMB | Find DAS console and greet DAS agent |
 | `techforum_reply` | TechForum Comment Reply Test | hard | 500s (~8.3min) | 1.0 RMB | Open comments, find "Graduate Student" comment, reply with paper name |
 | `cloudstack_interactive` | CloudStack DAS Interactive Test | very hard | 700s (~11.7min) | 2.0 RMB | Multi-turn conversation with DAS agent: greeting, system status, storage check |
-| `northstar_review_helpful` | Northstar Reviews Drawer Geometry Test | hard | 420s (7min) | 1.0 RMB | Open reviews drawer, scroll the container to the target review, and mark it helpful |
-
 #### Event Matching Notes
 - **Standard events**: `page_view`, `click`, `input`, `submit`, `hover`, `scroll`, `answer_action`
 - **Special event types**: 
