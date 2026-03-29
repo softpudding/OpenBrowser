@@ -4,7 +4,7 @@ Use one `element_id` from the current interactive observation to act on the page
 
 ## Primary Workflow
 
-1. Use the current observation first.
+1. Treat the current observation as the working inventory for the current page state.
 2. If a likely target is already partly visible, clipped by the viewport edge, or crowded by sticky UI, scroll first to reposition it.
 3. If it already contains the right `element_id`, act on it directly.
 4. If not, call `highlight` to paginate or narrow by `element_type`.
@@ -16,6 +16,7 @@ Use one `element_id` from the current interactive observation to act on the page
 
 - Never skip from intent directly to action without a matching `element_id` from the current interactive observation.
 - If page 1 missed the target on the same unchanged page state and no likely candidate is already partly visible, continue `element_type: "any"` pagination with the next `page` value.
+- If dense UI, a sidebar, a tab strip, or collision-aware label placement may have split the target across pages, keep paginating the same relevant mode before switching strategies.
 - If an action says the document changed or the cached element is stale, call `highlight` again before retrying.
 - If the page changed significantly and you already have the new default observation, use its new `element_id`s.
 - If the page changed significantly and you do not yet have the new observation, rebuild inventory before acting again.
@@ -90,6 +91,6 @@ These are content directions, not hand or finger movement directions. Do not rei
 
 - `click` and `keyboard_input` require confirmation
 - `confirm_click` and `confirm_keyboard_input` operate on the current pending confirmation; do not repeat `element_id`
-- If the YELLOW preview appears, confirm only when the box position, reminder text, and HTML all match your target
+- If the YELLOW preview appears, confirm only when the box position and reminder text or other explicit preview cues match your target
 - The YELLOW confirmation preview itself does not invalidate the chosen `element_id`
 - If the preview does not match, the page changed, or the target went stale, do not confirm; rebuild inventory and choose again

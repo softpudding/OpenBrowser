@@ -5,14 +5,15 @@ Build or extend the interactive-element inventory for the current page state.
 ## Core Rules
 
 1. Outside of `tab view`, completed browser actions already return the default `highlight` `element_type: "any"` page 1 observation for the current page state.
-2. Use that current observation first.
+2. Treat that current observation as the working inventory for the current page state.
 3. If a likely target is already partly visible, clipped by the viewport edge, or crowded by sticky UI, scroll first to reposition it.
 4. Call `highlight` when you need page 2+, a narrower `element_type`, or a fresh inventory after a command that did not return an interactive observation.
 5. `element_type: "any"` is the default mixed inventory for each page state.
 6. On the same unchanged page state, keep the same `element_type` and increment `page` only when the target is not already partly visible.
-7. Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`.
-8. Do not guess an `element_id`. Use one from the current observation only.
-9. If you need a clean screenshot without overlays, use `tab view`.
+7. If dense UI, a sidebar, a tab strip, or collision-aware label placement may have split the target across pages, keep the same `element_type` and continue pagination before changing strategy.
+8. Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`.
+9. Do not guess an `element_id`. Use one from the current observation only.
+10. If you need a clean screenshot without overlays, use `tab view`.
 
 ## Command
 
@@ -33,6 +34,7 @@ Build or extend the interactive-element inventory for the current page state.
 - If the current observation already contains the right `element_id`, act on it instead of calling `highlight` again.
 - If the likely target is already partly visible or clipped, fix geometry with `scroll` before more pagination.
 - If page 1 missed the target on the same unchanged page state and it is not already partly visible, your default next step is the next page in the same mode.
+- If dense UI or collision-aware label placement may have split nearby controls across pages, keep paginating the same mode before narrowing or switching strategies.
 - Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and `any` was not enough.
 - If a control is icon-only or the text is not clearly readable, continue pagination instead of guessing labels such as `settings`, `gear`, `bell`, `next`, `prev`, or `close`.
 - If highlight shows `swipable`, use `swipe`.

@@ -60,7 +60,10 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
         'default `highlight` `element_type: "any"` page 1 observation'
         in description
     )
-    assert "Use that current observation first." in description
+    assert (
+        "Treat that current observation as the working inventory for the current "
+        "page state." in description
+    )
     assert (
         "Call `highlight` when you need page 2+, a narrower `element_type`, "
         "or a fresh inventory after a command that did not return an "
@@ -68,6 +71,7 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     )
     assert "scroll first to reposition it" in description
     assert '`element_type: "any"` is the default mixed inventory' in description
+    assert "collision-aware label placement may have split the target across pages" in description
     assert "If highlight shows `swipable`, use `swipe`." in description
     assert "cached element is stale" in description
     assert "before `keyboard_input`" in description
@@ -154,14 +158,19 @@ def test_small_model_element_interaction_requires_click_before_keyboard_input() 
         in description
     )
     assert "YELLOW preview" in description
-    assert "Use the current observation first." in description
+    assert (
+        "Treat the current observation as the working inventory for the current "
+        "page state." in description
+    )
     assert 'default `highlight` `element_type: "any"` page 1 screenshot' in description
     assert "scroll first to reposition it" in description
+    assert "collision-aware label placement may have split the target across pages" in description
     assert "always `click` first, then use `keyboard_input`" in description
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description
     assert "not hand or finger movement directions" in description
     assert "cached element is stale" in description
+    assert "HTML all match" not in description
 
 
 def test_large_model_element_interaction_requires_click_before_keyboard_input() -> None:
