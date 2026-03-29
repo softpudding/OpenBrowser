@@ -46,6 +46,9 @@ from server.agent.tools.element_interaction_tool import ElementInteractionAction
 from server.agent.tools.dialog_tool import DialogHandleAction
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
+from server.core.llm_config import llm_config_manager
+from server.core.model_profiles import is_small_model
+from server.core.session_manager import session_manager
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +125,30 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         self.confirmed_action_id_lru: Dict[str, Dict[str, OrderedDict[str, None]]] = (
             {}
         )
+
+    def _uses_small_model(self) -> bool:
+        """Whether the active conversation uses the small-model profile."""
+        if not self.conversation_id:
+            return False
+
+        session = session_manager.get_session(str(self.conversation_id))
+        if session is None:
+            return False
+
+        model_name: str | None = None
+        raw_model = session.metadata.get("model")
+        if isinstance(raw_model, str) and raw_model:
+            model_name = raw_model
+
+        if model_name is None:
+            raw_model_alias = session.metadata.get("model_alias")
+            if isinstance(raw_model_alias, str) and raw_model_alias:
+                try:
+                    model_name = llm_config_manager.get_llm_config(raw_model_alias).model
+                except ValueError:
+                    model_name = None
+
+        return is_small_model(model_name)
 
     def __call__(
         self, action: OpenBrowserAction, conversation
@@ -205,6 +232,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 tabs=[],
                 screenshot_data_url=None,
                 message=f"Failed to execute action: {e}",
+                small_model=self._uses_small_model(),
             )
 
     def _execute_tab_action(self, action: TabAction) -> OpenBrowserObservation:
@@ -1099,6 +1127,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             scroll_effective=scroll_effective,
             scroll_warning=scroll_warning,
             pending_confirmation=pending_confirmation,
+            small_model=self._uses_small_model(),
         )
 
         return observation

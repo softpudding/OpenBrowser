@@ -96,6 +96,10 @@ class OpenBrowserObservation(Observation):
         default=None,
         description="Type of elements highlighted (clickable/scrollable/inputable/hoverable/selectable)",
     )
+    small_model: Optional[bool] = Field(
+        default=None,
+        description="Whether the active conversation uses the small-model profile.",
+    )
 
     def _pending_confirmation_llm_content(
         self,
@@ -367,10 +371,11 @@ class OpenBrowserObservation(Observation):
             # Format: id: <html> for each element
             element_descriptions = []
             clickable_count = 0
+            include_clickable_html = bool(self.small_model)
             for el in self.highlighted_elements:
                 el_id = el.get("id", "unknown")
                 el_type = el.get("type")
-                if el_type == "clickable":
+                if el_type == "clickable" and not include_clickable_html:
                     clickable_count += 1
                     continue
                 raw_hints = (

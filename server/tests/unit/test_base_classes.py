@@ -101,6 +101,26 @@ class TestOpenBrowserObservation:
         assert "abc123(clickable):" not in text
         assert "<button>Submit</button>" not in text
 
+    def test_small_model_highlighted_clickable_elements_keep_html(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            small_model=True,
+            element_type="clickable",
+            highlighted_elements=[
+                {
+                    "id": "abc123",
+                    "type": "clickable",
+                    "html": "<button>Submit</button>",
+                }
+            ],
+            total_elements=1,
+        )
+
+        text = _text_content(observation)
+
+        assert "1 clickable element" not in text
+        assert "abc123(clickable): <button>Submit</button>" in text
+
     def test_highlighted_elements_truncate_long_html_for_non_selectable_results(
         self,
     ) -> None:
@@ -162,6 +182,32 @@ class TestOpenBrowserObservation:
 
         assert "q4w08w(inputable):" in text
         assert "... and 1 clickable element" in text
+
+    def test_small_model_mixed_highlighted_elements_include_clickable_html(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            small_model=True,
+            element_type="any",
+            highlighted_elements=[
+                {
+                    "id": "vrtbj5",
+                    "type": "clickable",
+                    "html": '<div class="search-icon"></div>',
+                },
+                {
+                    "id": "q4w08w",
+                    "type": "inputable",
+                    "html": '<input id="search-input" />',
+                },
+            ],
+            total_elements=2,
+        )
+
+        text = _text_content(observation)
+
+        assert "vrtbj5(clickable): <div class=\"search-icon\"></div>" in text
+        assert "q4w08w(inputable):" in text
+        assert "clickable element" not in text
 
     def test_highlighted_elements_include_interaction_hints_in_suffix(self) -> None:
         observation = OpenBrowserObservation(

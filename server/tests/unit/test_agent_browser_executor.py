@@ -1,5 +1,7 @@
 """Regression tests for agent BrowserExecutor result handling."""
 
+from types import SimpleNamespace
+
 import server.agent.tools.browser_executor as browser_executor_module
 
 from server.agent.tools.browser_executor import BrowserExecutor
@@ -111,6 +113,50 @@ def test_keyboard_input_sets_pending_confirmation(monkeypatch) -> None:
     assert observation.pending_confirmation is not None
     assert observation.pending_confirmation["action_type"] == "keyboard_input"
     assert observation.pending_confirmation["element_id"] == "inp123"
+
+
+def test_build_observation_marks_small_model_from_session_metadata(
+    monkeypatch,
+) -> None:
+    executor = BrowserExecutor()
+    executor.conversation_id = "conv-small-model"
+
+    monkeypatch.setattr(
+        browser_executor_module.session_manager,
+        "get_session",
+        lambda conversation_id: SimpleNamespace(
+            metadata={"model": "dashscope/qwen3.5-flash"}
+        ),
+    )
+
+    observation = executor._build_observation_from_result(
+        result_dict={
+            "success": True,
+            "data": {
+                "elements": [
+                    {
+                        "id": "abc123",
+                        "type": "clickable",
+                        "html": "<button>Submit</button>",
+                    }
+                ],
+                "totalElements": 1,
+            },
+        },
+        message="Found clickable elements",
+        highlighted_elements=[
+            {
+                "id": "abc123",
+                "type": "clickable",
+                "html": "<button>Submit</button>",
+            }
+        ],
+        total_elements=1,
+        element_type="clickable",
+    )
+
+    assert observation.small_model is True
+    assert "<button>Submit</button>" in observation.to_llm_content[0].text
 
 
 def test_confirm_click_uses_pending_confirmation_state(monkeypatch) -> None:
