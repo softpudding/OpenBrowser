@@ -263,6 +263,16 @@ describe('Highlight Integration', () => {
       // Both should fit with appropriate label positions
       expect(result.length).toBeGreaterThan(0);
     });
+
+    test('should separate partially overlapping non-nested boxes across pages', () => {
+      const elemA = createElement('overlap-a', 'clickable', 100, 100, 120, 40);
+      const elemB = createElement('overlap-b', 'clickable', 180, 110, 120, 40);
+      const elements = [elemA, elemB];
+
+      expect(calculateTotalPages(elements, 1280, 720)).toBe(2);
+      expect(selectCollisionFreePage(elements, 1, 1280, 720)).toHaveLength(1);
+      expect(selectCollisionFreePage(elements, 2, 1280, 720)).toHaveLength(1);
+    });
   });
 
   describe('Label placement algorithm', () => {
@@ -359,6 +369,36 @@ describe('Highlight Integration', () => {
       const leftElem = findBySelector(result, '#left');
       // Should not use 'left' position (would be outside viewport)
       expect(leftElem?.labelPosition).not.toBe('left');
+    });
+
+    test('should treat one-pixel label-to-element gaps as blocked', () => {
+      const upper = createElement('upper', 'clickable', 100, 44, 80, 30);
+      const lower = createElement('lower', 'clickable', 100, 101, 80, 30);
+
+      const result = selectCollisionFreePage([upper, lower], 1, 1280, 720);
+
+      expect(findBySelector(result, '#upper')?.labelPosition).toBe('above');
+      expect(findBySelector(result, '#lower')?.labelPosition).toBe('below');
+    });
+
+    test('should treat one-pixel label-to-label gaps as blocked', () => {
+      const left = createElement('AAAAAA', 'clickable', 100, 100, 24, 14);
+      const leftLabel = getLabelBBox(left.bbox, 'above', left.id);
+      const right = createElement(
+        'CCCCCC',
+        'clickable',
+        leftLabel.x + leftLabel.width + 1,
+        100,
+        24,
+        14,
+      );
+
+      const result = selectCollisionFreePage([left, right], 1, 1280, 720);
+
+      expect(findBySelector(result, '#AAAAAA')?.labelPosition).not.toBe(
+        'above',
+      );
+      expect(findBySelector(result, '#CCCCCC')?.labelPosition).toBe('above');
     });
   });
 

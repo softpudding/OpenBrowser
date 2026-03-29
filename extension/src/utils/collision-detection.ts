@@ -23,6 +23,9 @@ export interface BBox {
 export type LabelPosition = 'above' | 'below' | 'left' | 'right';
 
 const VISUAL_ROW_TOLERANCE_PX = 12;
+// Keep label-to-label and label-to-bbox spacing visibly separated in the
+// rendered screenshot, not just geometrically non-overlapping.
+const VISUAL_LABEL_CLEARANCE_PX = 6;
 const POSITION_PRIORITY: LabelPosition[] = ['above', 'below', 'left', 'right'];
 
 interface RemainingCandidate {
@@ -49,6 +52,19 @@ export function bboxesIntersect(a: BBox, b: BBox): boolean {
   );
 }
 
+function bboxesIntersectWithClearance(
+  a: BBox,
+  b: BBox,
+  minClearancePx: number = 0,
+): boolean {
+  return !(
+    a.x + a.width + minClearancePx <= b.x ||
+    b.x + b.width + minClearancePx <= a.x ||
+    a.y + a.height + minClearancePx <= b.y ||
+    b.y + b.height + minClearancePx <= a.y
+  );
+}
+
 export function bboxContains(outer: BBox, inner: BBox): boolean {
   return (
     outer.x <= inner.x &&
@@ -56,6 +72,10 @@ export function bboxContains(outer: BBox, inner: BBox): boolean {
     outer.x + outer.width >= inner.x + inner.width &&
     outer.y + outer.height >= inner.y + inner.height
   );
+}
+
+function bboxesPartiallyOverlap(a: BBox, b: BBox): boolean {
+  return bboxesIntersect(a, b) && !bboxContains(a, b) && !bboxContains(b, a);
 }
 
 /**
@@ -432,17 +452,45 @@ function getFeasiblePositions(
         bboxContains(selectedElement.bbox, element.bbox) ||
         bboxContains(element.bbox, selectedElement.bbox);
 
-      if (bboxesIntersect(labelBBox, selectedLabelBBox)) {
+      if (
+        bboxesIntersectWithClearance(
+          labelBBox,
+          selectedLabelBBox,
+          VISUAL_LABEL_CLEARANCE_PX,
+        )
+      ) {
         hasCollision = true;
         break;
       }
 
-      if (!nested && bboxesIntersect(labelBBox, selectedElement.bbox)) {
+      if (
+        !nested &&
+        bboxesPartiallyOverlap(element.bbox, selectedElement.bbox)
+      ) {
         hasCollision = true;
         break;
       }
 
-      if (!nested && bboxesIntersect(element.bbox, selectedLabelBBox)) {
+      if (
+        !nested &&
+        bboxesIntersectWithClearance(
+          labelBBox,
+          selectedElement.bbox,
+          VISUAL_LABEL_CLEARANCE_PX,
+        )
+      ) {
+        hasCollision = true;
+        break;
+      }
+
+      if (
+        !nested &&
+        bboxesIntersectWithClearance(
+          element.bbox,
+          selectedLabelBBox,
+          VISUAL_LABEL_CLEARANCE_PX,
+        )
+      ) {
         hasCollision = true;
         break;
       }
