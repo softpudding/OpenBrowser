@@ -85,6 +85,11 @@ Hover is for revealing behavior, not for disambiguating between similar elements
 ### scroll
 
 Scroll within an element by its visual ID, or scroll the entire page if no `element_id` is provided.
+`scroll_amount` is relative to the current scroll target's visible size.
+- If no `element_id` is provided, the scroll target is the page viewport.
+- If `element_id` points to a scrollable region, the scroll target is that element's own visible container.
+- `0.5` means half of the current scroll target, `1.0` means one full visible span, and `2.0` means two spans.
+- If the provided element is not actually scrollable, scrolling may fall back to the page.
 
 ```json
 { "action": "scroll", "element_id": "Y4M", "direction": "down", "tab_id": 123 }

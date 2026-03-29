@@ -316,7 +316,12 @@ class ScrollElementCommand(BaseCommand):
         default=0.5,
         ge=0.1,
         le=3.0,
-        description="Scroll amount relative to page/element height (0.5 = half page, 1.0 = full page, 2.0 = two pages)",
+        description=(
+            "Scroll amount relative to the current scroll target's visible size "
+            "(0.5 = half of the current target, 1.0 = one full visible span, "
+            "2.0 = two spans). Without element_id the target is the page; with "
+            "a scrollable element_id the target is that element's container."
+        ),
     )
     tab_id: Optional[int] = Field(
         default=None,

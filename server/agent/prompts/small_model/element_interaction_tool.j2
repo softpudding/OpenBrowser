@@ -54,6 +54,12 @@ If the target is `inputable`, always `click` it first and complete that confirma
 
 ### scroll
 
+`scroll_amount` is relative to the current scroll target's visible size.
+- No `element_id`: page viewport.
+- Scrollable `element_id`: that element's own visible container.
+- `0.5` = half of the current scroll target, `1.0` = one full visible span.
+- If the element is not actually scrollable, scrolling may fall back to the page.
+
 ```json
 { "action": "scroll", "direction": "down", "scroll_amount": 1.0, "tab_id": 123 }
 { "action": "scroll", "element_id": "Y4M", "direction": "down", "tab_id": 123 }

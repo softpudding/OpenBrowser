@@ -155,7 +155,7 @@ export interface ScrollElementCommand extends BaseCommand {
   /** Element ID from highlight response (short opaque string). If not provided, scrolls the entire page */
   element_id?: string;
   direction?: ScrollDirection;
-  /** Scroll amount relative to page/element height (0.5 = half page, 1.0 = full page) */
+  /** Scroll amount relative to the current scroll target's visible size (0.5 = half target, 1.0 = one full visible span) */
   scroll_amount?: number;
   /**
    * Target tab ID (optional - auto-resolved from conversation if not provided)

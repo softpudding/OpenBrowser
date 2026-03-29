@@ -61,7 +61,12 @@ class ElementInteractionAction(OpenBrowserAction):
         default=0.5,
         ge=0.1,
         le=3.0,
-        description="Scroll amount as fraction of viewport (0.1-3.0)",
+        description=(
+            "Scroll amount as a multiple of the current scroll target's visible "
+            "size (0.1-3.0). If no element_id is provided, the target is the "
+            "page viewport. If element_id refers to a scrollable region, the "
+            "target is that element's visible container."
+        ),
     )
     swipe_count: Optional[int] = Field(
         default=1,

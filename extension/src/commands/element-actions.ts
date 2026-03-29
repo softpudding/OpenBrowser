@@ -986,7 +986,7 @@ export async function performElementScroll(
   timeout: number = 30000,
 ): Promise<ScrollResult> {
   console.log(
-    `📜 [ElementScroll] Scrolling ${elementId ? `element ${elementId}` : 'entire page'} ${direction} (amount: ${scrollAmount}x viewport) in conversation ${conversationId} on tab ${tabId}`,
+    `📜 [ElementScroll] Scrolling ${elementId ? `element ${elementId}` : 'entire page'} ${direction} (amount factor: ${scrollAmount}x current scroll target) in conversation ${conversationId} on tab ${tabId}`,
   );
 
   // ============================================================
@@ -994,8 +994,8 @@ export async function performElementScroll(
   // ============================================================
 
   // Calculate scroll multipliers based on direction
-  // scrollAmount is relative to viewport height (0.5 = half page, 1.0 = full page)
-  // For horizontal scroll, we use viewport width
+  // scrollAmount is relative to the current scroll target's visible size.
+  // For vertical scroll we use clientHeight; for horizontal scroll we use clientWidth.
   const scrollMultipliers: Record<ScrollDirection, { x: number; y: number }> = {
     up: { x: 0, y: -scrollAmount },
     down: { x: 0, y: scrollAmount },
