@@ -2,13 +2,11 @@
 
 Handle browser modal dialogs that block automation.
 
-## Overview
+## Core Rule
 
-The Dialog Tool handles browser modal dialogs (alert, confirm, prompt, beforeunload) that appear during browser automation. When a dialog opens, the browser pauses execution until you handle it with this tool.
-
-## When to Use
-
-Use this tool when you see dialog opened.
+- If a dialog is open, do not use other browser tools first. Browser execution is blocked until you handle it.
+- After handling one dialog, check the returned observation for cascading dialogs.
+- `alert` dialogs are auto-accepted by the system and do not need this tool.
 
 **Dialog types you need to handle**:
 
@@ -17,8 +15,6 @@ Use this tool when you see dialog opened.
 | confirm | User confirmation required | Accept or dismiss |
 | prompt | Text input required | Accept with text, or dismiss |
 | beforeunload | Leaving page with unsaved changes | Accept (leave) or dismiss (stay) |
-
-**Note**: `alert` dialogs are auto-accepted by the system - no action needed.
 
 ## Commands
 

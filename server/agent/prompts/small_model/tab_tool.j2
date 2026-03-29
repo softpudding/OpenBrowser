@@ -8,6 +8,8 @@ Manage tabs for the current conversation.
 2. After navigation, look at the returned screenshot before the next action.
 3. `tab init`, `tab open`, `tab switch`, `tab back`, `tab forward`, and `tab refresh` already return the default `highlight` `element_type: "any"` page 1 screenshot and IDs for the new page state.
 4. Prefer `tab view` when you only need a clean screenshot.
+5. If the target is already partly visible after navigation, scroll first to reposition it.
+6. If `tab view` gave you only a clean screenshot and you need `element_id`s, call `highlight`.
 
 ## Commands
 
@@ -73,5 +75,6 @@ Close an unused tab.
 - Start with `tab init`
 - If you need a clean screenshot, use `tab view`
 - Otherwise, use the returned `element_id`s from the default `highlight` `element_type: "any"` page 1 result
+- If the target is already partly visible or clipped, use `scroll` before more discovery
 - If the page state is unchanged and the target is still missing, your default next step is the next `any` page
-- If highlight page 1 does not show the target, continue `element_type: "any"` pagination before changing strategy
+- If highlight page 1 does not show the target and it is not already partly visible, continue `element_type: "any"` pagination before changing strategy

@@ -66,8 +66,10 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
         "or a fresh inventory after a command that did not return an "
         "interactive observation." in description
     )
+    assert "scroll first to reposition it" in description
     assert '`element_type: "any"` is the default mixed inventory' in description
     assert "If highlight shows `swipable`, use `swipe`." in description
+    assert "cached element is stale" in description
     assert "before `keyboard_input`" in description
     assert "`keywords`" not in description
     assert "`clickable`" not in description
@@ -115,6 +117,7 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
     assert "If you need a clean screenshot without overlays, use `tab view`" in description
     assert "A1H(scrollable, swipable)" in description
     assert "icon-only" in description
+    assert "use `scroll` to reposition it before asking for more `highlight` pages" in description
     assert "On the same unchanged page state, stay on the same `element_type`" in description
     assert (
         "always `click` it first and complete that confirmation before `keyboard_input`"
@@ -131,6 +134,7 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
     assert "Examples of broad search" not in description
     assert "Collision-Aware Pagination" not in description
     assert "Exact-Text Search Only" not in description
+    assert "the cached element is stale" in description
 
 
 def test_small_model_element_interaction_requires_click_before_keyboard_input() -> None:
@@ -152,10 +156,12 @@ def test_small_model_element_interaction_requires_click_before_keyboard_input() 
     assert "YELLOW preview" in description
     assert "Use the current observation first." in description
     assert 'default `highlight` `element_type: "any"` page 1 screenshot' in description
+    assert "scroll first to reposition it" in description
     assert "always `click` first, then use `keyboard_input`" in description
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description
     assert "not hand or finger movement directions" in description
+    assert "cached element is stale" in description
 
 
 def test_large_model_element_interaction_requires_click_before_keyboard_input() -> None:
@@ -185,6 +191,8 @@ def test_large_model_element_interaction_requires_click_before_keyboard_input() 
     assert "YELLOW preview screenshot" in description
     assert "Is this the element you wanted to click?" in description
     assert 'default `highlight` `element_type: "any"` page 1 screenshot' in description
+    assert "geometry problem first and use `scroll` to reposition it" in description
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description
     assert "not finger or gesture directions" in description
+    assert "cached element is stale" in description

@@ -6,12 +6,13 @@ Build or extend the interactive-element inventory for the current page state.
 
 1. Outside of `tab view`, completed browser actions already return the default `highlight` `element_type: "any"` page 1 observation for the current page state.
 2. Use that current observation first.
-3. Call `highlight` when you need page 2+, a narrower `element_type`, or a fresh inventory after a command that did not return an interactive observation.
-4. `element_type: "any"` is the default mixed inventory for each page state.
-5. On the same unchanged page state, keep the same `element_type` and increment `page`.
-6. Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`.
-7. Do not guess an `element_id`. Use one from the current observation only.
-8. If you need a clean screenshot without overlays, use `tab view`.
+3. If a likely target is already partly visible, clipped by the viewport edge, or crowded by sticky UI, scroll first to reposition it.
+4. Call `highlight` when you need page 2+, a narrower `element_type`, or a fresh inventory after a command that did not return an interactive observation.
+5. `element_type: "any"` is the default mixed inventory for each page state.
+6. On the same unchanged page state, keep the same `element_type` and increment `page` only when the target is not already partly visible.
+7. Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`.
+8. Do not guess an `element_id`. Use one from the current observation only.
+9. If you need a clean screenshot without overlays, use `tab view`.
 
 ## Command
 
@@ -30,14 +31,16 @@ Build or extend the interactive-element inventory for the current page state.
 - Treat returned `element_id` values as short opaque labels such as `A1H`, `Q7M`, `X4Y`
 - These labels use a visual-safe uppercase alphabet. Lowercase letters never appear, and confusable characters such as `0`, `o`, `I`, `l`, `B/8`, `S/5`, `Z/2`, and `G/6` are excluded. Copy the label exactly as shown.
 - If the current observation already contains the right `element_id`, act on it instead of calling `highlight` again.
-- If page 1 missed the target on the same unchanged page state, your default next step is the next page in the same mode.
+- If the likely target is already partly visible or clipped, fix geometry with `scroll` before more pagination.
+- If page 1 missed the target on the same unchanged page state and it is not already partly visible, your default next step is the next page in the same mode.
 - Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and `any` was not enough.
 - If a control is icon-only or the text is not clearly readable, continue pagination instead of guessing labels such as `settings`, `gear`, `bell`, `next`, `prev`, or `close`.
 - If highlight shows `swipable`, use `swipe`.
 - For text-entry targets, always `click` first and complete that confirmation before `keyboard_input`.
+- If an action says the document changed or the cached element is stale, call `highlight` again before retrying.
 
 ## After Highlight
 
 - Pick one `element_id`
 - Use the matching action in `element_interaction`
-- If the chosen element is wrong, highlight again instead of guessing
+- If the chosen element is wrong or stale, highlight again instead of guessing

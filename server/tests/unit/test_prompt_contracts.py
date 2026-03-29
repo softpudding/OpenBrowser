@@ -78,10 +78,28 @@ class TestPromptContracts:
         assert "stay on the same `element_type` across pages" in description
         assert "your default next step is the next page in the same mode" in description
         assert (
+            "If a likely target is already partly visible, clipped, or crowded by sticky UI, use `scroll` to improve geometry before paginating."
+            in description
+        )
+        assert (
             "Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`"
             in description
         )
         assert "`clickable`" not in description
+
+    def test_highlight_prompt_treats_partly_visible_targets_as_geometry_problem(
+        self,
+    ) -> None:
+        description = get_highlight_tool_description()
+
+        assert (
+            "If the target or a likely candidate is already partly visible, clipped by the viewport edge, or cramped by sticky UI, use `scroll` to reposition it before asking for more `highlight` pages."
+            in description
+        )
+        assert (
+            "If the target is truly absent from the current view and the page state is unchanged, continue with page 2+ in the same relevant `element_type`."
+            in description
+        )
 
     def test_highlight_prompt_requires_exact_text_keywords_and_pagination_before_guessing(
         self,
@@ -194,6 +212,18 @@ class TestPromptContracts:
         assert "YELLOW preview screenshot" in description
         assert "Is this the element you wanted to click?" in description
         assert 'default `highlight` `element_type: "any"` page 1 screenshot' in description
+        assert (
+            "treat that as a geometry problem first and use `scroll` to reposition it before clicking, typing, or asking `highlight` for more pages."
+            in description
+        )
+
+    def test_element_interaction_prompt_recovers_from_stale_targets(self) -> None:
+        description = get_element_interaction_tool_description()
+
+        assert (
+            "If an error says the document changed, the target identity changed, or the cached element is stale, stop using the old `element_id` and rebuild inventory with `highlight` before retrying."
+            in description
+        )
 
     def test_element_interaction_prompt_explains_swipe_semantics(self) -> None:
         description = get_element_interaction_tool_description()

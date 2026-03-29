@@ -5,16 +5,18 @@ Use one `element_id` from the current interactive observation to act on the page
 ## Primary Workflow
 
 1. Use the current observation first.
-2. If it already contains the right `element_id`, act on it directly.
-3. If not, call `highlight` to paginate or narrow by `element_type`.
-4. Only `click` and `keyboard_input` produce a YELLOW preview and require the matching `confirm_*`.
-5. Successful direct actions and completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
-6. If you need a clean screenshot without overlays, use `tab view`.
+2. If a likely target is already partly visible, clipped by the viewport edge, or crowded by sticky UI, scroll first to reposition it.
+3. If it already contains the right `element_id`, act on it directly.
+4. If not, call `highlight` to paginate or narrow by `element_type`.
+5. Only `click` and `keyboard_input` produce a YELLOW preview and require the matching `confirm_*`.
+6. Successful direct actions and completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
+7. If you need a clean screenshot without overlays, use `tab view`.
 
 ## Core Rules
 
 - Never skip from intent directly to action without a matching `element_id` from the current interactive observation.
-- If page 1 missed the target on the same unchanged page state, continue `element_type: "any"` pagination with the next `page` value.
+- If page 1 missed the target on the same unchanged page state and no likely candidate is already partly visible, continue `element_type: "any"` pagination with the next `page` value.
+- If an action says the document changed or the cached element is stale, call `highlight` again before retrying.
 - If the page changed significantly and you already have the new default observation, use its new `element_id`s.
 - If the page changed significantly and you do not yet have the new observation, rebuild inventory before acting again.
 - Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and `any` was not enough.
@@ -74,6 +76,7 @@ These are content directions, not hand or finger movement directions. Do not rei
 - For native `<select>`, use `select`
 - For hidden menus or tooltips, use `hover`
 - If the page or target region is scrollable and your goal is to reveal more content, use `scroll`
+- If the likely target is already visible but poorly positioned, use `scroll` before more highlight pagination or before clicking.
 - For carousel / gallery / swiper regions marked `swipable`, use `swipe`
 - If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or guessed controls first
 
@@ -83,4 +86,4 @@ These are content directions, not hand or finger movement directions. Do not rei
 - `confirm_click` and `confirm_keyboard_input` operate on the current pending confirmation; do not repeat `element_id`
 - If the YELLOW preview appears, confirm only when the box position, reminder text, and HTML all match your target
 - The YELLOW confirmation preview itself does not invalidate the chosen `element_id`
-- If the preview does not match, do not confirm; rebuild inventory and choose again
+- If the preview does not match, the page changed, or the target went stale, do not confirm; rebuild inventory and choose again

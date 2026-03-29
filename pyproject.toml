@@ -71,5 +71,5 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 
 [tool.uv.sources]
-openhands-sdk = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-sdk", rev = "32385941c570de0380112c88b5d235a736ade057" }
-openhands-tools = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-tools", rev = "32385941c570de0380112c88b5d235a736ade057" }
+openhands-sdk = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-sdk", rev = "df5dca36079da232585fa95093b9b6714aef4f55" }
+openhands-tools = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-tools", rev = "df5dca36079da232585fa95093b9b6714aef4f55" }
