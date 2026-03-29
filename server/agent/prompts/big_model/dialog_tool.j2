@@ -50,11 +50,11 @@ Handle the currently open dialog.
 
 - **Handle immediately**: Automation is blocked until you handle the dialog
 - **One at a time**: After handling, check if another dialog appeared (cascading dialogs)
-- **Returns screenshot**: You'll see the page state after dialog is handled
+- **Returns highlighted screenshot**: When dialog handling completes without another blocking dialog, you get the default `highlight` `element_type: "any"` page 1 screenshot of the resulting page state
 
 ## Screenshot Behavior
 
-The dialog tool returns a screenshot after handling the dialog, showing the resulting page state.
+The dialog tool returns the default `highlight` `element_type: "any"` page 1 screenshot after handling the dialog, showing the resulting page state with fresh interactive IDs.
 
 ## Error Handling
 

@@ -52,6 +52,12 @@ export interface CachedElementLookup {
   element: InteractiveElement;
 }
 
+export interface ElementIdSuggestion {
+  elementId: string;
+  html: string;
+  matchedPositions: number;
+}
+
 export const ELEMENT_CACHE_TTL_MS = 1_200_000; // 20 minutes
 export const ELEMENT_CACHE_TTL_DESCRIPTION = `${ELEMENT_CACHE_TTL_MS / 60_000} minutes`;
 
@@ -293,6 +299,88 @@ class ElementCacheImpl {
     };
   }
 
+  getElementIdSuggestions(
+    conversationId: string,
+    tabId: number,
+    elementId: string,
+    limit: number = 3,
+  ): ElementIdSuggestion[] {
+    this.cleanupExpired();
+
+    const key = this.buildDocumentKey(conversationId, tabId);
+    const entry = this.documents.get(key);
+    if (!entry || entry.tabId !== tabId) {
+      return [];
+    }
+
+    this.touchEntry(entry);
+
+    const normalizedRequestedElementId =
+      normalizeVisualElementIdInput(elementId).toUpperCase();
+    if (!normalizedRequestedElementId) {
+      return [];
+    }
+
+    const minimumMatchedPositions = Math.max(
+      2,
+      normalizedRequestedElementId.length - 1,
+    );
+
+    return Array.from(entry.elementsById.values())
+      .map((element) => {
+        const candidateId = element.id.toUpperCase();
+        if (
+          candidateId === normalizedRequestedElementId ||
+          candidateId.length !== normalizedRequestedElementId.length
+        ) {
+          return null;
+        }
+
+        const matchedPositions = Array.from(candidateId).reduce(
+          (count, char, index) =>
+            count +
+            (char === normalizedRequestedElementId.charAt(index) ? 1 : 0),
+          0,
+        );
+        const weightedPositionScore = Array.from(candidateId).reduce(
+          (score, char, index) =>
+            score +
+            (char === normalizedRequestedElementId.charAt(index)
+              ? normalizedRequestedElementId.length - index
+              : 0),
+          0,
+        );
+
+        if (matchedPositions < minimumMatchedPositions) {
+          return null;
+        }
+
+        return {
+          elementId: element.id,
+          html: compactHtmlSnippet(element.html || `<${element.tagName}>`),
+          matchedPositions,
+          weightedPositionScore,
+        };
+      })
+      .filter(
+        (
+          suggestion,
+        ): suggestion is ElementIdSuggestion & { weightedPositionScore: number } =>
+          suggestion !== null,
+      )
+      .sort((left, right) => {
+        if (right.matchedPositions !== left.matchedPositions) {
+          return right.matchedPositions - left.matchedPositions;
+        }
+        if (right.weightedPositionScore !== left.weightedPositionScore) {
+          return right.weightedPositionScore - left.weightedPositionScore;
+        }
+        return left.elementId.localeCompare(right.elementId);
+      })
+      .map(({ weightedPositionScore: _weightedPositionScore, ...suggestion }) => suggestion)
+      .slice(0, Math.max(0, limit));
+  }
+
   invalidate(conversationId: string, tabId?: number): void {
     const keysToDelete = Array.from(this.documents.keys()).filter((key) => {
       if (tabId === undefined) {
@@ -324,3 +412,46 @@ class ElementCacheImpl {
 }
 
 export const elementCache = new ElementCacheImpl();
+
+function compactHtmlSnippet(html: string): string {
+  return html.replace(/\s+/g, ' ').trim().slice(0, 180);
+}
+
+export function buildElementCacheMissMessage(options: {
+  conversationId: string;
+  tabId: number;
+  elementId: string;
+  refreshHint?: string;
+}): string {
+  const {
+    conversationId,
+    tabId,
+    elementId,
+    refreshHint = 'Call highlight_elements() again to refresh the element cache.',
+  } = options;
+  const normalizedElementId = normalizeVisualElementIdInput(elementId);
+  const suggestions = elementCache.getElementIdSuggestions(
+    conversationId,
+    tabId,
+    normalizedElementId,
+  );
+
+  const baseMessage =
+    normalizedElementId && normalizedElementId !== elementId
+      ? `Element '${elementId}' was interpreted as '${normalizedElementId}' for visual-safe ID matching, but no cached element matched.`
+      : `Element '${elementId}' not found in cache.`;
+  const ttlMessage = `Highlight caches expire after ${ELEMENT_CACHE_TTL_DESCRIPTION}. ${refreshHint}`;
+
+  if (suggestions.length === 0) {
+    return `${baseMessage} ${ttlMessage}`;
+  }
+
+  const suggestedIds = suggestions
+    .map((suggestion) => `'${suggestion.elementId}'`)
+    .join(', ');
+  const suggestedHtml = suggestions
+    .map((suggestion) => `${suggestion.elementId}: ${suggestion.html}`)
+    .join(' | ');
+
+  return `${baseMessage} ${ttlMessage} Maybe try ${suggestedIds}. Candidate HTML: ${suggestedHtml}`;
+}

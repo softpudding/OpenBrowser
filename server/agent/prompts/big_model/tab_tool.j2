@@ -14,18 +14,18 @@ The Tab Tool manages browser tabs within isolated sessions. Each conversation ha
 
 ### Screenshot Behavior
 Tab commands return screenshots to verify page state after operations:
-- `tab init` - Returns screenshot of newly loaded page
-- `tab open` - Returns screenshot of newly opened tab
-- `tab switch` - Returns screenshot of switched-to tab
-- `tab refresh` - Returns screenshot of refreshed page
-- `tab back` - Returns screenshot after navigating back in history
-- `tab forward` - Returns screenshot after navigating forward in history
+- `tab init` - Returns the default `highlight` `element_type: "any"` page 1 screenshot of the loaded page
+- `tab open` - Returns the default `highlight` `element_type: "any"` page 1 screenshot of the opened tab
+- `tab switch` - Returns the default `highlight` `element_type: "any"` page 1 screenshot of the switched-to tab
+- `tab refresh` - Returns the default `highlight` `element_type: "any"` page 1 screenshot of the refreshed page
+- `tab back` - Returns the default `highlight` `element_type: "any"` page 1 screenshot after navigating back
+- `tab forward` - Returns the default `highlight` `element_type: "any"` page 1 screenshot after navigating forward
 
 Commands that do NOT return screenshots:
 - `tab list` - Returns tab list only
 - `tab close` - Returns close result only
 
-If you need a clean screenshot after a non-screenshot command, use `tab view`.
+If you need a clean screenshot without overlays, use `tab view`.
 
 ## Commands
 
@@ -43,7 +43,7 @@ Initialize a new browser session with a tab group.
 1. Creates a new tab group named "OpenBrowser"
 2. Opens the URL in a new tab
 3. Sets the tab as active for this conversation
-4. Returns screenshot of the loaded page
+4. Returns the default `highlight` `element_type: "any"` page 1 screenshot and IDs for the loaded page
 
 **Use Case**: Start a new automation session.
 
@@ -60,7 +60,7 @@ Open a new tab in the current session.
 **Behavior**:
 1. Opens a new tab in the same tab group
 2. Sets the new tab as active for this conversation
-3. Returns screenshot of the loaded page
+3. Returns the default `highlight` `element_type: "any"` page 1 screenshot and IDs for the loaded page
 
 **Use Case**: Open additional pages within the same session.
 
@@ -94,7 +94,7 @@ Switch to a specific tab within the session.
 **Behavior**:
 1. Makes the specified tab active
 2. Brings it to the foreground
-3. Returns screenshot of the switched-to tab
+3. Returns the default `highlight` `element_type: "any"` page 1 screenshot and IDs for the switched-to tab
 
 **Use Case**: Work with multiple open tabs.
 
@@ -118,7 +118,7 @@ Refresh the current active tab.
 
 **Behavior**:
 1. Reloads the current active tab
-2. Returns screenshot of the refreshed page
+2. Returns the default `highlight` `element_type: "any"` page 1 screenshot and IDs for the refreshed page
 
 **Use Case**: Update page content.
 
@@ -144,7 +144,7 @@ Navigate back in the browser history (equivalent to clicking the browser's back 
 
 **Behavior**:
 1. Navigates to the previous page in the tab's history
-2. Returns screenshot of the navigated page
+2. Returns the default `highlight` `element_type: "any"` page 1 screenshot and IDs for the navigated page
 
 **Use Case**: Go back to the previous page after clicking a link or navigating forward.
 
@@ -157,7 +157,7 @@ Navigate forward in the browser history (equivalent to clicking the browser's fo
 
 **Behavior**:
 1. Navigates to the next page in the tab's history (if available)
-2. Returns screenshot of the navigated page
+2. Returns the default `highlight` `element_type: "any"` page 1 screenshot and IDs for the navigated page
 
 **Use Case**: Go forward after having navigated back.
 
@@ -166,8 +166,8 @@ Navigate forward in the browser history (equivalent to clicking the browser's fo
 1. **Start session**: `tab init https://example.com`
 2. **Navigate to other pages**: `tab open https://other.com`
 3. **Switch between tabs**: `tab switch` with appropriate tab_id
-4. **After tab operations**, restart discovery with the highlight tool on `element_type: "any"` before selecting the next element, because it exposes extension-derived page insight for the new page state.
-5. Treat highlight pagination as reliable. If page 1 misses the target, continue `element_type: "any"` pages before changing strategy. Use `keywords` only when you can already see the target's exact literal text on the target itself and can copy it verbatim from the screenshot. If a control itself shows an icon plus `52`, the literal keyword is `52`, not guessed icon words like `star`, `favorite`, or `bookmark`.
+4. These tab actions already return the default `highlight` `element_type: "any"` page 1 result for the new page state, so you can use the returned `element_id`s immediately.
+5. If page 1 misses the target, continue with the highlight tool on `element_type: "any"` page 2, 3, and so on before changing strategy. Use `keywords` only when you can already see the target's exact literal text on the target itself and can copy it verbatim from the screenshot. If a control itself shows an icon plus `52`, the literal keyword is `52`, not guessed icon words like `star`, `favorite`, or `bookmark`.
 
 ## Notes
 

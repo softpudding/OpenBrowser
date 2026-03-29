@@ -10,7 +10,7 @@ import type {
   HighlightOptions,
 } from '../types';
 import { LABEL_FONT_SIZE, LABEL_PADDING } from './label-constants';
-import { getLabelDimensions } from '../utils/label-geometry';
+import { getLabelDimensions, getLabelFont } from '../utils/label-geometry';
 
 /**
  * Color mapping for different element types (with transparency for label backgrounds)
@@ -497,8 +497,7 @@ function drawLabel(
   const fontSize = Math.round(LABEL_FONT_SIZE * scale);
   const labelPadding = Math.round(LABEL_PADDING * scale);
 
-  // Set font before measuring text
-  ctx.font = `bold ${fontSize}px Arial`;
+  ctx.font = getLabelFont(fontSize);
 
   // Measure text width
   let labelX: number;

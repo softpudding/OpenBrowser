@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { InteractiveElement } from '../../types';
-import { elementCache } from '../element-cache';
+import {
+  buildElementCacheMissMessage,
+  elementCache,
+} from '../element-cache';
 import {
   ELEMENT_ID_CHARSET,
   ELEMENT_ID_LENGTH,
@@ -164,5 +167,46 @@ describe('element-cache document cache', () => {
     expect(lookup?.resolvedElementId).toBe('DO2');
     expect(lookup?.elementIdCorrected).toBe(true);
     expect(lookup?.element.selector).toBe('#page-corrected');
+  });
+
+  test('suggests close visual-safe ids when the requested id is missing', () => {
+    elementCache.clearAll();
+    const page = [
+      createElement('MQK', '#heart-button'),
+      createElement('M9H', '#share-button'),
+      createElement('AB1', '#other-button'),
+    ];
+
+    elementCache.storeHighlightResult({
+      conversationId: 'conv-suggestions',
+      tabId: 303,
+      documentId: 'doc-suggestions',
+      elementType: 'any',
+      totalElements: page.length,
+      totalPages: 1,
+      pages: [page],
+      page: 1,
+    });
+
+    const suggestions = elementCache.getElementIdSuggestions(
+      'conv-suggestions',
+      303,
+      'MQH',
+    );
+
+    expect(suggestions.map((suggestion) => suggestion.elementId)).toEqual([
+      'MQK',
+      'M9H',
+    ]);
+
+    const missMessage = buildElementCacheMissMessage({
+      conversationId: 'conv-suggestions',
+      tabId: 303,
+      elementId: 'MQH',
+    });
+
+    expect(missMessage).toContain("Maybe try 'MQK', 'M9H'");
+    expect(missMessage).toContain('MQK: <button data-testid="heart-button">Test</button>');
+    expect(missMessage).toContain('M9H: <button data-testid="share-button">Test</button>');
   });
 });

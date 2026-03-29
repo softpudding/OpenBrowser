@@ -1,27 +1,24 @@
 # Element Interaction Tool
 
-Interact with one highlighted element at a time.
+Use one `element_id` from the current interactive observation to act on the page.
 
 ## Primary Workflow
 
-1. Use `highlight` first.
-2. Choose one `element_id`.
-3. If the target is `inputable`, always `click` it first and complete that confirmation before `keyboard_input`.
-4. Call the action.
-5. Only `click` and `keyboard_input` produce a YELLOW preview and require the matching `confirm_*`.
-6. If the target is wrong, stop and highlight again.
+1. Use the current observation first.
+2. If it already contains the right `element_id`, act on it directly.
+3. If not, call `highlight` to paginate or narrow by `element_type`.
+4. Only `click` and `keyboard_input` produce a YELLOW preview and require the matching `confirm_*`.
+5. Successful direct actions and completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
+6. If you need a clean screenshot without overlays, use `tab view`.
 
-## Core Rule
+## Core Rules
 
-Never skip from intent directly to action without a matching `element_id` from highlight.
-
-If the right `element_id` is missing, return to highlight and continue pagination instead of guessing a control name or target. On the same unchanged page state, your first reaction should be to continue `element_type: "any"` pagination with the next `page` value.
-
-After any significant page-state change caused by your last action, such as navigation, tab switch, modal expansion, or opening a detail view, the next discovery step must be `highlight` with `element_type: "any"` because it exposes extension-derived page insight you cannot infer reliably from intent alone.
-
-If the page did not significantly change, stay on the current `any` discovery path and continue pagination until the target appears. Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and the current `any` results were not enough.
-
-`element_id` labels use a visual-safe uppercase alphabet. Lowercase letters never appear, and confusable characters such as `0`, `o`, `I`, `l`, `B/8`, `S/5`, `Z/2`, and `G/6` are excluded. Copy the label exactly as shown.
+- Never skip from intent directly to action without a matching `element_id` from the current interactive observation.
+- If page 1 missed the target on the same unchanged page state, continue `element_type: "any"` pagination with the next `page` value.
+- If the page changed significantly and you already have the new default observation, use its new `element_id`s.
+- If the page changed significantly and you do not yet have the new observation, rebuild inventory before acting again.
+- Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and `any` was not enough.
+- `element_id` labels use a visual-safe uppercase alphabet. Lowercase letters never appear, and confusable characters such as `0`, `o`, `I`, `l`, `B/8`, `S/5`, `Z/2`, and `G/6` are excluded. Copy the label exactly as shown.
 
 ## Commands
 
@@ -39,7 +36,7 @@ If the page did not significantly change, stay on the current `any` discovery pa
 { "action": "confirm_keyboard_input" }
 ```
 
-Use `keyboard_input` only after you already clicked the same input target and completed that click confirmation.
+If the target is `inputable`, always `click` it first and complete that confirmation before `keyboard_input`.
 
 ### hover
 
@@ -55,19 +52,13 @@ Use `keyboard_input` only after you already clicked the same input target and co
 
 ### scroll
 
-Whole page:
 ```json
 { "action": "scroll", "direction": "down", "scroll_amount": 1.0, "tab_id": 123 }
-```
-
-Inside one container:
-```json
 { "action": "scroll", "element_id": "Y4M", "direction": "down", "tab_id": 123 }
 ```
 
 ### swipe
 
-Carousel / slider / swiper region:
 ```json
 { "action": "swipe", "element_id": "Y4M", "direction": "next", "swipe_count": 1, "tab_id": 123 }
 ```
@@ -84,23 +75,12 @@ These are content directions, not hand or finger movement directions. Do not rei
 - For hidden menus or tooltips, use `hover`
 - If the page or target region is scrollable and your goal is to reveal more content, use `scroll`
 - For carousel / gallery / swiper regions marked `swipable`, use `swipe`
-  Use `direction: "next"` to view the next picture or item.
-  Use `direction: "prev"` to view the previous picture or item.
-- If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or other guessed controls first.
-- If a region is marked `swipable`, do not search for guessed `next` / `prev` buttons first.
+- If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or guessed controls first
 
 ## Confirmation Rules
 
 - `click` and `keyboard_input` require confirmation
-- For any `inputable` target, the required sequence is `click` first, then `keyboard_input`
 - `confirm_click` and `confirm_keyboard_input` operate on the current pending confirmation; do not repeat `element_id`
 - If the YELLOW preview appears, confirm only when the box position, reminder text, and HTML all match your target
-- If they do not match, do not confirm; highlight again
-
-## Retry Rule
-
-- If one action fails, retry once with a better target
-- If it fails twice, change strategy instead of repeating the same action
-- For failed close or back-like controls inside a detail view, re-highlight that changed page with `any` first, then continue `any` pagination or use `tab back`
-- If the page changed significantly, re-run `highlight` and use the new page evidence
 - The YELLOW confirmation preview itself does not invalidate the chosen `element_id`
+- If the preview does not match, do not confirm; rebuild inventory and choose again

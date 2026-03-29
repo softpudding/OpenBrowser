@@ -71,5 +71,5 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 
 [tool.uv.sources]
-openhands-sdk = { path = "/Users/yangxiao/git/agent-sdk-context-image-window-sdk/openhands-sdk", editable = true }
-openhands-tools = { path = "/Users/yangxiao/git/agent-sdk-context-image-window-sdk/openhands-tools", editable = true }
+openhands-sdk = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-sdk", rev = "cae2258dafbbe00f665f0bcc8c81ea9f0bd3a920" }
+openhands-tools = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-tools", rev = "cae2258dafbbe00f665f0bcc8c81ea9f0bd3a920" }

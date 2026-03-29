@@ -25,8 +25,8 @@ import { highlightSingleElement } from '../commands/single-highlight';
 import { elementCache } from '../commands/element-cache';
 import {
   assignHashedElementIds,
-  normalizeVisualElementIdInput,
 } from '../commands/element-id';
+import { buildElementCacheMissMessage } from '../commands/element-cache';
 import {
   buildHighlightDetectionScript,
   filterHighlightElementsByKeywords,
@@ -62,11 +62,15 @@ import {
   type HighlightPageState,
 } from '../utils/layout-stability';
 import {
-  HIGHLIGHT_PRECONDITION_CAPTURE_OPTIONS,
-  HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
   TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+  type ScreenshotCaptureOptions,
 } from '../utils/highlight-screenshot';
-import type { Command, CommandResponse, InteractiveElement } from '../types';
+import type {
+  Command,
+  CommandResponse,
+  ElementType,
+  InteractiveElement,
+} from '../types';
 console.log('🚀 OpenBrowser extension starting (Strict Mode)...');
 
 const SERVER_HTTP_URL = 'http://127.0.0.1:8765';
@@ -90,13 +94,24 @@ async function compressScreenshotResult<T extends { imageData?: string }>(
 async function runHighlightPreconditionWarmup(options: {
   tabId: number;
   conversationId: string;
-  elementType: string;
+  elementType: ElementType;
   page: number;
+  waitForRender?: number;
+  captureOptions?: ScreenshotCaptureOptions;
+  logLabel?: string;
 }): Promise<void> {
-  const { tabId, conversationId, elementType, page } = options;
+  const {
+    tabId,
+    conversationId,
+    elementType,
+    page,
+    waitForRender = 350,
+    captureOptions = TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+    logLabel = 'HighlightElements',
+  } = options;
   const warmupStart = Date.now();
   console.log(
-    `🔥 [HighlightElements] Starting screenshot warmup precondition for elementType=${elementType}, page=${page}`,
+    `🔥 [${logLabel}] Starting screenshot warmup precondition for elementType=${elementType}, page=${page}`,
   );
 
   await captureScreenshot(
@@ -105,12 +120,44 @@ async function runHighlightPreconditionWarmup(options: {
     true,
     90,
     false,
-    350,
-    HIGHLIGHT_PRECONDITION_CAPTURE_OPTIONS,
+    waitForRender,
+    captureOptions,
   );
 
   console.log(
-    `🔥 [HighlightElements] Screenshot warmup precondition completed in ${Date.now() - warmupStart}ms`,
+    `🔥 [${logLabel}] Screenshot warmup precondition completed in ${Date.now() - warmupStart}ms`,
+  );
+}
+
+async function runRawScreenshotPrime(options: {
+  tabId: number;
+  conversationId: string;
+  waitForRender?: number;
+  captureOptions?: ScreenshotCaptureOptions;
+  logLabel?: string;
+}): Promise<void> {
+  const {
+    tabId,
+    conversationId,
+    waitForRender = 350,
+    captureOptions = TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+    logLabel = 'HighlightPrime',
+  } = options;
+  const primeStart = Date.now();
+  console.log(`🔥 [${logLabel}] Starting raw screenshot wake-up prime`);
+
+  await captureScreenshot(
+    tabId,
+    conversationId,
+    true,
+    90,
+    false,
+    waitForRender,
+    captureOptions,
+  );
+
+  console.log(
+    `🔥 [${logLabel}] Raw screenshot wake-up prime completed in ${Date.now() - primeStart}ms`,
   );
 }
 
@@ -191,6 +238,419 @@ function buildHighlightConsistencyScript(
       };
     })();
   `;
+}
+
+interface ScreenshotPayload {
+  screenshot?: string;
+  dialog_auto_accepted?: unknown;
+  dialog_auto_accepted_list?: unknown;
+}
+
+interface HighlightedPageStateData extends ScreenshotPayload {
+  elements: InteractiveElement[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  pageState: HighlightPageState;
+  readinessReasons: string[];
+}
+
+interface HighlightedPageCaptureOptions {
+  tabId: number;
+  conversationId: string;
+  elementType?: ElementType;
+  page?: number;
+  keywords?: string[];
+  logLabel?: string;
+  preconditionWaitForRender?: number;
+  preconditionCaptureOptions?: ScreenshotCaptureOptions;
+}
+
+function buildScreenshotPayload(
+  screenshotResult:
+    | {
+        imageData?: string;
+        dialog_auto_accepted?: unknown;
+        dialog_auto_accepted_list?: unknown;
+      }
+    | null
+    | undefined,
+): ScreenshotPayload {
+  return {
+    screenshot: screenshotResult?.imageData,
+    ...(screenshotResult?.dialog_auto_accepted
+      ? {
+          dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
+        }
+      : {}),
+    ...(screenshotResult?.dialog_auto_accepted_list
+      ? {
+          dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list,
+        }
+      : {}),
+  };
+}
+
+async function captureHighlightedPageState(
+  options: HighlightedPageCaptureOptions,
+): Promise<HighlightedPageStateData> {
+  const {
+    tabId,
+    conversationId,
+    elementType = 'any',
+    page = 1,
+    keywords,
+    logLabel = 'HighlightElements',
+    preconditionWaitForRender,
+    preconditionCaptureOptions,
+  } = options;
+
+  await tabManager.ensureTabManaged(tabId, conversationId);
+  tabManager.updateTabActivity(tabId, conversationId);
+
+  const detectionScript = buildHighlightDetectionScript({
+    elementType,
+  });
+
+  await runHighlightPreconditionWarmup({
+    tabId,
+    conversationId,
+    elementType,
+    page,
+    waitForRender: preconditionWaitForRender,
+    captureOptions: preconditionCaptureOptions,
+    logLabel,
+  });
+
+  const maxHighlightAttempts = 3;
+  const highlightDetectionTimeoutMs = 18000;
+  let previousConsistency: HighlightConsistencyResult | null = null;
+
+  for (let attempt = 1; attempt <= maxHighlightAttempts; attempt++) {
+    console.log(`🔁 [${logLabel}] Attempt ${attempt}/${maxHighlightAttempts}`);
+
+    const detectionResult = await javascript.executeJavaScript(
+      tabId,
+      conversationId,
+      detectionScript,
+      true,
+      true,
+      highlightDetectionTimeoutMs,
+    );
+
+    if (!detectionResult.success || !detectionResult.result?.value) {
+      throw new Error(detectionResult.error || 'Failed to detect elements');
+    }
+
+    const allElements = detectionResult.result.value.elements || [];
+    const detectedDocumentId =
+      typeof detectionResult.result.value.documentId === 'string'
+        ? detectionResult.result.value.documentId
+        : '';
+    const detectedViewport = detectionResult.result.value.viewport || {};
+    const layoutStability = detectionResult.result.value.layoutStability;
+    const highlightTraceStart = Date.now();
+    const detectedViewportWidth =
+      typeof detectedViewport.width === 'number' ? detectedViewport.width : 0;
+    const detectedViewportHeight =
+      typeof detectedViewport.height === 'number' ? detectedViewport.height : 0;
+    if (layoutStability) {
+      console.log(
+        `⏳ [${logLabel}] Readiness snapshot: ${JSON.stringify(layoutStability)}`,
+      );
+    }
+
+    const pageState: HighlightPageState = layoutStability?.state || 'ready';
+    const readinessReasons = Array.isArray(layoutStability?.reasons)
+      ? layoutStability.reasons
+      : [];
+
+    if (pageState === 'not_ready' && attempt < maxHighlightAttempts) {
+      const retryDelayMs = getHighlightReadinessRetryDelay(attempt);
+      console.warn(
+        `⚠️ [${logLabel}] Readiness state is not_ready (${readinessReasons.join(', ') || 'no reasons'}), retrying in ${retryDelayMs}ms (attempt ${attempt}/${maxHighlightAttempts})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      continue;
+    }
+
+    const keywordFilterStart = Date.now();
+    const keywordFiltering = filterHighlightElementsByKeywords(
+      allElements,
+      keywords,
+    );
+    const keywordList = keywordFiltering.keywords;
+    const filteredElements = assignHashedElementIds(keywordFiltering.elements);
+
+    if (keywordList.length > 0) {
+      console.log(
+        `🔍 [${logLabel}] Keywords [${keywordList.join(', ')}] matched ${filteredElements.length} of ${allElements.length} elements`,
+      );
+    }
+    console.log(
+      `⏱️ [HighlightTrace] background keyword-filter ${Date.now() - keywordFilterStart}ms (keywords=${keywordList.length}, kept=${filteredElements.length}/${allElements.length})`,
+    );
+
+    let paginatedElements: InteractiveElement[];
+    let totalPages: number;
+    let currentPage = page;
+
+    if (keywordList.length > 0) {
+      paginatedElements = filteredElements;
+      totalPages = 1;
+      currentPage = 1;
+      console.log(
+        `🔍 [${logLabel}] Keywords [${keywordList.join(', ')}] matched ${paginatedElements.length} elements (no pagination)`,
+      );
+    } else {
+      const paginationSelectionStart = Date.now();
+      paginatedElements = selectCollisionFreePage(
+        filteredElements,
+        page,
+        detectedViewportWidth,
+        detectedViewportHeight,
+      );
+      const paginationSelectionMs = Date.now() - paginationSelectionStart;
+      const totalPagesStart = Date.now();
+      totalPages = calculateTotalPages(
+        filteredElements,
+        detectedViewportWidth,
+        detectedViewportHeight,
+      );
+      const totalPagesMs = Date.now() - totalPagesStart;
+      console.log(
+        `📄 [${logLabel}] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`,
+      );
+      console.log(
+        `⏱️ [HighlightTrace] background pagination select=${paginationSelectionMs}ms totalPages=${totalPagesMs}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
+      );
+    }
+
+    const screenshotStart = Date.now();
+    const screenshotResult = await captureScreenshot(
+      tabId,
+      conversationId,
+      true,
+      90,
+      false,
+      0,
+      TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+    );
+
+    if (!screenshotResult?.success || !screenshotResult?.imageData) {
+      throw new Error(
+        `Failed to capture screenshot: ${screenshotResult?.success === false ? 'Screenshot command failed' : 'No image data returned'}`,
+      );
+    }
+    console.log(
+      `📸 [${logLabel}] Screenshot captured, size: ${screenshotResult.imageData.length} bytes`,
+    );
+    console.log(
+      `⏱️ [HighlightTrace] background screenshot ${Date.now() - screenshotStart}ms`,
+    );
+
+    const imageScale =
+      screenshotResult.metadata?.imageScale ||
+      screenshotResult.metadata?.devicePixelRatio ||
+      1;
+    const viewportWidth = screenshotResult.metadata?.viewportWidth || 0;
+    const viewportHeight = screenshotResult.metadata?.viewportHeight || 0;
+    console.log(`📐 [${logLabel}] Image scale: ${imageScale}`);
+    console.log(
+      `📐 [${logLabel}] Viewport: ${viewportWidth}x${viewportHeight} CSS pixels`,
+    );
+    console.log(
+      `📐 [${logLabel}] Expected image size: ${Math.round(viewportWidth * imageScale)}x${Math.round(viewportHeight * imageScale)} device pixels`,
+    );
+
+    const consistencyCheckStart = Date.now();
+    const consistencyScript = buildHighlightConsistencyScript(paginatedElements);
+    const consistencyResult = await javascript.executeJavaScript(
+      tabId,
+      conversationId,
+      consistencyScript,
+      true,
+      false,
+      2000,
+    );
+    const currentConsistencySamples =
+      consistencyResult.success &&
+      consistencyResult.result?.value?.samples &&
+      Array.isArray(consistencyResult.result.value.samples)
+        ? consistencyResult.result.value.samples
+        : [];
+    const highlightConsistency = evaluateHighlightConsistency(
+      paginatedElements
+        .slice(0, HIGHLIGHT_CONSISTENCY_CONFIG.maxSampleSize)
+        .map((element) => ({
+          id: element.id,
+          bbox: element.bbox,
+        })),
+      currentConsistencySamples,
+    );
+    console.log(
+      `⏱️ [HighlightTrace] background consistency-check ${Date.now() - consistencyCheckStart}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
+    );
+    const repeatedDrift = isRepeatedHighlightDrift(
+      highlightConsistency,
+      previousConsistency,
+    );
+
+    if (
+      highlightConsistency.shouldRetry &&
+      attempt < maxHighlightAttempts &&
+      !repeatedDrift
+    ) {
+      previousConsistency = highlightConsistency;
+      console.warn(
+        `⚠️ [${logLabel}] Layout drift detected after screenshot, retrying (attempt ${attempt}/${maxHighlightAttempts})`,
+      );
+      continue;
+    }
+
+    if (highlightConsistency.shouldRetry) {
+      console.warn(
+        repeatedDrift
+          ? `⚠️ [${logLabel}] Layout drift repeated with near-identical metrics, returning latest screenshot`
+          : `⚠️ [${logLabel}] Layout drift still detected on final attempt, returning latest screenshot`,
+      );
+    }
+
+    const storedPages = buildStoredHighlightPages({
+      filteredElements,
+      totalPages,
+      viewportWidth: detectedViewportWidth,
+      viewportHeight: detectedViewportHeight,
+      keywordMode: keywordList.length > 0,
+    });
+    const displayOrderedElements = storedPages[currentPage - 1] ?? [];
+
+    const cacheStoreStart = Date.now();
+    const storedPage = elementCache.storeHighlightResult({
+      conversationId,
+      tabId,
+      documentId: detectedDocumentId,
+      elementType,
+      keywords: keywordList,
+      totalElements: filteredElements.length,
+      totalPages,
+      pages: storedPages,
+      page: currentPage,
+    });
+    console.log(
+      `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (page=${storedPage.page}, count=${displayOrderedElements.length})`,
+    );
+
+    if (displayOrderedElements.length > 0) {
+      console.log(
+        `📍 [${logLabel}] First element bbox:`,
+        JSON.stringify(displayOrderedElements[0].bbox),
+      );
+    }
+
+    const drawHighlightsStart = Date.now();
+    const highlightedScreenshot = await drawHighlights(
+      screenshotResult.imageData,
+      storedPage.elements,
+      {
+        scale: imageScale,
+        viewportWidth,
+        viewportHeight,
+      },
+    );
+    console.log(
+      `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${storedPage.elements.length})`,
+    );
+
+    const compressStart = Date.now();
+    const compressedScreenshotResult = await compressScreenshotResult({
+      imageData: highlightedScreenshot,
+      dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
+      dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list,
+    });
+    console.log(
+      `⏱️ [HighlightTrace] background compress ${Date.now() - compressStart}ms`,
+    );
+    console.log(
+      `⏱️ [HighlightTrace] background total ${Date.now() - highlightTraceStart}ms`,
+    );
+
+    return {
+      elements: storedPage.elements,
+      totalElements: filteredElements.length,
+      totalPages,
+      page: currentPage,
+      pageState,
+      readinessReasons,
+      ...buildScreenshotPayload(compressedScreenshotResult),
+    };
+  }
+
+  throw new Error('Failed to produce a stable highlight screenshot');
+}
+
+async function captureDefaultHighlightedPageState(options: {
+  tabId: number;
+  conversationId: string;
+  logLabel: string;
+  preconditionWaitForRender?: number;
+  preconditionCaptureOptions?: ScreenshotCaptureOptions;
+  primeWithRawScreenshot?: boolean;
+  primeWaitForRender?: number;
+  primeCaptureOptions?: ScreenshotCaptureOptions;
+}): Promise<HighlightedPageStateData | ScreenshotPayload> {
+  const {
+    tabId,
+    conversationId,
+    logLabel,
+    preconditionWaitForRender,
+    preconditionCaptureOptions,
+    primeWithRawScreenshot = false,
+    primeWaitForRender,
+    primeCaptureOptions,
+  } = options;
+  const effectivePreconditionWaitForRender = preconditionWaitForRender ?? 350;
+  const effectivePreconditionCaptureOptions =
+    preconditionCaptureOptions ?? TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS;
+
+  if (primeWithRawScreenshot) {
+    await runRawScreenshotPrime({
+      tabId,
+      conversationId,
+      waitForRender: primeWaitForRender ?? effectivePreconditionWaitForRender,
+      captureOptions:
+        primeCaptureOptions ?? effectivePreconditionCaptureOptions,
+      logLabel: `${logLabel} Prime`,
+    });
+  }
+
+  try {
+    return await captureHighlightedPageState({
+      tabId,
+      conversationId,
+      elementType: 'any',
+      page: 1,
+      logLabel,
+      preconditionWaitForRender: effectivePreconditionWaitForRender,
+      preconditionCaptureOptions: effectivePreconditionCaptureOptions,
+    });
+  } catch (error) {
+    console.warn(
+      `⚠️ [${logLabel}] Default any/page 1 highlight failed, falling back to raw screenshot: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    const screenshotResult = await captureScreenshot(
+      tabId,
+      conversationId,
+      true,
+      90,
+      false,
+      effectivePreconditionWaitForRender,
+      effectivePreconditionCaptureOptions,
+    );
+    const compressedScreenshotResult =
+      await compressScreenshotResult(screenshotResult);
+    return buildScreenshotPayload(compressedScreenshotResult);
+  }
 }
 
 function cleanupTabState(conversationId: string, tabId: number): void {
@@ -793,16 +1253,12 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             tabManager.setCurrentActiveTabId(conversationId, initResult.tabId);
 
             // Capture screenshot after initialization
-            const initScreenshotResult = await captureScreenshot(
-              initResult.tabId,
+            const initPageState = await captureDefaultHighlightedPageState({
+              tabId: initResult.tabId,
               conversationId,
-              true,
-              90,
-              false,
-              0,
-            );
-            const compressedInitScreenshotResult =
-              await compressScreenshotResult(initScreenshotResult);
+              logLabel: 'Tab Init',
+              primeWithRawScreenshot: true,
+            });
 
             return {
               success: true,
@@ -813,19 +1269,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 url: initResult.url,
                 conversationId: conversationId,
                 isManaged: true,
-                screenshot: compressedInitScreenshotResult?.imageData,
-                ...(compressedInitScreenshotResult?.dialog_auto_accepted
-                  ? {
-                      dialog_auto_accepted:
-                        compressedInitScreenshotResult.dialog_auto_accepted,
-                    }
-                  : {}),
-                ...(compressedInitScreenshotResult?.dialog_auto_accepted_list
-                  ? {
-                      dialog_auto_accepted_list:
-                        compressedInitScreenshotResult.dialog_auto_accepted_list,
-                    }
-                  : {}),
+                ...initPageState,
               },
               timestamp: Date.now(),
             };
@@ -845,18 +1289,14 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             }
 
             // Capture screenshot after opening
-            const openScreenshotResult = openResult.tabId
-              ? await captureScreenshot(
-                  openResult.tabId,
+            const openPageState = openResult.tabId
+              ? await captureDefaultHighlightedPageState({
+                  tabId: openResult.tabId,
                   conversationId,
-                  true,
-                  90,
-                  false,
-                  0,
-                )
-              : null;
-            const compressedOpenScreenshotResult =
-              await compressScreenshotResult(openScreenshotResult);
+                  logLabel: 'Tab Open',
+                  primeWithRawScreenshot: true,
+                })
+              : {};
 
             return {
               success: true,
@@ -864,19 +1304,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               data: {
                 ...openResult,
                 conversationId: conversationId,
-                screenshot: compressedOpenScreenshotResult?.imageData,
-                ...(compressedOpenScreenshotResult?.dialog_auto_accepted
-                  ? {
-                      dialog_auto_accepted:
-                        compressedOpenScreenshotResult.dialog_auto_accepted,
-                    }
-                  : {}),
-                ...(compressedOpenScreenshotResult?.dialog_auto_accepted_list
-                  ? {
-                      dialog_auto_accepted_list:
-                        compressedOpenScreenshotResult.dialog_auto_accepted_list,
-                    }
-                  : {}),
+                ...openPageState,
               },
               timestamp: Date.now(),
             };
@@ -908,16 +1336,12 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             tabManager.setCurrentActiveTabId(conversationId, command.tab_id);
 
             // Capture screenshot after switching
-            const switchScreenshotResult = await captureScreenshot(
-              command.tab_id,
+            const switchPageState = await captureDefaultHighlightedPageState({
+              tabId: command.tab_id,
               conversationId,
-              true,
-              90,
-              false,
-              0,
-            );
-            const compressedSwitchScreenshotResult =
-              await compressScreenshotResult(switchScreenshotResult);
+              logLabel: 'Tab Switch',
+              primeWithRawScreenshot: true,
+            });
 
             return {
               success: true,
@@ -925,19 +1349,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               data: {
                 ...switchResult,
                 conversationId: conversationId,
-                screenshot: compressedSwitchScreenshotResult?.imageData,
-                ...(compressedSwitchScreenshotResult?.dialog_auto_accepted
-                  ? {
-                      dialog_auto_accepted:
-                        compressedSwitchScreenshotResult.dialog_auto_accepted,
-                    }
-                  : {}),
-                ...(compressedSwitchScreenshotResult?.dialog_auto_accepted_list
-                  ? {
-                      dialog_auto_accepted_list:
-                        compressedSwitchScreenshotResult.dialog_auto_accepted_list,
-                    }
-                  : {}),
+                ...switchPageState,
               },
               timestamp: Date.now(),
             };
@@ -966,16 +1378,12 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             const refreshResult = await tabs.refreshTab(command.tab_id);
 
             // Capture screenshot after refresh
-            const refreshScreenshotResult = await captureScreenshot(
-              command.tab_id,
+            const refreshPageState = await captureDefaultHighlightedPageState({
+              tabId: command.tab_id,
               conversationId,
-              true,
-              90,
-              false,
-              0,
-            );
-            const compressedRefreshScreenshotResult =
-              await compressScreenshotResult(refreshScreenshotResult);
+              logLabel: 'Tab Refresh',
+              primeWithRawScreenshot: true,
+            });
 
             return {
               success: true,
@@ -983,19 +1391,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               data: {
                 ...refreshResult,
                 conversationId: conversationId,
-                screenshot: compressedRefreshScreenshotResult?.imageData,
-                ...(compressedRefreshScreenshotResult?.dialog_auto_accepted
-                  ? {
-                      dialog_auto_accepted:
-                        compressedRefreshScreenshotResult.dialog_auto_accepted,
-                    }
-                  : {}),
-                ...(compressedRefreshScreenshotResult?.dialog_auto_accepted_list
-                  ? {
-                      dialog_auto_accepted_list:
-                        compressedRefreshScreenshotResult.dialog_auto_accepted_list,
-                    }
-                  : {}),
+                ...refreshPageState,
               },
               timestamp: Date.now(),
             };
@@ -1088,17 +1484,14 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ? await tabs.goBack(targetTabId)
                 : await tabs.goForward(targetTabId);
 
-            // Capture screenshot after navigation
-            const screenshotResult = await captureScreenshot(
-              targetTabId,
-              conversationId,
-              true,
-              90,
-              false,
-              0,
-            );
-            const compressedNavigationScreenshotResult =
-              await compressScreenshotResult(screenshotResult);
+            const navigationPageState =
+              await captureDefaultHighlightedPageState({
+                tabId: targetTabId,
+                conversationId,
+                logLabel:
+                  command.action === 'back' ? 'Tab Back' : 'Tab Forward',
+                primeWithRawScreenshot: true,
+              });
 
             return {
               success: true,
@@ -1107,19 +1500,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ...navigationResult,
                 tabId: targetTabId,
                 conversationId: conversationId,
-                screenshot: compressedNavigationScreenshotResult?.imageData,
-                ...(compressedNavigationScreenshotResult?.dialog_auto_accepted
-                  ? {
-                      dialog_auto_accepted:
-                        compressedNavigationScreenshotResult.dialog_auto_accepted,
-                    }
-                  : {}),
-                ...(compressedNavigationScreenshotResult?.dialog_auto_accepted_list
-                  ? {
-                      dialog_auto_accepted_list:
-                        compressedNavigationScreenshotResult.dialog_auto_accepted_list,
-                    }
-                  : {}),
+                ...navigationPageState,
               },
               timestamp: Date.now(),
             };
@@ -1289,36 +1670,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           tabManager.setCurrentActiveTabId(conversationId, screenshotTabId);
         }
 
-        // Always take screenshot
-        const jsScreenshotResult = await captureScreenshot(
-          screenshotTabId,
+        const jsPageState = await captureDefaultHighlightedPageState({
+          tabId: screenshotTabId,
           conversationId,
-          true,
-          90,
-          false,
-          0,
-        );
-        const compressedJsScreenshotResult =
-          await compressScreenshotResult(jsScreenshotResult);
+          logLabel: 'JavaScript',
+        });
 
         return {
           success: true,
           message: 'JavaScript executed successfully',
           data: {
             ...jsResult,
-            screenshot: compressedJsScreenshotResult?.imageData,
-            ...(compressedJsScreenshotResult?.dialog_auto_accepted
-              ? {
-                  dialog_auto_accepted:
-                    compressedJsScreenshotResult.dialog_auto_accepted,
-                }
-              : {}),
-            ...(compressedJsScreenshotResult?.dialog_auto_accepted_list
-              ? {
-                  dialog_auto_accepted_list:
-                    compressedJsScreenshotResult.dialog_auto_accepted_list,
-                }
-              : {}),
+            ...jsPageState,
           },
           timestamp: Date.now(),
           duration: jsDuration,
@@ -1388,15 +1751,12 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               console.log(`💬 [HandleDialog] Auto-accepting cascading alert`);
               await dialogManager.autoAcceptDialog(activeTabId);
 
-              // Take screenshot after auto-accept
-              const screenshotResult = await captureScreenshot(
-                activeTabId,
-                conversationId,
-                true, // include_cursor
-                90, // quality
-                false, // resizeToPreset
-                0, // waitForRender
-              );
+              const dialogPageState =
+                await captureDefaultHighlightedPageState({
+                  tabId: activeTabId,
+                  conversationId,
+                  logLabel: 'HandleDialog',
+                });
 
               return {
                 success: true,
@@ -1408,22 +1768,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                     message: handleResult.newDialog.message,
                     autoAccepted: true,
                   },
-                  screenshot: await compressIfNeeded(
-                    screenshotResult,
-                    getCompressionThreshold(),
-                  ),
-                  ...(screenshotResult?.dialog_auto_accepted
-                    ? {
-                        dialog_auto_accepted:
-                          screenshotResult.dialog_auto_accepted,
-                      }
-                    : {}),
-                  ...(screenshotResult?.dialog_auto_accepted_list
-                    ? {
-                        dialog_auto_accepted_list:
-                          screenshotResult.dialog_auto_accepted_list,
-                      }
-                    : {}),
+                  ...dialogPageState,
                 },
                 timestamp: Date.now(),
               };
@@ -1448,16 +1793,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             };
           }
 
-          // No cascade - dialog handling complete
-          // Take screenshot to show the result
-          const screenshotResult = await captureScreenshot(
-            activeTabId,
+          const dialogPageState = await captureDefaultHighlightedPageState({
+            tabId: activeTabId,
             conversationId,
-            true, // include_cursor
-            90, // quality
-            false, // resizeToPreset
-            0, // waitForRender
-          );
+            logLabel: 'HandleDialog',
+          });
 
           console.log(
             `✅ [HandleDialog] Dialog handling complete, screenshot captured`,
@@ -1468,21 +1808,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             message: `Dialog handled successfully: ${handleResult.previousDialog.type} ${action}ed`,
             data: {
               handledDialog: handleResult.previousDialog,
-              screenshot: await compressIfNeeded(
-                screenshotResult,
-                getCompressionThreshold(),
-              ),
-              ...(screenshotResult?.dialog_auto_accepted
-                ? {
-                    dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
-                  }
-                : {}),
-              ...(screenshotResult?.dialog_auto_accepted_list
-                ? {
-                    dialog_auto_accepted_list:
-                      screenshotResult.dialog_auto_accepted_list,
-                  }
-                : {}),
+              ...dialogPageState,
             },
             timestamp: Date.now(),
           };
@@ -1541,334 +1867,28 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         const keywords = command.keywords;
         const elementType = command.element_type || 'any';
         const page = command.page || 1;
-
-        const detectionScript = buildHighlightDetectionScript({
-          elementType,
-        });
-
-        await runHighlightPreconditionWarmup({
-          tabId: activeTabId,
-          conversationId,
-          elementType,
-          page,
-        });
-
-        const maxHighlightAttempts = 3;
-        const highlightDetectionTimeoutMs = 18000;
-        let previousConsistency: HighlightConsistencyResult | null = null;
-
-        for (let attempt = 1; attempt <= maxHighlightAttempts; attempt++) {
-          console.log(
-            `🔁 [HighlightElements] Attempt ${attempt}/${maxHighlightAttempts}`,
-          );
-
-          // Execute detection script in page context
-          const detectionResult = await javascript.executeJavaScript(
-            activeTabId,
-            conversationId,
-            detectionScript,
-            true, // returnByValue
-            true, // awaitPromise
-            highlightDetectionTimeoutMs, // timeout
-          );
-
-          if (!detectionResult.success || !detectionResult.result?.value) {
-            return {
-              success: false,
-              error: detectionResult.error || 'Failed to detect elements',
-              timestamp: Date.now(),
-            };
-          }
-
-          const allElements = detectionResult.result.value.elements || [];
-          const detectedDocumentId =
-            typeof detectionResult.result.value.documentId === 'string'
-              ? detectionResult.result.value.documentId
-              : '';
-          const detectedViewport = detectionResult.result.value.viewport || {};
-          const layoutStability = detectionResult.result.value.layoutStability;
-          const highlightTraceStart = Date.now();
-          const detectedViewportWidth =
-            typeof detectedViewport.width === 'number'
-              ? detectedViewport.width
-              : 0;
-          const detectedViewportHeight =
-            typeof detectedViewport.height === 'number'
-              ? detectedViewport.height
-              : 0;
-          if (layoutStability) {
-            console.log(
-              `⏳ [HighlightElements] Readiness snapshot: ${JSON.stringify(layoutStability)}`,
-            );
-          }
-
-          // Do not wait inside the page for "stability". Hidden/background tabs
-          // can throttle page timers hard enough that page-side polling becomes
-          // the dominant source of highlight timeouts. Instead, classify the
-          // current snapshot and do at most a couple of short background-side
-          // retries when the viewport still looks like a loading/skeleton state.
-          const pageState: HighlightPageState =
-            layoutStability?.state || 'ready';
-          const readinessReasons = Array.isArray(layoutStability?.reasons)
-            ? layoutStability.reasons
-            : [];
-
-          if (pageState === 'not_ready' && attempt < maxHighlightAttempts) {
-            const retryDelayMs = getHighlightReadinessRetryDelay(attempt);
-            console.warn(
-              `⚠️ [HighlightElements] Readiness state is not_ready (${readinessReasons.join(', ') || 'no reasons'}), retrying in ${retryDelayMs}ms (attempt ${attempt}/${maxHighlightAttempts})`,
-            );
-            await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-            continue;
-          }
-
-          const keywordFilterStart = Date.now();
-          const keywordFiltering = filterHighlightElementsByKeywords(
-            allElements,
-            keywords,
-          );
-          const keywordList = keywordFiltering.keywords;
-          const filteredElements = assignHashedElementIds(
-            keywordFiltering.elements,
-          );
-
-          if (keywordList.length > 0) {
-            console.log(
-              `🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${filteredElements.length} of ${allElements.length} elements`,
-            );
-          }
-          console.log(
-            `⏱️ [HighlightTrace] background keyword-filter ${Date.now() - keywordFilterStart}ms (keywords=${keywordList.length}, kept=${filteredElements.length}/${allElements.length})`,
-          );
-
-          let paginatedElements: InteractiveElement[];
-          let totalPages: number;
-          let currentPage = page;
-
-          if (keywordList.length > 0) {
-            // Keyword mode: return all matching elements, no pagination.
-            paginatedElements = filteredElements;
-            totalPages = 1;
-            currentPage = 1;
-            console.log(
-              `🔍 [HighlightElements] Keywords [${keywordList.join(', ')}] matched ${paginatedElements.length} elements (no pagination)`,
-            );
-          } else {
-            // Normal collision-aware pagination
-            const paginationSelectionStart = Date.now();
-            paginatedElements = selectCollisionFreePage(
-              filteredElements,
-              page,
-              detectedViewportWidth,
-              detectedViewportHeight,
-            );
-            const paginationSelectionMs = Date.now() - paginationSelectionStart;
-            const totalPagesStart = Date.now();
-            totalPages = calculateTotalPages(
-              filteredElements,
-              detectedViewportWidth,
-              detectedViewportHeight,
-            );
-            const totalPagesMs = Date.now() - totalPagesStart;
-            console.log(
-              `📄 [HighlightElements] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`,
-            );
-            console.log(
-              `⏱️ [HighlightTrace] background pagination select=${paginationSelectionMs}ms totalPages=${totalPagesMs}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
-            );
-          }
-
-          // Capture screenshot
-          const screenshotStart = Date.now();
-          const screenshotResult = await captureScreenshot(
-            activeTabId,
-            conversationId,
-            true,
-            90,
-            false,
-            0,
-            HIGHLIGHT_SCREENSHOT_CAPTURE_OPTIONS,
-          );
-
-          // Validate screenshot result
-          if (!screenshotResult?.success || !screenshotResult?.imageData) {
-            return {
-              success: false,
-              error: `Failed to capture screenshot: ${screenshotResult?.success === false ? 'Screenshot command failed' : 'No image data returned'}`,
-              timestamp: Date.now(),
-            };
-          }
-          console.log(
-            `📸 [HighlightElements] Screenshot captured, size: ${screenshotResult.imageData.length} bytes`,
-          );
-          console.log(
-            `⏱️ [HighlightTrace] background screenshot ${Date.now() - screenshotStart}ms`,
-          );
-
-          // Get device pixel ratio for coordinate scaling
-          const imageScale =
-            screenshotResult.metadata?.imageScale ||
-            screenshotResult.metadata?.devicePixelRatio ||
-            1;
-          const viewportWidth = screenshotResult.metadata?.viewportWidth || 0;
-          const viewportHeight = screenshotResult.metadata?.viewportHeight || 0;
-          console.log(`📐 [HighlightElements] Image scale: ${imageScale}`);
-          console.log(
-            `📐 [HighlightElements] Viewport: ${viewportWidth}x${viewportHeight} CSS pixels`,
-          );
-          console.log(
-            `📐 [HighlightElements] Expected image size: ${Math.round(viewportWidth * imageScale)}x${Math.round(viewportHeight * imageScale)} device pixels`,
-          );
-
-          const consistencyCheckStart = Date.now();
-          const consistencyScript =
-            buildHighlightConsistencyScript(paginatedElements);
-          const consistencyResult = await javascript.executeJavaScript(
-            activeTabId,
-            conversationId,
-            consistencyScript,
-            true,
-            false,
-            2000,
-          );
-          const currentConsistencySamples =
-            consistencyResult.success &&
-            consistencyResult.result?.value?.samples &&
-            Array.isArray(consistencyResult.result.value.samples)
-              ? consistencyResult.result.value.samples
-              : [];
-          const highlightConsistency = evaluateHighlightConsistency(
-            paginatedElements
-              .slice(0, HIGHLIGHT_CONSISTENCY_CONFIG.maxSampleSize)
-              .map((element) => ({
-                id: element.id,
-                bbox: element.bbox,
-              })),
-            currentConsistencySamples,
-          );
-          console.log(
-            `⏱️ [HighlightTrace] background consistency-check ${Date.now() - consistencyCheckStart}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
-          );
-          const repeatedDrift = isRepeatedHighlightDrift(
-            highlightConsistency,
-            previousConsistency,
-          );
-
-          if (
-            highlightConsistency.shouldRetry &&
-            attempt < maxHighlightAttempts &&
-            !repeatedDrift
-          ) {
-            previousConsistency = highlightConsistency;
-            console.warn(
-              `⚠️ [HighlightElements] Layout drift detected after screenshot, retrying (attempt ${attempt}/${maxHighlightAttempts})`,
-            );
-            continue;
-          }
-
-          if (highlightConsistency.shouldRetry) {
-            console.warn(
-              repeatedDrift
-                ? `⚠️ [HighlightElements] Layout drift repeated with near-identical metrics, returning latest screenshot`
-                : `⚠️ [HighlightElements] Layout drift still detected on final attempt, returning latest screenshot`,
-            );
-          }
-
-          // Preserve the original highlight pipeline order for detection,
-          // pagination, and consistency checks. Only sort at the rendering
-          // boundary so the screenshot/response stay intuitive without
-          // changing the stability gate or element IDs.
-          const storedPages = buildStoredHighlightPages({
-            filteredElements,
-            totalPages,
-            viewportWidth: detectedViewportWidth,
-            viewportHeight: detectedViewportHeight,
-            keywordMode: keywordList.length > 0,
-          });
-          const displayOrderedElements = storedPages[currentPage - 1] ?? [];
-
-          const cacheStoreStart = Date.now();
-          const storedPage = elementCache.storeHighlightResult({
-            conversationId,
+        try {
+          const highlightedPage = await captureHighlightedPageState({
             tabId: activeTabId,
-            documentId: detectedDocumentId,
+            conversationId,
             elementType,
-            keywords: keywordList,
-            totalElements: filteredElements.length,
-            totalPages: totalPages,
-            pages: storedPages,
-            page: currentPage,
+            page,
+            keywords,
+            logLabel: 'HighlightElements',
           });
-          console.log(
-            `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (page=${storedPage.page}, count=${displayOrderedElements.length})`,
-          );
-
-          // Log first few element bboxes for debugging
-          if (displayOrderedElements.length > 0) {
-            console.log(
-              `📍 [HighlightElements] First element bbox:`,
-              JSON.stringify(displayOrderedElements[0].bbox),
-            );
-          }
-
-          // Draw highlights on screenshot (scale coordinates by DPR)
-          const drawHighlightsStart = Date.now();
-          const highlightedScreenshot = await drawHighlights(
-            screenshotResult.imageData,
-            storedPage.elements,
-            {
-              scale: imageScale,
-              viewportWidth,
-              viewportHeight,
-            },
-          );
-          console.log(
-            `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${storedPage.elements.length})`,
-          );
-
-          const compressStart = Date.now();
-          const compressedScreenshot = await compressIfNeeded(
-            highlightedScreenshot,
-            getCompressionThreshold(),
-          );
-          console.log(
-            `⏱️ [HighlightTrace] background compress ${Date.now() - compressStart}ms`,
-          );
-          console.log(
-            `⏱️ [HighlightTrace] background total ${Date.now() - highlightTraceStart}ms`,
-          );
 
           return {
             success: true,
-            data: {
-              elements: storedPage.elements,
-              totalElements: filteredElements.length,
-              totalPages: totalPages,
-              page: currentPage,
-              pageState,
-              readinessReasons,
-              screenshot: compressedScreenshot,
-              ...(screenshotResult?.dialog_auto_accepted
-                ? {
-                    dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
-                  }
-                : {}),
-              ...(screenshotResult?.dialog_auto_accepted_list
-                ? {
-                    dialog_auto_accepted_list:
-                      screenshotResult.dialog_auto_accepted_list,
-                  }
-                : {}),
-            },
+            data: highlightedPage,
+            timestamp: Date.now(),
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
             timestamp: Date.now(),
           };
         }
-
-        return {
-          success: false,
-          error: 'Failed to produce a stable highlight screenshot',
-          timestamp: Date.now(),
-        };
       }
 
       case 'click_element': {
@@ -1906,35 +1926,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           );
         }
 
-        const clickScreenshotResult = await captureScreenshot(
-          screenshotTabId,
-          command.conversation_id,
-          true,
-          90,
-          false,
-          0,
-        );
-        const compressedClickScreenshotResult = await compressScreenshotResult(
-          clickScreenshotResult,
-        );
+        const clickPageState = await captureDefaultHighlightedPageState({
+          tabId: screenshotTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'ClickElement',
+        });
 
         return {
           success: clickResult.success,
           data: {
             ...clickResult,
-            screenshot: compressedClickScreenshotResult?.imageData,
-            ...(compressedClickScreenshotResult?.dialog_auto_accepted
-              ? {
-                  dialog_auto_accepted:
-                    compressedClickScreenshotResult.dialog_auto_accepted,
-                }
-              : {}),
-            ...(compressedClickScreenshotResult?.dialog_auto_accepted_list
-              ? {
-                  dialog_auto_accepted_list:
-                    compressedClickScreenshotResult.dialog_auto_accepted_list,
-                }
-              : {}),
+            ...clickPageState,
           },
           error: clickResult.error,
           timestamp: Date.now(),
@@ -1953,35 +1955,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           command.element_id,
           hoverTabId,
         );
-        const hoverScreenshotResult = await captureScreenshot(
-          hoverTabId,
-          command.conversation_id,
-          true,
-          90,
-          false,
-          0,
-        );
-        const compressedHoverScreenshotResult = await compressScreenshotResult(
-          hoverScreenshotResult,
-        );
+        const hoverPageState = await captureDefaultHighlightedPageState({
+          tabId: hoverTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'HoverElement',
+        });
 
         return {
           success: hoverResult.success,
           data: {
             ...hoverResult,
-            screenshot: compressedHoverScreenshotResult?.imageData,
-            ...(compressedHoverScreenshotResult?.dialog_auto_accepted
-              ? {
-                  dialog_auto_accepted:
-                    compressedHoverScreenshotResult.dialog_auto_accepted,
-                }
-              : {}),
-            ...(compressedHoverScreenshotResult?.dialog_auto_accepted_list
-              ? {
-                  dialog_auto_accepted_list:
-                    compressedHoverScreenshotResult.dialog_auto_accepted_list,
-                }
-              : {}),
+            ...hoverPageState,
           },
           error: hoverResult.error,
           timestamp: Date.now(),
@@ -2003,35 +1987,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           scrollTabId,
           command.scroll_amount || 0.5,
         );
-        const scrollScreenshotResult = await captureScreenshot(
-          scrollTabId,
-          command.conversation_id,
-          true,
-          90,
-          false,
-          0,
-        );
-        const compressedScrollScreenshotResult = await compressScreenshotResult(
-          scrollScreenshotResult,
-        );
+        const scrollPageState = await captureDefaultHighlightedPageState({
+          tabId: scrollTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'ScrollElement',
+        });
 
         return {
           success: scrollResult.success,
           data: {
             ...scrollResult,
-            screenshot: compressedScrollScreenshotResult?.imageData,
-            ...(compressedScrollScreenshotResult?.dialog_auto_accepted
-              ? {
-                  dialog_auto_accepted:
-                    compressedScrollScreenshotResult.dialog_auto_accepted,
-                }
-              : {}),
-            ...(compressedScrollScreenshotResult?.dialog_auto_accepted_list
-              ? {
-                  dialog_auto_accepted_list:
-                    compressedScrollScreenshotResult.dialog_auto_accepted_list,
-                }
-              : {}),
+            ...scrollPageState,
           },
           error: scrollResult.error,
           timestamp: Date.now(),
@@ -2052,36 +2018,19 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           swipeTabId,
           command.swipe_count || 1,
         );
-        const swipeScreenshotResult = await captureScreenshot(
-          swipeTabId,
-          command.conversation_id,
-          true,
-          90,
-          false,
-          900,
-          TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
-        );
-        const compressedSwipeScreenshotResult = await compressScreenshotResult(
-          swipeScreenshotResult,
-        );
+        const swipePageState = await captureDefaultHighlightedPageState({
+          tabId: swipeTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'SwipeElement',
+          preconditionWaitForRender: 900,
+          preconditionCaptureOptions: TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+        });
 
         return {
           success: swipeResult.success,
           data: {
             ...swipeResult,
-            screenshot: compressedSwipeScreenshotResult?.imageData,
-            ...(compressedSwipeScreenshotResult?.dialog_auto_accepted
-              ? {
-                  dialog_auto_accepted:
-                    compressedSwipeScreenshotResult.dialog_auto_accepted,
-                }
-              : {}),
-            ...(compressedSwipeScreenshotResult?.dialog_auto_accepted_list
-              ? {
-                  dialog_auto_accepted_list:
-                    compressedSwipeScreenshotResult.dialog_auto_accepted_list,
-                }
-              : {}),
+            ...swipePageState,
           },
           error: swipeResult.error,
           timestamp: Date.now(),
@@ -2101,35 +2050,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           command.text,
           inputTabId,
         );
-        const inputScreenshotResult = await captureScreenshot(
-          inputTabId,
-          command.conversation_id,
-          true,
-          90,
-          false,
-          0,
-        );
-        const compressedInputScreenshotResult = await compressScreenshotResult(
-          inputScreenshotResult,
-        );
+        const inputPageState = await captureDefaultHighlightedPageState({
+          tabId: inputTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'KeyboardInput',
+        });
 
         return {
           success: inputResult.success,
           data: {
             ...inputResult,
-            screenshot: compressedInputScreenshotResult?.imageData,
-            ...(compressedInputScreenshotResult?.dialog_auto_accepted
-              ? {
-                  dialog_auto_accepted:
-                    compressedInputScreenshotResult.dialog_auto_accepted,
-                }
-              : {}),
-            ...(compressedInputScreenshotResult?.dialog_auto_accepted_list
-              ? {
-                  dialog_auto_accepted_list:
-                    compressedInputScreenshotResult.dialog_auto_accepted_list,
-                }
-              : {}),
+            ...inputPageState,
           },
           error: inputResult.error,
           timestamp: Date.now(),
@@ -2149,35 +2080,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           selectTabId,
           command.value,
         );
-        const selectScreenshotResult = await captureScreenshot(
-          selectTabId,
-          command.conversation_id,
-          true,
-          90,
-          false,
-          0,
-        );
-        const compressedSelectScreenshotResult = await compressScreenshotResult(
-          selectScreenshotResult,
-        );
+        const selectPageState = await captureDefaultHighlightedPageState({
+          tabId: selectTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'SelectElement',
+        });
 
         return {
           success: selectResult.success,
           data: {
             ...selectResult,
-            screenshot: compressedSelectScreenshotResult?.imageData,
-            ...(compressedSelectScreenshotResult?.dialog_auto_accepted
-              ? {
-                  dialog_auto_accepted:
-                    compressedSelectScreenshotResult.dialog_auto_accepted,
-                }
-              : {}),
-            ...(compressedSelectScreenshotResult?.dialog_auto_accepted_list
-              ? {
-                  dialog_auto_accepted_list:
-                    compressedSelectScreenshotResult.dialog_auto_accepted_list,
-                }
-              : {}),
+            ...selectPageState,
           },
           error: selectResult.error,
           timestamp: Date.now(),
@@ -2210,16 +2123,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         );
 
         if (!element) {
-          const normalizedElementId = normalizeVisualElementIdInput(elementId);
           console.warn(
             `⚠️ [GetElementHtml] Element ${elementId} not found in cache for conversation ${conversationId}, tab ${activeTabId}`,
           );
           return {
             success: false,
-            error:
-              normalizedElementId !== elementId
-                ? `Element ${elementId} was interpreted as ${normalizedElementId} for visual-safe ID matching, but no cached element matched. The highlight cache may have expired or the page may have changed. Try highlight_elements again.`
-                : `Element ${elementId} not found in cache. The highlight cache may have expired or the page may have changed. Try highlight_elements again.`,
+            error: buildElementCacheMissMessage({
+              conversationId,
+              tabId: activeTabId,
+              elementId,
+              refreshHint:
+                'The highlight cache may have expired or the page may have changed. Try highlight_elements again.',
+            }),
             data: {
               element_id: elementId,
               html: null,
@@ -2272,15 +2187,13 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           command.element_id,
         );
         if (!element) {
-          const normalizedElementId = normalizeVisualElementIdInput(
-            command.element_id,
-          );
           return {
             success: false,
-            error:
-              normalizedElementId !== command.element_id
-                ? `Element ${command.element_id} was interpreted as ${normalizedElementId} for visual-safe ID matching, but no cached element matched. Call highlight_elements() again.`
-                : `Element ${command.element_id} not found in cache. Call highlight_elements() again.`,
+            error: buildElementCacheMissMessage({
+              conversationId,
+              tabId: activeTabId,
+              elementId: command.element_id,
+            }),
             timestamp: Date.now(),
           };
         }

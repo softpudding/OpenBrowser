@@ -206,10 +206,13 @@ Elements are paginated to ensure **no visual overlap** in each screenshot:
 - Reason: OpenBrowser intentionally keeps automated tabs in the browser background, and Chrome may heavily throttle hidden-tab timers. A page-side `setTimeout` stability loop can therefore take far longer than its nominal budget and become the main cause of highlight timeouts.
 - In practice, the main cause of unstable first-highlight screenshots is often **missing warmup**, not a bad readiness classifier. A background tab may answer lightweight `Runtime.evaluate` probes while still sitting in a partially painted / partially decoded state.
 - A screenshot-style warmup is therefore the default precondition for `highlight_elements`. It helps force hidden-tab paint/compositor/image-decode work before interactive-element detection runs.
+- All highlight warmup and highlight screenshot captures now reuse the same screenshot wake-up profile as `tab view` (`TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS`) instead of a weaker highlight-only profile. The goal is consistency: if a screenshot is needed to wake the page, the highlight path should not use a different, less effective capture mode.
+- For navigation-driven default observations such as `tab init`, `tab open`, `tab switch`, `tab refresh`, `tab back`, and `tab forward`, the extension now performs an **internal raw screenshot prime** first, then runs the normal highlight warmup + detection + highlighted screenshot flow. That raw prime screenshot is only for waking the background page and is **not** returned to the agent.
 - If `highlight_elements` keeps returning `not_ready` but `tab view` immediately makes the next highlight succeed, treat that as a warmup issue first.
 - The extension samples viewport readiness signals once per attempt: document readiness, viewport text/media density, pending images, and loading placeholders such as skeleton/shimmer/spinner indicators.
 - Readiness is graded as `ready`, `provisionally_ready`, or `not_ready`.
 - If readiness is `not_ready`, the extension performs only a couple of short **background-side** retries before proceeding or returning the latest result.
+- The screenshot-side wake-up itself also runs a bounded pre-capture warmup loop. It touches visible viewport media, samples readiness, and retries only a couple of times when the snapshot still looks `not_ready`.
 - After screenshot capture, highlight still runs a **consistency check**. This is a drift detector, not a loading detector: it verifies whether sampled highlighted elements moved or disappeared between detection and screenshot.
 - Design rule: prefer snapshot classification plus bounded retries; avoid depending on repeated timers inside the target page for highlight stability.
 
@@ -321,10 +324,10 @@ OpenBrowser has explicit screenshot control for maximum flexibility:
 
 | Command | Auto-Screenshot | Notes |
 |---------|------------------|-------|
-| `tab init` | Yes | Verify page load |
-| `tab open` | Yes | Verify new tab |
-| `tab switch` | Yes | Verify tab switch |
-| `tab refresh` | Yes | Verify refresh result |
+| `tab init` | Yes | Returns default `highlight any page 1`; first does an internal raw screenshot prime to wake the page |
+| `tab open` | Yes | Returns default `highlight any page 1`; first does an internal raw screenshot prime to wake the page |
+| `tab switch` | Yes | Returns default `highlight any page 1`; first does an internal raw screenshot prime to wake the page |
+| `tab refresh` | Yes | Returns default `highlight any page 1`; first does an internal raw screenshot prime to wake the page |
 |---------|------------------|-------|
 | `highlight_elements` | Yes | Visual overlay for element selection |
 | `click_element` | Yes | Verify interaction result |

@@ -11,24 +11,12 @@ import type { ElementActionResult } from '../types';
  * - Handles dialog events using the same pattern as javascript.ts
  */
 
-import { ELEMENT_CACHE_TTL_DESCRIPTION, elementCache } from './element-cache';
+import { buildElementCacheMissMessage, elementCache } from './element-cache';
 import { executeJavaScript, type JavaScriptResult } from './javascript';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
-import { normalizeVisualElementIdInput } from './element-id';
 
 function escapeForDoubleQuotedJavaScriptString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
-function buildElementCacheMissMessage(
-  elementId: string,
-  refreshHint: string = 'Call highlight_elements() again to refresh the element cache.',
-): string {
-  const normalizedElementId = normalizeVisualElementIdInput(elementId);
-  if (normalizedElementId && normalizedElementId !== elementId) {
-    return `Element '${elementId}' was interpreted as '${normalizedElementId}' for visual-safe ID matching, but no cached element matched. Highlight caches expire after ${ELEMENT_CACHE_TTL_DESCRIPTION}. ${refreshHint}`;
-  }
-  return `Element '${elementId}' not found in cache. Highlight caches expire after ${ELEMENT_CACHE_TTL_DESCRIPTION}. ${refreshHint}`;
 }
 
 function buildResolvedElementResultFields(
@@ -436,7 +424,11 @@ export async function performElementClick(
       ...buildResolvedElementResultFields(elementId, elementId),
       clicked: false,
       staleElement: false,
-      error: buildElementCacheMissMessage(elementId),
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId,
+      }),
     };
   }
   const element = cachedElement.element;
@@ -729,7 +721,11 @@ export async function performElementHover(
       ...buildResolvedElementResultFields(elementId, elementId),
       hovered: false,
       staleElement: false,
-      error: buildElementCacheMissMessage(elementId),
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId,
+      }),
     };
   }
   const element = cachedElement.element;
@@ -1027,7 +1023,11 @@ export async function performElementScroll(
         success: false,
         ...buildResolvedElementResultFields(elementId, elementId),
         scrolled: false,
-        error: buildElementCacheMissMessage(elementId),
+        error: buildElementCacheMissMessage({
+          conversationId,
+          tabId,
+          elementId,
+        }),
       };
     }
     const element = cachedElement.element;
@@ -1377,7 +1377,11 @@ export async function performElementSwipe(
       success: false,
       ...buildResolvedElementResultFields(elementId, elementId),
       swiped: false,
-      error: buildElementCacheMissMessage(elementId),
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId,
+      }),
     };
   }
   const element = cachedElement.element;
@@ -2551,7 +2555,11 @@ export async function performKeyboardInput(
       ...buildResolvedElementResultFields(elementId, elementId),
       input: false,
       staleElement: false,
-      error: buildElementCacheMissMessage(elementId),
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId,
+      }),
     };
   }
   const element = cachedElement.element;
@@ -2856,7 +2864,11 @@ export async function performElementSelect(
       ...buildResolvedElementResultFields(elementId, elementId),
       selected: false,
       staleElement: false,
-      error: buildElementCacheMissMessage(elementId),
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId,
+      }),
     };
   }
   const element = cachedElement.element;

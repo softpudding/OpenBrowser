@@ -61,18 +61,22 @@ class TestPromptContracts:
         description = get_highlight_tool_description()
 
         assert "Default: any interactive elements, page 1" in description
-        assert '"any" (default)' in description
-        assert "default first pass for each new page state" in description
-        assert "extension-derived page insight across element types" in description
+        assert 'Single type to highlight - `"any"` (default)' in description
+        assert (
+            "Most completed browser actions already return the default "
+            '`highlight` `element_type: "any"` page 1 observation'
+            in description
+        )
+        assert "Use that returned observation first." in description
         assert "element_id" in description
         assert '"clickable" (default without keywords)' not in description
 
     def test_highlight_prompt_keeps_icon_targets_on_any_pagination(self) -> None:
         description = get_highlight_tool_description()
 
-        assert "icon-only controls" in description
-        assert "Stay on the same `element_type` across pages" in description
-        assert "actual button may simply be on the next page" in description
+        assert "icon-only" in description
+        assert "stay on the same `element_type` across pages" in description
+        assert "your default next step is the next page in the same mode" in description
         assert (
             "Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`"
             in description
@@ -85,32 +89,29 @@ class TestPromptContracts:
         description = get_highlight_tool_description()
 
         assert (
-            "Treat pages as reliable collision-free slices of the current page state's candidate set"
+            "Use `keywords` only for exact literal text you can already see on the target itself"
             in description
         )
-        assert "Do not jump from a first-page miss to `keywords`" in description
-        assert (
-            "Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot"
-            in description
-        )
-        assert '`{"keywords": ["52"]}`' in description
-        assert '`["star"]`, `["favorite"]`, or `["bookmark"]`' in description
-        assert "DO NOT use synonym bundles like" in description
+        assert '{ "keywords": ["Continue with Email"] }' in description
+        assert "`star`, `favorite`, or `bookmark`" in description
         assert "Examples of broad search" not in description
         assert "Phase 2: Broad Search" not in description
 
-    def test_highlight_prompt_requires_rehighlight_after_significant_page_change(
+    def test_highlight_prompt_uses_current_observation_before_calling_highlight(
         self,
     ) -> None:
         description = get_highlight_tool_description()
 
-        assert "After any significant page-state change" in description
         assert (
-            'call `highlight` with `element_type: "any"` again before choosing the next element'
+            "Use that returned observation first. Do not re-run `highlight` "
+            "just because the page changed."
             in description
         )
         assert (
-            "Do not jump straight to `keywords` or another narrower type on that changed page"
+            "Call `highlight` when you need more inventory: page 2+, a "
+            "narrower `element_type`, exact-text filtering, or a fresh "
+            "inventory after a command that did not return an interactive "
+            "observation"
             in description
         )
 
@@ -171,6 +172,7 @@ class TestPromptContracts:
 
         assert "tab view" in description
         assert "clean screenshot" in description.lower()
+        assert 'default `highlight` `element_type: "any"` page 1' in description
 
     def test_element_interaction_prompt_requires_click_before_keyboard_input(
         self,
@@ -185,8 +187,13 @@ class TestPromptContracts:
             "only after you already clicked the same input target and completed that click confirmation"
             in description
         )
+        assert (
+            "If the current observation already contains the right `element_id`, "
+            "act on it directly." in description
+        )
         assert "YELLOW preview screenshot" in description
         assert "Is this the element you wanted to click?" in description
+        assert 'default `highlight` `element_type: "any"` page 1 screenshot' in description
 
     def test_element_interaction_prompt_explains_swipe_semantics(self) -> None:
         description = get_element_interaction_tool_description()

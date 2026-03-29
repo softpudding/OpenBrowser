@@ -55,38 +55,24 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
         description = get_highlight_tool_description()
 
     assert "## Core Rules" in description
-    assert "default first pass for each new page state" in description
-    assert "extension-derived page insight across element types" in description
-    assert "Treat highlight pagination as reliable" in description
-    assert "After any significant page-state change" in description
     assert (
-        'Do not jump away from `element_type: "any"` on a newly changed page'
+        "Outside of `tab view`, completed browser actions already return the "
+        'default `highlight` `element_type: "any"` page 1 observation'
         in description
     )
-    assert "icon-only toolbar or header control" in description
+    assert "Use that current observation first." in description
     assert (
-        "continue `any` pagination and inspect the next pages instead of switching modes"
-        in description
+        "Call `highlight` when you need page 2+, a narrower `element_type`, "
+        "or a fresh inventory after a command that did not return an "
+        "interactive observation." in description
     )
-    assert "you may narrow to `inputable`" in description
-    assert (
-        "always `click` it first and complete that confirmation before `keyboard_input`"
-        in description
-    )
-    assert "After typing, continue discovery with `any`" in description
-    assert (
-        'When a search results page loads, call `highlight` with `element_type: "any"`'
-        in description
-    )
-    assert "use `tab back`" in description
-    assert (
-        'Do not use guessed labels such as "settings", "gear", "bell", "next", "prev", or "close"'
-        in description
-    )
-    assert "icon button next to a count or badge" in description
+    assert '`element_type: "any"` is the default mixed inventory' in description
+    assert "If highlight shows `swipable`, use `swipe`." in description
+    assert "before `keyboard_input`" in description
     assert "`keywords`" not in description
     assert "`clickable`" not in description
-    assert "Phase 1: Precise Search" not in description
+    assert "When a search results page loads" not in description
+    assert "use `tab back`" not in description
     assert "Collision-Aware Pagination" not in description
 
 
@@ -119,48 +105,32 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
     ):
         description = get_highlight_tool_description()
 
-    assert "Collision-Aware Pagination" in description
-    assert "## Any-First Discovery Rule" in description
-    assert "default first pass for each new page state" in description
-    assert "extension-derived page insight across element types" in description
+    assert "## Core Contract" in description
     assert (
-        'After any significant page-state change, restart with `highlight` on `element_type: "any"`'
+        "Most completed browser actions already return the default `highlight` "
+        '`element_type: "any"` page 1 observation'
         in description
     )
-    assert (
-        'Do not jump away from `element_type: "any"` on that changed page'
-        in description
-    )
-    assert "Exact-Text Search Only" in description
-    assert "icon-only controls" in description
-    assert 'Prefer `element_type: "any"` as the default first pass' in description
+    assert "Use that returned observation first." in description
+    assert "If you need a clean screenshot without overlays, use `tab view`" in description
+    assert "A1H(scrollable, swipable)" in description
+    assert "icon-only" in description
+    assert "On the same unchanged page state, stay on the same `element_type`" in description
     assert (
         "always `click` it first and complete that confirmation before `keyboard_input`"
         in description
     )
     assert (
-        "Treat pages as reliable collision-free slices of the current page state's candidate set"
+        "Use `keywords` only for exact literal text you can already see on the target itself"
         in description
     )
-    assert "Do not jump from a first-page miss to `keywords`" in description
-    assert (
-        "prefer more `any` pages over broad keyword search or a narrower generic-control mode"
-        in description
-    )
-    assert (
-        'DO NOT search for unlabeled toolbar icons or ambiguous controls with guessed words like "settings", "gear", "bell", "chat", "next", "prev", or "close"'
-        in description
-    )
-    assert (
-        "Use keywords only for exact literal text characters you can already see on the target itself in the current screenshot"
-        in description
-    )
-    assert '`{"keywords": ["52"]}`' in description
-    assert '`["star"]`, `["favorite"]`, or `["bookmark"]`' in description
-    assert "the actual button may simply be on the next page" in description
+    assert '{ "keywords": ["Continue with Email"] }' in description
+    assert "`star`, `favorite`, or `bookmark`" in description
     assert "`clickable`" not in description
     assert "Phase 2: Broad Search" not in description
     assert "Examples of broad search" not in description
+    assert "Collision-Aware Pagination" not in description
+    assert "Exact-Text Search Only" not in description
 
 
 def test_small_model_element_interaction_requires_click_before_keyboard_input() -> None:
@@ -180,7 +150,8 @@ def test_small_model_element_interaction_requires_click_before_keyboard_input() 
         in description
     )
     assert "YELLOW preview" in description
-    assert "reminder text" in description
+    assert "Use the current observation first." in description
+    assert 'default `highlight` `element_type: "any"` page 1 screenshot' in description
     assert "always `click` first, then use `keyboard_input`" in description
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description
@@ -207,8 +178,13 @@ def test_large_model_element_interaction_requires_click_before_keyboard_input() 
         "only after you already clicked the same input target and completed that click confirmation"
         in description
     )
+    assert (
+        "If the current observation already contains the right `element_id`, "
+        "act on it directly." in description
+    )
     assert "YELLOW preview screenshot" in description
     assert "Is this the element you wanted to click?" in description
+    assert 'default `highlight` `element_type: "any"` page 1 screenshot' in description
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description
     assert "not finger or gesture directions" in description
