@@ -306,6 +306,41 @@ input {
     box-shadow: none;
 }
 
+.add-btn.is-complete,
+.review-action.is-complete {
+    border-color: rgba(28, 122, 78, 0.2);
+    background: #1c7a4e;
+    color: #fff;
+    box-shadow: 0 16px 30px rgba(28, 122, 78, 0.22);
+}
+
+.add-btn.is-complete:disabled,
+.review-action.is-complete:disabled {
+    opacity: 1;
+    cursor: default;
+}
+
+.action-feedback {
+    margin: 14px 0 0;
+    min-height: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--success);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.action-feedback.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.drawer-feedback {
+    padding: 0 28px 12px;
+    margin: 0;
+}
+
 .story-grid {
     margin-top: 32px;
     display: grid;
@@ -375,6 +410,7 @@ input {
     background: var(--surface);
     display: flex;
     flex-direction: column;
+    position: relative;
     box-shadow: -24px 0 60px rgba(28, 21, 16, 0.18);
 }
 
@@ -410,6 +446,41 @@ input {
     scroll-behavior: smooth;
 }
 
+.guide-scroll {
+    padding-bottom: 260px;
+}
+
+.fit-guide-refresh-fab {
+    position: fixed;
+    left: var(--fit-guide-refresh-left, -9999px);
+    top: var(--fit-guide-refresh-top, -9999px);
+    z-index: 60;
+    width: 82px;
+    height: 82px;
+    border: 1px solid rgba(29, 26, 23, 0.12);
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: rgba(252, 251, 248, 0.96);
+    color: #1d1a17;
+    box-shadow: 0 18px 34px rgba(28, 21, 16, 0.18);
+    backdrop-filter: blur(12px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease, box-shadow 140ms ease;
+}
+
+.fit-guide-refresh-fab.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.fit-guide-refresh-fab svg {
+    width: 32px;
+    height: 32px;
+    fill: currentColor;
+}
+
 .review-card,
 .guide-section {
     border-radius: 22px;
@@ -437,9 +508,27 @@ input {
     color: var(--accent);
 }
 
+.review-card.is-complete,
+.guide-section.is-complete,
+.panel-card.is-complete {
+    border-color: rgba(28, 122, 78, 0.22);
+    box-shadow: 0 18px 36px rgba(28, 122, 78, 0.14);
+}
+
+.review-action.is-complete.target-action {
+    border-color: rgba(28, 122, 78, 0.2);
+    background: #1c7a4e;
+    color: #fff;
+}
+
 .target-guide-section {
     border-color: rgba(39, 71, 216, 0.24);
     background: linear-gradient(180deg, rgba(39, 71, 216, 0.05), rgba(39, 71, 216, 0.01));
+}
+
+.target-guide-section.is-complete {
+    border-color: rgba(28, 122, 78, 0.22);
+    background: linear-gradient(180deg, rgba(28, 122, 78, 0.08), rgba(28, 122, 78, 0.02));
 }
 
 @media (max-width: 1080px) {
@@ -463,5 +552,10 @@ input {
         bottom: 14px;
         padding: 16px 18px;
         gap: 12px;
+    }
+
+    .fit-guide-refresh-fab {
+        width: 76px;
+        height: 76px;
     }
 }
