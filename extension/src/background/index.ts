@@ -45,8 +45,7 @@ import {
 } from '../commands/label-constants';
 import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import {
-  selectCollisionFreePage,
-  calculateTotalPages,
+  paginateCollisionFreeElements,
   sortElementsByVisualOrder,
 } from '../utils/collision-detection';
 import {
@@ -161,35 +160,25 @@ async function runRawScreenshotPrime(options: {
 
 function buildStoredHighlightPages(options: {
   filteredElements: InteractiveElement[];
-  totalPages: number;
   viewportWidth: number;
   viewportHeight: number;
   keywordMode: boolean;
 }): InteractiveElement[][] {
-  const {
-    filteredElements,
-    totalPages,
-    viewportWidth,
-    viewportHeight,
-    keywordMode,
-  } = options;
+  const { filteredElements, viewportWidth, viewportHeight, keywordMode } =
+    options;
 
   if (keywordMode) {
     return [sortElementsByVisualOrder(filteredElements)];
   }
 
-  const pages: InteractiveElement[][] = [];
-  for (let page = 1; page <= totalPages; page++) {
-    const pageElements = selectCollisionFreePage(
-      filteredElements,
-      page,
-      viewportWidth,
-      viewportHeight,
-    );
-    pages.push(sortElementsByVisualOrder(pageElements));
-  }
-
-  return pages;
+  const collisionFreePages = paginateCollisionFreeElements(
+    filteredElements,
+    viewportWidth,
+    viewportHeight,
+  );
+  return collisionFreePages.map((collisionFreePage) =>
+    sortElementsByVisualOrder(collisionFreePage),
+  );
 }
 
 function buildHighlightConsistencyScript(
@@ -389,38 +378,39 @@ async function captureHighlightedPageState(
       `⏱️ [HighlightTrace] background keyword-filter ${Date.now() - keywordFilterStart}ms (keywords=${keywordList.length}, kept=${filteredElements.length}/${allElements.length})`,
     );
 
+    let storedPages: InteractiveElement[][];
     let paginatedElements: InteractiveElement[];
     let totalPages: number;
     let currentPage = page;
 
     if (keywordList.length > 0) {
-      paginatedElements = filteredElements;
-      totalPages = 1;
+      storedPages = buildStoredHighlightPages({
+        filteredElements,
+        viewportWidth: detectedViewportWidth,
+        viewportHeight: detectedViewportHeight,
+        keywordMode: true,
+      });
+      paginatedElements = storedPages[0] ?? [];
+      totalPages = storedPages.length || 1;
       currentPage = 1;
       console.log(
         `🔍 [${logLabel}] Keywords [${keywordList.join(', ')}] matched ${paginatedElements.length} elements (no pagination)`,
       );
     } else {
-      const paginationSelectionStart = Date.now();
-      paginatedElements = selectCollisionFreePage(
+      const paginationBuildStart = Date.now();
+      storedPages = buildStoredHighlightPages({
         filteredElements,
-        page,
-        detectedViewportWidth,
-        detectedViewportHeight,
-      );
-      const paginationSelectionMs = Date.now() - paginationSelectionStart;
-      const totalPagesStart = Date.now();
-      totalPages = calculateTotalPages(
-        filteredElements,
-        detectedViewportWidth,
-        detectedViewportHeight,
-      );
-      const totalPagesMs = Date.now() - totalPagesStart;
+        viewportWidth: detectedViewportWidth,
+        viewportHeight: detectedViewportHeight,
+        keywordMode: false,
+      });
+      paginatedElements = storedPages[Math.max(0, page - 1)] ?? [];
+      totalPages = storedPages.length;
       console.log(
         `📄 [${logLabel}] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`,
       );
       console.log(
-        `⏱️ [HighlightTrace] background pagination select=${paginationSelectionMs}ms totalPages=${totalPagesMs}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
+        `⏱️ [HighlightTrace] background pagination build-pages=${Date.now() - paginationBuildStart}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
       );
     }
 
@@ -515,13 +505,6 @@ async function captureHighlightedPageState(
       );
     }
 
-    const storedPages = buildStoredHighlightPages({
-      filteredElements,
-      totalPages,
-      viewportWidth: detectedViewportWidth,
-      viewportHeight: detectedViewportHeight,
-      keywordMode: keywordList.length > 0,
-    });
     const displayOrderedElements = storedPages[currentPage - 1] ?? [];
 
     const cacheStoreStart = Date.now();

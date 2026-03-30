@@ -81,7 +81,7 @@ class TestOpenBrowserObservation:
         assert llm_content[0].image_urls == ["data:image/png;base64,abc123"]
         assert "**[99]** Example" in llm_content[1].text
 
-    def test_highlighted_clickable_elements_are_summarized(self) -> None:
+    def test_highlighted_clickable_elements_include_html(self) -> None:
         observation = OpenBrowserObservation(
             success=True,
             element_type="clickable",
@@ -97,9 +97,8 @@ class TestOpenBrowserObservation:
 
         text = _text_content(observation)
 
-        assert "1 clickable element" in text
-        assert "abc123(clickable):" not in text
-        assert "<button>Submit</button>" not in text
+        assert "1 clickable element" not in text
+        assert "abc123(clickable): <button>Submit</button>" in text
 
     def test_highlighted_elements_render_page_metadata(self) -> None:
         observation = OpenBrowserObservation(
@@ -122,7 +121,9 @@ class TestOpenBrowserObservation:
         assert "**Page**: 2/4" in text
         assert "**Total Elements**: 9" in text
 
-    def test_small_model_highlighted_clickable_elements_keep_html(self) -> None:
+    def test_small_model_highlighted_clickable_elements_still_include_html(
+        self,
+    ) -> None:
         observation = OpenBrowserObservation(
             success=True,
             small_model=True,
@@ -201,10 +202,11 @@ class TestOpenBrowserObservation:
 
         text = _text_content(observation)
 
+        assert 'vrtbj5(clickable): <div class="search-icon"></div>' in text
         assert "q4w08w(inputable):" in text
-        assert "... and 1 clickable element" in text
+        assert "clickable element" not in text
 
-    def test_small_model_mixed_highlighted_elements_include_clickable_html(
+    def test_small_model_mixed_highlighted_elements_match_default_rendering(
         self,
     ) -> None:
         observation = OpenBrowserObservation(

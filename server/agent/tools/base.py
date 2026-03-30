@@ -383,14 +383,9 @@ class OpenBrowserObservation(Observation):
             text_parts.append("")
             # Format: id: <html> for each element
             element_descriptions = []
-            clickable_count = 0
-            include_clickable_html = bool(self.small_model)
             for el in self.highlighted_elements:
                 el_id = el.get("id", "unknown")
                 el_type = el.get("type")
-                if el_type == "clickable" and not include_clickable_html:
-                    clickable_count += 1
-                    continue
                 raw_hints = (
                     el.get("interactionHints") or el.get("interaction_hints") or []
                 )
@@ -415,16 +410,6 @@ class OpenBrowserObservation(Observation):
                 else:
                     tag = el.get("tagName", "").upper()
                     element_descriptions.append(f"{display_id} ({tag})")
-            if clickable_count:
-                clickable_label = (
-                    f"{clickable_count} clickable element"
-                    if clickable_count == 1
-                    else f"{clickable_count} clickable elements"
-                )
-                if element_descriptions:
-                    element_descriptions.append(f"... and {clickable_label}")
-                else:
-                    element_descriptions.append(clickable_label)
             text_parts.append("\n".join(element_descriptions))
             text_parts.append("")
 

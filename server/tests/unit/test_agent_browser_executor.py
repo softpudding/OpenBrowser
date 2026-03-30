@@ -8,7 +8,6 @@ from server.agent.tools.browser_executor import BrowserExecutor
 from server.agent.tools.element_interaction_tool import ElementInteractionAction
 from server.agent.tools.highlight_tool import HighlightAction
 from server.models.commands import (
-    ClickElementCommand,
     HoverElementCommand,
     SwipeElementCommand,
 )
@@ -264,31 +263,25 @@ def test_confirm_click_uses_pending_confirmation_state(monkeypatch) -> None:
     assert executor._get_pending_confirmation() is None
 
 
-def test_repeat_click_with_confirmed_element_id_executes_without_pending_confirmation(
+def test_click_always_requires_pending_confirmation_even_after_prior_confirm(
     monkeypatch,
 ) -> None:
     executor = BrowserExecutor()
     executor.conversation_id = "conv-repeat-click"
-    executor._remember_confirmed_action_element_id("click", "15")
 
     monkeypatch.setattr(
         executor,
         "_get_element_full_html",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("should not fetch confirmation preview")
+        lambda element_id, intended_action=None: (
+            "<button>Save</button>",
+            "data:image/png;base64,pending",
         ),
     )
-
-    captured = {}
-
-    def fake_execute(command):
-        captured["command"] = command
-        return {
-            "success": True,
-            "data": {"screenshot": "data:image/png;base64,clicked-direct"},
-        }
-
-    monkeypatch.setattr(executor, "_execute_command_sync", fake_execute)
+    monkeypatch.setattr(
+        executor,
+        "_execute_command_sync",
+        lambda command: (_ for _ in ()).throw(AssertionError("should stay in 2PC")),
+    )
 
     observation = executor._execute_action_sync(
         ElementInteractionAction(
@@ -300,12 +293,10 @@ def test_repeat_click_with_confirmed_element_id_executes_without_pending_confirm
     )
 
     assert observation.success is True
-    assert observation.message == "Clicked element: 15"
-    assert observation.pending_confirmation is None
-    assert isinstance(captured["command"], ClickElementCommand)
-    assert captured["command"].element_id == "15"
-    assert captured["command"].tab_id == 456
-    assert executor._get_pending_confirmation() is None
+    assert observation.message == "Click action pending confirmation for element: 15"
+    assert observation.pending_confirmation is not None
+    assert observation.pending_confirmation["action_type"] == "click"
+    assert observation.pending_confirmation["element_id"] == "15"
 
 
 def test_unconfirmed_click_element_id_still_enters_pending_confirmation(
@@ -344,53 +335,25 @@ def test_unconfirmed_click_element_id_still_enters_pending_confirmation(
     )
 
 
-def test_confirmed_action_element_id_lru_keeps_only_most_recent_ten_entries() -> None:
-    executor = BrowserExecutor()
-    executor.conversation_id = "conv-repeat-lru"
-
-    for i in range(11):
-        executor._remember_confirmed_action_element_id("click", f"id-{i}")
-
-    lru = executor._get_confirmed_action_element_id_lru("click")
-
-    assert len(lru) == 10
-    assert "id-0" not in lru
-    assert "id-10" in lru
-
-
-def test_confirmed_action_element_id_normalization_only_applies_to_visual_ids() -> None:
-    executor = BrowserExecutor()
-
-    assert executor._normalize_confirmed_action_element_id("D02") == "DO2"
-    assert executor._normalize_confirmed_action_element_id(" d o 2 ") == "DO2"
-    assert executor._normalize_confirmed_action_element_id("id-10") == "id-10"
-
-
-def test_repeat_keyboard_input_with_confirmed_element_id_executes_without_pending_confirmation(
+def test_keyboard_input_always_requires_pending_confirmation_even_after_prior_confirm(
     monkeypatch,
 ) -> None:
     executor = BrowserExecutor()
     executor.conversation_id = "conv-repeat-input"
-    executor._remember_confirmed_action_element_id("keyboard_input", "inp123")
 
     monkeypatch.setattr(
         executor,
         "_get_element_full_html",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("should not fetch confirmation preview")
+        lambda element_id, intended_action=None: (
+            '<input type="text" />',
+            "data:image/png;base64,input-pending",
         ),
     )
-
-    captured = {}
-
-    def fake_execute(command):
-        captured["command"] = command
-        return {
-            "success": True,
-            "data": {"screenshot": "data:image/png;base64,input-direct"},
-        }
-
-    monkeypatch.setattr(executor, "_execute_command_sync", fake_execute)
+    monkeypatch.setattr(
+        executor,
+        "_execute_command_sync",
+        lambda command: (_ for _ in ()).throw(AssertionError("should stay in 2PC")),
+    )
 
     observation = executor._execute_action_sync(
         ElementInteractionAction(
@@ -403,12 +366,13 @@ def test_repeat_keyboard_input_with_confirmed_element_id_executes_without_pendin
     )
 
     assert observation.success is True
-    assert observation.message == "Input text to element: inp123"
-    assert observation.pending_confirmation is None
-    assert captured["command"].element_id == "inp123"
-    assert captured["command"].text == "hello"
-    assert captured["command"].tab_id == 321
-    assert executor._get_pending_confirmation() is None
+    assert (
+        observation.message
+        == "Keyboard input action pending confirmation for element: inp123"
+    )
+    assert observation.pending_confirmation is not None
+    assert observation.pending_confirmation["action_type"] == "keyboard_input"
+    assert observation.pending_confirmation["element_id"] == "inp123"
 
 
 def test_click_pending_confirmation_records_corrected_element_id(monkeypatch) -> None:
@@ -458,7 +422,6 @@ def test_confirmed_click_element_id_does_not_skip_keyboard_input_confirmation(
 ) -> None:
     executor = BrowserExecutor()
     executor.conversation_id = "conv-input-action-isolation"
-    executor._remember_confirmed_action_element_id("click", "inp123")
 
     monkeypatch.setattr(
         executor,
@@ -490,6 +453,70 @@ def test_confirmed_click_element_id_does_not_skip_keyboard_input_confirmation(
     )
     assert observation.pending_confirmation is not None
     assert observation.pending_confirmation["action_type"] == "keyboard_input"
+
+
+def test_confirmed_click_does_not_grant_next_click_shortcut(monkeypatch) -> None:
+    executor = BrowserExecutor()
+    executor.conversation_id = "conv-click-no-shortcut"
+    executor._set_pending_confirmation(
+        element_id="btn13",
+        action_type="click",
+        full_html="<button>Save</button>",
+        extra_data={"tab_id": 456},
+    )
+
+    executed_commands = []
+
+    def fake_execute(command):
+        executed_commands.append(command)
+        return {
+            "success": True,
+            "data": {"screenshot": "data:image/png;base64,clicked"},
+        }
+
+    monkeypatch.setattr(executor, "_execute_command_sync", fake_execute)
+
+    confirmed = executor._execute_action_sync(
+        ElementInteractionAction(
+            action="confirm_click",
+            conversation_id="conv-click-no-shortcut",
+        )
+    )
+
+    assert confirmed.success is True
+    assert confirmed.message == "Confirmed and clicked element: btn13"
+    assert len(executed_commands) == 1
+
+    monkeypatch.setattr(
+        executor,
+        "_get_element_full_html",
+        lambda element_id, intended_action=None: (
+            "<button>Save</button>",
+            "data:image/png;base64,pending-again",
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "_execute_command_sync",
+        lambda command: (_ for _ in ()).throw(AssertionError("should stay in 2PC")),
+    )
+
+    next_observation = executor._execute_action_sync(
+        ElementInteractionAction(
+            action="click",
+            element_id="btn13",
+            tab_id=456,
+            conversation_id="conv-click-no-shortcut",
+        )
+    )
+
+    assert next_observation.success is True
+    assert (
+        next_observation.message
+        == "Click action pending confirmation for element: btn13"
+    )
+    assert next_observation.pending_confirmation is not None
+    assert next_observation.pending_confirmation["action_type"] == "click"
 
 
 def test_confirm_keyboard_input_reports_nested_extension_error(monkeypatch) -> None:
