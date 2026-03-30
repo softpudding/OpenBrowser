@@ -7,26 +7,27 @@ Records SSE events (including images) and browser tracking events for analysis.
 """
 
 import argparse
-import asyncio
+import atexit
 import base64
+import datetime
+import fcntl
 import json
+import logging
 import os
-import sys
-import time
-import yaml
-import requests
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass
-import subprocess
 import shutil
 import signal
-import atexit
-import logging
-import datetime
+import sys
 import threading
-import fcntl
+import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import AbstractContextManager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
+
+import requests
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,18 @@ class MessageRunResult:
     events: List[Dict[str, Any]]
     timed_out: bool = False
     error: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ScheduledJob:
+    """One scheduled automated evaluation job."""
+
+    target_index: int
+    test_index: int
+    target: LLMTarget
+    test_case: TestCase
+    model_key: str
+    site_bucket: str
 
 
 class OpenBrowserClient:
@@ -563,18 +576,24 @@ class EvalServerClient:
         except requests.exceptions.RequestException:
             return False
 
-    def clear_events(self) -> bool:
-        """Clear all tracked events"""
+    def clear_events(self, site: Optional[str] = None) -> bool:
+        """Clear tracked events, optionally scoped to one mock site."""
         try:
-            response = self.session.get(f"{self.base_url}/api/events/clear", timeout=2)
+            params = {"site": site} if site else None
+            response = self.session.get(
+                f"{self.base_url}/api/events/clear", params=params, timeout=2
+            )
             return response.status_code == 200
         except Exception:
             return False
 
-    def get_events(self) -> List[Dict[str, Any]]:
-        """Get all tracked events"""
+    def get_events(self, site: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get tracked events, optionally scoped to one mock site."""
         try:
-            response = self.session.get(f"{self.base_url}/api/events", timeout=5)
+            params = {"site": site} if site else None
+            response = self.session.get(
+                f"{self.base_url}/api/events", params=params, timeout=5
+            )
             if response.status_code == 200:
                 data = response.json()
                 return data.get("events", [])
@@ -744,6 +763,69 @@ class Evaluator:
         self.current_model: Optional[str] = None  # Current model being tested
         self.current_target: Optional[LLMTarget] = None  # Current CLI target
 
+    @staticmethod
+    def _sanitize_model_name(model_name: str) -> str:
+        """Make a model name safe for filesystem paths."""
+        return model_name.replace("/", "_").replace(":", "_")
+
+    @staticmethod
+    def _get_model_key(target: LLMTarget) -> str:
+        """Return the concurrency key for one target."""
+        return target.model_name or target.alias or target.name
+
+    @staticmethod
+    def _get_test_site_bucket(test_case: TestCase) -> str:
+        """Infer the mock-site bucket from the test start URL."""
+        parsed = urlparse(test_case.start_url)
+        segments = [segment for segment in parsed.path.split("/") if segment]
+        if segments:
+            return segments[0]
+        return test_case.id
+
+    def _ensure_model_output_dir(self, model_name: Optional[str]) -> Path:
+        """Ensure the per-model output directory exists."""
+        if self.output_dir is None:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            self.output_dir = OUTPUT_BASE_DIR / timestamp
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Created base output directory: {self.output_dir}")
+
+        if not model_name:
+            return self.output_dir
+
+        model_output_dir = self.output_dir / self._sanitize_model_name(model_name)
+        model_output_dir.mkdir(exist_ok=True)
+        return model_output_dir
+
+    def _build_error_result(
+        self, test_case: TestCase, model_name: Optional[str], error: str
+    ) -> TestResult:
+        """Build a failed test result for scheduler/runtime errors."""
+        max_score = sum(criterion.get("points", 1) for criterion in test_case.criteria)
+        return TestResult(
+            test_case=test_case,
+            passed=False,
+            score=0,
+            max_score=max_score,
+            events=[],
+            sse_events=[],
+            track_events=[],
+            images=[],
+            error=error,
+            duration=0.0,
+            cost=0.0,
+            efficiency_score=0.0,
+            usage_score=0.0,
+            total_score=0.0,
+            model=model_name,
+        )
+
+    def _create_worker_evaluator(self) -> "Evaluator":
+        """Create a short-lived evaluator with independent HTTP sessions."""
+        worker = Evaluator(chrome_uuid=self.chrome_uuid)
+        worker.output_dir = self.output_dir
+        return worker
+
     def resolve_targets(self, targets: List[LLMTarget]) -> List[LLMTarget]:
         """Resolve configured aliases to raw model names."""
         llm_configs = self.openbrowser.get_llm_configs()
@@ -856,61 +938,46 @@ class Evaluator:
 
         return test_cases
 
-    def run_test(self, test_case: TestCase) -> TestResult:
+    def run_test(
+        self,
+        test_case: TestCase,
+        target: Optional[LLMTarget] = None,
+        model_name: Optional[str] = None,
+    ) -> TestResult:
         """Run a single test case"""
-        logger.info(f"Running test: {test_case.name}")
+        active_target = target or self.current_target
+        active_model_name = model_name or self.current_model
+        site_bucket = self._get_test_site_bucket(test_case)
 
-        # Ensure output directory exists with model subdirectory
-        if self.output_dir is None:
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            self.output_dir = OUTPUT_BASE_DIR / timestamp
-            self.output_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Created base output directory: {self.output_dir}")
+        logger.info(
+            "Running test: %s [model=%s site=%s]",
+            test_case.name,
+            active_model_name,
+            site_bucket,
+        )
 
-        # Create model-specific subdirectory if model is set
-        model_output_dir = self.output_dir
-        if self.current_model:
-            # Sanitize model name for filesystem
-            model_name_safe = self.current_model.replace("/", "_").replace(":", "_")
-            model_output_dir = self.output_dir / model_name_safe
-            model_output_dir.mkdir(exist_ok=True)
-            logger.info(f"Using model output directory: {model_output_dir}")
+        model_output_dir = self._ensure_model_output_dir(active_model_name)
 
-        # Clear previous events
-        self.eval_server.clear_events()
+        # Clear only the current mock-site event bucket.
+        self.eval_server.clear_events(site=site_bucket)
 
         # Create new conversation with current model
         conversation_id = self.openbrowser.create_conversation(
-            model_alias=self.current_target.alias if self.current_target else None,
+            model_alias=active_target.alias if active_target else None,
         )
         if conversation_id:
             logger.debug(f"Created conversation: {conversation_id}")
         else:
             logger.warning(
-                f"Failed to create conversation for model {self.current_model}"
+                f"Failed to create conversation for model {active_model_name}"
             )
-            max_score = sum(
-                criterion.get("points", 1) for criterion in test_case.criteria
-            )
-            return TestResult(
-                test_case=test_case,
-                passed=False,
-                score=0,
-                max_score=max_score,
-                events=[],
-                sse_events=[],
-                track_events=[],
-                images=[],
-                error=(
-                    f"Failed to create conversation for target {self.current_model}. "
+            return self._build_error_result(
+                test_case,
+                active_model_name,
+                (
+                    f"Failed to create conversation for target {active_model_name}. "
                     "See logs for server response details."
                 ),
-                duration=0.0,
-                cost=0.0,
-                efficiency_score=0.0,
-                usage_score=0.0,
-                total_score=0.0,
-                model=self.current_model,
             )
 
         start_time = time.time()
@@ -979,7 +1046,7 @@ class Evaluator:
             time.sleep(min(pending_event_wait, max(0.0, deadline - time.time())))
 
             # Get tracking events
-            track_events = self.eval_server.get_events()
+            track_events = self.eval_server.get_events(site=site_bucket)
 
             # Save track events to file
             track_events_file = self._save_track_events(
@@ -1033,7 +1100,7 @@ class Evaluator:
                 total_score=total_score,
                 sse_events_file=sse_events_file,
                 track_events_file=track_events_file,
-                model=self.current_model,
+                model=active_model_name,
             )
         finally:
             self._cleanup_openbrowser_conversation(conversation_id)
@@ -1354,7 +1421,7 @@ class Evaluator:
                 logger.debug(f"Criterion matched by SSE event: {event.get('type')}")
                 return True
 
-        logger.debug(f"Criterion not met")
+        logger.debug("Criterion not met")
         return False
 
     def _check_count_min_condition(
@@ -1638,6 +1705,7 @@ class Evaluator:
     def run_manual_test(self, test_case: TestCase) -> TestResult:
         """Run a test case in manual mode with human performing the same task as OpenBrowser"""
         logger.info(f"Running manual test: {test_case.name}")
+        site_bucket = self._get_test_site_bucket(test_case)
 
         # Ensure output directory exists
         if self.output_dir is None:
@@ -1646,8 +1714,8 @@ class Evaluator:
             self.output_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Created output directory: {self.output_dir}")
 
-        # Clear previous events
-        self.eval_server.clear_events()
+        # Clear previous events for the current mock site only.
+        self.eval_server.clear_events(site=site_bucket)
 
         # Print test information
         print("\n" + "=" * 60)
@@ -1656,14 +1724,14 @@ class Evaluator:
         print("=" * 60)
 
         if test_case.start_url:
-            print(f"\n📋 Please open your browser and navigate to:")
+            print("\n📋 Please open your browser and navigate to:")
             print(f"   {test_case.start_url}")
             print("Make sure the eval server is running (localhost:16605).")
             print("The browser should load the test page.")
             input("\nPress Enter when ready to continue...")
 
         # Show the SAME instruction that would be given to OpenBrowser
-        print(f"\n📝 Task Instruction (same as given to OpenBrowser):")
+        print("\n📝 Task Instruction (same as given to OpenBrowser):")
         print(f"   {test_case.instruction}")
         print(
             "\nPerform this task in the browser. Events will be tracked from this moment."
@@ -1692,7 +1760,7 @@ class Evaluator:
         time.sleep(2)
 
         # Get tracking events
-        track_events = self.eval_server.get_events()
+        track_events = self.eval_server.get_events(site=site_bucket)
 
         # Save track events to file (no conversation_id for manual mode, use "manual")
         track_events_file = self._save_track_events(
@@ -1738,7 +1806,7 @@ class Evaluator:
 
         # Print completion message
         print(f"\n{'=' * 60}")
-        print(f"Manual test completed!")
+        print("Manual test completed!")
         print(f"Duration: {duration:.1f}s")
         print(f"Track events recorded: {len(track_events)}")
         print(f"Task score: {score:.1f}/{max_score:.1f}")
@@ -1751,19 +1819,159 @@ class Evaluator:
 
         return result
 
+    def _build_scheduled_jobs(
+        self, test_cases: List[TestCase], targets: List[LLMTarget]
+    ) -> Dict[int, List[ScheduledJob]]:
+        """Build the full job matrix for automated evaluation."""
+        jobs_by_target: Dict[int, List[ScheduledJob]] = {}
+        for target_index, target in enumerate(targets):
+            model_key = self._get_model_key(target)
+            jobs_by_target[target_index] = [
+                ScheduledJob(
+                    target_index=target_index,
+                    test_index=test_index,
+                    target=target,
+                    test_case=test_case,
+                    model_key=model_key,
+                    site_bucket=self._get_test_site_bucket(test_case),
+                )
+                for test_index, test_case in enumerate(test_cases)
+            ]
+        return jobs_by_target
+
+    def _execute_scheduled_job(self, job: ScheduledJob) -> TestResult:
+        """Run one scheduled job in an isolated worker evaluator."""
+        worker = self._create_worker_evaluator()
+        try:
+            return worker.run_test(
+                job.test_case,
+                target=job.target,
+                model_name=job.model_key,
+            )
+        except Exception as e:
+            logger.exception(
+                "Scheduled job failed: model=%s test=%s site=%s",
+                job.model_key,
+                job.test_case.id,
+                job.site_bucket,
+            )
+            return self._build_error_result(
+                job.test_case,
+                job.model_key,
+                f"Unhandled scheduler worker error: {e}",
+            )
+
+    def _run_scheduled_jobs(
+        self,
+        test_cases: List[TestCase],
+        targets: List[LLMTarget],
+        parallel: int,
+        single_model_parallel: int,
+    ) -> Dict[int, List[TestResult]]:
+        """Run scheduled jobs with global and per-model concurrency limits."""
+        max_parallel = max(1, parallel)
+        per_model_limit = max(1, single_model_parallel)
+        jobs_by_target = self._build_scheduled_jobs(test_cases, targets)
+        results_by_target: Dict[int, List[Optional[TestResult]]] = {
+            target_index: [None] * len(test_cases)
+            for target_index in range(len(targets))
+        }
+
+        logger.info(
+            "Scheduler limits: parallel=%s, single_model_parallel=%s",
+            max_parallel,
+            per_model_limit,
+        )
+
+        running_by_model: Dict[str, int] = {}
+        busy_sites: set[str] = set()
+        in_flight: Dict[Any, ScheduledJob] = {}
+        target_order = list(range(len(targets)))
+
+        with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+            while True:
+                pending_jobs = any(jobs for jobs in jobs_by_target.values())
+
+                while len(in_flight) < max_parallel:
+                    scheduled_job: Optional[ScheduledJob] = None
+
+                    for target_index in target_order:
+                        pending_for_target = jobs_by_target[target_index]
+                        if not pending_for_target:
+                            continue
+
+                        model_key = pending_for_target[0].model_key
+                        if running_by_model.get(model_key, 0) >= per_model_limit:
+                            continue
+
+                        for job_index, job in enumerate(pending_for_target):
+                            if job.site_bucket in busy_sites:
+                                continue
+                            scheduled_job = pending_for_target.pop(job_index)
+                            break
+
+                        if scheduled_job is not None:
+                            break
+
+                    if scheduled_job is None:
+                        break
+
+                    future = executor.submit(self._execute_scheduled_job, scheduled_job)
+                    in_flight[future] = scheduled_job
+                    running_by_model[scheduled_job.model_key] = (
+                        running_by_model.get(scheduled_job.model_key, 0) + 1
+                    )
+                    busy_sites.add(scheduled_job.site_bucket)
+
+                    logger.info(
+                        "Scheduled test '%s' for model '%s' on site '%s'",
+                        scheduled_job.test_case.id,
+                        scheduled_job.model_key,
+                        scheduled_job.site_bucket,
+                    )
+
+                if not in_flight and not pending_jobs:
+                    break
+
+                if not in_flight:
+                    logger.warning("Pending jobs remain but none could be scheduled")
+                    break
+
+                done, _ = wait(set(in_flight.keys()), return_when=FIRST_COMPLETED)
+                for future in done:
+                    job = in_flight.pop(future)
+                    running_by_model[job.model_key] -= 1
+                    if running_by_model[job.model_key] <= 0:
+                        del running_by_model[job.model_key]
+                    busy_sites.discard(job.site_bucket)
+
+                    result = future.result()
+                    results_by_target[job.target_index][job.test_index] = result
+
+                    status = "PASSED" if result.passed else "FAILED"
+                    logger.info(
+                        "Completed test '%s' for model '%s': %s %.1f/%.1f",
+                        job.test_case.name,
+                        job.model_key,
+                        status,
+                        result.score,
+                        result.max_score,
+                    )
+
+        return {
+            target_index: [result for result in target_results if result is not None]
+            for target_index, target_results in results_by_target.items()
+        }
+
     def run_all(
         self,
         targets: Optional[List[LLMTarget]] = None,
         skip_services: bool = False,
         manual: bool = False,
+        parallel: int = 1,
+        single_model_parallel: int = 1,
     ):
-        """Run all test cases for specified LLM targets.
-
-        Args:
-            targets: Explicit LLM targets to test.
-            skip_services: If True, skip service availability checks
-            manual: If True, only check eval server (manual mode doesn't need OpenBrowser)
-        """
+        """Run all test cases for specified LLM targets."""
         if not self.ensure_services(skip_services=skip_services, manual=manual):
             logger.error("Cannot run tests: services unavailable")
             return False
@@ -1772,7 +1980,6 @@ class Evaluator:
             logger.error("No model aliases provided")
             return False
 
-        # Create timestamped output directory
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         self.output_dir = OUTPUT_BASE_DIR / timestamp
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -1783,51 +1990,35 @@ class Evaluator:
             logger.warning("No test cases found")
             return False
 
-        # Store overall results for summary report
-        all_results = []
+        scheduled_results = self._run_scheduled_jobs(
+            test_cases=test_cases,
+            targets=targets,
+            parallel=parallel,
+            single_model_parallel=single_model_parallel,
+        )
 
-        target_names = [target.name for target in targets]
+        all_results: List[TestResult] = []
+        target_names = [self._get_model_key(target) for target in targets]
 
-        for target in targets:
+        for target_index, target in enumerate(targets):
             logger.info(f"\n{'=' * 60}")
             logger.info(
-                f"Testing target alias: {target.alias} -> model: {target.model_name}"
+                "Finished target alias: %s -> model: %s",
+                target.alias,
+                target.model_name,
             )
             logger.info(f"{'=' * 60}")
 
-            self.current_target = target
-            self.current_model = target.model_name or target.name
-
-            # Clear results for this model
-            self.results = []
-
-            # Run all test cases for this model
-            for test_case in test_cases:
-                result = self.run_test(test_case)
-                self.results.append(result)
-
-                status = "PASSED" if result.passed else "FAILED"
-                logger.info(
-                    f"Test '{test_case.name}' {status}: {result.score:.1f}/{result.max_score:.1f}"
-                )
-
-            # Generate report for this model
+            self.results = scheduled_results.get(target_index, [])
             if self.results:
                 model_report_path = self.generate_report()
                 logger.info(f"Model report saved to: {model_report_path}")
-
-                # Add model information to results and store for summary
-                for result in self.results:
-                    result.model = target.model_name or target.name
                 all_results.extend(self.results)
 
-        # Generate cross-model summary report if we tested multiple models
         if len(targets) > 1 and all_results:
             self._generate_cross_model_summary(all_results, target_names)
 
-        # Restore results for backward compatibility
         self.results = all_results
-
         return True
 
     def run_all_manual(self, skip_services: bool = False) -> bool:
@@ -1852,9 +2043,9 @@ class Evaluator:
             return False
 
         print(f"\n{'=' * 60}")
-        print(f"MANUAL ALL-TESTS MODE")
+        print("MANUAL ALL-TESTS MODE")
         print(f"Found {len(test_cases)} test cases to complete")
-        print(f"Each test will start when you confirm ready after seeing start URL")
+        print("Each test will start when you confirm ready after seeing start URL")
         print(f"{'=' * 60}")
 
         # Store overall results for summary report
@@ -1945,7 +2136,7 @@ class Evaluator:
 
             # Print final summary
             print(f"\n{'=' * 60}")
-            print(f"MANUAL TESTING COMPLETE")
+            print("MANUAL TESTING COMPLETE")
             print(f"{'=' * 60}")
             print(f"Total tests: {total_tests}")
             print(f"Passed tests: {passed_tests} ({pass_rate:.1f}%)")
@@ -1956,7 +2147,7 @@ class Evaluator:
             print(f"{'=' * 60}")
 
             # Print per-test summary table
-            print(f"\nTest Results Summary:")
+            print("\nTest Results Summary:")
             print(
                 f"{'Test Name':40} {'Status':10} {'Task Score':12} {'Efficiency':12} {'Duration':10}"
             )
@@ -2270,6 +2461,18 @@ def main():
         help="Configured LLM alias to evaluate. Can be passed multiple times.",
     )
     parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Maximum number of automated test jobs running at once.",
+    )
+    parser.add_argument(
+        "--single-model-parallel",
+        type=int,
+        default=1,
+        help="Maximum concurrent test jobs allowed for the same resolved model.",
+    )
+    parser.add_argument(
         "--no-services", action="store_true", help="Don't start services"
     )
     parser.add_argument(
@@ -2315,6 +2518,12 @@ def main():
             "--chrome-uuid is required for automated browser evaluation "
             "(or set OPENBROWSER_CHROME_UUID)"
         )
+
+    if args.parallel < 1:
+        parser.error("--parallel must be >= 1")
+
+    if args.single_model_parallel < 1:
+        parser.error("--single-model-parallel must be >= 1")
 
     evaluator = Evaluator(chrome_uuid=args.chrome_uuid)
 
@@ -2371,9 +2580,9 @@ def main():
             if args.manual:
                 logger.info(f"Running manual test: {test_case.name}")
                 print(f"\n{'=' * 60}")
-                print(f"MANUAL MODE ENABLED")
+                print("MANUAL MODE ENABLED")
                 print(f"Test: {test_case.name}")
-                print(f"Model selection ignored (manual human test)")
+                print("Model selection ignored (manual human test)")
                 print(f"{'=' * 60}")
 
                 result = evaluator.run_manual_test(test_case)
@@ -2405,21 +2614,22 @@ def main():
             # Normal (automated) mode
             else:
                 all_results = []
+                scheduled_results = evaluator._run_scheduled_jobs(
+                    test_cases=[test_case],
+                    targets=llm_targets,
+                    parallel=args.parallel,
+                    single_model_parallel=args.single_model_parallel,
+                )
                 target_names = [
-                    target.model_name or target.name for target in llm_targets
+                    evaluator._get_model_key(target) for target in llm_targets
                 ]
-                for target in llm_targets:
-                    logger.info(f"\n{'=' * 60}")
-                    logger.info(
-                        f"Testing target alias: {target.alias} -> model: {target.model_name}"
-                    )
-                    logger.info(f"{'=' * 60}")
 
-                    evaluator.current_target = target
-                    evaluator.current_model = target.model_name or target.name
+                for target_index, target in enumerate(llm_targets):
+                    target_results = scheduled_results.get(target_index, [])
+                    if not target_results:
+                        continue
 
-                    result = evaluator.run_test(test_case)
-                    result.model = target.model_name or target.name
+                    result = target_results[0]
                     all_results.append(result)
 
                     print(
@@ -2430,7 +2640,6 @@ def main():
                     print(f"  Task score: {result.score:.1f}/{result.max_score:.1f}")
                     print(f"  Efficiency score: {result.efficiency_score or 0:.2f}/1.0")
                     print(f"  Usage score: {result.usage_score or 0:.2f}/1.0")
-                    # Calculate composite score for this test
                     passed_float = 1.0 if result.passed else 0.0
                     eff_score = result.efficiency_score or 0.0
                     usage_score_val = result.usage_score or 0.0
@@ -2473,10 +2682,10 @@ def main():
         else:
             # Run all tests for all models (manual mode now supported)
             if args.manual:
-                logger.info(f"Running all tests in MANUAL mode")
+                logger.info("Running all tests in MANUAL mode")
                 print(f"\n{'=' * 60}")
-                print(f"ALL TESTS MANUAL MODE")
-                print(f"Model selection ignored (manual human test)")
+                print("ALL TESTS MANUAL MODE")
+                print("Model selection ignored (manual human test)")
                 print(f"{'=' * 60}")
 
                 success = evaluator.run_all_manual(skip_services=args.no_services)
@@ -2491,7 +2700,11 @@ def main():
                     sys.exit(1)
 
                 success = evaluator.run_all(
-                    targets=llm_targets, skip_services=args.no_services, manual=False
+                    targets=llm_targets,
+                    skip_services=args.no_services,
+                    manual=False,
+                    parallel=args.parallel,
+                    single_model_parallel=args.single_model_parallel,
                 )
                 if not success:
                     sys.exit(1)

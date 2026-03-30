@@ -25,13 +25,11 @@ class TestPendingConfirmation:
         """Test creating PendingConfirmation with only required fields."""
         confirmation = PendingConfirmation(
             element_id="abc123",
-            highlight_snapshot_id=101,
             action_type="click",
             full_html="<button>Click me</button>",
         )
 
         assert confirmation.element_id == "abc123"
-        assert confirmation.highlight_snapshot_id == 101
         assert confirmation.action_type == "click"
         assert confirmation.full_html == "<button>Click me</button>"
         assert confirmation.extra_data == {}
@@ -41,7 +39,6 @@ class TestPendingConfirmation:
         """Test creating PendingConfirmation with all fields."""
         confirmation = PendingConfirmation(
             element_id="xyz789",
-            highlight_snapshot_id=202,
             action_type="keyboard_input",
             full_html='<input type="text" />',
             extra_data={"text": "hello world"},
@@ -49,7 +46,6 @@ class TestPendingConfirmation:
         )
 
         assert confirmation.element_id == "xyz789"
-        assert confirmation.highlight_snapshot_id == 202
         assert confirmation.action_type == "keyboard_input"
         assert confirmation.full_html == '<input type="text" />'
         assert confirmation.extra_data == {"text": "hello world"}
@@ -59,13 +55,11 @@ class TestPendingConfirmation:
         """Test that extra_data defaults to a new empty dict each time."""
         c1 = PendingConfirmation(
             element_id="a",
-            highlight_snapshot_id=1,
             action_type="click",
             full_html="",
         )
         c2 = PendingConfirmation(
             element_id="b",
-            highlight_snapshot_id=2,
             action_type="keyboard_input",
             full_html="",
         )
@@ -88,7 +82,6 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-123",
             element_id="elem-456",
-            highlight_snapshot_id=101,
             action_type="click",
             full_html="<button>Submit</button>",
         )
@@ -96,7 +89,6 @@ class TestOpenBrowserState:
         assert "conv-123" in state.pending_confirmations
         pending = state.pending_confirmations["conv-123"]
         assert pending.element_id == "elem-456"
-        assert pending.highlight_snapshot_id == 101
         assert pending.action_type == "click"
         assert pending.full_html == "<button>Submit</button>"
 
@@ -106,7 +98,6 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-789",
             element_id="elem-abc",
-            highlight_snapshot_id=202,
             action_type="keyboard_input",
             full_html="<input />",
             extra_data={"text": "hello"},
@@ -123,7 +114,6 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-1",
             element_id="elem-1",
-            highlight_snapshot_id=303,
             action_type="keyboard_input",
             full_html="<input />",
         )
@@ -131,7 +121,6 @@ class TestOpenBrowserState:
         pending = state.get_pending("conv-1")
         assert pending is not None
         assert pending.element_id == "elem-1"
-        assert pending.highlight_snapshot_id == 303
         assert pending.action_type == "keyboard_input"
 
     def test_get_pending_nonexistent(self) -> None:
@@ -146,7 +135,6 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-to-clear",
             element_id="elem-1",
-            highlight_snapshot_id=404,
             action_type="click",
             full_html="<button/>",
         )
@@ -170,7 +158,6 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-1",
             element_id="elem-1",
-            highlight_snapshot_id=501,
             action_type="click",
             full_html="<button>A</button>",
         )
@@ -179,7 +166,6 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-2",
             element_id="elem-2",
-            highlight_snapshot_id=502,
             action_type="keyboard_input",
             full_html="<input>B</input>",
         )
@@ -187,9 +173,7 @@ class TestOpenBrowserState:
         # Verify isolation
         assert len(state.pending_confirmations) == 2
         assert state.get_pending("conv-1").element_id == "elem-1"
-        assert state.get_pending("conv-1").highlight_snapshot_id == 501
         assert state.get_pending("conv-2").element_id == "elem-2"
-        assert state.get_pending("conv-2").highlight_snapshot_id == 502
 
         # Clear one doesn't affect the other
         state.clear_pending("conv-1")
@@ -203,7 +187,6 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-1",
             element_id="elem-1",
-            highlight_snapshot_id=601,
             action_type="click",
             full_html="<button>First</button>",
         )
@@ -211,14 +194,12 @@ class TestOpenBrowserState:
         state.set_pending(
             conversation_id="conv-1",
             element_id="elem-2",
-            highlight_snapshot_id=602,
             action_type="keyboard_input",
             full_html="<input>Second</input>",
         )
 
         pending = state.get_pending("conv-1")
         assert pending.element_id == "elem-2"
-        assert pending.highlight_snapshot_id == 602
         assert pending.action_type == "keyboard_input"
         assert pending.full_html == "<input>Second</input>"
 
@@ -231,12 +212,10 @@ class TestOpenBrowserState:
             state.set_pending(
                 conversation_id=f"conv-{i}",
                 element_id=f"elem-{i}",
-                highlight_snapshot_id=700 + i,
                 action_type=action_type,
                 full_html=f"<{action_type}>",
             )
 
         for i, action_type in enumerate(action_types):
             pending = state.get_pending(f"conv-{i}")
-            assert pending.highlight_snapshot_id == 700 + i
             assert pending.action_type == action_type

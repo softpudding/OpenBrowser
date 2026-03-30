@@ -13,18 +13,17 @@ import {
 
 /**
  * TDD Tests for Padding Consistency
- * Bug: BASE_LABEL_PADDING is 4, should be 5 to match LABEL_PADDING
- * Label height = 16 (font) + 5 (padding) * 2 = 26px
+ * Label height = 16 (font) + 3 (padding) * 2 = 22px
  */
 
 describe('Padding Consistency', () => {
   describe('Collision Detection Constants (background/index.ts)', () => {
-    test('should have LABEL_HEIGHT of 26px', () => {
-      expect(LABEL_HEIGHT).toBe(26);
+    test('should have LABEL_HEIGHT of 22px', () => {
+      expect(LABEL_HEIGHT).toBe(22);
     });
 
-    test('should have LABEL_PADDING of 5px', () => {
-      expect(LABEL_PADDING).toBe(5);
+    test('should have LABEL_PADDING of 3px', () => {
+      expect(LABEL_PADDING).toBe(3);
     });
 
     test('should have LABEL_FONT_SIZE of 16px', () => {
@@ -33,8 +32,8 @@ describe('Padding Consistency', () => {
   });
 
   describe('Visual Drawing Constants (visual-highlight.ts)', () => {
-    test('should have BASE_LABEL_PADDING of 5px', () => {
-      expect(BASE_LABEL_PADDING).toBe(5);
+    test('should have BASE_LABEL_PADDING of 3px', () => {
+      expect(BASE_LABEL_PADDING).toBe(3);
     });
 
     test('should have BASE_FONT_SIZE of 16px', () => {
@@ -43,7 +42,7 @@ describe('Padding Consistency', () => {
 
     test('should calculate label height consistently', () => {
       const expectedLabelHeight = BASE_FONT_SIZE + BASE_LABEL_PADDING * 2;
-      expect(expectedLabelHeight).toBe(26);
+      expect(expectedLabelHeight).toBe(22);
     });
   });
 
@@ -57,7 +56,7 @@ describe('Padding Consistency', () => {
       const visualLabelHeight = BASE_FONT_SIZE + BASE_LABEL_PADDING * 2;
 
       expect(collisionLabelHeight).toBe(visualLabelHeight);
-      expect(collisionLabelHeight).toBe(26);
+      expect(collisionLabelHeight).toBe(22);
     });
   });
 });

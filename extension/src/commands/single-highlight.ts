@@ -6,15 +6,23 @@
 import type { InteractiveElement } from '../types';
 
 // Visual style for single-element confirmation
-const CONFIRMATION_COLOR = '#FF6600'; // Orange border
+const CONFIRMATION_COLOR = '#FFD400'; // Yellow border
+const CONFIRMATION_TEXT_COLOR = '#111111';
+const CONFIRMATION_BANNER_COLOR = 'rgba(255, 212, 0, 0.5)';
+const CONFIRMATION_BANNER_BORDER_COLOR = 'rgba(17, 17, 17, 0.18)';
 const BASE_BOX_PADDING = 2;
-const BASE_LINE_WIDTH = 3;
+const BASE_LINE_WIDTH = 4;
 const BASE_CONTEXT_PADDING_X = 96;
 const BASE_CONTEXT_PADDING_Y = 112;
 const BASE_MIN_CROP_WIDTH = 520;
 const BASE_MIN_CROP_HEIGHT = 320;
 const MIN_CROP_WIDTH_RATIO = 0.58;
 const MIN_CROP_HEIGHT_RATIO = 0.58;
+const BASE_BANNER_FONT_SIZE = 22;
+const BASE_BANNER_PADDING_X = 12;
+const BASE_BANNER_PADDING_Y = 12;
+const BASE_BANNER_MARGIN = 14;
+const BASE_BANNER_GAP = 12;
 
 interface DeviceRect {
   x: number;
@@ -39,7 +47,12 @@ interface ConfirmationPreviewLayout {
 export async function highlightSingleElement(
   screenshotDataUrl: string,
   element: InteractiveElement,
-  options?: { scale?: number; viewportWidth?: number; viewportHeight?: number },
+  options?: {
+    intendedAction?: 'click' | 'keyboard_input';
+    scale?: number;
+    viewportWidth?: number;
+    viewportHeight?: number;
+  },
 ): Promise<string> {
   console.log(
     `🎨 [SingleHighlight] Drawing highlight for element ${element.id}...`,
@@ -199,6 +212,12 @@ export async function highlightSingleElement(
 
     // Draw the single element bounding box
     drawSingleBoundingBox(ctx, previewLayout.element, scale);
+    drawConfirmationBanner(
+      ctx,
+      previewLayout.element,
+      options?.intendedAction,
+      scale,
+    );
 
     const resultBlob = await canvas.convertToBlob({ type: 'image/png' });
 
@@ -222,6 +241,102 @@ export async function highlightSingleElement(
     console.error(`❌ ${errorMsg}`);
     throw new Error(errorMsg);
   }
+}
+
+export function formatConfirmationOperationLabel(
+  intendedAction?: 'click' | 'keyboard_input',
+): string {
+  switch (intendedAction) {
+    case 'click':
+      return 'click';
+    case 'keyboard_input':
+      return 'type into';
+    default:
+      return 'interact with';
+  }
+}
+
+export function getConfirmationPromptText(
+  intendedAction?: 'click' | 'keyboard_input',
+): string {
+  return `Is this the element you wanted to ${formatConfirmationOperationLabel(intendedAction)}?`;
+}
+
+export function calculateConfirmationBannerLayout(options: {
+  canvasWidth: number;
+  canvasHeight: number;
+  elementRect: DeviceRect;
+  message: string;
+  scale: number;
+  textWidth?: number;
+}): DeviceRect {
+  const { canvasWidth, canvasHeight, elementRect, message, scale, textWidth } =
+    options;
+  const fontSize = Math.max(16, Math.round(BASE_BANNER_FONT_SIZE * scale));
+  const paddingX = Math.max(12, Math.round(BASE_BANNER_PADDING_X * scale));
+  const paddingY = Math.max(8, Math.round(BASE_BANNER_PADDING_Y * scale));
+  const margin = Math.max(10, Math.round(BASE_BANNER_MARGIN * scale));
+  const gap = Math.max(8, Math.round(BASE_BANNER_GAP * scale));
+  const estimatedTextWidth = Math.ceil(message.length * fontSize * 0.6);
+  const resolvedTextWidth = Math.ceil(textWidth ?? estimatedTextWidth);
+  const width = Math.min(
+    canvasWidth - margin * 2,
+    resolvedTextWidth + paddingX * 2,
+  );
+  const height = fontSize + paddingY * 2;
+
+  const clampX = (value: number): number =>
+    clamp(value, margin, Math.max(margin, canvasWidth - width - margin));
+  const clampY = (value: number): number =>
+    clamp(value, margin, Math.max(margin, canvasHeight - height - margin));
+  const centeredX = clampX(elementRect.x + elementRect.width / 2 - width / 2);
+  const centeredY = clampY(elementRect.y + elementRect.height / 2 - height / 2);
+
+  if (elementRect.y - gap - height >= margin) {
+    return {
+      x: centeredX,
+      y: elementRect.y - gap - height,
+      width,
+      height,
+    };
+  }
+
+  if (
+    elementRect.y + elementRect.height + gap + height <=
+    canvasHeight - margin
+  ) {
+    return {
+      x: centeredX,
+      y: elementRect.y + elementRect.height + gap,
+      width,
+      height,
+    };
+  }
+
+  if (elementRect.x + elementRect.width + gap + width <= canvasWidth - margin) {
+    return {
+      x: elementRect.x + elementRect.width + gap,
+      y: centeredY,
+      width,
+      height,
+    };
+  }
+
+  if (elementRect.x - gap - width >= margin) {
+    return {
+      x: elementRect.x - gap - width,
+      y: centeredY,
+      width,
+      height,
+    };
+  }
+
+  return {
+    x: centeredX,
+    y: clampY(elementRect.y + elementRect.height + gap),
+    width,
+    height,
+  };
 }
 
 /**
@@ -311,10 +426,58 @@ function drawSingleBoundingBox(
     `[SingleHighlight] Drawing confirmation bbox at (${x}, ${y}, ${width}, ${height}) scale=${scale}`,
   );
 
-  // Draw bounding box with orange color
+  // Draw bounding box with a bright yellow confirmation color.
+  ctx.save();
   ctx.strokeStyle = CONFIRMATION_COLOR;
   ctx.lineWidth = lineWidth;
+  ctx.shadowColor = 'rgba(255, 212, 0, 0.7)';
+  ctx.shadowBlur = 12 * scale;
   ctx.strokeRect(x, y, width, height);
+  ctx.restore();
+}
+
+function drawConfirmationBanner(
+  ctx: OffscreenCanvasRenderingContext2D,
+  elementRect: DeviceRect,
+  intendedAction: 'click' | 'keyboard_input' | undefined,
+  scale: number,
+): void {
+  const message = getConfirmationPromptText(intendedAction);
+  const fontSize = Math.max(16, Math.round(BASE_BANNER_FONT_SIZE * scale));
+  const paddingX = Math.max(12, Math.round(BASE_BANNER_PADDING_X * scale));
+
+  ctx.save();
+  ctx.font = `700 ${fontSize}px sans-serif`;
+  ctx.textBaseline = 'middle';
+  const measuredTextWidth = ctx.measureText(message).width;
+  const bannerRect = calculateConfirmationBannerLayout({
+    canvasWidth: ctx.canvas.width,
+    canvasHeight: ctx.canvas.height,
+    elementRect,
+    message,
+    scale,
+    textWidth: measuredTextWidth,
+  });
+
+  ctx.fillStyle = CONFIRMATION_BANNER_COLOR;
+  ctx.fillRect(bannerRect.x, bannerRect.y, bannerRect.width, bannerRect.height);
+  ctx.strokeStyle = CONFIRMATION_BANNER_BORDER_COLOR;
+  ctx.lineWidth = Math.max(1, scale);
+  ctx.strokeRect(
+    bannerRect.x,
+    bannerRect.y,
+    bannerRect.width,
+    bannerRect.height,
+  );
+
+  ctx.fillStyle = CONFIRMATION_TEXT_COLOR;
+  ctx.fillText(
+    message,
+    bannerRect.x + paddingX,
+    bannerRect.y + bannerRect.height / 2,
+    bannerRect.width - paddingX * 2,
+  );
+  ctx.restore();
 }
 
 function clamp(value: number, min: number, max: number): number {

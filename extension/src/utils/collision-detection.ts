@@ -6,12 +6,15 @@
  */
 
 import type { InteractiveElement } from '../types';
+import {
+  LABEL_FONT_SIZE,
+  LABEL_PADDING,
+  LABEL_HEIGHT,
+  MAX_LABEL_WIDTH,
+} from '../commands/label-constants';
 import { getLabelDimensions } from './label-geometry';
 
-export const LABEL_FONT_SIZE = 16;
-export const LABEL_PADDING = 5;
-export const LABEL_HEIGHT = LABEL_FONT_SIZE + LABEL_PADDING * 2; // 26px total
-export const MAX_LABEL_WIDTH = 120; // Maximum label width for collision detection
+export { LABEL_FONT_SIZE, LABEL_PADDING, LABEL_HEIGHT, MAX_LABEL_WIDTH };
 
 export interface BBox {
   x: number;
@@ -23,6 +26,9 @@ export interface BBox {
 export type LabelPosition = 'above' | 'below' | 'left' | 'right';
 
 const VISUAL_ROW_TOLERANCE_PX = 12;
+// Keep label-to-label and label-to-bbox spacing visibly separated in the
+// rendered screenshot, not just geometrically non-overlapping.
+const VISUAL_LABEL_CLEARANCE_PX = 6;
 const POSITION_PRIORITY: LabelPosition[] = ['above', 'below', 'left', 'right'];
 
 interface RemainingCandidate {
@@ -49,6 +55,19 @@ export function bboxesIntersect(a: BBox, b: BBox): boolean {
   );
 }
 
+function bboxesIntersectWithClearance(
+  a: BBox,
+  b: BBox,
+  minClearancePx: number = 0,
+): boolean {
+  return !(
+    a.x + a.width + minClearancePx <= b.x ||
+    b.x + b.width + minClearancePx <= a.x ||
+    a.y + a.height + minClearancePx <= b.y ||
+    b.y + b.height + minClearancePx <= a.y
+  );
+}
+
 export function bboxContains(outer: BBox, inner: BBox): boolean {
   return (
     outer.x <= inner.x &&
@@ -56,6 +75,10 @@ export function bboxContains(outer: BBox, inner: BBox): boolean {
     outer.x + outer.width >= inner.x + inner.width &&
     outer.y + outer.height >= inner.y + inner.height
   );
+}
+
+function bboxesPartiallyOverlap(a: BBox, b: BBox): boolean {
+  return bboxesIntersect(a, b) && !bboxContains(a, b) && !bboxContains(b, a);
 }
 
 /**
@@ -208,6 +231,7 @@ export function selectCollisionFreePage(
     elements,
     viewportWidth,
     viewportHeight,
+    page,
   );
   return pages[page - 1] ?? [];
 }
@@ -229,9 +253,20 @@ function buildCollisionFreePages(
   elements: InteractiveElement[],
   viewportWidth?: number,
   viewportHeight?: number,
+  maxPages?: number,
 ): InteractiveElement[][] {
   if (elements.length === 0) {
     return [];
+  }
+
+  const allAbovePage = tryBuildUniformPositionPage(
+    elements,
+    'above',
+    viewportWidth,
+    viewportHeight,
+  );
+  if (allAbovePage) {
+    return [allAbovePage];
   }
 
   let remaining = elements.map((element, sourceIndex) => ({
@@ -256,10 +291,8 @@ function buildCollisionFreePages(
         break;
       }
 
-      const labelText = String(selected.length + 1);
       selected.push({
         ...nextSelection.candidate.element,
-        id: labelText,
         labelPosition: nextSelection.position,
       });
       pageRemaining = pageRemaining.filter(
@@ -273,10 +306,44 @@ function buildCollisionFreePages(
     }
 
     pages.push(selected);
+    if (maxPages !== undefined && pages.length >= maxPages) {
+      break;
+    }
     remaining = pageRemaining;
   }
 
   return pages;
+}
+
+function tryBuildUniformPositionPage(
+  elements: InteractiveElement[],
+  position: LabelPosition,
+  viewportWidth?: number,
+  viewportHeight?: number,
+): InteractiveElement[] | null {
+  const selected: InteractiveElement[] = [];
+
+  for (const element of elements) {
+    if (
+      !isPlacementFeasible(
+        element,
+        element.id,
+        position,
+        selected,
+        viewportWidth,
+        viewportHeight,
+      )
+    ) {
+      return null;
+    }
+
+    selected.push({
+      ...element,
+      labelPosition: position,
+    });
+  }
+
+  return selected;
 }
 
 function chooseNextCandidate(
@@ -285,7 +352,6 @@ function chooseNextCandidate(
   viewportWidth?: number,
   viewportHeight?: number,
 ): (PlacementEvaluation & { candidate: RemainingCandidate }) | null {
-  const currentLabelText = String(selected.length + 1);
   let minFeasiblePositions = Number.POSITIVE_INFINITY;
   let constrainedCandidate: {
     candidate: RemainingCandidate;
@@ -295,7 +361,7 @@ function chooseNextCandidate(
   for (const candidate of remaining) {
     const feasiblePositions = getFeasiblePositions(
       candidate.element,
-      currentLabelText,
+      candidate.element.id,
       selected,
       viewportWidth,
       viewportHeight,
@@ -338,7 +404,6 @@ function chooseLeastBlockingPlacement(
   viewportWidth?: number,
   viewportHeight?: number,
 ): PlacementEvaluation {
-  const currentLabelText = String(selected.length + 1);
   const futureCandidates = remaining.filter(
     (remainingCandidate) =>
       remainingCandidate.sourceIndex !== candidate.sourceIndex,
@@ -350,18 +415,16 @@ function chooseLeastBlockingPlacement(
       ...selected,
       {
         ...candidate.element,
-        id: currentLabelText,
         labelPosition: position,
       },
     ];
     let blockedCandidateCount = 0;
     let totalFutureOptions = 0;
 
-    futureCandidates.forEach((candidate, futureIndex) => {
-      const futureLabelText = String(selected.length + 2 + futureIndex);
+    futureCandidates.forEach((candidate) => {
       const futureOptions = getFeasiblePositions(
         candidate.element,
-        futureLabelText,
+        candidate.element.id,
         hypotheticalSelected,
         viewportWidth,
         viewportHeight,
@@ -410,56 +473,96 @@ function getFeasiblePositions(
   const feasiblePositions: LabelPosition[] = [];
 
   for (const position of POSITION_PRIORITY) {
-    const withinViewport =
-      viewportWidth !== undefined && viewportHeight !== undefined
-        ? isLabelWithinViewport(
-            element.bbox,
-            position,
-            viewportWidth,
-            viewportHeight,
-            labelText,
-          )
-        : true;
-
-    if (!withinViewport) {
-      continue;
-    }
-
-    const labelBBox = getLabelBBox(element.bbox, position, labelText);
-    let hasCollision = false;
-
-    for (const selectedElement of selected) {
-      const selectedLabelBBox = getLabelBBox(
-        selectedElement.bbox,
-        selectedElement.labelPosition ?? 'above',
-        selectedElement.id,
-      );
-      const nested =
-        bboxContains(selectedElement.bbox, element.bbox) ||
-        bboxContains(element.bbox, selectedElement.bbox);
-
-      if (bboxesIntersect(labelBBox, selectedLabelBBox)) {
-        hasCollision = true;
-        break;
-      }
-
-      if (!nested && bboxesIntersect(labelBBox, selectedElement.bbox)) {
-        hasCollision = true;
-        break;
-      }
-
-      if (!nested && bboxesIntersect(element.bbox, selectedLabelBBox)) {
-        hasCollision = true;
-        break;
-      }
-    }
-
-    if (!hasCollision) {
+    if (
+      isPlacementFeasible(
+        element,
+        labelText,
+        position,
+        selected,
+        viewportWidth,
+        viewportHeight,
+      )
+    ) {
       feasiblePositions.push(position);
     }
   }
 
   return feasiblePositions;
+}
+
+function isPlacementFeasible(
+  element: InteractiveElement,
+  labelText: string,
+  position: LabelPosition,
+  selected: InteractiveElement[],
+  viewportWidth?: number,
+  viewportHeight?: number,
+): boolean {
+  const withinViewport =
+    viewportWidth !== undefined && viewportHeight !== undefined
+      ? isLabelWithinViewport(
+          element.bbox,
+          position,
+          viewportWidth,
+          viewportHeight,
+          labelText,
+        )
+      : true;
+
+  if (!withinViewport) {
+    return false;
+  }
+
+  const labelBBox = getLabelBBox(element.bbox, position, labelText);
+
+  for (const selectedElement of selected) {
+    const selectedLabelBBox = getLabelBBox(
+      selectedElement.bbox,
+      selectedElement.labelPosition ?? 'above',
+      selectedElement.id,
+    );
+    const nested =
+      bboxContains(selectedElement.bbox, element.bbox) ||
+      bboxContains(element.bbox, selectedElement.bbox);
+
+    if (
+      bboxesIntersectWithClearance(
+        labelBBox,
+        selectedLabelBBox,
+        VISUAL_LABEL_CLEARANCE_PX,
+      )
+    ) {
+      return false;
+    }
+
+    if (!nested && bboxesPartiallyOverlap(element.bbox, selectedElement.bbox)) {
+      return false;
+    }
+
+    if (
+      !nested &&
+      bboxesIntersectWithClearance(
+        labelBBox,
+        selectedElement.bbox,
+        VISUAL_LABEL_CLEARANCE_PX,
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      !nested &&
+      bboxesIntersectWithClearance(
+        element.bbox,
+        selectedLabelBBox,
+        VISUAL_LABEL_CLEARANCE_PX,
+      )
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function cloneInteractiveElement(

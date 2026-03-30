@@ -42,6 +42,75 @@ document.addEventListener('DOMContentLoaded', function() {
             this.style.height = (this.scrollHeight) + 'px';
         });
     }
+
+    function normalizeMessage(message) {
+        return message.toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function containsAny(text, keywords) {
+        return keywords.some(keyword => text.includes(keyword));
+    }
+
+    function buildAgentReply(message) {
+        const normalizedMessage = normalizeMessage(message);
+
+        const greetingKeywords = [
+            'hello',
+            'hi',
+            'hey',
+            'greetings',
+            'good morning',
+            'good afternoon',
+            'good evening'
+        ];
+        const statusKeywords = [
+            'status',
+            'system',
+            'health',
+            'report',
+            'running',
+            'current state',
+            'how are you'
+        ];
+        const storageKeywords = [
+            'storage',
+            'disk',
+            'space',
+            'capacity',
+            'usage',
+            'utilization',
+            'volume'
+        ];
+        const cpuKeywords = ['cpu', 'load'];
+        const memoryKeywords = ['memory', 'ram'];
+        const alertKeywords = ['alert', 'warning', 'alarm', 'incident', 'issue'];
+
+        if (containsAny(normalizedMessage, storageKeywords)) {
+            return 'Storage usage check complete: primary cluster is at 68% used, log volume is at 42%, and free capacity is enough for current workload. No immediate storage risk detected.';
+        }
+
+        if (containsAny(normalizedMessage, statusKeywords)) {
+            return 'Current system status is stable. Core database services are online, replication delay is within threshold, and there are no critical incidents at the moment.';
+        }
+
+        if (containsAny(normalizedMessage, cpuKeywords)) {
+            return 'CPU load is moderate right now, averaging around 34% across the main database nodes. No hot node is currently flagged.';
+        }
+
+        if (containsAny(normalizedMessage, memoryKeywords)) {
+            return 'Memory usage is healthy. Working set pressure is low and cache hit rate remains within the expected range.';
+        }
+
+        if (containsAny(normalizedMessage, alertKeywords)) {
+            return 'There are no active P1 alerts. I only see a few low-priority optimization suggestions related to slow-query tuning and index review.';
+        }
+
+        if (containsAny(normalizedMessage, greetingKeywords)) {
+            return 'Hello. I am DAS Agent. I can help with system status, storage usage, alerts, and database operations checks.';
+        }
+
+        return 'I can help with database operations. You can ask me for current system status, storage usage, performance health, or active alerts.';
+    }
     
     // Send message function
     function sendMessage() {
@@ -74,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Simulate agent response delay
         setTimeout(function() {
-            addAgentMessage('Hello, I am DAS Agent');
+            addAgentMessage(buildAgentReply(message));
             sendBtn.disabled = false;
             sendBtn.textContent = 'Send Message';
         }, 800);

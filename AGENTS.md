@@ -165,6 +165,13 @@ OpenBrowser uses Jinja2 templates for agent prompts, enabling dynamic content in
 - **Clean output**: `trim_blocks=True` and `lstrip_blocks=True` remove extra whitespace
 - **Caching**: Templates are cached after first load for performance
 
+### Model Profile Differences
+- Model profile is resolved from session metadata and exposed to prompt rendering as `model_profile` / `small_model`; see `server/agent/manager.py` and `server/agent/tools/prompt_context.py`
+- Tool prompt variants are split by model profile under `server/agent/prompts/small_model/` and `server/agent/prompts/big_model/`
+- Small-model browser guidance intentionally avoids `keywords` fallback and leans harder on same-mode highlight pagination when dense UI may be split across collision-aware pages
+- Observation rendering also differs by model profile: large models keep clickable highlights compact (`... and N clickable elements`), while small models include clickable element HTML in the LLM-visible observation text for extra semantic grounding
+- The small-model clickable-observation branch is implemented in `server/agent/tools/base.py`; the per-conversation `small_model` flag is attached in `server/agent/tools/browser_executor.py`
+
 ### Keyword Discipline
 - Highlight pagination remains the default discovery flow for controls and dense UI
 - After any significant page-state change, restart discovery with `highlight_elements(element_type="any")` before choosing the next element
@@ -206,10 +213,13 @@ Elements are paginated to ensure **no visual overlap** in each screenshot:
 - Reason: OpenBrowser intentionally keeps automated tabs in the browser background, and Chrome may heavily throttle hidden-tab timers. A page-side `setTimeout` stability loop can therefore take far longer than its nominal budget and become the main cause of highlight timeouts.
 - In practice, the main cause of unstable first-highlight screenshots is often **missing warmup**, not a bad readiness classifier. A background tab may answer lightweight `Runtime.evaluate` probes while still sitting in a partially painted / partially decoded state.
 - A screenshot-style warmup is therefore the default precondition for `highlight_elements`. It helps force hidden-tab paint/compositor/image-decode work before interactive-element detection runs.
+- All highlight warmup and highlight screenshot captures now reuse the same screenshot wake-up profile as `tab view` (`TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS`) instead of a weaker highlight-only profile. The goal is consistency: if a screenshot is needed to wake the page, the highlight path should not use a different, less effective capture mode.
+- For navigation-driven default observations such as `tab init`, `tab open`, `tab switch`, `tab refresh`, `tab back`, and `tab forward`, the extension now performs an **internal raw screenshot prime** first, then runs the normal highlight warmup + detection + highlighted screenshot flow. That raw prime screenshot is only for waking the background page and is **not** returned to the agent.
 - If `highlight_elements` keeps returning `not_ready` but `tab view` immediately makes the next highlight succeed, treat that as a warmup issue first.
 - The extension samples viewport readiness signals once per attempt: document readiness, viewport text/media density, pending images, and loading placeholders such as skeleton/shimmer/spinner indicators.
 - Readiness is graded as `ready`, `provisionally_ready`, or `not_ready`.
 - If readiness is `not_ready`, the extension performs only a couple of short **background-side** retries before proceeding or returning the latest result.
+- The screenshot-side wake-up itself also runs a bounded pre-capture warmup loop. It touches visible viewport media, samples readiness, and retries only a couple of times when the snapshot still looks `not_ready`.
 - After screenshot capture, highlight still runs a **consistency check**. This is a drift detector, not a loading detector: it verifies whether sampled highlighted elements moved or disappeared between detection and screenshot.
 - Design rule: prefer snapshot classification plus bounded retries; avoid depending on repeated timers inside the target page for highlight stability.
 
@@ -321,10 +331,10 @@ OpenBrowser has explicit screenshot control for maximum flexibility:
 
 | Command | Auto-Screenshot | Notes |
 |---------|------------------|-------|
-| `tab init` | Yes | Verify page load |
-| `tab open` | Yes | Verify new tab |
-| `tab switch` | Yes | Verify tab switch |
-| `tab refresh` | Yes | Verify refresh result |
+| `tab init` | Yes | Returns default `highlight any page 1`; first does an internal raw screenshot prime to wake the page |
+| `tab open` | Yes | Returns default `highlight any page 1`; first does an internal raw screenshot prime to wake the page |
+| `tab switch` | Yes | Returns default `highlight any page 1`; first does an internal raw screenshot prime to wake the page |
+| `tab refresh` | Yes | Returns default `highlight any page 1`; first does an internal raw screenshot prime to wake the page |
 |---------|------------------|-------|
 | `highlight_elements` | Yes | Visual overlay for element selection |
 | `click_element` | Yes | Verify interaction result |
@@ -367,7 +377,9 @@ Automated testing framework for evaluating AI agent performance on browser autom
 ```
 OpenBrowser/eval/
 ├── evaluate_browser_agent.py    # Main evaluation entry point
-├── dataset/                     # YAML test case definitions (9 tests)
+├── dataset/                     # YAML test case definitions (12 tests)
+│   ├── bluebook_simple.yaml    # BlueBook search and like test
+│   ├── bluebook_complex.yaml   # BlueBook multi-image reply test
 │   ├── gbr.yaml                # GBR search test
 │   ├── gbr_detailed.yaml       # GBR detailed search test
 │   ├── techforum.yaml          # TechForum upvote test
@@ -376,10 +388,11 @@ OpenBrowser/eval/
 │   ├── cloudstack_interactive.yaml  # CloudStack DAS interactive test
 │   ├── finviz_simple.yaml      # Finviz simple screener test
 │   ├── finviz_complex.yaml     # Finviz multi-filter test
-│   └── dataflow.yaml           # DataFlow visual challenge test
+│   ├── dataflow.yaml           # DataFlow visual challenge test
+│   └── northstar_add_bag.yaml  # Combined fit-guide and add-to-bag geometry test
 ├── output/                      # Generated results and images
 ├── server.py                    # Mock websites server with tracking API
-└── (mock websites: gbr/, techforum/, cloudstack/, dataflow/, finviz/)
+└── (mock websites: gbr/, techforum/, cloudstack/, dataflow/, finviz/, bluebook/, northstar/)
 ```
 
 ### Key Features
@@ -550,17 +563,19 @@ Tests are defined in YAML format with:
 | `gbr` | GBR Search Test | easy | 400s (~6.7min) | 0.8 RMB | Search for "fed" related news |
 | `finviz_simple` | Finviz Simple Screener Test | easy | 300s (5min) | 0.8 RMB | Filter stocks by market cap over 10 billion |
 | `techforum` | TechForum Upvote Test | medium | 300s (5min) | 0.5 RMB | Upvote the first AI-related post |
+| `bluebook_simple` | BlueBook Search And Like Test | medium | 300s (5min) | 0.6 RMB | Search for the target note and like it |
 | `gbr_detailed` | GBR Detailed Search & Read Test | medium | 600s (10min) | 1.5 RMB | Search for "fed", click into each article (3 articles), and summarize content |
 | `finviz_complex` | Finviz Multi-Filter Screener Test | medium | 400s (~6.7min) | 1.0 RMB | Multi-filter stock screener: market cap, P/E, volume |
 | `dataflow` | DataFlow Visual Challenge Test | medium | 300s (5min) | 0.5 RMB | Dashboard interactions: settings, reports, navigation |
+| `northstar_add_bag` | Northstar Fit Guide + Add To Bag Test | medium | 540s (9min) | 1.2 RMB | Save the Care & Wash fit guide section, then choose size M and add the shell to bag |
 
 #### Advanced Tests
 | ID | Name | Difficulty | Time Limit | Cost Limit | Description |
 |----|------|------------|------------|------------|-------------|
+| `bluebook_complex` | BlueBook Multi-Image Reply Test | hard | 500s (~8.3min) | 1.2 RMB | Search for the OpenClaw note, view all images, and leave a quick comment |
 | `cloudstack` | CloudStack DAS Agent Test | hard | 500s (~8.3min) | 1.2 RMB | Find DAS console and greet DAS agent |
 | `techforum_reply` | TechForum Comment Reply Test | hard | 500s (~8.3min) | 1.0 RMB | Open comments, find "Graduate Student" comment, reply with paper name |
 | `cloudstack_interactive` | CloudStack DAS Interactive Test | very hard | 700s (~11.7min) | 2.0 RMB | Multi-turn conversation with DAS agent: greeting, system status, storage check |
-
 #### Event Matching Notes
 - **Standard events**: `page_view`, `click`, `input`, `submit`, `hover`, `scroll`, `answer_action`
 - **Special event types**: 
@@ -585,6 +600,10 @@ Criteria match tracked events using flexible pattern matching:
 - Event type, element IDs, classes, text content
 - Page URLs, input values, custom fields
 - Alternative conditions for flexible scoring
+
+### Deferred Prompt And Observation Follow-Ups
+- Observation design: add structured geometry hints such as `partly_visible`, `near_viewport_edge`, `occluded_by_sticky_ui`, explicit scroll-container identity, and structured stale-element causes before expanding prompt text again.
+- Prompt compaction: after geometry-focused eval results stabilize, reduce duplicated rules between the SDK system prompt and tool prompts so tool templates keep only tool-local contracts and recovery guidance.
 
 ## NOTES
 

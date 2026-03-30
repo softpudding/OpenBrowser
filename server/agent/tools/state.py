@@ -13,8 +13,7 @@ class PendingConfirmation:
     """Represents a pending element interaction confirmation.
 
     Attributes:
-        element_id: The numeric ID of the target element from a highlight snapshot.
-        highlight_snapshot_id: The highlight snapshot ID paired with element_id.
+        element_id: The short opaque ID of the target element from highlight.
         action_type: The type of action being confirmed ('click' or 'keyboard_input').
         full_html: The HTML content of the element for confirmation.
         extra_data: Additional data needed for the action (for example, 'text' for keyboard_input).
@@ -22,7 +21,6 @@ class PendingConfirmation:
     """
 
     element_id: str
-    highlight_snapshot_id: int
     action_type: str  # 'click' or 'keyboard_input'
     full_html: str
     extra_data: Dict[str, Any] = field(default_factory=dict)
@@ -43,7 +41,6 @@ class OpenBrowserState:
         self,
         conversation_id: str,
         element_id: str,
-        highlight_snapshot_id: int,
         action_type: str,
         full_html: str,
         extra_data: Dict[str, Any] | None = None,
@@ -53,8 +50,7 @@ class OpenBrowserState:
 
         Args:
             conversation_id: The unique identifier for the conversation.
-            element_id: The numeric ID of the target element from a highlight snapshot.
-            highlight_snapshot_id: The highlight snapshot ID paired with element_id.
+            element_id: The short opaque ID of the target element from highlight.
             action_type: The type of action ('click' or 'keyboard_input').
             full_html: The HTML content of the element.
             extra_data: Optional additional data for the action.
@@ -62,7 +58,6 @@ class OpenBrowserState:
         """
         self.pending_confirmations[conversation_id] = PendingConfirmation(
             element_id=element_id,
-            highlight_snapshot_id=highlight_snapshot_id,
             action_type=action_type,
             full_html=full_html,
             extra_data=extra_data or {},

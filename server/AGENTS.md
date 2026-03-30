@@ -123,7 +123,7 @@ The extension:
 
 ## VISUAL INTERACTION COMMANDS
 
-OpenBrowser uses a visual-first approach where elements are highlighted with numbered overlays before interaction.
+OpenBrowser uses a visual-first approach where elements are highlighted with short labeled overlays before interaction.
 
 ### Key Commands
 | Command | Purpose | Parameters |

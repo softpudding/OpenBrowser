@@ -46,11 +46,7 @@ class ElementInteractionAction(OpenBrowserAction):
     )
     element_id: Optional[str] = Field(
         default=None,
-        description="Element ID (page-local numeric string) from a specific highlight_elements snapshot. Required for click, hover, element scroll/swipe, keyboard_input, and select. Ignored for confirm_* actions.",
-    )
-    highlight_snapshot_id: Optional[int] = Field(
-        default=None,
-        description="Highlight snapshot ID returned by highlight_elements. Required for click, hover, element scroll/swipe, keyboard_input, and select. Ignored for confirm_* actions.",
+        description="Element ID (short opaque string) from highlight. Required for click, hover, element scroll/swipe, keyboard_input, and select. Ignored for confirm_* actions.",
     )
     direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",
@@ -65,7 +61,12 @@ class ElementInteractionAction(OpenBrowserAction):
         default=0.5,
         ge=0.1,
         le=3.0,
-        description="Scroll amount as fraction of viewport (0.1-3.0)",
+        description=(
+            "Scroll amount as a multiple of the current scroll target's visible "
+            "size (0.1-3.0). If no element_id is provided, the target is the "
+            "page viewport. If element_id refers to a scrollable region, the "
+            "target is that element's visible container."
+        ),
     )
     swipe_count: Optional[int] = Field(
         default=1,

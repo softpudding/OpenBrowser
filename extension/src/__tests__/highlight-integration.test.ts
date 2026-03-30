@@ -109,8 +109,8 @@ describe('Highlight Integration', () => {
       // Run selectCollisionFreePage
       const page1 = selectCollisionFreePage(elements, 1);
 
-      expect(page1.map((element) => element.id)).toEqual(
-        page1.map((_, index) => String(index + 1)),
+      expect(new Set(page1.map((element) => element.id)).size).toBe(
+        page1.length,
       );
 
       // Verify no label collisions on the same page
@@ -161,15 +161,19 @@ describe('Highlight Integration', () => {
       const positions = new Set(page1.map((e) => e.labelPosition));
       expect(positions.size).toBe(page1.length);
 
-      // Verify elements on different pages while numeric ids reset per page.
+      // Verify elements on different pages while preserving each element's ID.
       const page1Selectors = new Set(page1.map((e) => e.selector));
+      const expectedIdsBySelector = Object.fromEntries(
+        elements.map((element) => [element.selector, element.id]),
+      );
       const page2 = selectCollisionFreePage(elements, 2);
       expect(page2.length).toBeGreaterThan(0);
-      expect(page2.map((element) => element.id)).toEqual(
-        page2.map((_, index) => String(index + 1)),
-      );
       for (const elem of page2) {
         expect(page1Selectors.has(elem.selector)).toBe(false);
+        expect(expectedIdsBySelector[elem.selector]).toBe(elem.id);
+      }
+      for (const elem of page1) {
+        expect(expectedIdsBySelector[elem.selector]).toBe(elem.id);
       }
     });
 
@@ -259,6 +263,16 @@ describe('Highlight Integration', () => {
       // Both should fit with appropriate label positions
       expect(result.length).toBeGreaterThan(0);
     });
+
+    test('should separate partially overlapping non-nested boxes across pages', () => {
+      const elemA = createElement('overlap-a', 'clickable', 100, 100, 120, 40);
+      const elemB = createElement('overlap-b', 'clickable', 180, 110, 120, 40);
+      const elements = [elemA, elemB];
+
+      expect(calculateTotalPages(elements, 1280, 720)).toBe(2);
+      expect(selectCollisionFreePage(elements, 1, 1280, 720)).toHaveLength(1);
+      expect(selectCollisionFreePage(elements, 2, 1280, 720)).toHaveLength(1);
+    });
   });
 
   describe('Label placement algorithm', () => {
@@ -331,7 +345,7 @@ describe('Highlight Integration', () => {
 
       const page1 = selectCollisionFreePage(elements, 1, 1728, 891);
 
-      expect(page1.map((e) => e.id)).toEqual(['1', '2', '3']);
+      expect(page1.map((e) => e.id)).toEqual(['modal', 'like', 'reply']);
       expect(page1[0].labelPosition).toBeDefined();
       expect(page1[1].labelPosition).toBeDefined();
       expect(page1[2].labelPosition).toBeDefined();
@@ -355,6 +369,36 @@ describe('Highlight Integration', () => {
       const leftElem = findBySelector(result, '#left');
       // Should not use 'left' position (would be outside viewport)
       expect(leftElem?.labelPosition).not.toBe('left');
+    });
+
+    test('should treat one-pixel label-to-element gaps as blocked', () => {
+      const upper = createElement('upper', 'clickable', 100, 44, 80, 30);
+      const lower = createElement('lower', 'clickable', 100, 101, 80, 30);
+
+      const result = selectCollisionFreePage([upper, lower], 1, 1280, 720);
+
+      expect(findBySelector(result, '#upper')?.labelPosition).toBe('above');
+      expect(findBySelector(result, '#lower')?.labelPosition).toBe('below');
+    });
+
+    test('should treat one-pixel label-to-label gaps as blocked', () => {
+      const left = createElement('AAAAAA', 'clickable', 100, 100, 24, 14);
+      const leftLabel = getLabelBBox(left.bbox, 'above', left.id);
+      const right = createElement(
+        'CCCCCC',
+        'clickable',
+        leftLabel.x + leftLabel.width + 1,
+        100,
+        24,
+        14,
+      );
+
+      const result = selectCollisionFreePage([left, right], 1, 1280, 720);
+
+      expect(findBySelector(result, '#AAAAAA')?.labelPosition).not.toBe(
+        'above',
+      );
+      expect(findBySelector(result, '#CCCCCC')?.labelPosition).toBe('above');
     });
   });
 

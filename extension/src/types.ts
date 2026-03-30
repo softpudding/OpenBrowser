@@ -130,10 +130,8 @@ export interface HighlightElementsCommand extends BaseCommand {
 
 export interface ClickElementCommand extends BaseCommand {
   type: 'click_element';
-  /** Element ID from the referenced highlight snapshot response (page-local numeric string) */
+  /** Element ID from highlight response (short opaque string) */
   element_id: string;
-  /** Highlight snapshot ID returned by highlight_elements */
-  highlight_snapshot_id: number;
   /**
    * Target tab ID (optional - auto-resolved from conversation if not provided)
    * Note: Required in Python models, but optional here as extension auto-resolves it
@@ -143,10 +141,8 @@ export interface ClickElementCommand extends BaseCommand {
 
 export interface HoverElementCommand extends BaseCommand {
   type: 'hover_element';
-  /** Element ID from the referenced highlight snapshot response (page-local numeric string) */
+  /** Element ID from highlight response (short opaque string) */
   element_id: string;
-  /** Highlight snapshot ID returned by highlight_elements */
-  highlight_snapshot_id: number;
   /**
    * Target tab ID (optional - auto-resolved from conversation if not provided)
    * Note: Required in Python models, but optional here as extension auto-resolves it
@@ -156,12 +152,10 @@ export interface HoverElementCommand extends BaseCommand {
 
 export interface ScrollElementCommand extends BaseCommand {
   type: 'scroll_element';
-  /** Element ID from the referenced highlight snapshot response (page-local numeric string). If not provided, scrolls the entire page */
+  /** Element ID from highlight response (short opaque string). If not provided, scrolls the entire page */
   element_id?: string;
-  /** Highlight snapshot ID returned by highlight_elements. Required when element_id is provided */
-  highlight_snapshot_id?: number;
   direction?: ScrollDirection;
-  /** Scroll amount relative to page/element height (0.5 = half page, 1.0 = full page) */
+  /** Scroll amount relative to the current scroll target's visible size (0.5 = half target, 1.0 = one full visible span) */
   scroll_amount?: number;
   /**
    * Target tab ID (optional - auto-resolved from conversation if not provided)
@@ -174,10 +168,8 @@ export type SwipeDirection = 'next' | 'prev';
 
 export interface SwipeElementCommand extends BaseCommand {
   type: 'swipe_element';
-  /** Element ID from the referenced highlight snapshot response (page-local numeric string) */
+  /** Element ID from highlight response (short opaque string) */
   element_id: string;
-  /** Highlight snapshot ID returned by highlight_elements */
-  highlight_snapshot_id: number;
   direction?: SwipeDirection;
   /** Number of swipe steps for carousel/swiper interactions */
   swipe_count?: number;
@@ -190,10 +182,8 @@ export interface SwipeElementCommand extends BaseCommand {
 
 export interface KeyboardInputCommand extends BaseCommand {
   type: 'keyboard_input';
-  /** Element ID from the referenced highlight snapshot response (page-local numeric string) */
+  /** Element ID from highlight response (short opaque string) */
   element_id: string;
-  /** Highlight snapshot ID returned by highlight_elements */
-  highlight_snapshot_id: number;
   text: string;
   /**
    * Target tab ID (optional - auto-resolved from conversation if not provided)
@@ -204,10 +194,8 @@ export interface KeyboardInputCommand extends BaseCommand {
 
 export interface SelectElementCommand extends BaseCommand {
   type: 'select_element';
-  /** Element ID from the referenced highlight snapshot response (page-local numeric string) */
+  /** Element ID from highlight response (short opaque string) */
   element_id: string;
-  /** Highlight snapshot ID returned by highlight_elements */
-  highlight_snapshot_id: number;
   /** Option value(s) to select. Use string for single select, array for multi-select (<select multiple>) */
   value: string | string[];
   /**
@@ -220,14 +208,13 @@ export interface SelectElementCommand extends BaseCommand {
 export interface GetElementHtmlCommand extends BaseCommand {
   type: 'get_element_html';
   element_id: string;
-  highlight_snapshot_id: number;
   tab_id?: number; // Optional: uses active tab if not provided
 }
 
 export interface HighlightSingleElementCommand extends BaseCommand {
   type: 'highlight_single_element';
   element_id: string;
-  highlight_snapshot_id: number;
+  intended_action?: 'click' | 'keyboard_input';
   tab_id?: number; // Optional: uses active tab if not provided
 }
 
@@ -322,7 +309,7 @@ export type ElementType =
 export type InteractionHint = 'swipable';
 
 export interface InteractiveElement {
-  id: string; // Element ID: page-local numeric string within a specific highlight snapshot (e.g. "1", "2", "3")
+  id: string; // Element ID: short opaque visual-safe string for the current highlighted document (e.g. "A1H", "Q7M", "X4Y")
   type: ElementType; // Type of interactive element
   interactionHints?: InteractionHint[]; // Extra interaction hints (e.g. swipable carousel region)
   tagName: string; // HTML tag name
@@ -352,6 +339,9 @@ export interface HighlightOptions {
 export interface ElementActionResult {
   success: boolean;
   elementId?: string | undefined; // Made optional to support page-level operations (where no element_id is provided)
+  requestedElementId?: string;
+  resolvedElementId?: string;
+  elementIdCorrected?: boolean;
   screenshotDataUrl?: string;
   dialogOpened?: boolean;
   dialog?: {

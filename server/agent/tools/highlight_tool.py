@@ -2,7 +2,7 @@
 HighlightTool - AI tool for highlighting interactive elements on web pages.
 
 This tool provides visual element detection with collision-aware pagination,
-allowing the AI agent to see and interact with elements via numbered overlays.
+allowing the AI agent to see and interact with elements via labeled overlays.
 """
 
 from collections.abc import Sequence

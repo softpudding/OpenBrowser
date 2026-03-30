@@ -59,7 +59,6 @@ class TestToolSetIntegration:
 
         shared_executor._set_pending_confirmation(
             element_id="abc123",
-            highlight_snapshot_id=17,
             action_type="click",
             full_html="<button>Delete</button>",
         )
@@ -79,7 +78,6 @@ class TestToolSetIntegration:
         executor.conversation_id = "conv-1"
         executor._set_pending_confirmation(
             element_id="elem-1",
-            highlight_snapshot_id=11,
             action_type="click",
             full_html="<button>First</button>",
         )
@@ -90,16 +88,13 @@ class TestToolSetIntegration:
 
         executor._set_pending_confirmation(
             element_id="elem-2",
-            highlight_snapshot_id=22,
             action_type="keyboard_input",
             full_html='<input value="second" />',
         )
         assert executor._get_pending_confirmation()["element_id"] == "elem-2"
-        assert executor._get_pending_confirmation()["highlight_snapshot_id"] == 22
 
         executor.conversation_id = "conv-1"
         assert executor._get_pending_confirmation()["element_id"] == "elem-1"
-        assert executor._get_pending_confirmation()["highlight_snapshot_id"] == 11
 
     def test_toolset_keeps_core_workflow_tools_available(self) -> None:
         tools = OpenBrowserToolSet.create(None)

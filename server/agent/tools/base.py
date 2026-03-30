@@ -76,11 +76,15 @@ class OpenBrowserObservation(Observation):
     highlighted_elements: Optional[List[Dict[str, Any]]] = Field(
         default=None, description="List of elements highlighted on the screenshot"
     )
+    page: Optional[int] = Field(
+        default=None, description="Current page number for highlighted elements"
+    )
+    total_pages: Optional[int] = Field(
+        default=None,
+        description="Total number of pages available for highlighted elements",
+    )
     total_elements: Optional[int] = Field(
         default=None, description="Total number of elements found"
-    )
-    highlight_snapshot_id: Optional[int] = Field(
-        default=None, description="Highlight snapshot ID associated with the result"
     )
     element_id: Optional[str] = Field(
         default=None, description="ID of the element that was acted upon"
@@ -99,6 +103,10 @@ class OpenBrowserObservation(Observation):
         default=None,
         description="Type of elements highlighted (clickable/scrollable/inputable/hoverable/selectable)",
     )
+    small_model: Optional[bool] = Field(
+        default=None,
+        description="Whether the active conversation uses the small-model profile.",
+    )
 
     def _pending_confirmation_llm_content(
         self,
@@ -112,21 +120,31 @@ class OpenBrowserObservation(Observation):
         pending = self.pending_confirmation or {}
         action_type = str(pending.get("action_type", "unknown"))
         element_id = str(pending.get("element_id", "unknown"))
-        highlight_snapshot_id = str(
-            pending.get(
-                "highlight_snapshot_id", self.highlight_snapshot_id or "unknown"
-            )
-        )
+        requested_element_id = pending.get("requested_element_id")
+        resolution_note = pending.get("element_id_resolution_note")
         confirm_cmd = f'{{"action": "confirm_{action_type}"}}'
 
         text_parts = [
             "## Pending Confirmation",
             "",
-            f"**Highlight Snapshot ID**: {highlight_snapshot_id}",
             f"**Element ID**: {element_id}",
-            f"**Action Type**: {action_type}",
-            "",
         ]
+        if (
+            isinstance(requested_element_id, str)
+            and requested_element_id
+            and requested_element_id != element_id
+        ):
+            text_parts.append(
+                f"**Matched Requested ID**: {requested_element_id} -> {element_id}"
+            )
+        if isinstance(resolution_note, str) and resolution_note:
+            text_parts.append(f"**Match Note**: {resolution_note}")
+        text_parts.extend(
+            [
+                f"**Action Type**: {action_type}",
+                "",
+            ]
+        )
 
         full_html = str(pending.get("full_html", "")).strip()
         if full_html:
@@ -353,19 +371,26 @@ class OpenBrowserObservation(Observation):
         if self.highlighted_elements:
             text_parts.append("## Highlighted Elements")
             text_parts.append("")
-            if self.highlight_snapshot_id is not None:
-                text_parts.append(
-                    f"**Highlight Snapshot ID**: {self.highlight_snapshot_id}"
-                )
+            highlight_page = self.page if self.page is not None else 1
+            highlight_total_pages = (
+                self.total_pages if self.total_pages is not None else 1
+            )
+            text_parts.append(f"**Page**: {highlight_page}/{highlight_total_pages}")
+            text_parts.append("")
             text_parts.append(
                 f"**Total Elements**: {self.total_elements if self.total_elements is not None else len(self.highlighted_elements)}"
             )
             text_parts.append("")
             # Format: id: <html> for each element
             element_descriptions = []
+            clickable_count = 0
+            include_clickable_html = bool(self.small_model)
             for el in self.highlighted_elements:
                 el_id = el.get("id", "unknown")
                 el_type = el.get("type")
+                if el_type == "clickable" and not include_clickable_html:
+                    clickable_count += 1
+                    continue
                 raw_hints = (
                     el.get("interactionHints") or el.get("interaction_hints") or []
                 )
@@ -390,16 +415,22 @@ class OpenBrowserObservation(Observation):
                 else:
                     tag = el.get("tagName", "").upper()
                     element_descriptions.append(f"{display_id} ({tag})")
+            if clickable_count:
+                clickable_label = (
+                    f"{clickable_count} clickable element"
+                    if clickable_count == 1
+                    else f"{clickable_count} clickable elements"
+                )
+                if element_descriptions:
+                    element_descriptions.append(f"... and {clickable_label}")
+                else:
+                    element_descriptions.append(clickable_label)
             text_parts.append("\n".join(element_descriptions))
             text_parts.append("")
 
         if self.element_id:
             text_parts.append("## Element Action Result")
             text_parts.append("")
-            if self.highlight_snapshot_id is not None:
-                text_parts.append(
-                    f"**Highlight Snapshot ID**: {self.highlight_snapshot_id}"
-                )
             text_parts.append(f"**Element ID**: {self.element_id}")
             text_parts.append("")
 
@@ -420,10 +451,9 @@ class OpenBrowserObservation(Observation):
             text_parts.append("")
 
         text_content = "\n".join(text_parts)
-        content_items.append(TextContent(text=text_content))
-
         # Add image content if screenshot is available
         if self.screenshot_data_url:
             content_items.append(ImageContent(image_urls=[self.screenshot_data_url]))
+        content_items.append(TextContent(text=text_content))
 
         return content_items

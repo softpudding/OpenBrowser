@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { InteractiveElement } from '../../types';
-import { calculateConfirmationPreviewLayout } from '../single-highlight';
+import {
+  calculateConfirmationBannerLayout,
+  calculateConfirmationPreviewLayout,
+  getConfirmationPromptText,
+} from '../single-highlight';
 
 function createElement(bbox: InteractiveElement['bbox']): InteractiveElement {
   return {
@@ -16,6 +20,40 @@ function createElement(bbox: InteractiveElement['bbox']): InteractiveElement {
 }
 
 describe('single-highlight confirmation preview', () => {
+  test('formats confirmation reminder text for click and keyboard input', () => {
+    expect(getConfirmationPromptText('click')).toBe(
+      'Is this the element you wanted to click?',
+    );
+    expect(getConfirmationPromptText('keyboard_input')).toBe(
+      'Is this the element you wanted to type into?',
+    );
+  });
+
+  test('places the confirmation reminder above the highlight when space is available', () => {
+    const banner = calculateConfirmationBannerLayout({
+      canvasWidth: 720,
+      canvasHeight: 420,
+      elementRect: { x: 220, y: 180, width: 120, height: 40 },
+      message: getConfirmationPromptText('click'),
+      scale: 1,
+    });
+
+    expect(banner.y + banner.height).toBeLessThanOrEqual(180 - 8);
+    expect(banner.x).toBeGreaterThanOrEqual(10);
+  });
+
+  test('falls back below the highlight when there is no room above', () => {
+    const banner = calculateConfirmationBannerLayout({
+      canvasWidth: 720,
+      canvasHeight: 420,
+      elementRect: { x: 220, y: 18, width: 120, height: 40 },
+      message: getConfirmationPromptText('click'),
+      scale: 1,
+    });
+
+    expect(banner.y).toBeGreaterThanOrEqual(18 + 40 + 8);
+  });
+
   test('uses a bounded close-up crop around the selected element', () => {
     const layout = calculateConfirmationPreviewLayout(
       1280,

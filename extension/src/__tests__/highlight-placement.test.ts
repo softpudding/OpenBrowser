@@ -9,6 +9,7 @@ import {
   selectCollisionFreePage,
 } from '../utils/collision-detection';
 import type { InteractiveElement } from '../types';
+import { generateShortHash } from '../commands/element-id';
 import { getLabelDimensions } from '../utils/label-geometry';
 
 /**
@@ -23,18 +24,19 @@ import { getLabelDimensions } from '../utils/label-geometry';
 
 // Helper to create a minimal InteractiveElement
 function createElement(
-  id: string,
+  selectorName: string,
   x: number,
   y: number,
   width: number,
   height: number,
   labelPosition?: 'above' | 'below' | 'left' | 'right',
 ): InteractiveElement {
+  const selector = `#${selectorName}`;
   return {
-    id,
+    id: generateShortHash(selector),
     type: 'clickable',
     tagName: 'button',
-    selector: `#${id}`,
+    selector,
     bbox: { x, y, width, height },
     isVisible: true,
     isInViewport: true,
@@ -158,9 +160,9 @@ describe('Smart Label Placement', () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]?.selector).toBe('#constrained');
-      expect(result[0]?.id).toBe('1');
+      expect(result[0]?.id).toMatch(/^[0-9A-Z]{3}$/);
       expect(result[1]?.selector).toBe('#flexible');
-      expect(result[1]?.id).toBe('2');
+      expect(result[1]?.id).toMatch(/^[0-9A-Z]{3}$/);
     });
 
     test('should place label above when space available (default)', () => {
@@ -172,20 +174,22 @@ describe('Smart Label Placement', () => {
       expect(result[0].labelPosition).toBe('above');
     });
 
-    test('should place label below when above collides with another element', () => {
+    test('should place one label below when two identical elements would both prefer above', () => {
       // Element A at (100, 100) - label above at y=74-100
       // Element B at (100, 100) - same position as A, label above would collide
-      // Element B should try below instead
+      // The layout should split them across above/below instead of dropping one.
       const elemA = createElement('a', 100, 100, 50, 30);
       const elemB = createElement('b', 100, 100, 50, 30);
       const elements = [elemA, elemB];
 
       const result = selectCollisionFreePage(elements, 1);
 
-      // Both elements should be on page 1 with different label positions
+      // Both elements should be on page 1 with different label positions.
       expect(result).toHaveLength(2);
-      const resultB = findBySelector(result, '#b');
-      expect(resultB?.labelPosition).toBe('below');
+      expect(result.map((element) => element.labelPosition).sort()).toEqual([
+        'above',
+        'below',
+      ]);
     });
 
     test('should place label left when above and below collide', () => {
@@ -239,8 +243,8 @@ describe('Smart Label Placement', () => {
       // Element completely surrounded in input order. The constraint-aware
       // heuristic should reorder placements so the center element still fits.
       const center = createElement('center', 200, 100, 50, 30);
-      const above = createElement('above', 200, 74, 50, 30);
-      const below = createElement('below', 200, 130, 50, 30);
+      const above = createElement('above', 200, 64, 50, 30);
+      const below = createElement('below', 200, 140, 50, 30);
       const left = createElement('left', 80, 100, 50, 30);
       const right = createElement('right', 320, 100, 50, 30);
 
@@ -367,12 +371,14 @@ describe('Smart Label Placement', () => {
 
       // All should fit without collision
       expect(result).toHaveLength(3);
-      expect(result.map((element) => element.id)).toEqual(['1', '2', '3']);
       expect(result.map((element) => element.selector)).toEqual([
         '#a',
         '#b',
         '#c',
       ]);
+      expect(result.every((element) => /^[0-9A-Z]{3}$/.test(element.id))).toBe(
+        true,
+      );
     });
   });
 });
