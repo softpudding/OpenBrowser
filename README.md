@@ -2,6 +2,8 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/softpudding/OpenBrowser)
 
+[中文 README](README.zh-CN.md)
+
 OpenBrowser is a multimodal browser agent for real web tasks.
 
 It treats browser automation as a visual and interactive systems problem, not just a DOM parsing problem. Browsers are among the most complex pieces of software most people use every day. Reading the DOM can help, but understanding the DOM is not the same thing as actually operating the page. The long-term direction we believe in is multimodal control, or at least a strongly hybrid approach.
@@ -17,24 +19,32 @@ OpenBrowser is built around that view:
 
 ## Demo
 
-### Apartment Hunting on Xiaohongshu
+### Apartment Hunting on Zillow
 
-This demo is a better representation of what OpenBrowser is trying to do than a benchmark replay. The agent searches Xiaohongshu for apartments near Xixi Wetland, inspects multiple posts, judges renovation quality from images, likes and saves strong candidates, leaves comments, and then produces a shortlist.
+This demo is a better representation of what OpenBrowser is trying to do than a benchmark replay. The agent searches Zillow for one-bedroom rentals in Capitol Hill, Seattle, opens and compares multiple listings, judges brightness, cleanliness, practicality, and value from the listing photos, and then produces a shortlist.
 
 Task prompt:
 
-> Help me find 3 whole one-bedroom rentals near Xixi Wetland on Xiaohongshu. They should be close to a metro station, not feel too old, dark, cluttered, or overly styled, and the kitchen, bathroom, and bedroom should look clean with decent natural light. Browse multiple posts, pick the best 3, like and save them, comment on the best 2 to ask about price, earliest move-in date, short-term rental, and whether cats are allowed, then summarize why you chose them.
+> Find the best 3 one-bedroom apartment rentals in Capitol Hill, Seattle on Zillow.
+>
+> Prioritize places that look bright, clean, practical, and close to everyday city life.
+> Avoid units that look dark, cramped, outdated, cluttered, or overpriced for what they offer.
+>
+> Browse multiple listings (view at least 10, for better candidates), compare them visually, and return the best 3 choices with:
+> 1. a one-sentence reason,
+> 2. the rent,
+> 3. the listing link.
 
-![Xiaohongshu Apartment Hunting Demo](demo/xiaohongshu_apartment_preview.gif)
+![Zillow Apartment Hunting Demo](demo/recording_zillow_preview.gif)
 
-[Watch full video: xiaohongshu_3_apartments_3x.mp4](demo/xiaohongshu_3_apartments_3x.mp4)
+[Watch full video: recording_zillow.webm](demo/recording_zillow.webm)
 
 What this demo shows:
 
-- Visual judgment, not just text extraction: lighting, clutter, decoration quality, and room condition
-- Real browser-side interaction: search, open posts, like, save, and comment
-- Multi-step decision making across multiple candidates
-- End-to-end output instead of isolated single-page actions
+- Visual judgment, not just text extraction: lighting, cleanliness, layout practicality, and overall value
+- Real browser-side interaction: search, open listings, compare candidates, and inspect details
+- Multi-step decision making across a larger candidate set
+- End-to-end output with reasons, rents, and listing links
 
 ## Why OpenBrowser
 

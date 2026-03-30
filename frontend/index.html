@@ -2575,13 +2575,25 @@
             position: absolute;
             inset: 0 10px 0 0;
             z-index: 6;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
+        body.advanced-mode .advanced-shell summary {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: linear-gradient(180deg, rgba(34, 27, 21, 0.98), rgba(24, 20, 16, 0.94));
         }
 
         body.advanced-mode .advanced-shell[open] .advanced-content {
-            flex: 1 1 auto;
+            flex: 1 0 auto;
             min-height: 0;
             max-height: none;
-            overflow-y: auto;
+            overflow: visible;
             padding-right: 6px;
         }
 
@@ -3982,6 +3994,7 @@
                 clearPendingHelpRequest();
                 currentConversationId = null;
                 sisyphusCurrentConversationId = null;
+                resetUsageMetrics();
                 updateConversationIdDisplay();
                 updateSessionDisplay();
                 addEvent({
@@ -4772,56 +4785,64 @@
             try {
                 const response = await fetch(apiUrl(`/agent/conversations/${conversationId}/events`));
                 const data = await response.json();
-                
-                if (data.success && data.events && data.events.length > 0) {
-                    // Clear existing events (except system init events)
-                    const terminalOutput = document.getElementById('terminal-output');
-                    // Keep only the first system init message
-                    while (terminalOutput.children.length > 1) {
-                        terminalOutput.removeChild(terminalOutput.lastChild);
-                    }
-                    resetEventCounters();
-                    resetRecentActivity();
-                    resetAgentVoice();
-                    clearPendingHelpRequest();
 
-                    let unresolvedHelpRequest = null;
-                    
-                    // Replay events
-                    for (const event of data.events) {
-                        const eventData = event.event_data;
-                        
-                        // Skip SystemPromptEvent (don't show full system prompt)
-                        if (eventData.type === 'SystemPromptEvent') {
-                            continue;
-                        }
-                        
-                        // Convert to frontend event format
-                        const frontendEvent = normalizeFrontendEvent(eventData, {
-                            type: event.event_type,
-                            timestamp: event.created_at
-                        });
-                        
-                        updateEventCounters(frontendEvent.type);
-                        addEvent(frontendEvent);
-
-                        if (frontendEvent.type === 'MessageEvent' && frontendEvent.source === 'user') {
-                            unresolvedHelpRequest = null;
-                        } else if (isHelpRequestEvent(frontendEvent)) {
-                            unresolvedHelpRequest = {
-                                conversationId: conversationId,
-                                toolCallId: frontendEvent.tool_call_id,
-                                message: getHelpRequestText(frontendEvent)
-                            };
-                        }
-                    }
-
-                    if (unresolvedHelpRequest) {
-                        showHelpRequestModal(unresolvedHelpRequest, { silent: true });
-                    }
-                    
-                    console.log(`Loaded ${data.events.length} events for session ${conversationId}`);
+                // Clear existing events (except system init events)
+                const terminalOutput = document.getElementById('terminal-output');
+                // Keep only the first system init message
+                while (terminalOutput.children.length > 1) {
+                    terminalOutput.removeChild(terminalOutput.lastChild);
                 }
+                resetEventCounters();
+                resetRecentActivity();
+                resetAgentVoice();
+                clearPendingHelpRequest();
+                resetUsageMetrics();
+
+                if (!(data.success && Array.isArray(data.events))) {
+                    return;
+                }
+
+                let unresolvedHelpRequest = null;
+
+                // Replay events
+                for (const event of data.events) {
+                    const eventData = event.event_data || {};
+
+                    if (event.event_type === 'usage_metrics') {
+                        updateUsageMetrics(eventData);
+                        continue;
+                    }
+
+                    // Skip SystemPromptEvent (don't show full system prompt)
+                    if (eventData.type === 'SystemPromptEvent') {
+                        continue;
+                    }
+
+                    // Convert to frontend event format
+                    const frontendEvent = normalizeFrontendEvent(eventData, {
+                        type: event.event_type,
+                        timestamp: event.created_at
+                    });
+
+                    updateEventCounters(frontendEvent.type);
+                    addEvent(frontendEvent);
+
+                    if (frontendEvent.type === 'MessageEvent' && frontendEvent.source === 'user') {
+                        unresolvedHelpRequest = null;
+                    } else if (isHelpRequestEvent(frontendEvent)) {
+                        unresolvedHelpRequest = {
+                            conversationId: conversationId,
+                            toolCallId: frontendEvent.tool_call_id,
+                            message: getHelpRequestText(frontendEvent)
+                        };
+                    }
+                }
+
+                if (unresolvedHelpRequest) {
+                    showHelpRequestModal(unresolvedHelpRequest, { silent: true });
+                }
+
+                console.log(`Loaded ${data.events.length} events for session ${conversationId}`);
             } catch (error) {
                 console.error('Error loading session events:', error);
             }
@@ -4983,6 +5004,7 @@
                     clearPendingHelpRequest();
                     currentConversationId = null;
                     localStorage.removeItem('openbrowser_conversation_id');
+                    resetUsageMetrics();
                     updateConversationIdDisplay();
                     
                     // Optional: Show notification
@@ -5139,6 +5161,7 @@
             let conversationId = currentConversationId;
             if (!conversationId) {
                 try {
+                    resetUsageMetrics();
                     // Get cwd from input field (already validated)
                     
                     const response = await fetch(apiUrl('agent/conversations'), {
@@ -5870,6 +5893,7 @@
             clearPendingHelpRequest();
             currentConversationId = null;
             localStorage.removeItem('openbrowser_conversation_id');
+            resetUsageMetrics();
             updateConversationIdDisplay();
             updateSessionDisplay();
             
@@ -6337,6 +6361,16 @@
         }
         
         // Update usage metrics display
+        function resetUsageMetrics() {
+            document.getElementById('usage-cost').textContent = '$0.00';
+            document.getElementById('usage-prompt-tokens').textContent = '0';
+            document.getElementById('usage-completion-tokens').textContent = '0';
+            document.getElementById('usage-total-tokens').textContent = '0';
+            document.getElementById('usage-cache-read').textContent = '0';
+            document.getElementById('usage-cache-write').textContent = '0';
+            document.getElementById('usage-reasoning').textContent = '0';
+        }
+
         function updateUsageMetrics(data) {
             console.log('[Frontend] Updating usage metrics:', data);
             const metrics = data.metrics || {};

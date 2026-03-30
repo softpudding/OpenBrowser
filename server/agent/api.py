@@ -292,6 +292,14 @@ async def process_agent_message(
             # Put usage metrics event in queue (will be drained after complete event)
             if usage_metrics:
                 logger.debug(f"DEBUG: Putting usage_metrics event into queue")
+                session_manager.save_event(
+                    conversation_id=conversation_id,
+                    event_type="usage_metrics",
+                    event_data={
+                        "conversation_id": conversation_id,
+                        "metrics": usage_metrics,
+                    },
+                )
                 event_queue.put(
                     SSEEvent(
                         "usage_metrics",

@@ -2,7 +2,7 @@
  * Tab Management Tool
  */
 
-import { tabManager } from './tab-manager';
+import { normalizeNavigableUrl, tabManager } from './tab-manager';
 
 /**
  * Get all tabs across all windows
@@ -90,11 +90,7 @@ export async function openTab(
   url: string,
   conversationId?: string,
 ): Promise<any> {
-  // Ensure URL has protocol
-  let targetUrl = url;
-  // if (!url.match(/^https?:\/\//)) {
-  //   targetUrl = `https://${url}`;
-  // }
+  const targetUrl = normalizeNavigableUrl(url);
 
   // Use tab manager to open managed tab if conversationId provided
   if (conversationId) {

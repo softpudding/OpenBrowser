@@ -21,6 +21,7 @@ from server.agent.manager import OpenBrowserAgentManager
 from server.api.sse import SSEEvent
 from server.agent.user_help import build_completion_event_payload
 from server.core.processor import CommandProcessor
+from server.core.session_manager import session_manager
 from server.models.commands import parse_command, CommandResponse
 
 logger = logging.getLogger(__name__)
@@ -309,6 +310,14 @@ class BrowserExecutorBundle:
             )
 
             if usage_metrics:
+                session_manager.save_event(
+                    conversation_id=self.conversation_id,
+                    event_type="usage_metrics",
+                    event_data={
+                        "conversation_id": self.conversation_id,
+                        "metrics": usage_metrics,
+                    },
+                )
                 event_queue.put(
                     SSEEvent(
                         "usage_metrics",

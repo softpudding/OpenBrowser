@@ -385,6 +385,9 @@ class TestBrowserExecutorBundleExecuteCommand:
             patch(
                 "server.core.browser_executor_bundle.CommandProcessor"
             ) as mock_processor_class,
+            patch(
+                "server.core.browser_executor_bundle.session_manager"
+            ) as mock_session_manager,
         ):
             mock_visualizer = MagicMock()
             mock_conversation = MagicMock()
@@ -423,6 +426,17 @@ class TestBrowserExecutorBundleExecuteCommand:
             assert complete_event.event_type == "complete"
             assert usage_event.event_type == "usage_metrics"
             assert usage_event.data["metrics"]["model_name"] == "test-model"
+            mock_session_manager.save_event.assert_called_once_with(
+                conversation_id="test-conv-12b",
+                event_type="usage_metrics",
+                event_data={
+                    "conversation_id": "test-conv-12b",
+                    "metrics": {
+                        "accumulated_cost": 0.5,
+                        "model_name": "test-model",
+                    },
+                },
+            )
 
     @pytest.mark.asyncio
     async def test_pause_conversation_requests_pause_on_worker_conversation(self):
