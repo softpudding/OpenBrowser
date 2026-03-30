@@ -13,20 +13,93 @@ The server will:
 4. Export events via /api/events endpoint
 """
 
-import http.server
-import socketserver
 import html
+import http.server
 import json
 import os
+import socketserver
+import threading
+from copy import deepcopy
 from datetime import datetime
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 # Configuration
 PORT = 16605
 EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # In-memory event storage
-events_store = {"events": [], "sessions": {}}
+events_store = {"events": [], "sessions": {}, "sites": {}}
+events_store_lock = threading.Lock()
+
+SITE_NAME_TO_BUCKET = {
+    "globalbusinessreview.com": "gbr",
+    "techforum.com": "techforum",
+    "cloudstack.com": "cloudstack",
+    "dataflow.io": "dataflow",
+    "finviz": "finviz",
+    "bluebook.life": "bluebook",
+    "northstaroutfitters.com": "northstar",
+}
+
+
+def _normalize_site_bucket(raw_value):
+    """Normalize a site/path/domain into a mock-site bucket key."""
+    if not raw_value or not isinstance(raw_value, str):
+        return None
+
+    parsed = urlparse(raw_value)
+    candidate = parsed.path if parsed.scheme or parsed.netloc else raw_value
+    candidate = candidate.strip()
+
+    if candidate.startswith("/"):
+        segments = [segment for segment in candidate.split("/") if segment]
+        if segments:
+            return segments[0]
+
+    normalized = candidate.strip().lower()
+    return SITE_NAME_TO_BUCKET.get(normalized, normalized or None)
+
+
+def _get_event_site_bucket(event):
+    """Infer the mock-site bucket for one tracked event."""
+    for key in ("page", "url", "site"):
+        bucket = _normalize_site_bucket(event.get(key))
+        if bucket:
+            return bucket
+    return "unknown"
+
+
+def _get_or_create_site_store(site_bucket):
+    """Return the per-site event store, creating it if needed."""
+    return events_store["sites"].setdefault(site_bucket, {"events": [], "sessions": {}})
+
+
+def _snapshot_events(site_bucket=None):
+    """Return a JSON-safe snapshot of tracked events."""
+    with events_store_lock:
+        if site_bucket:
+            site_store = events_store["sites"].get(
+                site_bucket, {"events": [], "sessions": {}}
+            )
+            return {
+                "site": site_bucket,
+                "events": deepcopy(site_store["events"]),
+                "sessions": deepcopy(site_store["sessions"]),
+            }
+
+        return deepcopy(events_store)
+
+
+def _clear_events(site_bucket=None):
+    """Clear tracked events globally or for a specific site."""
+    with events_store_lock:
+        if site_bucket:
+            events_store["sites"][site_bucket] = {"events": [], "sessions": {}}
+            return
+
+        events_store["events"] = []
+        events_store["sessions"] = {}
+        events_store["sites"] = {}
 
 # URL mappings
 URL_MAPPINGS = {
@@ -199,16 +272,25 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
         """Handle GET requests"""
         parsed_path = urlparse(self.path)
         path = parsed_path.path
+        query_params = parse_qs(parsed_path.query)
+        site_bucket = _normalize_site_bucket(query_params.get("site", [None])[0])
 
         # API endpoints
         if path == "/api/events":
-            self.send_json_response(events_store)
+            self.send_json_response(_snapshot_events(site_bucket))
             return
         elif path == "/api/events/clear":
-            events_store["events"] = []
-            events_store["sessions"] = {}
+            _clear_events(site_bucket)
             self.send_json_response(
-                {"status": "cleared", "message": "All events cleared"}
+                {
+                    "status": "cleared",
+                    "site": site_bucket,
+                    "message": (
+                        f"Events cleared for site '{site_bucket}'"
+                        if site_bucket
+                        else "All events cleared"
+                    ),
+                }
             )
             return
         elif path == "/api/sites":
@@ -263,8 +345,8 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/help":
             help_text = {
                 "endpoints": {
-                    "GET /api/events": "Get all tracked events",
-                    "GET /api/events/clear": "Clear all events",
+                    "GET /api/events": "Get tracked events (optional ?site=<bucket>)",
+                    "GET /api/events/clear": "Clear tracked events (optional ?site=<bucket>)",
                     "GET /api/sites": "List available mock sites",
                     "GET /api/help": "Show this help",
                     "POST /api/track": "Submit tracking event (from browser)",
@@ -375,22 +457,42 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 event = json.loads(post_data.decode("utf-8"))
                 event["received_at"] = datetime.now().isoformat()
-                events_store["events"].append(event)
 
-                # Track sessions
+                site_bucket = _get_event_site_bucket(event)
                 session_id = event.get("sessionId", "unknown")
-                if session_id not in events_store["sessions"]:
-                    events_store["sessions"][session_id] = {
-                        "sessionId": session_id,
-                        "site": event.get("site", "unknown"),
-                        "difficulty": event.get("difficulty", "unknown"),
-                        "start_time": event.get("timestamp"),
-                        "events_count": 0,
-                    }
-                events_store["sessions"][session_id]["events_count"] += 1
-                events_store["sessions"][session_id]["last_activity"] = event.get(
-                    "timestamp"
-                )
+
+                with events_store_lock:
+                    events_store["events"].append(event)
+
+                    if session_id not in events_store["sessions"]:
+                        events_store["sessions"][session_id] = {
+                            "sessionId": session_id,
+                            "site": event.get("site", "unknown"),
+                            "site_bucket": site_bucket,
+                            "difficulty": event.get("difficulty", "unknown"),
+                            "start_time": event.get("timestamp"),
+                            "events_count": 0,
+                        }
+                    events_store["sessions"][session_id]["events_count"] += 1
+                    events_store["sessions"][session_id]["last_activity"] = event.get(
+                        "timestamp"
+                    )
+
+                    site_store = _get_or_create_site_store(site_bucket)
+                    site_store["events"].append(event)
+                    if session_id not in site_store["sessions"]:
+                        site_store["sessions"][session_id] = {
+                            "sessionId": session_id,
+                            "site": event.get("site", "unknown"),
+                            "site_bucket": site_bucket,
+                            "difficulty": event.get("difficulty", "unknown"),
+                            "start_time": event.get("timestamp"),
+                            "events_count": 0,
+                        }
+                    site_store["sessions"][session_id]["events_count"] += 1
+                    site_store["sessions"][session_id]["last_activity"] = event.get(
+                        "timestamp"
+                    )
 
                 self.send_json_response({"status": "ok", "message": "Event tracked"})
             except Exception as e:
@@ -737,27 +839,28 @@ def print_startup_info(port):
     print("Mock Websites Server for AI Agent Evaluation")
     print("=" * 60)
     print(f"\nServer started at: http://localhost:{port}")
-    print(f"\nAvailable Sites:")
+    print("\nAvailable Sites:")
     print(f"  - GBR (Easy):   http://localhost:{port}/gbr/")
     print(f"  - TechForum (Medium): http://localhost:{port}/techforum/")
     print(f"  - CloudStack (Hard):  http://localhost:{port}/cloudstack/")
     print(f"  - DataFlow (Medium):  http://localhost:{port}/dataflow/")
     print(f"  - Finviz (Hard):  http://localhost:{port}/finviz/")
     print(f"  - BlueBook (Hard): http://localhost:{port}/bluebook/")
-    print(f"\nAPI Endpoints:")
-    print(f"  - GET  http://localhost:{port}/api/events       - Get all tracked events")
-    print(f"  - GET  http://localhost:{port}/api/events/clear - Clear all events")
+    print("\nAPI Endpoints:")
+    print(f"  - GET  http://localhost:{port}/api/events       - Get tracked events (?site=gbr)")
+    print(f"  - GET  http://localhost:{port}/api/events/clear - Clear tracked events (?site=gbr)")
     print(f"  - GET  http://localhost:{port}/api/sites        - List available sites")
     print(f"  - GET  http://localhost:{port}/api/help          - API help")
     print(f"  - POST http://localhost:{port}/api/track         - Submit tracking event")
-    print(f"\nPress Ctrl+C to stop the server")
+    print("\nPress Ctrl+C to stop the server")
     print("=" * 60 + "\n")
 
 
 def main():
     """Main entry point"""
-    with socketserver.TCPServer(("", PORT), MockWebsiteHandler) as httpd:
+    with socketserver.ThreadingTCPServer(("", PORT), MockWebsiteHandler) as httpd:
         httpd.allow_reuse_address = True
+        httpd.daemon_threads = True
         print_startup_info(PORT)
 
         try:
