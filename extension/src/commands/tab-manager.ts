@@ -8,6 +8,14 @@
 const TAB_GROUP_NAME = 'OpenBrowser';
 const TAB_GROUP_COLOR = 'grey' as chrome.tabGroups.Color;
 const TAB_GROUP_COLLAPSED = false;
+const URL_WITH_SCHEME_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
+
+export function normalizeNavigableUrl(url: string): string {
+  const trimmedUrl = url.trim();
+  return URL_WITH_SCHEME_REGEX.test(trimmedUrl)
+    ? trimmedUrl
+    : `https://${trimmedUrl}`;
+}
 
 export interface ManagedTab {
   tabId: number;
@@ -223,13 +231,7 @@ export class TabManager {
 
     const session = this.getOrCreateSession(conversationId);
 
-    // Ensure URL has protocol
-    let targetUrl = startUrl;
-
-    // FIXME(softpudding): I removed this so file can be accessed directly.
-    // if (!startUrl.match(/^https?:\/\//)) {
-    //   targetUrl = `https://${startUrl}`;
-    // }
+    const targetUrl = normalizeNavigableUrl(startUrl);
 
     // First, ensure we have a tab group (find existing or create new)
 
@@ -377,11 +379,7 @@ export class TabManager {
 
     const session = this.getOrCreateSession(conversationId);
 
-    // Ensure URL has protocol
-    let targetUrl = url;
-    if (!url.match(/^https?:\/\//)) {
-      targetUrl = `https://${url}`;
-    }
+    const targetUrl = normalizeNavigableUrl(url);
 
     // Create the tab
     const tab = await chrome.tabs.create({ url: targetUrl, active });

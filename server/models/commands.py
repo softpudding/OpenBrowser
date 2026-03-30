@@ -3,6 +3,8 @@ from typing import Optional, List, Tuple, Literal, Union
 from pydantic import BaseModel, Field, validator, model_validator
 import re
 
+URL_WITH_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
+
 
 class MouseButton(str, Enum):
     LEFT = "left"
@@ -157,8 +159,8 @@ class TabCommand(BaseCommand):
     def validate_url(cls, v, values):
         action = values.get("action")
         if action in [TabAction.OPEN, TabAction.INIT]:
-            # Ensure URL has protocol
-            if v and not re.match(r"^https?://", v):
+            # Add a default scheme only when the caller did not provide one.
+            if v and not URL_WITH_SCHEME_RE.match(v):
                 v = f"https://{v}"
         return v
 

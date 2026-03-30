@@ -23,6 +23,14 @@ class TestTabCommandContracts:
         assert command.url == "https://example.com"
 
     @pytest.mark.parametrize("action", [TabAction.INIT, TabAction.OPEN])
+    def test_navigation_actions_preserve_explicit_file_urls(
+        self, action: TabAction
+    ) -> None:
+        command = TabCommand(action=action, url="file:///tmp/index.html")
+
+        assert command.url == "file:///tmp/index.html"
+
+    @pytest.mark.parametrize("action", [TabAction.INIT, TabAction.OPEN])
     def test_navigation_actions_require_url(self, action: TabAction) -> None:
         with pytest.raises(ValidationError, match="URL is required"):
             TabCommand(action=action)
