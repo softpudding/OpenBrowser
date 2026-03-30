@@ -377,7 +377,9 @@ Automated testing framework for evaluating AI agent performance on browser autom
 ```
 OpenBrowser/eval/
 ├── evaluate_browser_agent.py    # Main evaluation entry point
-├── dataset/                     # YAML test case definitions (13 tests)
+├── dataset/                     # YAML test case definitions (12 tests)
+│   ├── bluebook_simple.yaml    # BlueBook search and like test
+│   ├── bluebook_complex.yaml   # BlueBook multi-image reply test
 │   ├── gbr.yaml                # GBR search test
 │   ├── gbr_detailed.yaml       # GBR detailed search test
 │   ├── techforum.yaml          # TechForum upvote test
@@ -387,8 +389,7 @@ OpenBrowser/eval/
 │   ├── finviz_simple.yaml      # Finviz simple screener test
 │   ├── finviz_complex.yaml     # Finviz multi-filter test
 │   ├── dataflow.yaml           # DataFlow visual challenge test
-│   ├── northstar_add_bag.yaml  # Product-page geometry test (page scroll)
-│   └── northstar_fit_guide.yaml # Fit guide drawer geometry test
+│   └── northstar_add_bag.yaml  # Combined fit-guide and add-to-bag geometry test
 ├── output/                      # Generated results and images
 ├── server.py                    # Mock websites server with tracking API
 └── (mock websites: gbr/, techforum/, cloudstack/, dataflow/, finviz/, bluebook/, northstar/)
@@ -562,15 +563,16 @@ Tests are defined in YAML format with:
 | `gbr` | GBR Search Test | easy | 400s (~6.7min) | 0.8 RMB | Search for "fed" related news |
 | `finviz_simple` | Finviz Simple Screener Test | easy | 300s (5min) | 0.8 RMB | Filter stocks by market cap over 10 billion |
 | `techforum` | TechForum Upvote Test | medium | 300s (5min) | 0.5 RMB | Upvote the first AI-related post |
+| `bluebook_simple` | BlueBook Search And Like Test | medium | 300s (5min) | 0.6 RMB | Search for the target note and like it |
 | `gbr_detailed` | GBR Detailed Search & Read Test | medium | 600s (10min) | 1.5 RMB | Search for "fed", click into each article (3 articles), and summarize content |
 | `finviz_complex` | Finviz Multi-Filter Screener Test | medium | 400s (~6.7min) | 1.0 RMB | Multi-filter stock screener: market cap, P/E, volume |
 | `dataflow` | DataFlow Visual Challenge Test | medium | 300s (5min) | 0.5 RMB | Dashboard interactions: settings, reports, navigation |
-| `northstar_add_bag` | Northstar Add To Bag Geometry Test | medium | 360s (6min) | 0.8 RMB | Scroll product page to a stable purchase rail, choose size M, and add to bag |
-| `northstar_fit_guide` | Northstar Fit Guide Geometry Test | medium | 360s (6min) | 0.8 RMB | Open fit guide, scroll its drawer to Care & Wash, and save the guide |
+| `northstar_add_bag` | Northstar Fit Guide + Add To Bag Test | medium | 540s (9min) | 1.2 RMB | Save the Care & Wash fit guide section, then choose size M and add the shell to bag |
 
 #### Advanced Tests
 | ID | Name | Difficulty | Time Limit | Cost Limit | Description |
 |----|------|------------|------------|------------|-------------|
+| `bluebook_complex` | BlueBook Multi-Image Reply Test | hard | 500s (~8.3min) | 1.2 RMB | Search for the OpenClaw note, view all images, and leave a quick comment |
 | `cloudstack` | CloudStack DAS Agent Test | hard | 500s (~8.3min) | 1.2 RMB | Find DAS console and greet DAS agent |
 | `techforum_reply` | TechForum Comment Reply Test | hard | 500s (~8.3min) | 1.0 RMB | Open comments, find "Graduate Student" comment, reply with paper name |
 | `cloudstack_interactive` | CloudStack DAS Interactive Test | very hard | 700s (~11.7min) | 2.0 RMB | Multi-turn conversation with DAS agent: greeting, system status, storage check |

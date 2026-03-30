@@ -9,7 +9,7 @@ from openhands.sdk import get_logger
 logger = get_logger(__name__)
 
 ENV_CONTEXT_IMAGE_WINDOW = "OPENBROWSER_CONTEXT_IMAGE_WINDOW"
-DEFAULT_CONTEXT_IMAGE_WINDOW = 1
+DEFAULT_CONTEXT_IMAGE_WINDOW = 3
 
 
 def get_context_image_window() -> int | None:
