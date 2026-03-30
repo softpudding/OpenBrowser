@@ -1,20 +1,28 @@
 id: northstar_add_bag
-name: "Northstar Add To Bag Geometry Test"
+name: "Northstar Fit Guide + Add To Bag Test"
 difficulty: medium
-description: "Scroll the product page until the purchase rail is comfortably positioned, choose size M, and add the shell to bag."
+description: "Open the fit guide, save the Care & Wash section, then reposition the purchase rail, choose size M, and add the shell to bag."
 start_url: "http://localhost:16605/northstar/"
-instruction: "On the Northstar Outfitters Commuter Shell page, choose size Medium and add the jacket to your bag."
-time_limit: 360.0
-cost_limit: 0.8
+instruction: "On the Northstar Outfitters Commuter Shell page, open the fit guide, scroll inside it until the Care & Wash section is centered, save the guide from that section, then choose size Medium and add the jacket to your bag."
+time_limit: 540.0
+cost_limit: 1.2
 
 criteria:
-  - type: purchase_rail_geometry_ready
-    description: "Reposition the purchase rail into a comfortable viewport area before acting"
-    points: 1.5
+  - type: open_fit_guide
+    description: "Open the fit guide drawer"
+    points: 0.5
     expected:
-      event_type: purchase_rail_geometry_ready
+      event_type: fit_guide_open
       page: "/northstar/"
-      section: "purchase-rail"
+      drawer: "fit-guide"
+
+  - type: save_fit_guide
+    description: "Save the fit guide from the Care & Wash section"
+    points: 2.0
+    expected:
+      event_type: fit_guide_save
+      page: "/northstar/"
+      section: "care-wash"
 
   - type: select_medium_size
     description: "Select size Medium"

@@ -76,6 +76,13 @@ class OpenBrowserObservation(Observation):
     highlighted_elements: Optional[List[Dict[str, Any]]] = Field(
         default=None, description="List of elements highlighted on the screenshot"
     )
+    page: Optional[int] = Field(
+        default=None, description="Current page number for highlighted elements"
+    )
+    total_pages: Optional[int] = Field(
+        default=None,
+        description="Total number of pages available for highlighted elements",
+    )
     total_elements: Optional[int] = Field(
         default=None, description="Total number of elements found"
     )
@@ -364,6 +371,12 @@ class OpenBrowserObservation(Observation):
         if self.highlighted_elements:
             text_parts.append("## Highlighted Elements")
             text_parts.append("")
+            highlight_page = self.page if self.page is not None else 1
+            highlight_total_pages = (
+                self.total_pages if self.total_pages is not None else 1
+            )
+            text_parts.append(f"**Page**: {highlight_page}/{highlight_total_pages}")
+            text_parts.append("")
             text_parts.append(
                 f"**Total Elements**: {self.total_elements if self.total_elements is not None else len(self.highlighted_elements)}"
             )
@@ -438,10 +451,9 @@ class OpenBrowserObservation(Observation):
             text_parts.append("")
 
         text_content = "\n".join(text_parts)
-        content_items.append(TextContent(text=text_content))
-
         # Add image content if screenshot is available
         if self.screenshot_data_url:
             content_items.append(ImageContent(image_urls=[self.screenshot_data_url]))
+        content_items.append(TextContent(text=text_content))
 
         return content_items

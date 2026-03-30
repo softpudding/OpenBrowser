@@ -6,6 +6,7 @@ import server.agent.tools.browser_executor as browser_executor_module
 
 from server.agent.tools.browser_executor import BrowserExecutor
 from server.agent.tools.element_interaction_tool import ElementInteractionAction
+from server.agent.tools.highlight_tool import HighlightAction
 from server.models.commands import (
     ClickElementCommand,
     HoverElementCommand,
@@ -157,6 +158,75 @@ def test_build_observation_marks_small_model_from_session_metadata(
 
     assert observation.small_model is True
     assert "<button>Submit</button>" in observation.to_llm_content[0].text
+
+
+def test_build_observation_extracts_highlight_pagination_from_nested_data() -> None:
+    executor = BrowserExecutor()
+    executor.conversation_id = "conv-highlight-page"
+
+    observation = executor._build_observation_from_result(
+        result_dict={
+            "success": True,
+            "data": {
+                "elements": [
+                    {
+                        "id": "abc123",
+                        "type": "inputable",
+                        "html": '<input id="search-input" />',
+                    }
+                ],
+                "page": 2,
+                "totalPages": 3,
+                "totalElements": 7,
+            },
+        },
+        message="Hovered element: hov123",
+        element_id="hov123",
+    )
+
+    assert observation.page == 2
+    assert observation.total_pages == 3
+    assert observation.total_elements == 7
+    assert "**Page**: 2/3" in observation.to_llm_content[0].text
+
+
+def test_highlight_action_message_does_not_repeat_pagination(monkeypatch) -> None:
+    executor = BrowserExecutor()
+    executor.conversation_id = "conv-highlight-action"
+
+    monkeypatch.setattr(
+        executor,
+        "_execute_command_sync",
+        lambda command: {
+            "success": True,
+            "data": {
+                "elements": [
+                    {
+                        "id": "abc123",
+                        "type": "inputable",
+                        "html": '<input id="search-input" />',
+                    }
+                ],
+                "page": 2,
+                "totalPages": 2,
+                "totalElements": 4,
+                "screenshot": "data:image/png;base64,highlighted",
+            },
+        },
+    )
+
+    observation = executor._execute_action_sync(
+        HighlightAction(
+            element_type="any",
+            page=2,
+            conversation_id="conv-highlight-action",
+        )
+    )
+
+    assert observation.message == "Found 1 interactive element"
+    assert "**Page**: 2/2" in observation.to_llm_content[1].text
+    assert "on page" not in observation.message
+    assert "(total:" not in observation.message
 
 
 def test_confirm_click_uses_pending_confirmation_state(monkeypatch) -> None:

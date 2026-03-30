@@ -76,10 +76,10 @@ class TestOpenBrowserObservation:
         llm_content = observation.to_llm_content
 
         assert len(llm_content) == 2
-        assert isinstance(llm_content[0], TextContent)
-        assert isinstance(llm_content[1], ImageContent)
-        assert "**[99]** Example" in llm_content[0].text
-        assert llm_content[1].image_urls == ["data:image/png;base64,abc123"]
+        assert isinstance(llm_content[0], ImageContent)
+        assert isinstance(llm_content[1], TextContent)
+        assert llm_content[0].image_urls == ["data:image/png;base64,abc123"]
+        assert "**[99]** Example" in llm_content[1].text
 
     def test_highlighted_clickable_elements_are_summarized(self) -> None:
         observation = OpenBrowserObservation(
@@ -100,6 +100,27 @@ class TestOpenBrowserObservation:
         assert "1 clickable element" in text
         assert "abc123(clickable):" not in text
         assert "<button>Submit</button>" not in text
+
+    def test_highlighted_elements_render_page_metadata(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="any",
+            highlighted_elements=[
+                {
+                    "id": "abc123",
+                    "type": "inputable",
+                    "html": '<input id="search-input" />',
+                }
+            ],
+            page=2,
+            total_pages=4,
+            total_elements=9,
+        )
+
+        text = _text_content(observation)
+
+        assert "**Page**: 2/4" in text
+        assert "**Total Elements**: 9" in text
 
     def test_small_model_highlighted_clickable_elements_keep_html(self) -> None:
         observation = OpenBrowserObservation(

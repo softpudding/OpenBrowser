@@ -347,14 +347,17 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         # Extract elements and pagination info
         elements = result_dict.get("data", {}).get("elements", [])
         total_elements = result_dict.get("data", {}).get("totalElements", 0)
-        total_pages = result_dict.get("data", {}).get("totalPages", 1)
-        current_page = result_dict.get("data", {}).get("page", 1)
+        element_label = self._format_highlight_element_label(
+            element_type=element_type, count=len(elements)
+        )
         # Adjust message based on whether keywords filtering was used
         if keywords:
             keywords_str = ", ".join(keywords)
-            message = f"Found {len(elements)} {element_type} elements matching '{keywords_str}' (total: {total_elements})"
+            message = (
+                f"Found {len(elements)} {element_label} matching '{keywords_str}'"
+            )
         else:
-            message = f"Found {len(elements)} {element_type} elements on page {current_page}/{total_pages} (total: {total_elements})"
+            message = f"Found {len(elements)} {element_label}"
 
         return self._build_observation_from_result(
             result_dict,
@@ -677,6 +680,21 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         message = f"Dialog handled: {dialog_action_str}"
         return self._build_observation_from_result(result_dict, message)
 
+    @staticmethod
+    def _format_highlight_element_label(element_type: str, count: int) -> str:
+        """Format highlight result labels without repeating pagination metadata."""
+        singular_label = (
+            "interactive element"
+            if element_type == "any"
+            else f"{element_type} element"
+        )
+        plural_label = (
+            "interactive elements"
+            if element_type == "any"
+            else f"{element_type} elements"
+        )
+        return singular_label if count == 1 else plural_label
+
     # ========== 2PC State Management Methods ==========
 
     def _clear_pending_confirmation(self):
@@ -903,6 +921,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         tabs_data: Optional[list] = None,
         screenshot_data_url: Optional[str] = None,
         highlighted_elements: Optional[list] = None,
+        page: Optional[int] = None,
+        total_pages: Optional[int] = None,
         total_elements: Optional[int] = None,
         element_id: Optional[str] = None,
         element_type: Optional[str] = None,
@@ -929,6 +949,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             success = result_dict.get("success", False)
             if "error" in result_dict:
                 error = result_dict["error"]
+            if page is None and "page" in result_dict:
+                page = result_dict["page"]
+            if total_pages is None and "totalPages" in result_dict:
+                total_pages = result_dict["totalPages"]
 
             # Extract dialog info if present
             if "dialog_opened" in result_dict:
@@ -1005,6 +1029,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     # Extract highlighted elements for highlight_elements action
                     if highlighted_elements is None and "elements" in data:
                         highlighted_elements = data["elements"]
+                    if page is None and "page" in data:
+                        page = data["page"]
+                    if total_pages is None and "totalPages" in data:
+                        total_pages = data["totalPages"]
                     if total_elements is None and "totalElements" in data:
                         total_elements = data["totalElements"]
                     # Extract new_tabs_created for javascript_execute and confirm_click_element
@@ -1118,6 +1146,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             dialog_auto_accepted=dialog_auto_accepted,
             auto_accepted_dialogs=auto_accepted_dialogs,
             highlighted_elements=highlighted_elements,
+            page=page,
+            total_pages=total_pages,
             total_elements=total_elements,
             new_tabs_created=new_tabs_created,
             element_id=element_id,
