@@ -72,7 +72,10 @@ class ElementCacheImpl {
     return Date.now() - timestamp > ELEMENT_CACHE_TTL_MS;
   }
 
-  private cloneElement(element: InteractiveElement, id: string): InteractiveElement {
+  private cloneElement(
+    element: InteractiveElement,
+    id: string,
+  ): InteractiveElement {
     return {
       ...element,
       bbox: { ...element.bbox },
@@ -231,7 +234,10 @@ class ElementCacheImpl {
 
     for (const pageElements of assignedPages) {
       for (const element of pageElements) {
-        entry.elementsById.set(element.id, this.cloneElement(element, element.id));
+        entry.elementsById.set(
+          element.id,
+          this.cloneElement(element, element.id),
+        );
       }
     }
 
@@ -365,8 +371,9 @@ class ElementCacheImpl {
       .filter(
         (
           suggestion,
-        ): suggestion is ElementIdSuggestion & { weightedPositionScore: number } =>
-          suggestion !== null,
+        ): suggestion is ElementIdSuggestion & {
+          weightedPositionScore: number;
+        } => suggestion !== null,
       )
       .sort((left, right) => {
         if (right.matchedPositions !== left.matchedPositions) {
@@ -377,7 +384,10 @@ class ElementCacheImpl {
         }
         return left.elementId.localeCompare(right.elementId);
       })
-      .map(({ weightedPositionScore: _weightedPositionScore, ...suggestion }) => suggestion)
+      .map(
+        ({ weightedPositionScore: _weightedPositionScore, ...suggestion }) =>
+          suggestion,
+      )
       .slice(0, Math.max(0, limit));
   }
 

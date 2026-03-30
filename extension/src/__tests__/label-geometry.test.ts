@@ -11,6 +11,8 @@ describe('label-geometry', () => {
   test('allocates enough width for measured label text plus padding', () => {
     const dimensions = getLabelDimensions('MQH');
 
-    expect(dimensions.width).toBe(dimensions.textWidth + dimensions.padding * 2);
+    expect(dimensions.width).toBe(
+      dimensions.textWidth + dimensions.padding * 2,
+    );
   });
 });

@@ -204,7 +204,9 @@ class TestOpenBrowserObservation:
         assert "q4w08w(inputable):" in text
         assert "... and 1 clickable element" in text
 
-    def test_small_model_mixed_highlighted_elements_include_clickable_html(self) -> None:
+    def test_small_model_mixed_highlighted_elements_include_clickable_html(
+        self,
+    ) -> None:
         observation = OpenBrowserObservation(
             success=True,
             small_model=True,
@@ -226,7 +228,7 @@ class TestOpenBrowserObservation:
 
         text = _text_content(observation)
 
-        assert "vrtbj5(clickable): <div class=\"search-icon\"></div>" in text
+        assert 'vrtbj5(clickable): <div class="search-icon"></div>' in text
         assert "q4w08w(inputable):" in text
         assert "clickable element" not in text
 
@@ -302,10 +304,7 @@ class TestOpenBrowserObservation:
 
         assert "**Element ID**: DO2" in text
         assert "**Matched Requested ID**: D02 -> DO2" in text
-        assert (
-            "**Match Note**: Matched requested element ID 'D02' to 'DO2'."
-            in text
-        )
+        assert "**Match Note**: Matched requested element ID 'D02' to 'DO2'." in text
 
     def test_pending_confirmation_with_screenshot_is_image_first_and_text_minimal(
         self,

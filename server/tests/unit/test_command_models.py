@@ -46,6 +46,7 @@ class TestHighlightCommandContracts:
 
         assert command.page == 2
 
+
 class TestVisualInteractionContracts:
     def test_scroll_supports_page_level_scrolling_without_element_id(self) -> None:
         command = ScrollElementCommand(direction="up", scroll_amount=1.0)

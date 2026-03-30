@@ -1959,11 +1959,7 @@ class Evaluator:
                     )
 
         return {
-            target_index: [
-                result
-                for result in target_results
-                if result is not None
-            ]
+            target_index: [result for result in target_results if result is not None]
             for target_index, target_results in results_by_target.items()
         }
 
@@ -2624,7 +2620,9 @@ def main():
                     parallel=args.parallel,
                     single_model_parallel=args.single_model_parallel,
                 )
-                target_names = [evaluator._get_model_key(target) for target in llm_targets]
+                target_names = [
+                    evaluator._get_model_key(target) for target in llm_targets
+                ]
 
                 for target_index, target in enumerate(llm_targets):
                     target_results = scheduled_results.get(target_index, [])

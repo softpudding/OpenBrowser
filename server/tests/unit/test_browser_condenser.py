@@ -16,7 +16,9 @@ def test_derive_browser_condenser_max_tokens_from_context_window() -> None:
     assert derive_browser_condenser_max_tokens(llm) == 70_000
 
 
-def test_derive_browser_condenser_max_tokens_returns_none_without_context_window() -> None:
+def test_derive_browser_condenser_max_tokens_returns_none_without_context_window() -> (
+    None
+):
     llm = LLM.model_construct(model="test-model", max_input_tokens=None)
 
     assert derive_browser_condenser_max_tokens(llm) is None

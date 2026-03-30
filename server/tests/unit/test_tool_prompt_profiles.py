@@ -57,8 +57,7 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     assert "## Core Rules" in description
     assert (
         "Outside of `tab view`, completed browser actions already return the "
-        'default `highlight` `element_type: "any"` page 1 observation'
-        in description
+        'default `highlight` `element_type: "any"` page 1 observation' in description
     )
     assert (
         "Treat that current observation as the working inventory for the current "
@@ -71,7 +70,10 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     )
     assert "scroll first to reposition it" in description
     assert '`element_type: "any"` is the default mixed inventory' in description
-    assert "collision-aware label placement may have split the target across pages" in description
+    assert (
+        "collision-aware label placement may have split the target across pages"
+        in description
+    )
     assert "If highlight shows `swipable`, use `swipe`." in description
     assert "cached element is stale" in description
     assert "before `keyboard_input`" in description
@@ -114,15 +116,22 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
     assert "## Core Contract" in description
     assert (
         "Most completed browser actions already return the default `highlight` "
-        '`element_type: "any"` page 1 observation'
-        in description
+        '`element_type: "any"` page 1 observation' in description
     )
     assert "Use that returned observation first." in description
-    assert "If you need a clean screenshot without overlays, use `tab view`" in description
+    assert (
+        "If you need a clean screenshot without overlays, use `tab view`" in description
+    )
     assert "A1H(scrollable, swipable)" in description
     assert "icon-only" in description
-    assert "use `scroll` to reposition it before asking for more `highlight` pages" in description
-    assert "On the same unchanged page state, stay on the same `element_type`" in description
+    assert (
+        "use `scroll` to reposition it before asking for more `highlight` pages"
+        in description
+    )
+    assert (
+        "On the same unchanged page state, stay on the same `element_type`"
+        in description
+    )
     assert (
         "always `click` it first and complete that confirmation before `keyboard_input`"
         in description
@@ -164,7 +173,10 @@ def test_small_model_element_interaction_requires_click_before_keyboard_input() 
     )
     assert 'default `highlight` `element_type: "any"` page 1 screenshot' in description
     assert "scroll first to reposition it" in description
-    assert "collision-aware label placement may have split the target across pages" in description
+    assert (
+        "collision-aware label placement may have split the target across pages"
+        in description
+    )
     assert "always `click` first, then use `keyboard_input`" in description
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description

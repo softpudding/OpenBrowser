@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { InteractiveElement } from '../../types';
-import {
-  buildElementCacheMissMessage,
-  elementCache,
-} from '../element-cache';
+import { buildElementCacheMissMessage, elementCache } from '../element-cache';
 import {
   ELEMENT_ID_CHARSET,
   ELEMENT_ID_LENGTH,
@@ -48,9 +45,9 @@ describe('element-id', () => {
       createElement('old-c', '#submit'),
     ]);
 
-    expect(result.every((element) => usesAllowedElementIdChars(element.id))).toBe(
-      true,
-    );
+    expect(
+      result.every((element) => usesAllowedElementIdChars(element.id)),
+    ).toBe(true);
     expect(new Set(result.map((element) => element.id)).size).toBe(
       result.length,
     );
@@ -133,11 +130,7 @@ describe('element-cache document cache', () => {
     const storedElementId = storedPage.elements[0]?.id;
     expect(storedElementId).toBeDefined();
 
-    const lookup = elementCache.getElementById(
-      'conv-1',
-      101,
-      storedElementId!,
-    );
+    const lookup = elementCache.getElementById('conv-1', 101, storedElementId!);
     expect(lookup?.element.selector).toBe('#page-1');
     expect(lookup?.documentId).toBe('doc-1');
   });
@@ -157,11 +150,7 @@ describe('element-cache document cache', () => {
       page: 1,
     });
 
-    const lookup = elementCache.getElementById(
-      'conv-visual-safe',
-      202,
-      'D02',
-    );
+    const lookup = elementCache.getElementById('conv-visual-safe', 202, 'D02');
 
     expect(lookup?.requestedElementId).toBe('D02');
     expect(lookup?.resolvedElementId).toBe('DO2');
@@ -206,7 +195,11 @@ describe('element-cache document cache', () => {
     });
 
     expect(missMessage).toContain("Maybe try 'MQK', 'M9H'");
-    expect(missMessage).toContain('MQK: <button data-testid="heart-button">Test</button>');
-    expect(missMessage).toContain('M9H: <button data-testid="share-button">Test</button>');
+    expect(missMessage).toContain(
+      'MQK: <button data-testid="heart-button">Test</button>',
+    );
+    expect(missMessage).toContain(
+      'M9H: <button data-testid="share-button">Test</button>',
+    );
   });
 });

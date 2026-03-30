@@ -101,6 +101,7 @@ def _clear_events(site_bucket=None):
         events_store["sessions"] = {}
         events_store["sites"] = {}
 
+
 # URL mappings
 URL_MAPPINGS = {
     "/": ("/gbr/index.html", "text/html"),
@@ -847,8 +848,12 @@ def print_startup_info(port):
     print(f"  - Finviz (Hard):  http://localhost:{port}/finviz/")
     print(f"  - BlueBook (Hard): http://localhost:{port}/bluebook/")
     print("\nAPI Endpoints:")
-    print(f"  - GET  http://localhost:{port}/api/events       - Get tracked events (?site=gbr)")
-    print(f"  - GET  http://localhost:{port}/api/events/clear - Clear tracked events (?site=gbr)")
+    print(
+        f"  - GET  http://localhost:{port}/api/events       - Get tracked events (?site=gbr)"
+    )
+    print(
+        f"  - GET  http://localhost:{port}/api/events/clear - Clear tracked events (?site=gbr)"
+    )
     print(f"  - GET  http://localhost:{port}/api/sites        - List available sites")
     print(f"  - GET  http://localhost:{port}/api/help          - API help")
     print(f"  - POST http://localhost:{port}/api/track         - Submit tracking event")

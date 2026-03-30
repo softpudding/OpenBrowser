@@ -141,8 +141,8 @@ class OpenBrowserObservation(Observation):
             text_parts.append(f"**Match Note**: {resolution_note}")
         text_parts.extend(
             [
-            f"**Action Type**: {action_type}",
-            "",
+                f"**Action Type**: {action_type}",
+                "",
             ]
         )
 

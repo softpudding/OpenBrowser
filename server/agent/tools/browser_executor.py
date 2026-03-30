@@ -122,9 +122,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         # Pending confirmations per conversation for 2PC actions.
         self.pending_confirmations: Dict[str, Dict[str, Any]] = {}
         # Recently confirmed element targets keyed by action_type then element_id.
-        self.confirmed_action_id_lru: Dict[str, Dict[str, OrderedDict[str, None]]] = (
-            {}
-        )
+        self.confirmed_action_id_lru: Dict[str, Dict[str, OrderedDict[str, None]]] = {}
 
     def _uses_small_model(self) -> bool:
         """Whether the active conversation uses the small-model profile."""
@@ -144,7 +142,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             raw_model_alias = session.metadata.get("model_alias")
             if isinstance(raw_model_alias, str) and raw_model_alias:
                 try:
-                    model_name = llm_config_manager.get_llm_config(raw_model_alias).model
+                    model_name = llm_config_manager.get_llm_config(
+                        raw_model_alias
+                    ).model
                 except ValueError:
                     model_name = None
 
@@ -353,9 +353,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         # Adjust message based on whether keywords filtering was used
         if keywords:
             keywords_str = ", ".join(keywords)
-            message = (
-                f"Found {len(elements)} {element_label} matching '{keywords_str}'"
-            )
+            message = f"Found {len(elements)} {element_label} matching '{keywords_str}'"
         else:
             message = f"Found {len(elements)} {element_label}"
 
@@ -423,7 +421,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 element_id_resolution_note=resolution_note,
             )
             result_dict = {"success": True, "data": {}}
-            message = f"Click action pending confirmation for element: {resolved_element_id}"
+            message = (
+                f"Click action pending confirmation for element: {resolved_element_id}"
+            )
             if resolution_note:
                 message = f"{message} {resolution_note}"
             return self._build_observation_from_result(
@@ -742,8 +742,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             return compact
 
         return "".join(
-            VISUAL_SAFE_ELEMENT_ID_CHAR_MAP.get(char, char.upper())
-            for char in compact
+            VISUAL_SAFE_ELEMENT_ID_CHAR_MAP.get(char, char.upper()) for char in compact
         )
 
     def _build_element_id_resolution_note(
@@ -867,16 +866,12 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             html = data.get("html") if isinstance(data, dict) else None
             screenshot = data.get("screenshot") if isinstance(data, dict) else None
             requested_element_id = (
-                data.get("requestedElementId")
-                if isinstance(data, dict)
-                else None
+                data.get("requestedElementId") if isinstance(data, dict) else None
             )
             if requested_element_id is None and isinstance(data, dict):
                 requested_element_id = data.get("requested_element_id")
             resolved_element_id = (
-                data.get("resolvedElementId")
-                if isinstance(data, dict)
-                else None
+                data.get("resolvedElementId") if isinstance(data, dict) else None
             )
             if resolved_element_id is None and isinstance(data, dict):
                 resolved_element_id = data.get("resolved_element_id")
@@ -890,7 +885,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if isinstance(data, dict) and "element_id_corrected" in data:
                 element_id_corrected = bool(data.get("element_id_corrected"))
             resolution_note = self._build_element_id_resolution_note(
-                requested_element_id if isinstance(requested_element_id, str) else element_id,
+                (
+                    requested_element_id
+                    if isinstance(requested_element_id, str)
+                    else element_id
+                ),
                 resolved_element_id,
                 element_id_corrected,
             )

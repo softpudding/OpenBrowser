@@ -1,7 +1,6 @@
 import type { InteractiveElement } from '../types';
 
-export const ELEMENT_ID_CHARSET =
-  '123456789ACDEFHJKMNOPQRTUVWXY';
+export const ELEMENT_ID_CHARSET = '123456789ACDEFHJKMNOPQRTUVWXY';
 export const ELEMENT_ID_LENGTH = 3;
 const ELEMENT_ID_SPACE = ELEMENT_ID_CHARSET.length ** ELEMENT_ID_LENGTH;
 const NORMALIZABLE_ELEMENT_ID_PATTERN = /^[0-9A-Za-z]{3}$/;

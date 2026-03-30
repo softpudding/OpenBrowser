@@ -270,14 +270,8 @@ export function calculateConfirmationBannerLayout(options: {
   scale: number;
   textWidth?: number;
 }): DeviceRect {
-  const {
-    canvasWidth,
-    canvasHeight,
-    elementRect,
-    message,
-    scale,
-    textWidth,
-  } = options;
+  const { canvasWidth, canvasHeight, elementRect, message, scale, textWidth } =
+    options;
   const fontSize = Math.max(16, Math.round(BASE_BANNER_FONT_SIZE * scale));
   const paddingX = Math.max(12, Math.round(BASE_BANNER_PADDING_X * scale));
   const paddingY = Math.max(8, Math.round(BASE_BANNER_PADDING_Y * scale));
@@ -307,7 +301,10 @@ export function calculateConfirmationBannerLayout(options: {
     };
   }
 
-  if (elementRect.y + elementRect.height + gap + height <= canvasHeight - margin) {
+  if (
+    elementRect.y + elementRect.height + gap + height <=
+    canvasHeight - margin
+  ) {
     return {
       x: centeredX,
       y: elementRect.y + elementRect.height + gap,
@@ -463,12 +460,7 @@ function drawConfirmationBanner(
   });
 
   ctx.fillStyle = CONFIRMATION_BANNER_COLOR;
-  ctx.fillRect(
-    bannerRect.x,
-    bannerRect.y,
-    bannerRect.width,
-    bannerRect.height,
-  );
+  ctx.fillRect(bannerRect.x, bannerRect.y, bannerRect.width, bannerRect.height);
   ctx.strokeStyle = CONFIRMATION_BANNER_BORDER_COLOR;
   ctx.lineWidth = Math.max(1, scale);
   ctx.strokeRect(

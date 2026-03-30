@@ -33,11 +33,25 @@ const MEDIUM_NARROW_CHARACTERS = new Set([
   'X',
   'Z',
 ]);
-const WIDE_CHARACTERS = new Set(['0', '8', 'B', 'D', 'G', 'H', 'N', 'O', 'Q', 'R', 'U']);
+const WIDE_CHARACTERS = new Set([
+  '0',
+  '8',
+  'B',
+  'D',
+  'G',
+  'H',
+  'N',
+  'O',
+  'Q',
+  'R',
+  'U',
+]);
 const EXTRA_WIDE_CHARACTERS = new Set(['M', 'W']);
 
-let measurementContext: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null =
-  null;
+let measurementContext:
+  | OffscreenCanvasRenderingContext2D
+  | CanvasRenderingContext2D
+  | null = null;
 const measuredWidthCache = new Map<string, number>();
 
 export interface LabelDimensions {
@@ -98,7 +112,10 @@ function getMeasurementContext():
     }
   }
 
-  if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+  if (
+    typeof document !== 'undefined' &&
+    typeof document.createElement === 'function'
+  ) {
     const canvas = document.createElement('canvas');
     measurementContext = canvas.getContext('2d');
     if (measurementContext) {

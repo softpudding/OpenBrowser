@@ -64,8 +64,7 @@ class TestPromptContracts:
         assert 'Single type to highlight - `"any"` (default)' in description
         assert (
             "Most completed browser actions already return the default "
-            '`highlight` `element_type: "any"` page 1 observation'
-            in description
+            '`highlight` `element_type: "any"` page 1 observation' in description
         )
         assert "Use that returned observation first." in description
         assert "element_id" in description
@@ -122,15 +121,13 @@ class TestPromptContracts:
 
         assert (
             "Use that returned observation first. Do not re-run `highlight` "
-            "just because the page changed."
-            in description
+            "just because the page changed." in description
         )
         assert (
             "Call `highlight` when you need more inventory: page 2+, a "
             "narrower `element_type`, exact-text filtering, or a fresh "
             "inventory after a command that did not return an interactive "
-            "observation"
-            in description
+            "observation" in description
         )
 
     def test_highlight_prompt_uses_page_number_pagination_without_snapshot_reuse(
@@ -211,7 +208,9 @@ class TestPromptContracts:
         )
         assert "YELLOW preview screenshot" in description
         assert "Is this the element you wanted to click?" in description
-        assert 'default `highlight` `element_type: "any"` page 1 screenshot' in description
+        assert (
+            'default `highlight` `element_type: "any"` page 1 screenshot' in description
+        )
         assert (
             "treat that as a geometry problem first and use `scroll` to reposition it before clicking, typing, or asking `highlight` for more pages."
             in description

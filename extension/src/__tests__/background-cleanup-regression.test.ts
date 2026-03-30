@@ -49,9 +49,7 @@ describe('Background cleanup regressions', () => {
   });
 
   test('navigation defaults prime the page with a raw screenshot before highlight', () => {
-    expect(backgroundSource).toContain(
-      'async function runRawScreenshotPrime(',
-    );
+    expect(backgroundSource).toContain('async function runRawScreenshotPrime(');
     expect(backgroundSource).toContain('primeWithRawScreenshot: true');
     expect(backgroundSource).toContain("logLabel: 'Tab Init'");
     expect(backgroundSource).toContain("logLabel: 'Tab Open'");

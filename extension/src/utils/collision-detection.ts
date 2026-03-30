@@ -6,12 +6,15 @@
  */
 
 import type { InteractiveElement } from '../types';
+import {
+  LABEL_FONT_SIZE,
+  LABEL_PADDING,
+  LABEL_HEIGHT,
+  MAX_LABEL_WIDTH,
+} from '../commands/label-constants';
 import { getLabelDimensions } from './label-geometry';
 
-export const LABEL_FONT_SIZE = 16;
-export const LABEL_PADDING = 5;
-export const LABEL_HEIGHT = LABEL_FONT_SIZE + LABEL_PADDING * 2; // 26px total
-export const MAX_LABEL_WIDTH = 120; // Maximum label width for collision detection
+export { LABEL_FONT_SIZE, LABEL_PADDING, LABEL_HEIGHT, MAX_LABEL_WIDTH };
 
 export interface BBox {
   x: number;

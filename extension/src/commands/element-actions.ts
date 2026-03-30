@@ -24,7 +24,10 @@ function buildResolvedElementResultFields(
   resolvedElementId: string,
 ): Pick<
   ElementActionResult,
-  'elementId' | 'requestedElementId' | 'resolvedElementId' | 'elementIdCorrected'
+  | 'elementId'
+  | 'requestedElementId'
+  | 'resolvedElementId'
+  | 'elementIdCorrected'
 > {
   return {
     elementId: resolvedElementId,
@@ -1321,7 +1324,9 @@ export async function performElementScroll(
   const result: ScrollResult = {
     success: true,
     ...(resolvedElementFields ??
-      (elementId ? buildResolvedElementResultFields(elementId, elementId) : {})),
+      (elementId
+        ? buildResolvedElementResultFields(elementId, elementId)
+        : {})),
     scrolled: true,
     scrollEffective,
     ...(warning ? { warning } : {}),

@@ -23,9 +23,7 @@ import { clearScreenshotCache } from '../commands/computer';
 import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
 import { elementCache } from '../commands/element-cache';
-import {
-  assignHashedElementIds,
-} from '../commands/element-id';
+import { assignHashedElementIds } from '../commands/element-id';
 import { buildElementCacheMissMessage } from '../commands/element-cache';
 import {
   buildHighlightDetectionScript,
@@ -464,7 +462,8 @@ async function captureHighlightedPageState(
     );
 
     const consistencyCheckStart = Date.now();
-    const consistencyScript = buildHighlightConsistencyScript(paginatedElements);
+    const consistencyScript =
+      buildHighlightConsistencyScript(paginatedElements);
     const consistencyResult = await javascript.executeJavaScript(
       tabId,
       conversationId,
@@ -1751,12 +1750,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               console.log(`💬 [HandleDialog] Auto-accepting cascading alert`);
               await dialogManager.autoAcceptDialog(activeTabId);
 
-              const dialogPageState =
-                await captureDefaultHighlightedPageState({
-                  tabId: activeTabId,
-                  conversationId,
-                  logLabel: 'HandleDialog',
-                });
+              const dialogPageState = await captureDefaultHighlightedPageState({
+                tabId: activeTabId,
+                conversationId,
+                logLabel: 'HandleDialog',
+              });
 
               return {
                 success: true,
@@ -2152,7 +2150,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         return {
           success: true,
           message:
-            element.elementIdCorrected && element.resolvedElementId !== elementId
+            element.elementIdCorrected &&
+            element.resolvedElementId !== elementId
               ? `Retrieved HTML for element ${element.resolvedElementId} (matched from requested ${elementId})`
               : `Retrieved HTML for element ${element.resolvedElementId}`,
           data: {

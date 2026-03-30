@@ -103,9 +103,7 @@ class TestHighlightElements:
         if elements:
             for element in elements:
                 element_id = element.get("id", "")
-                assert re.match(
-                    r"^[1-9ACDEFHJKMNOPQRTUVWXY]{3}$", element_id
-                ), (
+                assert re.match(r"^[1-9ACDEFHJKMNOPQRTUVWXY]{3}$", element_id), (
                     "Element ID should be a 3-character visual-safe hash: "
                     f"{element_id}"
                 )
