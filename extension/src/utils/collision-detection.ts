@@ -207,6 +207,31 @@ export function isLabelWithinViewport(
 }
 
 /**
+ * Build collision-free highlight pages using a constraint-aware greedy
+ * algorithm. It places the most-constrained remaining element first, then
+ * chooses the label position that blocks the fewest later elements.
+ *
+ * @param elements - All elements sorted by priority
+ * @param page - 1-indexed page number
+ * @param viewportWidth - Optional viewport width for boundary checks
+ * @param viewportHeight - Optional viewport height for boundary checks
+ * @returns All collision-free pages up to maxPages when provided
+ */
+export function paginateCollisionFreeElements(
+  elements: InteractiveElement[],
+  viewportWidth?: number,
+  viewportHeight?: number,
+  maxPages?: number,
+): InteractiveElement[][] {
+  return buildCollisionFreePages(
+    elements,
+    viewportWidth,
+    viewportHeight,
+    maxPages,
+  );
+}
+
+/**
  * Select a collision-free page of elements using a constraint-aware greedy
  * algorithm. It places the most-constrained remaining element first, then
  * chooses the label position that blocks the fewest later elements.
@@ -227,7 +252,7 @@ export function selectCollisionFreePage(
     return [];
   }
 
-  const pages = buildCollisionFreePages(
+  const pages = paginateCollisionFreeElements(
     elements,
     viewportWidth,
     viewportHeight,
@@ -245,7 +270,7 @@ export function calculateTotalPages(
   viewportWidth?: number,
   viewportHeight?: number,
 ): number {
-  return buildCollisionFreePages(elements, viewportWidth, viewportHeight)
+  return paginateCollisionFreeElements(elements, viewportWidth, viewportHeight)
     .length;
 }
 
