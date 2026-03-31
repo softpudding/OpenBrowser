@@ -1,4 +1,4 @@
 interface:
   display_name: "OpenBrowser"
   short_description: "Use local OpenBrowser for web automation"
-  default_prompt: "Use $open-browser to operate a real Chrome browser through the local OpenBrowser service."
+  default_prompt: "Use $open-browser to operate a real Chrome browser through the local OpenBrowser service in foreground mode by default so live SSE output is visible in the current terminal."

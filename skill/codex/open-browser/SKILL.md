@@ -42,13 +42,14 @@ If readiness fails, read [references/setup.md](references/setup.md) or [referenc
 1. Run `check_status.py`
 2. If the server is down, start it from the repo root with `uv run local-chrome-server serve`
 3. If the extension, UUID, or API key is missing, pause and ask the user to complete the manual Chrome or UI steps from [references/setup.md](references/setup.md)
-4. Submit the task with `send_task.py`
-5. For tasks longer than about one minute, prefer background mode and inspect the log after waiting
-6. Summarize the final browser outcome, any failures, and the conversation ID when useful
+4. Submit the task with `send_task.py` in foreground mode by default
+5. Read the live SSE output in the terminal and use it to monitor progress in real time
+6. Use background mode only when the task is expected to run long enough that a detached log is safer than an attached stream
+7. Summarize the final browser outcome, any failures, and the conversation ID when useful
 
 ## Run Tasks
 
-Foreground mode is fine for quick tasks:
+Foreground mode is the default and preferred mode for Codex usage because it exposes live SSE events in the current terminal:
 
 ```bash
 python3 skill/codex/open-browser/scripts/send_task.py \
@@ -56,7 +57,9 @@ python3 skill/codex/open-browser/scripts/send_task.py \
   --chrome-uuid "$OPENBROWSER_CHROME_UUID"
 ```
 
-Background mode is safer for normal Codex usage because SSE streams can outlive a single command window:
+Prefer foreground mode for most tasks, including normal multi-step browser work, so you can inspect actions, observations, and usage metrics as they happen.
+
+Use background mode only as a fallback for long-running tasks or when you explicitly need detached execution:
 
 ```bash
 python3 skill/codex/open-browser/scripts/send_task.py \
@@ -68,7 +71,7 @@ sleep 120
 tail -n 80 /tmp/openbrowser.log
 ```
 
-Use larger waits for longer flows:
+If you choose background mode, use larger waits for longer flows:
 - 60-90 seconds for a single navigation
 - 120-180 seconds for a short multi-step task
 - 300+ seconds for long workflows or debugging sessions
@@ -91,7 +94,7 @@ python3 skill/codex/open-browser/scripts/send_task.py \
 If the task does not start or fails immediately:
 - Re-run `check_status.py`
 - Verify that the browser UUID is still valid
-- Inspect `/tmp/openbrowser.log` or your chosen log file
+- Inspect the live foreground stream first; if you used background mode, inspect `/tmp/openbrowser.log` or your chosen log file
 - Read [references/troubleshooting.md](references/troubleshooting.md)
 
 If you need lower-level control or want to inspect conversations directly, read [references/api_reference.md](references/api_reference.md).
