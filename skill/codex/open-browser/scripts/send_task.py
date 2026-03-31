@@ -56,7 +56,7 @@ def get_conversation_status(base_url: str, conversation_id: str) -> dict:
 
 def format_event(event_type: str, data: dict) -> None:
     if event_type == "complete":
-        print(f"[complete] {data.get('message', '')}")
+        print(f"[complete] {data.get('message', '')}", flush=True)
         return
 
     if event_type == "usage_metrics":
@@ -71,46 +71,52 @@ def format_event(event_type: str, data: dict) -> None:
                 + token_usage.get("completion_tokens", 0)
                 + token_usage.get("reasoning_tokens", 0)
             )
-        print(f"[usage] model={model_name} cost_rmb={cost:.6f} tokens={total_tokens}")
+        print(
+            f"[usage] model={model_name} cost_rmb={cost:.6f} tokens={total_tokens}",
+            flush=True,
+        )
         return
 
     if event_type != "agent_event":
-        print(f"[{event_type}] {json.dumps(data, ensure_ascii=True)}")
+        print(f"[{event_type}] {json.dumps(data, ensure_ascii=True)}", flush=True)
         return
 
     data_type = data.get("type", "unknown")
     if data_type == "MessageEvent":
         role = data.get("role", "unknown")
         text = data.get("text", "")
-        print(f"[message:{role}] {text[:400]}")
+        print(f"[message:{role}] {text[:400]}", flush=True)
         return
 
     if data_type == "ThoughtEvent":
         thought = data.get("thought", data.get("content", ""))
-        print(f"[thought] {thought[:200]}")
+        print(f"[thought] {thought[:200]}", flush=True)
         return
 
     if data_type == "ActionEvent":
         action = data.get("action", {})
         if isinstance(action, dict):
             action_name = action.get("action", "unknown")
-            print(f"[action] {action_name}")
+            print(f"[action] {action_name}", flush=True)
         else:
-            print(f"[action] {action}")
+            print(f"[action] {action}", flush=True)
         return
 
     if data_type == "ObservationEvent":
         success = data.get("success", False)
         message = data.get("message", "")
         state = "ok" if success else "error"
-        print(f"[observation:{state}] {message[:200]}")
+        print(f"[observation:{state}] {message[:200]}", flush=True)
         return
 
     if data_type == "ErrorEvent":
-        print(f"[error] {data.get('error', 'unknown error')}")
+        print(f"[error] {data.get('error', 'unknown error')}", flush=True)
         return
 
-    print(f"[agent_event:{data_type}] {json.dumps(data, ensure_ascii=True)}")
+    print(
+        f"[agent_event:{data_type}] {json.dumps(data, ensure_ascii=True)}",
+        flush=True,
+    )
 
 
 def stream_task(
@@ -132,8 +138,8 @@ def stream_task(
         method="POST",
     )
 
-    print(f"[conversation] {conversation_id}")
-    print(f"[task] {task}")
+    print(f"[conversation] {conversation_id}", flush=True)
+    print(f"[task] {task}", flush=True)
 
     with urlopen(request, timeout=None) as response:
         sse_event = None
@@ -145,7 +151,7 @@ def stream_task(
                     try:
                         format_event(sse_event, json.loads(sse_data))
                     except json.JSONDecodeError:
-                        print(f"[{sse_event}] {sse_data}")
+                        print(f"[{sse_event}] {sse_data}", flush=True)
                 sse_event = None
                 sse_data = None
                 continue
