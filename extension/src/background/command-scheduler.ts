@@ -72,7 +72,8 @@ export class CommandScheduler<T = unknown, R = unknown> {
     );
     this.maxConcurrentHeavyCommands = Math.max(
       1,
-      options.maxConcurrentHeavyCommands ?? DEFAULT_MAX_CONCURRENT_HEAVY_COMMANDS,
+      options.maxConcurrentHeavyCommands ??
+        DEFAULT_MAX_CONCURRENT_HEAVY_COMMANDS,
     );
     this.warnQueueLength = Math.max(
       1,
@@ -167,12 +168,10 @@ export class CommandScheduler<T = unknown, R = unknown> {
     }
   }
 
-  private dequeueNextCommand():
-    | {
-        conversationKey: string;
-        command: SchedulerCommand<T>;
-      }
-    | null {
+  private dequeueNextCommand(): {
+    conversationKey: string;
+    command: SchedulerCommand<T>;
+  } | null {
     this.pruneConversationOrder();
 
     if (this.conversationOrder.length === 0) {
@@ -268,7 +267,11 @@ export class CommandScheduler<T = unknown, R = unknown> {
   }
 
   private pruneConversationOrder(): void {
-    for (let index = this.conversationOrder.length - 1; index >= 0; index -= 1) {
+    for (
+      let index = this.conversationOrder.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
       const conversationKey = this.conversationOrder[index];
       const queue = this.queues.get(conversationKey);
       if (queue && queue.length > 0) {

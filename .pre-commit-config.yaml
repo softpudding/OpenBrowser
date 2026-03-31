@@ -24,6 +24,11 @@ repos:
 
       - id: extension-eslint
         name: extension eslint
-        entry: npm --prefix extension exec eslint -- --config extension/eslint.config.mjs --max-warnings=0
+        entry: >-
+          bash -lc 'if [ ! -f extension/node_modules/@eslint/js/package.json ]; then
+          npm --prefix extension ci --no-fund --no-audit; fi;
+          npm --prefix extension exec eslint -- --config extension/eslint.config.mjs
+          --max-warnings=0 "$@"' --
         language: system
         files: ^extension/.*\.ts$
+        require_serial: true
