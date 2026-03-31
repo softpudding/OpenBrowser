@@ -6,6 +6,7 @@
  */
 
 import { wsClient } from '../websocket/client';
+import { CommandScheduler } from './command-scheduler';
 import {
   captureScreenshot,
   compressIfNeeded,
@@ -645,256 +646,161 @@ function cleanupTabState(conversationId: string, tabId: number): void {
 // Command Queue Management System
 // ============================================================================
 
-/**
- * Command queue item interface
- */
-interface QueuedCommand {
-  data: any;
-  resolve: (value: any) => void;
-  reject: (error: Error) => void;
-  addedAt: number;
+const commandPerformanceHistory: Array<{
+  type: string;
+  duration: number;
+  timestamp: number;
+}> = [];
+const MAX_COMMAND_PERFORMANCE_HISTORY = 20;
+
+function getCommandSchedulingKey(data: any): string {
+  if (typeof data?.conversation_id === 'string' && data.conversation_id) {
+    return data.conversation_id;
+  }
+  if (typeof data?.tab_id === 'number') {
+    return `tab:${data.tab_id}`;
+  }
+  if (typeof data?.command_id === 'string' && data.command_id) {
+    return `command:${data.command_id}`;
+  }
+  return '__global__';
 }
 
-/**
- * Command Queue Manager
- * Prevents command stacking and ensures proper flow control
- */
-class CommandQueueManager {
-  private queue: QueuedCommand[] = [];
-  private isProcessing = false;
-  private commandCooldown = 1000; // 1 second cooldown between commands
-  private lastCommandEndTime = 0;
-  private performanceHistory: Array<{
-    type: string;
-    duration: number;
-    timestamp: number;
-  }> = [];
-  private readonly maxHistory = 20;
+function isHeavyBrowserCommand(data: any): boolean {
+  switch (data?.type) {
+    case 'highlight_elements':
+    case 'highlight_single_element':
+    case 'screenshot':
+    case 'javascript_execute':
+    case 'click_element':
+    case 'hover_element':
+    case 'scroll_element':
+    case 'swipe_element':
+    case 'keyboard_input':
+    case 'select_element':
+    case 'handle_dialog':
+      return true;
+    case 'tab':
+      return (
+        data?.action === 'init' ||
+        data?.action === 'open' ||
+        data?.action === 'switch' ||
+        data?.action === 'refresh' ||
+        data?.action === 'view' ||
+        data?.action === 'back' ||
+        data?.action === 'forward'
+      );
+    default:
+      return false;
+  }
+}
 
-  /**
-   * Add command to queue
-   */
-  async enqueue(data: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      this.queue.push({
-        data,
-        resolve,
-        reject,
-        addedAt: Date.now(),
-      });
+function recordCommandPerformance(type: string, duration: number): void {
+  commandPerformanceHistory.push({
+    type,
+    duration,
+    timestamp: Date.now(),
+  });
 
-      // Start processing if not already processing
-      if (!this.isProcessing) {
-        this.processQueue();
-      }
-
-      // Log queue status
-      if (this.queue.length > 3) {
-        console.warn(
-          `⚠️ Command queue growing: ${this.queue.length} commands pending`,
-        );
-      }
-    });
+  if (commandPerformanceHistory.length > MAX_COMMAND_PERFORMANCE_HISTORY) {
+    commandPerformanceHistory.shift();
   }
 
-  /**
-   * Process the command queue
-   */
-  private async processQueue(): Promise<void> {
-    if (this.isProcessing || this.queue.length === 0) {
-      return;
-    }
-
-    this.isProcessing = true;
-
-    while (this.queue.length > 0) {
-      const queuedCommand = this.queue.shift()!;
-      const waitTime = Date.now() - queuedCommand.addedAt;
-
-      // Warn about long wait times
-      if (waitTime > 5000) {
-        console.warn(
-          `⌛ Command waited ${waitTime}ms in queue before processing`,
-        );
-      }
-
-      try {
-        // Apply cooldown between commands if needed
-        const timeSinceLastCommand = Date.now() - this.lastCommandEndTime;
-        if (timeSinceLastCommand < this.commandCooldown) {
-          const cooldownDelay = this.commandCooldown - timeSinceLastCommand;
-          console.log(`⏸️ Command cooldown: waiting ${cooldownDelay}ms`);
-          await new Promise((resolve) => setTimeout(resolve, cooldownDelay));
-        }
-
-        // Process the command
-        const result = await this.processCommand(queuedCommand.data);
-        queuedCommand.resolve(result);
-
-        // Update last command end time
-        this.lastCommandEndTime = Date.now();
-      } catch (error) {
-        queuedCommand.reject(error as Error);
-        this.lastCommandEndTime = Date.now();
-      }
-    }
-
-    this.isProcessing = false;
+  if (commandPerformanceHistory.length < 5) {
+    return;
   }
 
-  /**
-   * Process individual command (original command handling logic)
-   * Public method so watchdog can wrap it
-   */
-  public async processCommand(data: any): Promise<any> {
-    // This is the original command handling logic from wsClient.onMessage
-    const commandId = data.command_id || `unknown_${Date.now()}`;
-    const commandType = data.type || 'unknown';
-    const commandStartTime = Date.now();
+  const recent = commandPerformanceHistory.slice(-5);
+  const avgDuration =
+    recent.reduce((sum, cmd) => sum + cmd.duration, 0) / recent.length;
 
-    // Track command execution
-    wsClient.trackCommandStart(commandId, commandType, {
-      conversation_id: data.conversation_id,
-      action: data.action,
-      tab_id: data.tab_id,
-      url: data.url,
-    });
+  if (avgDuration > 5000) {
+    console.warn(
+      `📉 Performance degradation detected: avg command time ${avgDuration.toFixed(0)}ms`,
+    );
+  }
+}
 
-    try {
-      const response = await handleCommand(data as Command);
-      const commandDuration = Date.now() - commandStartTime;
+async function processQueuedCommand(data: any): Promise<any> {
+  watchdog.tick();
 
-      // Record performance
-      this.recordPerformance(commandType, commandDuration);
+  const commandId = data.command_id || `unknown_${Date.now()}`;
+  const commandType = data.type || 'unknown';
+  const commandStartTime = Date.now();
 
-      // Warn about long-running commands
-      if (commandDuration > 10000) {
-        console.warn(
-          `⚠️ Long command execution: ${commandType} took ${commandDuration}ms`,
-        );
-      }
+  wsClient.trackCommandStart(commandId, commandType, {
+    conversation_id: data.conversation_id,
+    action: data.action,
+    tab_id: data.tab_id,
+    url: data.url,
+  });
 
-      // Send response back to server
-      if (wsClient.isConnected()) {
-        const responseWithId = {
-          ...response,
-          command_id: data.command_id,
-          timestamp: Date.now(),
-        };
+  try {
+    const response = await handleCommand(data as Command);
+    const commandDuration = Date.now() - commandStartTime;
 
-        wsClient
-          .sendMessage({
-            type: 'command_response',
-            ...responseWithId,
-          })
-          .catch((error) => {
-            console.error('Failed to send response:', error);
-          });
-      }
+    recordCommandPerformance(commandType, commandDuration);
 
-      return response;
-    } catch (error) {
-      console.error('Error handling command:', error);
-      const commandDuration = Date.now() - commandStartTime;
+    if (commandDuration > 10000) {
+      console.warn(
+        `⚠️ Long command execution: ${commandType} took ${commandDuration}ms`,
+      );
+    }
 
-      // Send error response
-      const errorResponse: CommandResponse = {
-        success: false,
+    if (wsClient.isConnected()) {
+      const responseWithId = {
+        ...response,
         command_id: data.command_id,
-        error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: Date.now(),
       };
 
-      if (wsClient.isConnected()) {
-        wsClient
-          .sendMessage({ type: 'command_response', ...errorResponse })
-          .catch(console.error);
-      }
-
-      if (commandDuration > 10000) {
-        console.warn(
-          `⚠️ Long failed command: ${commandType} failed after ${commandDuration}ms`,
-        );
-      }
-
-      throw error;
-    } finally {
-      // End command tracking
-      wsClient.trackCommandEnd(commandId);
+      wsClient
+        .sendMessage({
+          type: 'command_response',
+          ...responseWithId,
+        })
+        .catch((error) => {
+          console.error('Failed to send response:', error);
+        });
     }
-  }
 
-  /**
-   * Record command performance for monitoring
-   */
-  private recordPerformance(type: string, duration: number): void {
-    this.performanceHistory.push({
-      type,
-      duration,
+    return response;
+  } catch (error) {
+    console.error('Error handling command:', error);
+    const commandDuration = Date.now() - commandStartTime;
+
+    const errorResponse: CommandResponse = {
+      success: false,
+      command_id: data.command_id,
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: Date.now(),
-    });
-
-    if (this.performanceHistory.length > this.maxHistory) {
-      this.performanceHistory.shift();
-    }
-
-    // Detect performance degradation
-    if (this.performanceHistory.length >= 5) {
-      const recent = this.performanceHistory.slice(-5);
-      const avgDuration =
-        recent.reduce((sum, cmd) => sum + cmd.duration, 0) / recent.length;
-
-      if (avgDuration > 5000) {
-        console.warn(
-          `📉 Performance degradation detected: avg command time ${avgDuration.toFixed(0)}ms`,
-        );
-
-        // Adaptive cooldown adjustment
-        if (avgDuration > 10000) {
-          this.commandCooldown = 2000; // Increase to 2 seconds
-          console.log(
-            `⚙️ Increased command cooldown to ${this.commandCooldown}ms`,
-          );
-        }
-      } else if (avgDuration < 1000 && this.commandCooldown > 1000) {
-        // Reset cooldown if performance improves
-        this.commandCooldown = 1000;
-        console.log(`⚙️ Reset command cooldown to ${this.commandCooldown}ms`);
-      }
-    }
-  }
-
-  /**
-   * Get queue status
-   */
-  getStatus() {
-    return {
-      queueLength: this.queue.length,
-      isProcessing: this.isProcessing,
-      lastCommandEndTime: this.lastCommandEndTime,
-      performanceHistory: [...this.performanceHistory],
     };
-  }
 
-  /**
-   * Clear queue (emergency cleanup)
-   */
-  clearQueue(): void {
-    console.warn(
-      `🧹 Clearing command queue with ${this.queue.length} pending commands`,
-    );
-
-    for (const queuedCommand of this.queue) {
-      queuedCommand.reject(new Error('Command queue cleared'));
+    if (wsClient.isConnected()) {
+      wsClient
+        .sendMessage({ type: 'command_response', ...errorResponse })
+        .catch(console.error);
     }
 
-    this.queue = [];
-    this.isProcessing = false;
+    if (commandDuration > 10000) {
+      console.warn(
+        `⚠️ Long failed command: ${commandType} failed after ${commandDuration}ms`,
+      );
+    }
+
+    throw error;
+  } finally {
+    wsClient.trackCommandEnd(commandId);
   }
 }
 
-// Initialize command queue manager
-const commandQueue = new CommandQueueManager();
+const commandQueue = new CommandScheduler<any, any>({
+  processCommand: processQueuedCommand,
+  getConversationKey: getCommandSchedulingKey,
+  isHeavyCommand: isHeavyBrowserCommand,
+  maxConcurrentCommands: 3,
+  maxConcurrentHeavyCommands: 2,
+});
 
 // ============================================================================
 // Watchdog Timer for Main Thread Freeze Detection
@@ -978,13 +884,6 @@ class WatchdogTimer {
 // Initialize watchdog timer
 const watchdog = new WatchdogTimer();
 watchdog.start();
-
-// Update watchdog on each command processing - wrap the processCommand method
-const originalProcessCommand = commandQueue.processCommand.bind(commandQueue);
-commandQueue.processCommand = async function (data: any) {
-  watchdog.tick();
-  return originalProcessCommand(data);
-};
 
 // ============================================================================
 
