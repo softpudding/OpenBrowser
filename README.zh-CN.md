@@ -62,32 +62,36 @@ OpenBrowser 不是靠“感觉不错”来迭代的。仓库里包含带事件�
 
 ## 评测
 
-OpenBrowser 目前用两种互补方式做评测：
+仓库里当前最重要的评测基线，是最新 check-in 的结果文件：
 
-- 真实浏览器工作流，以及和现有方案的并排对比
-- 带事件跟踪的自定义 mock 网站回归套件，位于 [`eval/`](eval/)
-
-仓库里当前主要归档对比，保持相同控制设置，对比的是 `OpenClaw Browser Relay` 和 `OpenClaw + OpenBrowser skill`：
-
-- [`eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md`](eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md)
 - [`eval/evaluation_report.json`](eval/evaluation_report.json)
 
-我们重点跟踪：
+这套测试集本身是一系列位于 [`eval/`](eval/) 下的本地 mock 仿真网站，用来模拟真实浏览器任务，并记录结构化交互事件。
 
-- 通过率
-- 执行时间
-- 成本
-- 控制窗口剩余上下文空间
+这个快照生成于 `2026-03-30 11:17:06`，基于其中 `12` 个带事件跟踪的浏览器任务，对两个模型做评测。我们现在优先看三件事：
 
-`2026-03-16` 的代表性归档结果：
+- 正确性：是否通过，以及任务分覆盖情况
+- 效率：平均执行时间
+- 成本：单任务平均 RMB 成本
 
-| 方案 | 通过率 | 平均时间 | 控制窗口上下文 |
-|------|--------|----------|----------------|
-| OpenClaw Browser Relay | 6/7 | 211s | 640% |
-| OpenClaw + OpenBrowser (`qwen3.5-plus`) | 7/7 | 274s | 21% |
-| OpenClaw + OpenBrowser (`qwen3.5-flash`) | 首轮 5/7，重试后 7/7 | 317s | 12% |
+当前快照结果：
 
-这个对比不是为了宣称 OpenBrowser 在所有任务、所有指标上都更优，而是为了把真实权衡说清楚：重 DOM relay 系统在今天可能依然很强，而 OpenBrowser 的设计目标，是保留控制窗口上下文空间，支持多模态执行路径，并通过可重复评测持续改进。
+- 总体：`24/24` 次运行通过，整体通过率 `100%`
+- `dashscope/qwen3.5-flash`：`12/12` 通过，任务分 `68.5/68.5`，平均耗时 `114.89s`，平均成本 `0.075442 RMB`
+- `dashscope/qwen3.5-plus`：`12/12` 通过，任务分 `67.5/68.5`，平均耗时 `149.63s`，平均成本 `0.291952 RMB`
+
+| 模型 | 正确性 | 平均耗时 | 平均成本（RMB） | 综合分 |
+|------|--------|----------|------------------|--------|
+| `dashscope/qwen3.5-flash` | `12/12` 通过，`68.5/68.5` | `114.89s` | `0.075442` | `0.9358` |
+| `dashscope/qwen3.5-plus` | `12/12` 通过，`67.5/68.5` | `149.63s` | `0.291952` | `0.8774` |
+
+在当前这套评测里，`qwen3.5-flash` 是更好的效率/成本工作点：在同样保持 `100%` 通过率的前提下，它比 `qwen3.5-plus` 约快 `23.2%`，平均成本约低 `74.2%`。`qwen3.5-plus` 仍然是更强 fallback 档位，适合更难的视觉推理或更复杂的工作流；但这个仓库现在的主叙事已经不再是“和 OpenClaw 做 benchmark 对比”，而是“看我们当前栈在正确性、速度和成本上的最新结果”。
+
+之前与 OpenClaw 的并排对比现在作为 archived 资料保留：
+
+- [`eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md`](eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md)
+
+这些归档结果对理解历史权衡仍然有价值，但已经不是我们现在主要优化的指标来源。
 
 ### 自己运行评测
 
@@ -98,12 +102,17 @@ python eval/evaluate_browser_agent.py --list
 # 一次性设置浏览器 capability token
 export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
 
-# 用两个模型跑全部测试
-python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
+# 用一个已配置的 LLM alias 跑单个测试
+python eval/evaluate_browser_agent.py --test techforum --model-alias default
+
+# 用多个已配置 alias 跑全部测试
+python eval/evaluate_browser_agent.py --model-alias plus --model-alias flash
 
 # 或者在单次运行里显式传 browser UUID
-python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID
+python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID --model-alias default
 ```
+
+`--model-alias` 必须对应你在 OpenBrowser Web UI 里配置过的 LLM alias，比如 `default`、`plus`、`flash`。
 
 评测框架说明见 [AGENTS.md](AGENTS.md#evaluation-system)。
 
@@ -224,7 +233,17 @@ http://localhost:8765
 
 ### 也可以通过 SKILL 使用 OpenBrowser
 
-直接告诉你的 agent 安装 `skill/codex/open-browser`
+OpenBrowser 同时提供 `Codex` 和 `OpenClaw` 两套 skill：
+
+- `skill/codex/open-browser`
+- `skill/openclaw/open-browser`
+
+它们的目标相近，但工作流上有一点区别：
+
+- `Codex` 版更贴合 Codex 的仓库协作工作流，前台或后台执行都可以。
+- `OpenClaw` 版更贴合 OpenClaw 的使用方式，更强调后台执行，并把 OpenBrowser 定位为更适合渲染页面和多步浏览器任务的方案。
+
+安装与你本地 agent 环境对应的那一套即可。
 
 ## 为什么当前主要使用 Qwen3.5 系列？
 

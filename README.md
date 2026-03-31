@@ -70,32 +70,36 @@ Model capability matters, but so does price. We do not assume token costs stay c
 
 ## Evaluation
 
-OpenBrowser is evaluated in two complementary ways:
+The primary evaluation signal in this repo is the latest checked-in report:
 
-- Real browser workflows and side-by-side comparisons against existing approaches
-- A custom regression suite of mocked websites with event tracking in [`eval/`](eval/)
-
-The main archived comparison in this repo keeps the same control setup and compares `OpenClaw Browser Relay` with `OpenClaw + OpenBrowser skill`:
-
-- [`eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md`](eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md)
 - [`eval/evaluation_report.json`](eval/evaluation_report.json)
 
-What we track:
+The test set is a series of local mock websites in [`eval/`](eval/) that simulate realistic browser tasks and record structured interaction events.
 
-- Pass rate
-- Execution time
-- Cost
-- Remaining context headroom in the control window
+That snapshot was generated on `2026-03-30 11:17:06` and evaluates OpenBrowser on `12` tracked browser tasks across two models. We care about three things first:
 
-Representative archived results from `2026-03-16`:
+- Correctness: pass/fail plus task-score coverage
+- Efficiency: average execution time
+- Cost: average RMB cost per task
 
-| Setup | Pass Rate | Avg. Time | Control Window Context |
-|--------|-----------|-----------|------------------------|
-| OpenClaw Browser Relay | 6/7 | 211s | 640% |
-| OpenClaw + OpenBrowser (`qwen3.5-plus`) | 7/7 | 274s | 21% |
-| OpenClaw + OpenBrowser (`qwen3.5-flash`) | 5/7 first pass, 7/7 with retry | 317s | 12% |
+Current snapshot:
 
-That comparison is not meant to claim OpenBrowser wins every metric on every task. It is meant to make the tradeoff explicit: DOM-heavy relay systems can be strong today, while OpenBrowser is designed to preserve control-window headroom, support a multimodal execution path, and improve through repeatable evaluation.
+- Overall: `24/24` runs passed, `100%` pass rate
+- `dashscope/qwen3.5-flash`: `12/12` passed, `68.5/68.5` task score, `114.89s` average duration, `0.075442 RMB` average cost
+- `dashscope/qwen3.5-plus`: `12/12` passed, `67.5/68.5` task score, `149.63s` average duration, `0.291952 RMB` average cost
+
+| Model | Correctness | Avg. Time | Avg. Cost (RMB) | Composite Score |
+|-------|-------------|-----------|------------------|-----------------|
+| `dashscope/qwen3.5-flash` | `12/12` passed, `68.5/68.5` | `114.89s` | `0.075442` | `0.9358` |
+| `dashscope/qwen3.5-plus` | `12/12` passed, `67.5/68.5` | `149.63s` | `0.291952` | `0.8774` |
+
+On the current suite, `qwen3.5-flash` is the better efficiency-cost point: it keeps the same `100%` pass rate, while being about `23.2%` faster and `74.2%` cheaper than `qwen3.5-plus`. `qwen3.5-plus` still remains useful as a stronger fallback profile for harder visual workflows, but the repo's current default evaluation story is no longer "benchmark comparison against OpenClaw"; it is "how well our latest stack scores on correctness, speed, and cost."
+
+Older side-by-side comparisons with OpenClaw are kept only as archived context:
+
+- [`eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md`](eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md)
+
+Those archived results are still useful for historical tradeoff discussion, but they are not the main metric we optimize against now.
 
 ### Run Your Own Evaluation
 
@@ -106,12 +110,17 @@ python eval/evaluate_browser_agent.py --list
 # Set the browser capability token once
 export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
 
-# Run all tests with both models
-python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
+# Run one test with a configured LLM alias
+python eval/evaluate_browser_agent.py --test techforum --model-alias default
+
+# Run all tests with multiple configured aliases
+python eval/evaluate_browser_agent.py --model-alias plus --model-alias flash
 
 # Or pass the browser UUID explicitly per run
-python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID
+python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID --model-alias default
 ```
+
+`--model-alias` must match an LLM alias configured in the OpenBrowser web UI, such as `default`, `plus`, or `flash`.
 
 See [AGENTS.md](AGENTS.md#evaluation-system) for evaluation framework documentation.
 
@@ -230,7 +239,17 @@ This means browser control is authorized by possession of the UUID capability to
 
 ### Try OpenBrowser with SKILL - install to your local agents
 
-Simply tell your agent to install `skill/codex/open-browser`
+OpenBrowser ships with skills for both `Codex` and `OpenClaw`:
+
+- `skill/codex/open-browser`
+- `skill/openclaw/open-browser`
+
+They are similar in purpose, but slightly different in workflow:
+
+- The `Codex` skill is tuned for Codex-style repo workflows and supports either foreground or background task execution.
+- The `OpenClaw` skill is tuned for OpenClaw usage, emphasizes background execution, and frames OpenBrowser as the stronger option for rendered-page and multi-step browser tasks.
+
+Install the one that matches your local agent environment.
 
 ## Why Qwen3.5 Family Right Now?
 

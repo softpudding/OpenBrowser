@@ -137,16 +137,16 @@ Automated evaluation now requires a browser UUID capability token copied from th
 Quick start:
 
 ```bash
-python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID
+python eval/evaluate_browser_agent.py --test techforum --chrome-uuid YOUR_BROWSER_UUID --model-alias default
 ```
 
 Recommended options:
 
 ```bash
 export OPENBROWSER_CHROME_UUID=YOUR_BROWSER_UUID
-python eval/evaluate_browser_agent.py --test techforum
-python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --test techforum
-python eval/evaluate_browser_agent.py --model dashscope/qwen3.5-plus --model dashscope/qwen3.5-flash
+python eval/evaluate_browser_agent.py --test techforum --model-alias default
+python eval/evaluate_browser_agent.py --test techforum --model-alias plus
+python eval/evaluate_browser_agent.py --model-alias plus --model-alias flash
 python eval/evaluate_browser_agent.py --list
 python eval/evaluate_browser_agent.py --manual --test techforum
 ```
@@ -154,8 +154,9 @@ python eval/evaluate_browser_agent.py --manual --test techforum
 Notes:
 
 1. `--chrome-uuid` is required for automated runs that call the OpenBrowser browser-control APIs.
-2. `--manual` and `--list` do not require a browser UUID.
-3. `OPENBROWSER_CHROME_UUID` is the equivalent environment variable for scripting and CI-style usage.
+2. Automated evaluation also requires at least one `--model-alias`, which must match a configured LLM alias in the OpenBrowser web UI.
+3. `--manual` and `--list` do not require a browser UUID.
+4. `OPENBROWSER_CHROME_UUID` is the equivalent environment variable for scripting and CI-style usage.
 
 ## Evaluating AI Agent Behavior
 
