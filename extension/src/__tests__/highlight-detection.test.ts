@@ -120,6 +120,10 @@ describe('highlight-detection helpers', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
 
     expect(script).toContain('function evaluateReadinessSnapshot');
+    expect(script).toContain('function getCandidateElementsForScan');
+    expect(script).toContain("layoutStability.state !== 'not_ready'");
+    expect(script).toContain('const NOT_READY_SCAN_LIMIT = 500;');
+    expect(script).toContain("trace('scan:capped'");
     expect(script).toContain('readiness:snapshot');
     expect(script).not.toContain('function waitForLayoutStability');
   });

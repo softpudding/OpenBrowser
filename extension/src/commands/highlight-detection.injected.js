@@ -35,6 +35,7 @@ const CONTROL_TOKEN_REGEX =
   /\b(action|back|bookmark|btn|button|clear|close|collect|comment|favorite|favourite|filter|follow|like|menu|more|next|pause|play|prev|previous|refresh|reload|reply|save|search|share|star|submit|tab|toggle)\b/i;
 const SWIPE_LIBRARY_REGEX =
   /\b(swiper|carousel|slider|slides?|embla|splide|slick|flickity|glide|keen-slider|tns)\b/i;
+const NOT_READY_SCAN_LIMIT = 500;
 
 function hasCallableMethod(value, methodNames) {
   if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
@@ -1796,12 +1797,55 @@ function evaluateReadinessSnapshot(trace) {
   return readiness;
 }
 
-function collectHighlightCandidates(requestedType, trace) {
+function getCandidateElementsForScan(layoutStability, trace) {
+  if (layoutStability.state !== 'not_ready') {
+    const allElements = Array.from(document.querySelectorAll('*'));
+    trace('querySelectorAll', `count=${allElements.length}`);
+    return allElements;
+  }
+
+  const root = document.documentElement || document.body;
+  if (!root || typeof document.createTreeWalker !== 'function') {
+    const fallbackElements = Array.from(document.querySelectorAll('*')).slice(
+      0,
+      NOT_READY_SCAN_LIMIT,
+    );
+    trace(
+      'querySelectorAll',
+      `count=${fallbackElements.length} capped=${NOT_READY_SCAN_LIMIT} state=not_ready fallback=true`,
+    );
+    if (fallbackElements.length >= NOT_READY_SCAN_LIMIT) {
+      trace('scan:capped', `state=not_ready limit=${NOT_READY_SCAN_LIMIT}`);
+    }
+    return fallbackElements;
+  }
+
+  const cappedElements = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  let current = walker.currentNode;
+
+  while (current && cappedElements.length < NOT_READY_SCAN_LIMIT) {
+    if (current instanceof Element) {
+      cappedElements.push(current);
+    }
+    current = walker.nextNode();
+  }
+
+  trace(
+    'querySelectorAll',
+    `count=${cappedElements.length} capped=${NOT_READY_SCAN_LIMIT} state=not_ready`,
+  );
+  if (cappedElements.length >= NOT_READY_SCAN_LIMIT) {
+    trace('scan:capped', `state=not_ready limit=${NOT_READY_SCAN_LIMIT}`);
+  }
+
+  return cappedElements;
+}
+
+function collectHighlightCandidates(requestedType, trace, layoutStability) {
   const activeTopLayerRoot = getActiveTopLayerRoot();
   const registry = new Map();
-  const allElements = Array.from(document.querySelectorAll('*'));
-
-  trace('querySelectorAll', `count=${allElements.length}`);
+  const allElements = getCandidateElementsForScan(layoutStability, trace);
 
   let scannedCount = 0;
   for (const element of allElements) {
@@ -1901,6 +1945,7 @@ async function runOpenBrowserHighlightDetection(config) {
   const { elements, counts } = collectHighlightCandidates(
     config.elementType,
     trace,
+    layoutStability,
   );
 
   trace('return', `elements=${elements.length}`);
