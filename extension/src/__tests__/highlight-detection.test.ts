@@ -162,7 +162,10 @@ describe('highlight-detection helpers', () => {
   test('buildHighlightDetectionScript excludes visually hidden screen-reader nodes', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
     const start = script.indexOf('function isElementVisibleForDetection');
-    const end = script.indexOf('function isElementInViewportForDetection', start);
+    const end = script.indexOf(
+      'function isElementInViewportForDetection',
+      start,
+    );
     const visibilitySource = script.slice(start, end);
 
     expect(script).toContain('const VISUALLY_HIDDEN_TOKEN_REGEX');

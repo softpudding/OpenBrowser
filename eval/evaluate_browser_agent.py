@@ -1172,7 +1172,9 @@ class Evaluator:
             # The live SSE stream can end right after `complete` and miss the
             # persisted usage_metrics snapshots. Recover them before saving
             # artifacts or computing costs.
-            sse_events = self._recover_usage_metrics_for_run(conversation_id, sse_events)
+            sse_events = self._recover_usage_metrics_for_run(
+                conversation_id, sse_events
+            )
 
             # Extract and save SSE events (excluding images) to file
             sse_events_file = self._save_sse_events(
@@ -2648,7 +2650,9 @@ class Evaluator:
                 for timestamp in (event.get("timestamp") for event in sse_events)
                 if isinstance(timestamp, (int, float))
             ]
-            duration = max(timestamps) - min(timestamps) if len(timestamps) >= 2 else 0.0
+            duration = (
+                max(timestamps) - min(timestamps) if len(timestamps) >= 2 else 0.0
+            )
             cost = recovered_costs.get(conversation_id)
             efficiency_score = self._calculate_efficiency_score(
                 duration, test_case.time_limit
@@ -2702,8 +2706,7 @@ class Evaluator:
 
         models = list(
             dict.fromkeys(
-                rebuilt_result.model or "unknown"
-                for rebuilt_result in rebuilt_results
+                rebuilt_result.model or "unknown" for rebuilt_result in rebuilt_results
             )
         )
 

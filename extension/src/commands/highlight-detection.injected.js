@@ -222,9 +222,7 @@ function isVisuallyHiddenForDetection(el) {
   return (
     tinyBox &&
     (hidesOverflow || isClipped || style.whiteSpace === 'nowrap') &&
-    (style.position === 'absolute' ||
-      style.position === 'fixed' ||
-      isOffscreen)
+    (style.position === 'absolute' || style.position === 'fixed' || isOffscreen)
   );
 }
 

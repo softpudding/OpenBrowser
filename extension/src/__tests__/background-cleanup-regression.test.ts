@@ -52,9 +52,7 @@ describe('Background cleanup regressions', () => {
     expect(backgroundSource).toContain(
       'fullPageScanOnNotReady: attempt === maxHighlightAttempts',
     );
-    expect(backgroundSource).toContain(
-      'const maxHighlightAttempts = 3;',
-    );
+    expect(backgroundSource).toContain('const maxHighlightAttempts = 3;');
   });
 
   test('navigation defaults prime the page with a raw screenshot before highlight', () => {
