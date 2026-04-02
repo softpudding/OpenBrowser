@@ -35,6 +35,35 @@ const CONTROL_TOKEN_REGEX =
   /\b(action|back|bookmark|btn|button|clear|close|collect|comment|favorite|favourite|filter|follow|like|menu|more|next|pause|play|prev|previous|refresh|reload|reply|save|search|share|star|submit|tab|toggle)\b/i;
 const SWIPE_LIBRARY_REGEX =
   /\b(swiper|carousel|slider|slides?|embla|splide|slick|flickity|glide|keen-slider|tns)\b/i;
+const VISUALLY_HIDDEN_TOKEN_REGEX =
+  /\b(sr-only|sronly|screen-reader|screenreader|screen-reader-only|visually-hidden|visuallyhidden|u-hidden-visually|a11y-hidden)\b/i;
+const NOT_READY_SCAN_LIMIT = 500;
+const TEXT_LIKE_TAG_SET = new Set([
+  'a',
+  'abbr',
+  'b',
+  'cite',
+  'code',
+  'dd',
+  'dt',
+  'em',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'i',
+  'label',
+  'li',
+  'p',
+  'small',
+  'span',
+  'strong',
+  'sub',
+  'sup',
+  'time',
+]);
 
 function hasCallableMethod(value, methodNames) {
   if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
@@ -87,6 +116,10 @@ function getElementArea(rect) {
 
 function isElementVisibleForDetection(el) {
   if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) {
+    return false;
+  }
+
+  if (el instanceof HTMLElement && isVisuallyHiddenForDetection(el)) {
     return false;
   }
 
@@ -152,6 +185,45 @@ function getClassTokens(el) {
         token.length > 1 && token.length <= 40 && /^[a-z0-9_-]+$/i.test(token),
     )
     .slice(0, 8);
+}
+
+function isVisuallyHiddenForDetection(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+
+  const markerText = normalizeWhitespace(
+    [el.id, ...getClassTokens(el)].join(' '),
+    160,
+  ).toLowerCase();
+  if (VISUALLY_HIDDEN_TOKEN_REGEX.test(markerText)) {
+    return true;
+  }
+
+  const style = window.getComputedStyle(el);
+  const rect = el.getBoundingClientRect();
+  const tinyBox = rect.width <= 4 && rect.height <= 4;
+  const hidesOverflow =
+    style.overflow === 'hidden' ||
+    style.overflowX === 'hidden' ||
+    style.overflowY === 'hidden' ||
+    style.overflow === 'clip' ||
+    style.overflowX === 'clip' ||
+    style.overflowY === 'clip';
+  const isClipped =
+    (style.clip && style.clip !== 'auto') ||
+    (style.clipPath && style.clipPath !== 'none');
+  const isOffscreen =
+    rect.right < -32 ||
+    rect.bottom < -32 ||
+    rect.left > window.innerWidth + 32 ||
+    rect.top > window.innerHeight + 32;
+
+  return (
+    tinyBox &&
+    (hidesOverflow || isClipped || style.whiteSpace === 'nowrap') &&
+    (style.position === 'absolute' || style.position === 'fixed' || isOffscreen)
+  );
 }
 
 function getSwipeMarkerText(el) {
@@ -262,6 +334,27 @@ function countVisibleSvgDescendants(el, maxCount = 2) {
 
   for (const svg of svgNodes) {
     if (!isElementVisibleForDetection(svg)) {
+      continue;
+    }
+
+    count += 1;
+    if (count >= maxCount) {
+      return count;
+    }
+  }
+
+  return count;
+}
+
+function countVisibleElementChildren(el, maxCount = Number.POSITIVE_INFINITY) {
+  let count = 0;
+
+  for (const child of Array.from(el.children)) {
+    if (!(child instanceof HTMLElement)) {
+      continue;
+    }
+
+    if (!isElementVisibleForDetection(child)) {
       continue;
     }
 
@@ -824,25 +917,96 @@ function resolveClickableCandidate(el) {
   return candidates[0];
 }
 
+function isLikelyTextTruncationContainer(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (isInputableCandidate(el) || isSelectableCandidate(el)) {
+    return false;
+  }
+
+  const style = window.getComputedStyle(el);
+  const rect = el.getBoundingClientRect();
+  const horizontalOverflow = el.scrollWidth - el.clientWidth;
+  const verticalOverflow = el.scrollHeight - el.clientHeight;
+  const singleLineText =
+    style.whiteSpace === 'nowrap' || style.whiteSpace === 'pre';
+  const isEllipsisText = style.textOverflow === 'ellipsis';
+
+  if (
+    horizontalOverflow <= Math.max(24, el.clientWidth * 0.15) ||
+    verticalOverflow > 8 ||
+    rect.height > 48 ||
+    (!singleLineText && !isEllipsisText)
+  ) {
+    return false;
+  }
+
+  const visibleChildCount = countVisibleElementChildren(el, 2);
+  if (visibleChildCount > 1) {
+    return false;
+  }
+
+  if (TEXT_LIKE_TAG_SET.has(el.tagName.toLowerCase())) {
+    return true;
+  }
+
+  const onlyVisibleChild = Array.from(el.children).find(
+    (child) =>
+      child instanceof HTMLElement && isElementVisibleForDetection(child),
+  );
+  if (!(onlyVisibleChild instanceof HTMLElement)) {
+    return false;
+  }
+
+  const childStyle = window.getComputedStyle(onlyVisibleChild);
+  return (
+    childStyle.display.startsWith('inline') || childStyle.display === 'contents'
+  );
+}
+
 function isScrollableCandidate(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+
   const tag = el.tagName.toLowerCase();
   if (tag === 'body' || tag === 'html') {
     return false;
   }
 
-  const style = window.getComputedStyle(el);
-  const overflow = `${style.overflow} ${style.overflowX} ${style.overflowY}`;
-  const hasScrollStyle =
-    overflow.includes('auto') || overflow.includes('scroll');
-  const hasHiddenOverflow = style.overflow === 'hidden';
-  const canScroll =
-    el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth;
-
-  if (!canScroll) {
+  if (
+    isSemanticControlElement(el) ||
+    isInputableCandidate(el) ||
+    isSelectableCandidate(el) ||
+    isVisuallyHiddenForDetection(el) ||
+    isLikelyTextTruncationContainer(el)
+  ) {
     return false;
   }
 
-  return hasScrollStyle || hasHiddenOverflow;
+  const style = window.getComputedStyle(el);
+  const overflowX = `${style.overflow} ${style.overflowX}`.toLowerCase();
+  const overflowY = `${style.overflow} ${style.overflowY}`.toLowerCase();
+  const horizontalOverflow = el.scrollWidth - el.clientWidth;
+  const verticalOverflow = el.scrollHeight - el.clientHeight;
+  const canScrollVertically =
+    (overflowY.includes('auto') || overflowY.includes('scroll')) &&
+    el.clientHeight >= 40 &&
+    verticalOverflow > Math.max(24, el.clientHeight * 0.15);
+  const canScrollHorizontally =
+    (overflowX.includes('auto') || overflowX.includes('scroll')) &&
+    el.clientWidth >= 80 &&
+    horizontalOverflow > Math.max(32, el.clientWidth * 0.15);
+  const canSwipeHorizontally =
+    (overflowX.includes('hidden') || overflowX.includes('clip')) &&
+    el.clientWidth >= 120 &&
+    el.clientHeight >= 72 &&
+    horizontalOverflow > Math.max(48, el.clientWidth * 0.2) &&
+    hasHorizontalSwipeLayout(el);
+
+  return canScrollVertically || canScrollHorizontally || canSwipeHorizontally;
 }
 
 function isHoverableCandidate(el) {
@@ -1796,12 +1960,68 @@ function evaluateReadinessSnapshot(trace) {
   return readiness;
 }
 
-function collectHighlightCandidates(requestedType, trace) {
+function getCandidateElementsForScan(layoutStability, trace, config) {
+  const useFullScan =
+    layoutStability.state !== 'not_ready' ||
+    config.fullPageScanOnNotReady === true;
+
+  if (useFullScan) {
+    const allElements = Array.from(document.querySelectorAll('*'));
+    trace(
+      'querySelectorAll',
+      layoutStability.state === 'not_ready'
+        ? `count=${allElements.length} state=not_ready override=full_scan`
+        : `count=${allElements.length}`,
+    );
+    return allElements;
+  }
+
+  const root = document.documentElement || document.body;
+  if (!root || typeof document.createTreeWalker !== 'function') {
+    const fallbackElements = Array.from(document.querySelectorAll('*')).slice(
+      0,
+      NOT_READY_SCAN_LIMIT,
+    );
+    trace(
+      'querySelectorAll',
+      `count=${fallbackElements.length} capped=${NOT_READY_SCAN_LIMIT} state=not_ready fallback=true`,
+    );
+    if (fallbackElements.length >= NOT_READY_SCAN_LIMIT) {
+      trace('scan:capped', `state=not_ready limit=${NOT_READY_SCAN_LIMIT}`);
+    }
+    return fallbackElements;
+  }
+
+  const cappedElements = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  let current = walker.currentNode;
+
+  while (current && cappedElements.length < NOT_READY_SCAN_LIMIT) {
+    if (current instanceof Element) {
+      cappedElements.push(current);
+    }
+    current = walker.nextNode();
+  }
+
+  trace(
+    'querySelectorAll',
+    `count=${cappedElements.length} capped=${NOT_READY_SCAN_LIMIT} state=not_ready`,
+  );
+  if (cappedElements.length >= NOT_READY_SCAN_LIMIT) {
+    trace('scan:capped', `state=not_ready limit=${NOT_READY_SCAN_LIMIT}`);
+  }
+
+  return cappedElements;
+}
+
+function collectHighlightCandidates(config, trace, layoutStability) {
   const activeTopLayerRoot = getActiveTopLayerRoot();
   const registry = new Map();
-  const allElements = Array.from(document.querySelectorAll('*'));
-
-  trace('querySelectorAll', `count=${allElements.length}`);
+  const allElements = getCandidateElementsForScan(
+    layoutStability,
+    trace,
+    config,
+  );
 
   let scannedCount = 0;
   for (const element of allElements) {
@@ -1831,7 +2051,10 @@ function collectHighlightCandidates(requestedType, trace) {
       continue;
     }
 
-    const resolvedCandidate = resolveElementCandidate(element, requestedType);
+    const resolvedCandidate = resolveElementCandidate(
+      element,
+      config.elementType,
+    );
     if (!resolvedCandidate) {
       continue;
     }
@@ -1894,13 +2117,17 @@ function collectHighlightCandidates(requestedType, trace) {
 
 async function runOpenBrowserHighlightDetection(config) {
   const trace = createHighlightTrace();
-  trace('start', `elementType=${config.elementType}`);
+  trace(
+    'start',
+    `elementType=${config.elementType} fullPageScanOnNotReady=${config.fullPageScanOnNotReady === true}`,
+  );
 
   const layoutStability = evaluateReadinessSnapshot(trace);
 
   const { elements, counts } = collectHighlightCandidates(
-    config.elementType,
+    config,
     trace,
+    layoutStability,
   );
 
   trace('return', `elements=${elements.length}`);

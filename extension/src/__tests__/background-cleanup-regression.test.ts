@@ -48,6 +48,13 @@ describe('Background cleanup regressions', () => {
     );
   });
 
+  test('final highlight attempt full-scans even when readiness is still not_ready', () => {
+    expect(backgroundSource).toContain(
+      'fullPageScanOnNotReady: attempt === maxHighlightAttempts',
+    );
+    expect(backgroundSource).toContain('const maxHighlightAttempts = 3;');
+  });
+
   test('navigation defaults prime the page with a raw screenshot before highlight', () => {
     expect(backgroundSource).toContain('async function runRawScreenshotPrime(');
     expect(backgroundSource).toContain('primeWithRawScreenshot: true');

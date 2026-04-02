@@ -296,10 +296,6 @@ async function captureHighlightedPageState(
   await tabManager.ensureTabManaged(tabId, conversationId);
   tabManager.updateTabActivity(tabId, conversationId);
 
-  const detectionScript = buildHighlightDetectionScript({
-    elementType,
-  });
-
   await runHighlightPreconditionWarmup({
     tabId,
     conversationId,
@@ -316,6 +312,10 @@ async function captureHighlightedPageState(
 
   for (let attempt = 1; attempt <= maxHighlightAttempts; attempt++) {
     console.log(`🔁 [${logLabel}] Attempt ${attempt}/${maxHighlightAttempts}`);
+    const detectionScript = buildHighlightDetectionScript({
+      elementType,
+      fullPageScanOnNotReady: attempt === maxHighlightAttempts,
+    });
 
     const detectionResult = await javascript.executeJavaScript(
       tabId,

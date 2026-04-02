@@ -16,6 +16,7 @@ import logging
 import os
 import shutil
 import signal
+import sqlite3
 import sys
 import threading
 import time
@@ -48,6 +49,7 @@ LOCK_DIR = EVAL_DIR / ".locks"
 OUTPUT_BASE_DIR.mkdir(exist_ok=True)
 DATASET_DIR.mkdir(exist_ok=True)
 LOCK_DIR.mkdir(exist_ok=True)
+DEFAULT_SESSION_DB_PATH = Path.home() / ".openbrowser" / "sessions.db"
 
 
 @dataclass
@@ -448,6 +450,33 @@ class OpenBrowserClient:
         except Exception:
             return False
 
+    def get_conversation_events(self, conversation_id: str) -> List[Dict[str, Any]]:
+        """Fetch persisted conversation events from the OpenBrowser server."""
+        try:
+            response = self.session.get(
+                f"{self.base_url}/agent/conversations/{conversation_id}/events",
+                timeout=5,
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "Failed to fetch conversation events for %s: status=%s body=%s",
+                    conversation_id,
+                    response.status_code,
+                    response.text,
+                )
+                return []
+
+            data = response.json()
+            events = data.get("events", [])
+            return events if isinstance(events, list) else []
+        except Exception as e:
+            logger.warning(
+                "Failed to fetch conversation events for %s: %s",
+                conversation_id,
+                e,
+            )
+            return []
+
     def get_managed_tabs(self, conversation_id: str) -> List[Dict[str, Any]]:
         """Return managed tabs for a conversation."""
         if not self.chrome_uuid:
@@ -782,6 +811,88 @@ class Evaluator:
             return segments[0]
         return test_case.id
 
+    @staticmethod
+    def _usage_event_signature(event: Dict[str, Any]) -> str:
+        """Return a stable signature for one usage_metrics event."""
+        return json.dumps(event.get("data", {}), sort_keys=True, default=str)
+
+    @staticmethod
+    def _usage_event_timestamp(created_at: Optional[str]) -> float:
+        """Convert persisted event timestamps to unix seconds."""
+        if not created_at:
+            return time.time()
+        try:
+            return datetime.datetime.fromisoformat(created_at).timestamp()
+        except ValueError:
+            return time.time()
+
+    def _merge_persisted_usage_metrics(
+        self,
+        sse_events: List[Dict[str, Any]],
+        persisted_events: List[Dict[str, Any]],
+        source: str,
+    ) -> List[Dict[str, Any]]:
+        """Inject persisted usage snapshots when the SSE stream missed them."""
+        persisted_usage_events = [
+            {
+                "type": "usage_metrics",
+                "data": event.get("event_data", {}),
+                "timestamp": self._usage_event_timestamp(event.get("created_at")),
+                "recovered_from": source,
+                "history_event_index": event.get("event_index"),
+            }
+            for event in persisted_events
+            if event.get("event_type") == "usage_metrics"
+            and isinstance(event.get("event_data"), dict)
+        ]
+
+        if not persisted_usage_events:
+            return list(sse_events)
+
+        local_signatures = {
+            self._usage_event_signature(event)
+            for event in sse_events
+            if event.get("type") == "usage_metrics"
+        }
+        recovered_events = [
+            event
+            for event in persisted_usage_events
+            if self._usage_event_signature(event) not in local_signatures
+        ]
+
+        if not recovered_events:
+            return list(sse_events)
+
+        merged_events = list(sse_events)
+        complete_index = next(
+            (
+                index
+                for index, event in enumerate(merged_events)
+                if event.get("type") == "complete"
+            ),
+            len(merged_events),
+        )
+        merged_events[complete_index:complete_index] = recovered_events
+        logger.info(
+            "Recovered %s usage_metrics event(s) from %s",
+            len(recovered_events),
+            source,
+        )
+        return merged_events
+
+    def _recover_usage_metrics_for_run(
+        self, conversation_id: str, sse_events: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Backfill usage metrics from persisted conversation history."""
+        persisted_events = self.openbrowser.get_conversation_events(conversation_id)
+        if not persisted_events:
+            return list(sse_events)
+        return self._merge_persisted_usage_metrics(
+            sse_events,
+            persisted_events,
+            source="conversation_events",
+        )
+
     def _ensure_model_output_dir(self, model_name: Optional[str]) -> Path:
         """Ensure the per-model output directory exists."""
         if self.output_dir is None:
@@ -1058,6 +1169,13 @@ class Evaluator:
                 sse_events, test_case.id, conversation_id, model_output_dir
             )
 
+            # The live SSE stream can end right after `complete` and miss the
+            # persisted usage_metrics snapshots. Recover them before saving
+            # artifacts or computing costs.
+            sse_events = self._recover_usage_metrics_for_run(
+                conversation_id, sse_events
+            )
+
             # Extract and save SSE events (excluding images) to file
             sse_events_file = self._save_sse_events(
                 sse_events, test_case.id, conversation_id, model_output_dir
@@ -1296,8 +1414,8 @@ class Evaluator:
                 )
 
                 if accumulated_cost is not None:
-                    # Check if model is dashscope/qwen3.5 series (cost already in RMB)
-                    # Otherwise convert from USD to RMB (exchange rate 7)
+                    # DashScope reports cost in RMB. Other providers still use the
+                    # historical USD->RMB conversion in this evaluator.
                     model_name = metrics.get("model_name", "")
                     token_usage = metrics.get("accumulated_token_usage", {})
                     model_name_from_token = token_usage.get("model", "")
@@ -1306,10 +1424,9 @@ class Evaluator:
                         f"Model name from metrics: '{model_name}', from token usage: '{model_name_from_token}'"
                     )
 
-                    is_dashscope = (
-                        "dashscope/qwen3.5" in model_name
-                        or "dashscope/qwen3.5" in model_name_from_token
-                    )
+                    is_dashscope = model_name.startswith(
+                        "dashscope/"
+                    ) or model_name_from_token.startswith("dashscope/")
 
                     if is_dashscope:
                         # Already in RMB
@@ -2411,6 +2528,265 @@ class Evaluator:
             logger.error(f"Failed to generate JSON report: {e}")
             return None
 
+    def repair_output_usage_from_db(
+        self,
+        output_dir: Path,
+        db_path: Path = DEFAULT_SESSION_DB_PATH,
+    ) -> bool:
+        """Backfill usage_metrics into a saved evaluation output directory."""
+        output_dir = output_dir.expanduser().resolve()
+        db_path = db_path.expanduser().resolve()
+
+        if not output_dir.exists():
+            logger.error("Output directory not found: %s", output_dir)
+            return False
+        if not db_path.exists():
+            logger.error("Session database not found: %s", db_path)
+            return False
+
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+
+        def fetch_usage_rows(conversation_id: str) -> List[Dict[str, Any]]:
+            rows = conn.execute(
+                """
+                SELECT event_index, event_data, created_at
+                FROM session_events
+                WHERE conversation_id = ? AND event_type = 'usage_metrics'
+                ORDER BY event_index
+                """,
+                (conversation_id,),
+            ).fetchall()
+            parsed_rows: List[Dict[str, Any]] = []
+            for row in rows:
+                try:
+                    event_data = json.loads(row["event_data"])
+                except json.JSONDecodeError:
+                    continue
+                parsed_rows.append(
+                    {
+                        "event_type": "usage_metrics",
+                        "event_data": event_data,
+                        "event_index": row["event_index"],
+                        "created_at": row["created_at"],
+                    }
+                )
+            return parsed_rows
+
+        recovered_costs: Dict[str, float] = {}
+        artifact_rows: List[Tuple[str, str, str, Path, Path]] = []
+        patched_event_files = 0
+
+        for event_path in sorted(output_dir.glob("dashscope_*/events/*_events.json")):
+            if event_path.name.endswith("_track_events.json"):
+                continue
+
+            test_id, conversation_id = event_path.stem.removesuffix("_events").rsplit(
+                "_", 1
+            )
+            persisted_usage = fetch_usage_rows(conversation_id)
+            if not persisted_usage:
+                continue
+
+            events = json.loads(event_path.read_text())
+            merged_events = self._merge_persisted_usage_metrics(
+                events,
+                persisted_usage,
+                source="sessions.db",
+            )
+            if merged_events != events:
+                event_path.write_text(json.dumps(merged_events, indent=2, default=str))
+                patched_event_files += 1
+
+            latest_metrics = persisted_usage[-1]["event_data"].get("metrics", {})
+            latest_cost = latest_metrics.get("accumulated_cost")
+            latest_model = latest_metrics.get("model_name") or (
+                latest_metrics.get("accumulated_token_usage", {}) or {}
+            ).get("model")
+            if latest_cost is not None:
+                recovered_costs[conversation_id] = float(latest_cost)
+            if isinstance(latest_model, str) and latest_model:
+                artifact_rows.append(
+                    (
+                        test_id,
+                        conversation_id,
+                        latest_model,
+                        event_path,
+                        event_path.with_name(
+                            f"{test_id}_{conversation_id}_track_events.json"
+                        ),
+                    )
+                )
+
+        test_cases_by_id = {
+            test_case.id: test_case for test_case in self.load_test_cases()
+        }
+        rebuilt_results: List[TestResult] = []
+
+        for test_id, conversation_id, model, sse_path, track_path in artifact_rows:
+            test_case = test_cases_by_id.get(test_id)
+            if test_case is None:
+                logger.warning("Skipping unknown test id from artifacts: %s", test_id)
+                continue
+
+            try:
+                sse_events = json.loads(sse_path.read_text())
+            except json.JSONDecodeError:
+                logger.warning("Skipping malformed SSE event file: %s", sse_path)
+                continue
+
+            track_events: List[Dict[str, Any]] = []
+            if track_path.exists():
+                try:
+                    track_events = json.loads(track_path.read_text())
+                except json.JSONDecodeError:
+                    logger.warning("Malformed track event file: %s", track_path)
+
+            passed, score, max_score = self._evaluate_criteria(
+                test_case, track_events, sse_events
+            )
+            timestamps = [
+                float(timestamp)
+                for timestamp in (event.get("timestamp") for event in sse_events)
+                if isinstance(timestamp, (int, float))
+            ]
+            duration = (
+                max(timestamps) - min(timestamps) if len(timestamps) >= 2 else 0.0
+            )
+            cost = recovered_costs.get(conversation_id)
+            efficiency_score = self._calculate_efficiency_score(
+                duration, test_case.time_limit
+            )
+            usage_score = self._calculate_usage_score(cost, test_case.cost_limit)
+            error_event = next(
+                (
+                    event
+                    for event in reversed(sse_events)
+                    if event.get("type") == "error"
+                ),
+                None,
+            )
+            images = list(
+                (output_dir / self._sanitize_model_name(model) / "images").glob(
+                    f"{test_id}_{conversation_id}_*.png"
+                )
+            )
+
+            rebuilt_results.append(
+                TestResult(
+                    test_case=test_case,
+                    passed=passed,
+                    score=score,
+                    max_score=max_score,
+                    events=[],
+                    sse_events=sse_events,
+                    track_events=track_events,
+                    images=[str(path) for path in images],
+                    error=(
+                        (error_event.get("data") or {}).get("error")
+                        if isinstance(error_event, dict)
+                        else None
+                    ),
+                    conversation_id=conversation_id,
+                    duration=duration,
+                    cost=cost,
+                    efficiency_score=efficiency_score,
+                    usage_score=usage_score,
+                    total_score=score + efficiency_score + usage_score,
+                    sse_events_file=str(sse_path),
+                    track_events_file=str(track_path) if track_path.exists() else None,
+                    model=model,
+                )
+            )
+
+        if not rebuilt_results:
+            logger.error("No results rebuilt from saved artifacts in %s", output_dir)
+            conn.close()
+            return False
+
+        models = list(
+            dict.fromkeys(
+                rebuilt_result.model or "unknown" for rebuilt_result in rebuilt_results
+            )
+        )
+
+        report_files = sorted(output_dir.glob("evaluation_report_*.json"))
+        report_path = (
+            report_files[-1]
+            if report_files
+            else output_dir / f"evaluation_report_{time.strftime('%Y%m%d_%H%M%S')}.json"
+        )
+        total_task_score = sum(result.score for result in rebuilt_results)
+        total_task_max_score = sum(result.max_score for result in rebuilt_results)
+        total_efficiency_score = sum(
+            result.efficiency_score or 0 for result in rebuilt_results
+        )
+        total_usage_score = sum(result.usage_score or 0 for result in rebuilt_results)
+        total_combined_score = sum(
+            result.total_score or result.score for result in rebuilt_results
+        )
+        total_combined_max_score = total_task_max_score + len(rebuilt_results) * 2
+
+        report = {
+            "timestamp": time.time(),
+            "browser_uuid": self.chrome_uuid,
+            "total_tests": len(rebuilt_results),
+            "passed_tests": sum(1 for result in rebuilt_results if result.passed),
+            "total_task_score": total_task_score,
+            "total_task_max_score": total_task_max_score,
+            "total_efficiency_score": total_efficiency_score,
+            "total_usage_score": total_usage_score,
+            "total_combined_score": total_combined_score,
+            "total_combined_max_score": total_combined_max_score,
+            "average_duration": (
+                sum(result.duration or 0 for result in rebuilt_results)
+                / len(rebuilt_results)
+            ),
+            "average_cost": (
+                sum(result.cost or 0 for result in rebuilt_results)
+                / len(rebuilt_results)
+            ),
+            "results": [
+                {
+                    "test_id": result.test_case.id,
+                    "test_name": result.test_case.name,
+                    "passed": result.passed,
+                    "task_score": result.score,
+                    "task_max_score": result.max_score,
+                    "efficiency_score": result.efficiency_score,
+                    "usage_score": result.usage_score,
+                    "total_score": result.total_score,
+                    "duration": result.duration,
+                    "cost": result.cost,
+                    "conversation_id": result.conversation_id,
+                    "error": result.error,
+                    "image_count": 0,
+                    "track_event_count": 0,
+                    "sse_event_count": 0,
+                    "sse_events_file": result.sse_events_file,
+                    "track_events_file": result.track_events_file,
+                    "model": result.model,
+                }
+                for result in rebuilt_results
+            ],
+        }
+        report_path.write_text(json.dumps(report, indent=2, default=str))
+
+        self.output_dir = output_dir
+        summary = self._build_summary(rebuilt_results, models)
+        (output_dir / "cross_model_summary.json").write_text(
+            json.dumps(summary, indent=2, default=str)
+        )
+        self._generate_json_report(summary, rebuilt_results, models)
+
+        conn.close()
+        logger.info(
+            "Repaired %s event file(s) and refreshed reports in %s",
+            patched_event_files,
+            output_dir,
+        )
+        return True
+
 
 def _build_llm_targets(model_aliases: List[str]) -> List[LLMTarget]:
     """Build explicit LLM targets from validated alias list."""
@@ -2450,6 +2826,10 @@ def main():
     )
     parser.add_argument("--test", help="Run specific test by ID")
     parser.add_argument(
+        "--repair-output",
+        help="Repair one saved evaluation output directory using persisted usage data.",
+    )
+    parser.add_argument(
         "--manual",
         action="store_true",
         help="Manual mode: human performs the test steps",
@@ -2488,6 +2868,11 @@ def main():
             "Can also be set via OPENBROWSER_CHROME_UUID."
         ),
     )
+    parser.add_argument(
+        "--db-path",
+        default=str(DEFAULT_SESSION_DB_PATH),
+        help="SQLite session database used when repairing saved outputs.",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
@@ -2501,7 +2886,7 @@ def main():
     model_aliases = args.model_alias or []
     llm_targets: List[LLMTarget] = []
 
-    if not args.manual and not args.list:
+    if not args.manual and not args.list and not args.repair_output:
         if not model_aliases:
             parser.error(
                 "Automated evaluation requires at least one configured model alias: "
@@ -2513,7 +2898,12 @@ def main():
             f"Model aliases to test: {[target.alias for target in llm_targets]}"
         )
 
-    if not args.manual and not args.list and not args.chrome_uuid:
+    if (
+        not args.manual
+        and not args.list
+        and not args.repair_output
+        and not args.chrome_uuid
+    ):
         parser.error(
             "--chrome-uuid is required for automated browser evaluation "
             "(or set OPENBROWSER_CHROME_UUID)"
@@ -2526,6 +2916,15 @@ def main():
         parser.error("--single-model-parallel must be >= 1")
 
     evaluator = Evaluator(chrome_uuid=args.chrome_uuid)
+
+    if args.repair_output:
+        success = evaluator.repair_output_usage_from_db(
+            Path(args.repair_output),
+            Path(args.db_path),
+        )
+        if not success:
+            sys.exit(1)
+        return
 
     # Register cleanup
     if not args.keep_alive:
