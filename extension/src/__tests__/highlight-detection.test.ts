@@ -116,12 +116,24 @@ describe('highlight-detection helpers', () => {
     expect(script).toContain('evaluateLayoutReadiness');
   });
 
+  test('buildHighlightDetectionScript can force full scans on not-ready pages', () => {
+    const script = buildHighlightDetectionScript({
+      elementType: 'any',
+      fullPageScanOnNotReady: true,
+    });
+
+    expect(script).toContain('"fullPageScanOnNotReady":true');
+    expect(script).toContain('config.fullPageScanOnNotReady === true');
+    expect(script).toContain('override=full_scan');
+  });
+
   test('buildHighlightDetectionScript uses readiness snapshot instead of wait loop', () => {
     const script = buildHighlightDetectionScript({ elementType: 'any' });
 
     expect(script).toContain('function evaluateReadinessSnapshot');
     expect(script).toContain('function getCandidateElementsForScan');
     expect(script).toContain("layoutStability.state !== 'not_ready'");
+    expect(script).toContain('config.fullPageScanOnNotReady === true');
     expect(script).toContain('const NOT_READY_SCAN_LIMIT = 500;');
     expect(script).toContain("trace('scan:capped'");
     expect(script).toContain('readiness:snapshot');
@@ -145,6 +157,48 @@ describe('highlight-detection helpers', () => {
     expect(script).not.toContain(
       "return el.getAttribute('contenteditable') === 'true';",
     );
+  });
+
+  test('buildHighlightDetectionScript excludes visually hidden screen-reader nodes', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'any' });
+    const start = script.indexOf('function isElementVisibleForDetection');
+    const end = script.indexOf('function isElementInViewportForDetection', start);
+    const visibilitySource = script.slice(start, end);
+
+    expect(script).toContain('const VISUALLY_HIDDEN_TOKEN_REGEX');
+    expect(script).toContain('sr-only');
+    expect(script).toContain('screen-reader');
+    expect(script).toContain('visually-hidden');
+    expect(script).toContain('function isVisuallyHiddenForDetection');
+    expect(visibilitySource).toContain('isVisuallyHiddenForDetection(el)');
+  });
+
+  test('buildHighlightDetectionScript excludes truncation-only scrollable false positives', () => {
+    const script = buildHighlightDetectionScript({ elementType: 'scrollable' });
+    const truncationStart = script.indexOf(
+      'function isLikelyTextTruncationContainer',
+    );
+    const truncationEnd = script.indexOf(
+      'function isScrollableCandidate',
+      truncationStart,
+    );
+    const truncationSource = script.slice(truncationStart, truncationEnd);
+    const scrollableStart = script.indexOf('function isScrollableCandidate');
+    const scrollableEnd = script.indexOf(
+      'function isHoverableCandidate',
+      scrollableStart,
+    );
+    const scrollableSource = script.slice(scrollableStart, scrollableEnd);
+
+    expect(truncationSource).toContain("style.textOverflow === 'ellipsis'");
+    expect(truncationSource).toContain("style.whiteSpace === 'nowrap'");
+    expect(truncationSource).toContain('countVisibleElementChildren(el, 2)');
+    expect(scrollableSource).toContain('isLikelyTextTruncationContainer(el)');
+    expect(scrollableSource).toContain('isSemanticControlElement(el)');
+    expect(scrollableSource).toContain(
+      "overflowX.includes('hidden') || overflowX.includes('clip')",
+    );
+    expect(scrollableSource).toContain('hasHorizontalSwipeLayout(el)');
   });
 
   test("buildHighlightDetectionScript keeps 'any' candidate selection across all element types", () => {

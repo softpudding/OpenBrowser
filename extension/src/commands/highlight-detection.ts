@@ -5,6 +5,7 @@ import type { ElementType, InteractiveElement } from '../types';
 
 export interface HighlightDetectionScriptConfig {
   elementType: ElementType;
+  fullPageScanOnNotReady?: boolean;
 }
 
 export interface KeywordFilterResult {
