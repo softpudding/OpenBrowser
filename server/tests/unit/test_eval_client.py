@@ -170,6 +170,74 @@ def test_extract_cost_uses_latest_usage_metrics_event() -> None:
     )
 
 
+def test_extract_cost_treats_dashscope_models_as_rmb() -> None:
+    """DashScope usage metrics should not be converted from USD."""
+    evaluator = Evaluator(chrome_uuid="browser-uuid-123")
+
+    sse_events = [
+        {
+            "type": "usage_metrics",
+            "data": {
+                "metrics": {
+                    "accumulated_cost": 0.758196,
+                    "model_name": "dashscope/qwen3.6-plus",
+                    "accumulated_token_usage": {
+                        "model": "dashscope/qwen3.6-plus",
+                    },
+                }
+            },
+        }
+    ]
+
+    assert evaluator._extract_cost_from_sse_events(sse_events) == pytest.approx(
+        0.758196
+    )
+
+
+def test_merge_persisted_usage_metrics_inserts_missing_final_snapshot() -> None:
+    """Persisted usage snapshots should be inserted before the complete event."""
+    evaluator = Evaluator(chrome_uuid="browser-uuid-123")
+
+    sse_events = [
+        {"type": "agent_event", "data": {"text": "hello"}, "timestamp": 1.0},
+        {
+            "type": "usage_metrics",
+            "data": {"metrics": {"accumulated_cost": 0.1}},
+            "timestamp": 2.0,
+        },
+        {"type": "complete", "data": {"conversation_id": "conv-123"}, "timestamp": 3.0},
+    ]
+    persisted_events = [
+        {
+            "event_type": "usage_metrics",
+            "event_data": {"metrics": {"accumulated_cost": 0.1}},
+            "event_index": 5,
+            "created_at": "2026-04-02T21:23:43.805294",
+        },
+        {
+            "event_type": "usage_metrics",
+            "event_data": {"metrics": {"accumulated_cost": 0.8}},
+            "event_index": 31,
+            "created_at": "2026-04-02T21:25:14.866591",
+        },
+    ]
+
+    merged_events = evaluator._merge_persisted_usage_metrics(
+        sse_events,
+        persisted_events,
+        source="conversation_events",
+    )
+
+    usage_costs = [
+        event["data"]["metrics"]["accumulated_cost"]
+        for event in merged_events
+        if event["type"] == "usage_metrics"
+    ]
+    assert usage_costs == [0.1, 0.8]
+    assert merged_events[-2]["type"] == "usage_metrics"
+    assert merged_events[-1]["type"] == "complete"
+
+
 def test_cleanup_managed_tabs_closes_all_tabs() -> None:
     """Eval client should close every managed tab for the conversation."""
     client = OpenBrowserClient(
