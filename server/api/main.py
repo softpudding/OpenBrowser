@@ -25,6 +25,7 @@ from server.api.routes import (
     config_router,
     frontend_router,
     browsers_router,
+    recordings_router,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,7 @@ app.include_router(agent_router)
 app.include_router(config_router)
 app.include_router(frontend_router)
 app.include_router(browsers_router)
+app.include_router(recordings_router)
 
 
 # WebSocket endpoint for real-time command execution

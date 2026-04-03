@@ -1748,10 +1748,48 @@
             color: var(--text-primary);
         }
 
+        .header-action-btn:disabled,
+        .ghost-button:disabled,
+        .refresh-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.54;
+            transform: none;
+            box-shadow: none;
+        }
+
         .header-action-btn.primary {
             background: linear-gradient(135deg, rgba(124, 84, 43, 0.98), rgba(92, 62, 34, 0.96));
             border-color: rgba(var(--accent-rgb), 0.32);
             color: var(--text-primary);
+        }
+
+        .header-action-btn.recording {
+            position: relative;
+            padding-left: 16px;
+        }
+
+        .header-action-btn.recording::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(163, 140, 118, 0.72);
+            box-shadow: 0 0 0 4px rgba(163, 140, 118, 0.1);
+            display: inline-block;
+            margin-right: 8px;
+            transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .header-action-btn.recording.recording-active {
+            background: linear-gradient(135deg, rgba(125, 56, 44, 0.98), rgba(90, 34, 28, 0.94));
+            border-color: rgba(215, 111, 92, 0.48);
+            color: #fff1eb;
+            box-shadow: 0 12px 24px rgba(64, 19, 12, 0.28);
+        }
+
+        .header-action-btn.recording.recording-active::before {
+            background: #ff9a88;
+            box-shadow: 0 0 0 4px rgba(255, 154, 136, 0.18);
         }
 
         .container {
@@ -1840,6 +1878,175 @@
             background:
                 radial-gradient(circle at top left, rgba(var(--accent-rgb), 0.12), transparent 46%),
                 linear-gradient(180deg, rgba(38, 30, 23, 0.98), rgba(23, 19, 15, 0.94));
+        }
+
+        .recording-panel-card {
+            flex: 1 1 auto;
+            min-height: 0;
+            gap: 18px;
+            border-color: rgba(215, 111, 92, 0.26);
+            background:
+                radial-gradient(circle at top right, rgba(215, 111, 92, 0.14), transparent 40%),
+                linear-gradient(180deg, rgba(39, 29, 24, 0.98), rgba(23, 19, 16, 0.94));
+            overflow: hidden;
+        }
+
+        .recording-panel-header,
+        .recording-panel-toolbar,
+        .recording-panel-meta {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+        }
+
+        .recording-panel-meta {
+            flex-wrap: wrap;
+        }
+
+        .recording-panel-toolbar {
+            align-items: center;
+        }
+
+        .recording-status-copy {
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .recording-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .recording-summary-card {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(24, 19, 16, 0.76);
+            border: 1px solid rgba(215, 111, 92, 0.14);
+            min-width: 0;
+        }
+
+        .recording-summary-label {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .recording-summary-value {
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+
+        .recording-event-list {
+            display: grid;
+            grid-auto-rows: max-content;
+            align-content: start;
+            flex: 1 1 auto;
+            gap: 12px;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 6px;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
+        .recording-event-list > * {
+            min-height: max-content;
+        }
+
+        .recording-event-card {
+            border-radius: 16px;
+            border: 1px solid rgba(204, 175, 140, 0.12);
+            background: rgba(20, 16, 13, 0.74);
+            overflow: hidden;
+        }
+
+        .recording-event-card summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .recording-event-card summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .recording-event-main {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .recording-event-line {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .recording-event-type {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: rgba(215, 111, 92, 0.12);
+            border: 1px solid rgba(215, 111, 92, 0.22);
+            color: #ffc7bc;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .recording-event-index,
+        .recording-event-time {
+            color: var(--text-subtle);
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .recording-event-summary {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .recording-event-details {
+            margin: 0;
+            padding: 0 16px 16px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+
+        .recording-empty-state {
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px dashed rgba(204, 175, 140, 0.18);
+            background: rgba(23, 18, 14, 0.5);
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.7;
         }
 
         .agent-voice-header {
@@ -2609,6 +2816,14 @@
             pointer-events: none;
         }
 
+        body.recording-panel-mode .main-terminal {
+            overflow: hidden;
+        }
+
+        body.recording-panel-mode #recording-panel-card {
+            height: 100%;
+        }
+
         @media (max-width: 1320px) {
             #main-interface {
                 padding: 18px;
@@ -2657,7 +2872,8 @@
             .summary-grid,
             .control-summary,
             .quick-prompts,
-            .agent-voice-stats {
+            .agent-voice-stats,
+            .recording-summary-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -2674,6 +2890,10 @@
 
             body.advanced-mode .main-terminal {
                 overflow-y: auto;
+            }
+
+            body.recording-panel-mode .main-terminal {
+                overflow: hidden;
             }
 
             body.advanced-mode .composer-card,
@@ -2870,6 +3090,7 @@
 
                 <div class="header-actions">
                     <button class="header-action-btn" id="advanced-toggle-btn" onclick="toggleAdvancedMode()">Advanced</button>
+                    <button class="header-action-btn recording" id="recording-toggle-btn" onclick="toggleRecording()" title="Start recording manual browser actions">Record</button>
                     <button class="header-action-btn primary" onclick="openConfigPage()" title="Configure LLM Settings">Settings</button>
                 </div>
             </div>
@@ -2913,7 +3134,7 @@
             <div class="vertical-resizer" id="vertical-resizer"></div>
 
             <div class="main-terminal">
-                <section class="panel-card composer-card control-card">
+                <section class="panel-card composer-card control-card" id="composer-card">
                     <div class="control-header">
                         <div>
                             <div class="panel-kicker">Run a task</div>
@@ -2960,6 +3181,52 @@
                         <button class="pause-button" id="pause-button" onclick="pauseConversation()" style="display: none;">Pause</button>
                         <button class="sisyphus-start-button" id="sisyphus-start-btn" onclick="startSisyphus()" style="display: none; background: #224422; border: 1px solid #448844; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">Start Sisyphus</button>
                         <button class="sisyphus-stop-button" id="sisyphus-stop-btn" onclick="stopSisyphus()" style="display: none; background: #662222; border: 1px solid #882222; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">Stop Sisyphus</button>
+                    </div>
+                </section>
+
+                <section class="panel-card recording-panel-card" id="recording-panel-card" style="display: none;">
+                    <div class="recording-panel-header">
+                        <div>
+                            <div class="panel-kicker">Recording Mode</div>
+                            <h2 class="panel-title">Capture a manual browser workflow</h2>
+                        </div>
+                        <span class="stage-badge" id="recording-panel-state">Idle</span>
+                    </div>
+
+                    <p class="recording-status-copy" id="recording-panel-copy">
+                        Start a recording, perform the workflow manually in the browser, then stop recording to inspect the captured event trace.
+                    </p>
+
+                    <div class="recording-panel-toolbar">
+                        <div class="recording-panel-meta">
+                            <button class="header-action-btn" id="recording-panel-action-btn" onclick="toggleRecording()">Start Recording</button>
+                            <button class="ghost-button" onclick="closeRecordingPanel()">Back to Tasks</button>
+                        </div>
+                    </div>
+
+                    <div class="recording-summary-grid">
+                        <div class="recording-summary-card">
+                            <span class="recording-summary-label">Browser UUID</span>
+                            <strong class="recording-summary-value" id="recording-panel-browser">Required</strong>
+                        </div>
+                        <div class="recording-summary-card">
+                            <span class="recording-summary-label">Recording ID</span>
+                            <strong class="recording-summary-value" id="recording-panel-id">Not started</strong>
+                        </div>
+                        <div class="recording-summary-card">
+                            <span class="recording-summary-label">Captured events</span>
+                            <strong class="recording-summary-value" id="recording-panel-count">0</strong>
+                        </div>
+                        <div class="recording-summary-card">
+                            <span class="recording-summary-label">Last update</span>
+                            <strong class="recording-summary-value" id="recording-panel-updated">Waiting</strong>
+                        </div>
+                    </div>
+
+                    <div class="recording-event-list scrollbar" id="recording-event-list">
+                        <div class="recording-empty-state">
+                            No recording trace yet. Click <strong>Start Recording</strong>, do the workflow manually, and the captured events will appear here.
+                        </div>
                     </div>
                 </section>
 
@@ -3279,6 +3546,12 @@
         // Global variables
         let currentConversationId = null;
         let currentBrowserId = null;
+        let currentRecordingId = null;
+        let currentRecordingStatus = 'idle';
+        let recordingPanelVisible = false;
+        let recordingPanelSession = null;
+        let recordingEvents = [];
+        let recordingPollTimer = null;
         let eventSource = null;
         let isProcessing = false;
         let isConversationRunning = false; // Track if conversation is actively running
@@ -3595,6 +3868,245 @@
             node.style.display = visible ? '' : 'none';
         }
 
+        function formatDisplayTime(value) {
+            if (!value) {
+                return 'Waiting';
+            }
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return String(value);
+            }
+
+            return date.toLocaleTimeString('en-US', { hour12: false });
+        }
+
+        function formatRecordingSummary(event) {
+            const data = event?.event_data || {};
+            const element = data.element || {};
+            const page = data.page || {};
+            const tab = data.tab || {};
+
+            switch (event?.event_type) {
+                case 'recording_started':
+                    return 'Recording session started.';
+                case 'recording_stopped':
+                    return 'Recording session stopped.';
+                case 'page_view':
+                    return page.title
+                        ? `Viewed ${page.title}`
+                        : page.url
+                            ? `Viewed ${page.url}`
+                            : 'Page viewed.';
+                case 'click':
+                    return element.text
+                        ? `Clicked ${element.text}`
+                        : element.selector
+                            ? `Clicked ${element.selector}`
+                            : 'Clicked an element.';
+                case 'input':
+                    return element.selector
+                        ? `Typed into ${element.selector}`
+                        : 'Typed into an input.';
+                case 'change':
+                    return element.selector
+                        ? `Changed ${element.selector}`
+                        : 'Changed a form control.';
+                case 'focus':
+                    return element.selector
+                        ? `Focused ${element.selector}`
+                        : 'Focused an element.';
+                case 'keydown':
+                    return data.key
+                        ? `Pressed ${data.key}`
+                        : 'Pressed a key.';
+                case 'scroll':
+                    return `Scrolled to y=${data.scrollY ?? 0}`;
+                case 'tab_created':
+                    return tab.url
+                        ? `Opened tab ${tab.url}`
+                        : 'Opened a new tab.';
+                case 'tab_activated':
+                    return tab.title
+                        ? `Switched to ${tab.title}`
+                        : tab.url
+                            ? `Switched to ${tab.url}`
+                            : 'Activated a tab.';
+                case 'tab_navigated':
+                    return tab.url
+                        ? `Navigated to ${tab.url}`
+                        : 'Tab navigated.';
+                case 'tab_ready':
+                    return tab.title
+                        ? `Loaded ${tab.title}`
+                        : tab.url
+                            ? `Loaded ${tab.url}`
+                            : 'Tab finished loading.';
+                case 'tab_closed':
+                    return data.tabId !== undefined
+                        ? `Closed tab ${data.tabId}`
+                        : 'Closed a tab.';
+                default:
+                    return event?.event_type || 'Recorded event';
+            }
+        }
+
+        function renderRecordingEvents() {
+            const container = document.getElementById('recording-event-list');
+            if (!container) {
+                return;
+            }
+
+            if (!recordingEvents.length) {
+                container.innerHTML = `
+                    <div class="recording-empty-state">
+                        No recording trace yet. Click <strong>Start Recording</strong>, do the workflow manually, and the captured events will appear here.
+                    </div>
+                `;
+                return;
+            }
+
+            const itemsHtml = recordingEvents.map((event, index) => {
+                const createdAt = formatDisplayTime(event.created_at || event.event_data?.timestamp);
+                const summary = escapeHtml(formatRecordingSummary(event));
+                const prettyDetails = escapeHtml(
+                    JSON.stringify(event.event_data || {}, null, 2)
+                );
+                const shouldOpen = index >= Math.max(0, recordingEvents.length - 4);
+
+                return `
+                    <details class="recording-event-card"${shouldOpen ? ' open' : ''}>
+                        <summary>
+                            <div class="recording-event-main">
+                                <div class="recording-event-line">
+                                    <span class="recording-event-type">${escapeHtml(event.event_type || 'event')}</span>
+                                    <span class="recording-event-index">#${escapeHtml(event.event_index ?? index)}</span>
+                                    <span class="recording-event-time">${escapeHtml(createdAt)}</span>
+                                </div>
+                                <div class="recording-event-summary">${summary}</div>
+                            </div>
+                        </summary>
+                        <pre class="recording-event-details">${prettyDetails}</pre>
+                    </details>
+                `;
+            }).join('');
+
+            container.innerHTML = itemsHtml;
+        }
+
+        function updateRecordingPanel() {
+            const actionButton = document.getElementById('recording-panel-action-btn');
+            const panelState = document.getElementById('recording-panel-state');
+            const browserValue = document.getElementById('recording-panel-browser');
+            const recordingIdValue = document.getElementById('recording-panel-id');
+            const countValue = document.getElementById('recording-panel-count');
+            const updatedValue = document.getElementById('recording-panel-updated');
+            const copyValue = document.getElementById('recording-panel-copy');
+            const activeSession = recordingPanelSession;
+            const isRecording = Boolean(currentRecordingId);
+
+            if (actionButton) {
+                actionButton.textContent = isRecording ? 'Stop Recording' : 'Start Recording';
+                actionButton.disabled = !currentBrowserId && !isRecording;
+            }
+
+            if (panelState) {
+                panelState.textContent = isRecording
+                    ? 'Recording'
+                    : activeSession
+                        ? 'Captured'
+                        : 'Idle';
+            }
+
+            if (browserValue) {
+                browserValue.textContent = currentBrowserId || 'Required';
+                browserValue.title = currentBrowserId || '';
+            }
+
+            if (recordingIdValue) {
+                recordingIdValue.textContent = activeSession?.recording_id || 'Not started';
+                recordingIdValue.title = activeSession?.recording_id || '';
+            }
+
+            if (countValue) {
+                countValue.textContent = String(recordingEvents.length);
+            }
+
+            if (updatedValue) {
+                const lastEvent = recordingEvents[recordingEvents.length - 1];
+                updatedValue.textContent = formatDisplayTime(
+                    lastEvent?.created_at || activeSession?.updated_at
+                );
+            }
+
+            if (copyValue) {
+                copyValue.textContent = isRecording
+                    ? 'Recording is active. Perform the workflow manually in the browser. This panel updates as events arrive.'
+                    : activeSession
+                        ? 'Recording has finished. Review the captured event trace below or start another recording.'
+                        : 'Start a recording, perform the workflow manually in the browser, then stop recording to inspect the captured event trace.';
+            }
+
+            renderRecordingEvents();
+        }
+
+        function stopRecordingPolling() {
+            if (recordingPollTimer) {
+                clearInterval(recordingPollTimer);
+                recordingPollTimer = null;
+            }
+        }
+
+        function ensureRecordingPolling() {
+            stopRecordingPolling();
+
+            if (!recordingPanelVisible || !recordingPanelSession?.recording_id) {
+                return;
+            }
+
+            if (recordingPanelSession.status !== 'active' && !currentRecordingId) {
+                return;
+            }
+
+            recordingPollTimer = setInterval(() => {
+                void refreshRecordingEvents();
+            }, 1500);
+        }
+
+        function openRecordingPanel() {
+            recordingPanelVisible = true;
+            updateRecordingPanel();
+            updateGuidedPanels();
+            ensureRecordingPolling();
+        }
+
+        function closeRecordingPanel() {
+            recordingPanelVisible = false;
+            stopRecordingPolling();
+            updateGuidedPanels();
+        }
+
+        async function refreshRecordingEvents(recordingId = recordingPanelSession?.recording_id) {
+            if (!recordingId) {
+                recordingEvents = [];
+                updateRecordingPanel();
+                return;
+            }
+
+            try {
+                const response = await fetch(apiUrl(`/recordings/${recordingId}/events`));
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to load recording events');
+                }
+
+                recordingEvents = Array.isArray(data.events) ? data.events : [];
+                updateRecordingPanel();
+            } catch (error) {
+                console.warn('Failed to refresh recording events:', error);
+            }
+        }
+
         function getAgentVoiceFallback() {
             if (pendingHelpRequest) {
                 return pendingHelpRequest.message;
@@ -3898,10 +4410,14 @@
         }
 
         function updateGuidedPanels() {
-            const hasTimeline = isProcessing || Boolean(currentConversationId) || eventCounters.total > 0;
+            const hasTimeline = !recordingPanelVisible && (isProcessing || Boolean(currentConversationId) || eventCounters.total > 0);
             const hasBoundSession = Boolean(currentBrowserId || currentConversationId || currentImageUrl || isProcessing);
             const hasRecentActivity = Boolean(currentImageUrl || eventCounters.total > 0);
+            document.body.classList.toggle('recording-panel-mode', recordingPanelVisible);
 
+            setSectionVisibility('composer-card', !recordingPanelVisible);
+            setSectionVisibility('recording-panel-card', recordingPanelVisible);
+            setSectionVisibility('agent-voice-card', !recordingPanelVisible);
             setSectionVisibility('timeline-card', hasTimeline);
             setSectionVisibility('connection-card', hasBoundSession);
             setSectionVisibility('recent-activity-card', hasRecentActivity);
@@ -3917,6 +4433,12 @@
                 nextStep = 'Sisyphus is running. Watch the browser stage or stop the loop.';
             } else if (sisyphusEnabled) {
                 nextStep = 'Sisyphus is armed. Press Start Sisyphus or type a task.';
+            } else if (recordingPanelVisible && currentRecordingId) {
+                nextStep = 'Recorder is active. Perform the workflow manually and watch the captured events below.';
+            } else if (recordingPanelVisible) {
+                nextStep = 'Recording trace ready. Review the captured events or go back to task mode.';
+            } else if (currentRecordingId) {
+                nextStep = 'Recording is still active. Stop it from the header or reopen the recording panel.';
             } else if (!currentBrowserId) {
                 nextStep = 'Paste the browser UUID to connect this browser window.';
             } else if (isProcessing) {
@@ -3946,6 +4468,50 @@
                     : 'The latest screenshot from your connected Chrome session appears here.'
             );
             renderAgentVoice();
+        }
+
+        function updateRecordingUi() {
+            const toggleButton = document.getElementById('recording-toggle-btn');
+            const isRecording = Boolean(currentRecordingId);
+
+            if (toggleButton) {
+                if (isRecording) {
+                    toggleButton.textContent = 'Stop Recording';
+                    toggleButton.title = `Stop recording ${currentRecordingId}`;
+                    toggleButton.classList.add('recording-active');
+                    toggleButton.disabled = false;
+                } else {
+                    toggleButton.textContent = 'Record';
+                    toggleButton.title = currentBrowserId
+                        ? 'Start recording manual browser actions'
+                        : 'Paste Browser UUID before starting a recording';
+                    toggleButton.classList.remove('recording-active');
+                    toggleButton.disabled = !currentBrowserId;
+                }
+            }
+        }
+
+        function toggleRecording() {
+            if (currentRecordingId) {
+                void stopRecording();
+                return;
+            }
+
+            openRecordingPanel();
+            void startRecording();
+        }
+
+        function setRecordingState(recording) {
+            const isActiveRecording = recording?.status === 'active';
+            currentRecordingId = isActiveRecording ? recording.recording_id : null;
+            currentRecordingStatus = recording?.status || 'idle';
+            if (recording) {
+                recordingPanelSession = recording;
+            }
+            updateRecordingUi();
+            updateRecordingPanel();
+            updateGuidedPanels();
+            ensureRecordingPolling();
         }
 
         function updateBrowserIdDisplay() {
@@ -3983,6 +4549,15 @@
             }
 
             updateBrowserIdDisplay();
+            if (previousBrowserId !== currentBrowserId) {
+                setRecordingState(null);
+                recordingPanelSession = null;
+                recordingEvents = [];
+                stopRecordingPolling();
+                if (currentBrowserId) {
+                    void syncRecordingStateForBrowser(currentBrowserId);
+                }
+            }
 
             if (
                 previousBrowserId &&
@@ -4025,6 +4600,105 @@
 
             setBrowserId(browserId);
             return browserId;
+        }
+
+        async function syncRecordingStateForBrowser(browserId = currentBrowserId) {
+            if (!browserId) {
+                setRecordingState(null);
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    apiUrl(`/recordings?status=active&browser_id=${encodeURIComponent(browserId)}`)
+                );
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to load recording state');
+                }
+
+                const activeRecording = Array.isArray(data.recordings) ? data.recordings[0] : null;
+                setRecordingState(activeRecording || null);
+                if (activeRecording) {
+                    openRecordingPanel();
+                    await refreshRecordingEvents(activeRecording.recording_id);
+                }
+            } catch (error) {
+                console.warn('Failed to sync recording state:', error);
+                setRecordingState(null);
+            }
+        }
+
+        async function startRecording() {
+            const browserId = requireBrowserId();
+            if (!browserId || currentRecordingId) {
+                return;
+            }
+
+            openRecordingPanel();
+            recordingPanelSession = null;
+            recordingEvents = [];
+            updateRecordingPanel();
+            try {
+                const response = await fetch(apiUrl('/recordings'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        browser_id: browserId
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to start recording');
+                }
+
+                setRecordingState(data.recording);
+                recordingEvents = [];
+                await refreshRecordingEvents(data.recording?.recording_id);
+                addEvent({
+                    type: 'SystemEvent',
+                    text: `Recording started for browser ${shortDisplay(browserId, browserId)}. Operate the browser manually, then stop the recording to save the trace.`,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: `Failed to start recording: ${error.message}`,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+
+        async function stopRecording() {
+            if (!currentRecordingId) {
+                return;
+            }
+
+            const recordingId = currentRecordingId;
+            try {
+                const response = await fetch(apiUrl(`/recordings/${recordingId}/stop`), {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to stop recording');
+                }
+
+                openRecordingPanel();
+                setRecordingState(data.recording);
+                await refreshRecordingEvents(recordingId);
+                addEvent({
+                    type: 'SystemEvent',
+                    text: `Recording ${shortDisplay(recordingId, recordingId)} stopped. Trace is stored on the server and ready for the next compilation step.`,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: `Failed to stop recording: ${error.message}`,
+                    timestamp: new Date().toISOString()
+                });
+            }
         }
 
         function formatModelOptionLabel(config) {
@@ -4969,6 +5643,8 @@
             } else {
                 updateBrowserIdDisplay();
             }
+            updateRecordingUi();
+            updateRecordingPanel();
             
             // Check URL parameters for conversation_id (before localStorage)
             checkConversationId();

@@ -12,6 +12,7 @@ export type TabAction =
   | 'forward';
 export type DialogType = 'alert' | 'confirm' | 'prompt' | 'beforeunload';
 export type DialogAction = 'accept' | 'dismiss';
+export type RecordingControlAction = 'start' | 'stop';
 
 export interface BaseCommand {
   type: string;
@@ -218,6 +219,12 @@ export interface HighlightSingleElementCommand extends BaseCommand {
   tab_id?: number; // Optional: uses active tab if not provided
 }
 
+export interface RecordingControlCommand extends BaseCommand {
+  type: 'recording_control';
+  action: RecordingControlAction;
+  recording_id: string;
+}
+
 export interface GroundedElementsResponse {
   success: boolean;
   data?: {
@@ -256,7 +263,8 @@ export type Command =
   | KeyboardInputCommand
   | SelectElementCommand
   | GetElementHtmlCommand
-  | HighlightSingleElementCommand;
+  | HighlightSingleElementCommand
+  | RecordingControlCommand;
 
 export interface CommandResponse {
   success: boolean;

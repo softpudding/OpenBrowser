@@ -207,6 +207,13 @@ class DialogAction(str, Enum):
     DISMISS = "dismiss"
 
 
+class RecordingControlAction(str, Enum):
+    """Recording control action."""
+
+    START = "start"
+    STOP = "stop"
+
+
 class HandleDialogCommand(BaseCommand):
     """Handle an open JavaScript dialog (confirm/prompt)"""
 
@@ -420,6 +427,16 @@ class HighlightSingleElementCommand(BaseCommand):
     )
 
 
+class RecordingControlCommand(BaseCommand):
+    """Start or stop browser recording mode."""
+
+    type: Literal["recording_control"] = "recording_control"
+    action: RecordingControlAction = Field(
+        description="Recording action to perform: 'start' or 'stop'"
+    )
+    recording_id: str = Field(description="Recording session ID")
+
+
 class CommandResponse(BaseModel):
     """Response from command execution"""
 
@@ -468,6 +485,7 @@ Command = Union[
     KeyboardInputCommand,
     SelectElementCommand,
     GetElementHtmlCommand | HighlightSingleElementCommand,
+    RecordingControlCommand,
 ]
 
 
@@ -501,6 +519,7 @@ def parse_command(data: dict) -> Command:
         "select_element": SelectElementCommand,
         "get_element_html": GetElementHtmlCommand,
         "highlight_single_element": HighlightSingleElementCommand,
+        "recording_control": RecordingControlCommand,
     }
 
     if cmd_type not in command_map:

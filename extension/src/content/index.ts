@@ -12,12 +12,403 @@ console.log('🖥️ OpenBrowser content script loaded', {
   timestamp: Date.now(),
 });
 
+let activeRecordingId: string | null = null;
+let scrollTimeoutId: number | null = null;
+
+function isOpenBrowserUiPage(): boolean {
+  if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') {
+    return false;
+  }
+
+  return (
+    window.location.port === '8765' &&
+    (window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === 'localhost')
+  );
+}
+
+function normalizeText(
+  value: string | null | undefined,
+  maxLength: number = 160,
+): string | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return null;
+  }
+  return normalized.slice(0, maxLength);
+}
+
+function isElement(target: EventTarget | null): target is Element {
+  return target instanceof Element;
+}
+
+function buildSelector(element: Element): string {
+  if (element.id) {
+    return `#${CSS.escape(element.id)}`;
+  }
+
+  const parts: string[] = [];
+  let current: Element | null = element;
+  let depth = 0;
+
+  while (current && depth < 4) {
+    let part = current.tagName.toLowerCase();
+    if (current.classList.length > 0) {
+      const classNames = Array.from(current.classList)
+        .slice(0, 2)
+        .map((className) => `.${CSS.escape(className)}`)
+        .join('');
+      part += classNames;
+    }
+
+    const parent: Element | null = current.parentElement;
+    if (parent) {
+      const currentTagName = current.tagName;
+      const siblings = Array.from(parent.children).filter(
+        (child: Element) => child.tagName === currentTagName,
+      );
+      if (siblings.length > 1) {
+        const index = siblings.indexOf(current) + 1;
+        part += `:nth-of-type(${index})`;
+      }
+    }
+
+    parts.unshift(part);
+    current = parent;
+    depth += 1;
+  }
+
+  return parts.join(' > ');
+}
+
+function getParentText(element: Element): string | null {
+  let current = element.parentElement;
+  let depth = 0;
+
+  while (current && depth < 3) {
+    const text = normalizeText(current.textContent, 200);
+    if (text && text !== normalizeText(element.textContent, 200)) {
+      return text;
+    }
+    current = current.parentElement;
+    depth += 1;
+  }
+
+  return null;
+}
+
+function isSensitiveInputElement(
+  element: HTMLInputElement | HTMLTextAreaElement,
+): boolean {
+  const inputType =
+    element instanceof HTMLInputElement
+      ? (element.type || '').toLowerCase()
+      : '';
+  const identity = [
+    element.id,
+    element.getAttribute('name'),
+    element.getAttribute('autocomplete'),
+    element.getAttribute('aria-label'),
+    element.getAttribute('placeholder'),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    inputType === 'password' ||
+    /password|passcode|otp|token|secret|card|cvv|cvc|security/.test(identity)
+  );
+}
+
+function serializeElement(element: Element): Record<string, unknown> {
+  const rect = element.getBoundingClientRect();
+  const htmlElement = element as HTMLElement;
+  const payload: Record<string, unknown> = {
+    tagName: element.tagName.toLowerCase(),
+    selector: buildSelector(element),
+    text: normalizeText(element.textContent, 160),
+    parentText: getParentText(element),
+    id: element.id || null,
+    className:
+      typeof htmlElement.className === 'string'
+        ? normalizeText(htmlElement.className, 120)
+        : null,
+    role: element.getAttribute('role'),
+    ariaLabel: element.getAttribute('aria-label'),
+    title: element.getAttribute('title'),
+    name: element.getAttribute('name'),
+    placeholder: element.getAttribute('placeholder'),
+    bbox: {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    },
+  };
+
+  if (element instanceof HTMLAnchorElement) {
+    payload.href = element.href || null;
+  }
+
+  if (element instanceof HTMLInputElement) {
+    const sensitive = isSensitiveInputElement(element);
+    payload.inputType = element.type || null;
+    payload.valueLength = element.value.length;
+    payload.value = sensitive ? null : normalizeText(element.value, 200);
+    payload.isSensitive = sensitive;
+    payload.checked = element.checked;
+  }
+
+  if (element instanceof HTMLTextAreaElement) {
+    const sensitive = isSensitiveInputElement(element);
+    payload.valueLength = element.value.length;
+    payload.value = sensitive ? null : normalizeText(element.value, 200);
+    payload.isSensitive = sensitive;
+  }
+
+  if (element instanceof HTMLSelectElement) {
+    payload.value = element.value || null;
+    payload.selectedText =
+      element.options[element.selectedIndex]?.textContent?.trim() || null;
+  }
+
+  return payload;
+}
+
+function sendRecordingEvent(
+  eventType: string,
+  data: Record<string, unknown> = {},
+): void {
+  if (!activeRecordingId || isOpenBrowserUiPage()) {
+    return;
+  }
+
+  void chrome.runtime
+    .sendMessage({
+      type: 'openbrowser:recording-event',
+      event: {
+        type: eventType,
+        timestamp: Date.now(),
+        data: {
+          recordingId: activeRecordingId,
+          page: {
+            url: window.location.href,
+            title: document.title,
+          },
+          ...data,
+        },
+      },
+    })
+    .catch((error) => {
+      console.debug('Recorder event send failed:', error);
+    });
+}
+
+function emitPageView(reason: string): void {
+  sendRecordingEvent('page_view', {
+    reason,
+    url: window.location.href,
+    title: document.title,
+    readyState: document.readyState,
+    viewport: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio || 1,
+    },
+    scroll: {
+      x: window.scrollX,
+      y: window.scrollY,
+    },
+  });
+}
+
+function shouldRecordTrustedEvent(event: Event): boolean {
+  return activeRecordingId !== null && event.isTrusted && !isOpenBrowserUiPage();
+}
+
+function installRecordingListeners(): void {
+  document.addEventListener(
+    'click',
+    (event) => {
+      if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        return;
+      }
+
+      const mouseEvent = event as MouseEvent;
+      sendRecordingEvent('click', {
+        element: serializeElement(event.target),
+        clientX: mouseEvent.clientX,
+        clientY: mouseEvent.clientY,
+      });
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'input',
+    (event) => {
+      if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        return;
+      }
+
+      if (
+        !(event.target instanceof HTMLInputElement) &&
+        !(event.target instanceof HTMLTextAreaElement)
+      ) {
+        return;
+      }
+
+      sendRecordingEvent('input', {
+        element: serializeElement(event.target),
+      });
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'change',
+    (event) => {
+      if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        return;
+      }
+
+      sendRecordingEvent('change', {
+        element: serializeElement(event.target),
+      });
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'submit',
+    (event) => {
+      if (!shouldRecordTrustedEvent(event)) {
+        return;
+      }
+
+      const form =
+        event.target instanceof HTMLFormElement ? event.target : null;
+      sendRecordingEvent('submit', {
+        form: form ? serializeElement(form) : null,
+      });
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'focusin',
+    (event) => {
+      if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        return;
+      }
+
+      sendRecordingEvent('focus', {
+        element: serializeElement(event.target),
+      });
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        return;
+      }
+
+      const keyboardEvent = event as KeyboardEvent;
+      if (keyboardEvent.key !== 'Enter' && keyboardEvent.key !== 'Tab') {
+        return;
+      }
+
+      sendRecordingEvent('keydown', {
+        key: keyboardEvent.key,
+        code: keyboardEvent.code,
+        element: serializeElement(event.target),
+      });
+    },
+    true,
+  );
+
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (!activeRecordingId) {
+        return;
+      }
+
+      if (scrollTimeoutId !== null) {
+        clearTimeout(scrollTimeoutId);
+      }
+
+      scrollTimeoutId = window.setTimeout(() => {
+        sendRecordingEvent('scroll', {
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
+          maxScrollX:
+            document.documentElement.scrollWidth - window.innerWidth,
+          maxScrollY:
+            document.documentElement.scrollHeight - window.innerHeight,
+        });
+      }, 120);
+    },
+    {
+      passive: true,
+    },
+  );
+
+  window.addEventListener('popstate', () => {
+    if (activeRecordingId) {
+      emitPageView('popstate');
+    }
+  });
+
+  window.addEventListener('hashchange', () => {
+    if (activeRecordingId) {
+      emitPageView('hashchange');
+    }
+  });
+}
+
+function syncRecordingStateFromBackground(): void {
+  void chrome.runtime
+    .sendMessage({ type: 'openbrowser:get-recording-state' })
+    .then((response) => {
+      if (response?.active && typeof response.recording_id === 'string') {
+        activeRecordingId = response.recording_id;
+        emitPageView('resume');
+      }
+    })
+    .catch(() => {
+      // Background may not be ready yet. Ignore.
+    });
+}
+
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log('Content script received message:', message);
 
   // Handle different message types
   switch (message.type) {
+    case 'openbrowser:start-recording':
+      activeRecordingId =
+        typeof message.recording_id === 'string' ? message.recording_id : null;
+      emitPageView('start-recording');
+      sendResponse({
+        success: true,
+        recordingId: activeRecordingId,
+      });
+      break;
+
+    case 'openbrowser:stop-recording':
+      activeRecordingId = null;
+      sendResponse({ success: true });
+      break;
+
     case 'ping':
       sendResponse({ pong: true, timestamp: Date.now() });
       break;
@@ -181,3 +572,5 @@ async function resizeImage(
 }
 
 console.log('✅ Content script initialized (JavaScript-only automation mode)');
+installRecordingListeners();
+syncRecordingStateFromBackground();

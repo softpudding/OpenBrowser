@@ -63,6 +63,13 @@ import {
   TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
   type ScreenshotCaptureOptions,
 } from '../utils/highlight-screenshot';
+import {
+  getRecordingState,
+  handleContentRecordingEvent,
+  initializeRecordingEventListeners,
+  startRecording,
+  stopRecording,
+} from '../recording/recorder';
 import type {
   Command,
   CommandResponse,
@@ -73,6 +80,8 @@ console.log('🚀 OpenBrowser extension starting (Strict Mode)...');
 
 const SERVER_HTTP_URL = 'http://127.0.0.1:8765';
 let currentConnectionId: string | null = null;
+
+initializeRecordingEventListeners();
 
 async function compressScreenshotResult<T extends { imageData?: string }>(
   screenshotResult: T | null | undefined,
@@ -1018,6 +1027,26 @@ chrome.action.onClicked.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'openbrowser:get-recording-state') {
+    sendResponse(getRecordingState());
+    return false;
+  }
+
+  if (message?.type === 'openbrowser:recording-event') {
+    handleContentRecordingEvent(message, _sender)
+      .then(() => {
+        sendResponse({ success: true });
+      })
+      .catch((error) => {
+        sendResponse({
+          success: false,
+          error:
+            error instanceof Error ? error.message : 'Recording event error',
+        });
+      });
+    return true;
+  }
+
   if (message?.type !== 'openbrowser:register-browser-identity') {
     return false;
   }
@@ -1054,6 +1083,26 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
   try {
     switch (command.type) {
+      case 'recording_control': {
+        if (command.action === 'start') {
+          await startRecording(command.recording_id);
+          return {
+            success: true,
+            message: `Recording ${command.recording_id} started`,
+            data: getRecordingState(),
+            timestamp: Date.now(),
+          };
+        }
+
+        await stopRecording(command.recording_id);
+        return {
+          success: true,
+          message: `Recording ${command.recording_id} stopped`,
+          data: getRecordingState(),
+          timestamp: Date.now(),
+        };
+      }
+
       case 'screenshot': {
         // ✅ STRICT MODE: conversation_id is REQUIRED
         if (!command.conversation_id) {
