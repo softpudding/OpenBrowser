@@ -2051,6 +2051,49 @@
             padding: 0 16px 16px;
         }
 
+        .recording-supporting-events {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 16px;
+            background: rgba(31, 24, 19, 0.52);
+            border: 1px solid rgba(205, 175, 132, 0.1);
+        }
+
+        .recording-supporting-title {
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .recording-supporting-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .recording-supporting-item {
+            display: grid;
+            grid-template-columns: auto auto minmax(0, 1fr);
+            gap: 8px;
+            align-items: start;
+        }
+
+        .recording-supporting-item .recording-event-type {
+            font-size: 9px;
+            padding: 4px 8px;
+        }
+
+        .recording-supporting-summary {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.55;
+            min-width: 0;
+        }
+
         .recording-keyframe {
             display: flex;
             flex-direction: column;
@@ -3875,7 +3918,7 @@
         }
 
         function truncateForSummary(value, maxLength = 140) {
-            const normalized = (value || '').replace(/\s+/g, ' ').trim();
+            const normalized = normalizeWhitespace(value);
             if (!normalized) {
                 return '';
             }
@@ -3885,6 +3928,10 @@
             }
 
             return `${normalized.slice(0, maxLength - 1)}…`;
+        }
+
+        function normalizeWhitespace(value) {
+            return String(value || '').replace(/\s+/g, ' ').trim();
         }
 
         function setNodeText(id, text, title = null) {
@@ -3928,6 +3975,140 @@
             }
 
             return date.toLocaleTimeString('en-US', { hour12: false });
+        }
+
+        function getRecordingEventTimestampMs(event) {
+            const rawTimestamp = event?.event_data?.timestamp ?? event?.event_data?.recordedAt ?? event?.created_at ?? null;
+
+            if (typeof rawTimestamp === 'number' && Number.isFinite(rawTimestamp)) {
+                return rawTimestamp;
+            }
+
+            if (typeof rawTimestamp === 'string' && rawTimestamp.trim()) {
+                if (/^\d+$/.test(rawTimestamp.trim())) {
+                    return Number(rawTimestamp.trim());
+                }
+
+                const parsed = Date.parse(rawTimestamp);
+                if (Number.isFinite(parsed)) {
+                    return parsed;
+                }
+            }
+
+            const fallbackIndex = Number(event?.event_index);
+            return Number.isFinite(fallbackIndex) ? fallbackIndex : 0;
+        }
+
+        function getRecordingEventDisplayTime(event) {
+            return event?.event_data?.timestamp ?? event?.event_data?.recordedAt ?? event?.created_at ?? null;
+        }
+
+        function getRecordingElementIdentity(event) {
+            const element = event?.event_data?.element || {};
+            const container = element.container || {};
+            return JSON.stringify([
+                element.tagName || '',
+                element.selector || '',
+                normalizeWhitespace(element.text || ''),
+                normalizeWhitespace(element.ariaLabel || ''),
+                container.kind || '',
+                container.selector || '',
+                normalizeWhitespace(container.title || ''),
+                container.href || '',
+            ]);
+        }
+
+        function getRecordingTabIdentity(event) {
+            const tab = event?.event_data?.tab || {};
+            const page = event?.event_data?.page || {};
+            return JSON.stringify([
+                tab.windowId ?? '',
+                tab.tabId ?? '',
+                page.url || tab.url || '',
+            ]);
+        }
+
+        function canMergeFocusIntoClick(focusEvent, clickEvent) {
+            if (focusEvent?.event_type !== 'focus' || clickEvent?.event_type !== 'click') {
+                return false;
+            }
+
+            if (getRecordingTabIdentity(focusEvent) !== getRecordingTabIdentity(clickEvent)) {
+                return false;
+            }
+
+            if (getRecordingElementIdentity(focusEvent) !== getRecordingElementIdentity(clickEvent)) {
+                return false;
+            }
+
+            const delta = getRecordingEventTimestampMs(clickEvent) - getRecordingEventTimestampMs(focusEvent);
+            return delta >= 0 && delta <= 1500;
+        }
+
+        function canFoldAmbientScrollAfterClick(scrollEvent, clickEvent, focusEvent = null) {
+            if (scrollEvent?.event_type !== 'scroll' || clickEvent?.event_type !== 'click') {
+                return false;
+            }
+
+            if (focusEvent && !canMergeFocusIntoClick(focusEvent, clickEvent)) {
+                return false;
+            }
+
+            if (getRecordingTabIdentity(scrollEvent) !== getRecordingTabIdentity(clickEvent)) {
+                return false;
+            }
+
+            const delta = getRecordingEventTimestampMs(scrollEvent) - getRecordingEventTimestampMs(clickEvent);
+            return delta >= 0 && delta <= 1000 && Boolean(focusEvent);
+        }
+
+        function buildRecordingDisplayEntries(events) {
+            // Recording storage order reflects arrival/persistence order. Click events that
+            // capture a keyframe can land after nearby focus/scroll events even when the
+            // browser interaction happened earlier, so the review timeline should derive a
+            // more human-readable order from the page-side event timestamp instead.
+            const sortedEvents = [...(events || [])].sort((left, right) => {
+                const timeDelta = getRecordingEventTimestampMs(left) - getRecordingEventTimestampMs(right);
+                if (timeDelta !== 0) {
+                    return timeDelta;
+                }
+
+                return (Number(left?.event_index) || 0) - (Number(right?.event_index) || 0);
+            });
+
+            const entries = [];
+
+            for (let index = 0; index < sortedEvents.length; index += 1) {
+                const currentEvent = sortedEvents[index];
+
+                if (currentEvent?.event_type === 'focus') {
+                    const nextEvent = sortedEvents[index + 1];
+                    if (canMergeFocusIntoClick(currentEvent, nextEvent)) {
+                        const supportingEvents = [currentEvent];
+                        let consumedCount = 2;
+                        const maybeAmbientScroll = sortedEvents[index + 2];
+
+                        if (canFoldAmbientScrollAfterClick(maybeAmbientScroll, nextEvent, currentEvent)) {
+                            supportingEvents.push(maybeAmbientScroll);
+                            consumedCount = 3;
+                        }
+
+                        entries.push({
+                            primaryEvent: nextEvent,
+                            supportingEvents,
+                        });
+                        index += consumedCount - 1;
+                        continue;
+                    }
+                }
+
+                entries.push({
+                    primaryEvent: currentEvent,
+                    supportingEvents: [],
+                });
+            }
+
+            return entries;
         }
 
         function formatRecordingSummary(event) {
@@ -4008,6 +4189,38 @@
             }
         }
 
+        function formatRecordingEntrySummary(entry) {
+            const primaryEvent = entry?.primaryEvent || entry;
+            const supportingEvents = Array.isArray(entry?.supportingEvents) ? entry.supportingEvents : [];
+            const baseSummary = formatRecordingSummary(primaryEvent);
+
+            if (!supportingEvents.length) {
+                return baseSummary;
+            }
+
+            const notes = [];
+            const mergedFocus = supportingEvents.filter((event) => event?.event_type === 'focus');
+            const foldedScrolls = supportingEvents.filter((event) => event?.event_type === 'scroll');
+
+            if (mergedFocus.length > 0) {
+                notes.push(
+                    `Merged focus ${mergedFocus.map((event) => `#${event.event_index}`).join(', ')} on the same element.`
+                );
+            }
+
+            if (foldedScrolls.length > 0) {
+                notes.push(
+                    `Folded ambient scroll ${foldedScrolls
+                        .map((event) => `#${event.event_index} (y=${event?.event_data?.scrollY ?? 0})`)
+                        .join(', ')}.`
+                );
+            }
+
+            return notes.length > 0
+                ? `${baseSummary}\n${notes.join(' ')}`
+                : baseSummary;
+        }
+
         function sanitizeRecordingEventData(eventData) {
             const source = eventData || {};
             const cloned = JSON.parse(JSON.stringify(source));
@@ -4055,6 +4268,33 @@
             `;
         }
 
+        function renderRecordingSupportingEvents(supportingEvents) {
+            if (!Array.isArray(supportingEvents) || supportingEvents.length === 0) {
+                return '';
+            }
+
+            const itemsHtml = supportingEvents.map((event) => {
+                const summary = escapeHtml(formatRecordingSummary(event));
+                const indexLabel = `#${event?.event_index ?? '?'}`;
+                return `
+                    <div class="recording-supporting-item">
+                        <span class="recording-event-type">${escapeHtml(event?.event_type || 'event')}</span>
+                        <span class="recording-event-index">${escapeHtml(indexLabel)}</span>
+                        <div class="recording-supporting-summary">${summary}</div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="recording-supporting-events">
+                    <div class="recording-supporting-title">Folded Supporting Events</div>
+                    <div class="recording-supporting-list">
+                        ${itemsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
         function renderRecordingEvents() {
             const container = document.getElementById('recording-event-list');
             if (!container) {
@@ -4070,16 +4310,20 @@
                 return;
             }
 
-            const itemsHtml = recordingEvents.map((event, index) => {
-                const createdAt = formatDisplayTime(event.created_at || event.event_data?.timestamp);
-                const summary = escapeHtml(formatRecordingSummary(event));
+            const displayEntries = buildRecordingDisplayEntries(recordingEvents);
+            const itemsHtml = displayEntries.map((entry, index) => {
+                const event = entry.primaryEvent;
+                const createdAt = formatDisplayTime(getRecordingEventDisplayTime(event));
+                const summary = escapeHtml(formatRecordingEntrySummary(entry));
                 const sanitizedEventData = sanitizeRecordingEventData(event.event_data || {});
                 const prettyDetails = escapeHtml(
                     JSON.stringify(sanitizedEventData, null, 2)
                 );
                 const keyframeHtml = renderRecordingKeyframe(event.event_data || {}, event.event_type || 'event');
-                const shouldOpen = index >= Math.max(0, recordingEvents.length - 4);
+                const supportingEventsHtml = renderRecordingSupportingEvents(entry.supportingEvents);
+                const shouldOpen = index >= Math.max(0, displayEntries.length - 4);
                 const hasKeyframe = Boolean(event.event_data?.keyframe?.imageData);
+                const hasSupportingEvents = Array.isArray(entry.supportingEvents) && entry.supportingEvents.length > 0;
 
                 return `
                     <details class="recording-event-card"${shouldOpen ? ' open' : ''}>
@@ -4090,12 +4334,14 @@
                                     <span class="recording-event-index">#${escapeHtml(event.event_index ?? index)}</span>
                                     <span class="recording-event-time">${escapeHtml(createdAt)}</span>
                                     ${hasKeyframe ? '<span class="recording-event-badge">Keyframe</span>' : ''}
+                                    ${hasSupportingEvents ? `<span class="recording-event-badge">Folded ${escapeHtml(entry.supportingEvents.length)}</span>` : ''}
                                 </div>
                                 <div class="recording-event-summary">${summary}</div>
                             </div>
                         </summary>
                         <div class="recording-event-detail-stack">
                             ${keyframeHtml}
+                            ${supportingEventsHtml}
                             <pre class="recording-event-details">${prettyDetails}</pre>
                         </div>
                     </details>
@@ -4141,7 +4387,13 @@
             }
 
             if (countValue) {
-                countValue.textContent = String(recordingEvents.length);
+                const displayCount = buildRecordingDisplayEntries(recordingEvents).length;
+                countValue.textContent = displayCount === recordingEvents.length
+                    ? String(recordingEvents.length)
+                    : `${displayCount} shown · ${recordingEvents.length} raw`;
+                countValue.title = displayCount === recordingEvents.length
+                    ? ''
+                    : `Showing ${displayCount} grouped timeline entries from ${recordingEvents.length} raw events.`;
             }
 
             if (updatedValue) {
