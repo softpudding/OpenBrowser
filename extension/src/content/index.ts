@@ -14,6 +14,7 @@ console.log('🖥️ OpenBrowser content script loaded', {
 
 let activeRecordingId: string | null = null;
 let scrollTimeoutId: number | null = null;
+const CONTAINER_TEXT_MAX_LENGTH = 280;
 
 function isOpenBrowserUiPage(): boolean {
   if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') {
@@ -39,6 +40,13 @@ function normalizeText(
     return null;
   }
   return normalized.slice(0, maxLength);
+}
+
+function normalizeClassName(
+  className: string | null | undefined,
+  maxLength: number = 160,
+): string | null {
+  return normalizeText(className, maxLength);
 }
 
 function isElement(target: EventTarget | null): target is Element {
@@ -100,6 +108,203 @@ function getParentText(element: Element): string | null {
   return null;
 }
 
+function getElementTextCandidates(
+  elements: Iterable<Element>,
+  minLength: number = 8,
+  maxLength: number = 200,
+): string[] {
+  return Array.from(elements)
+    .map((candidate) => normalizeText(candidate.textContent, maxLength))
+    .filter((text): text is string => Boolean(text && text.length >= minLength));
+}
+
+function getBestContainerTitle(container: Element): string | null {
+  const headingCandidates = getElementTextCandidates(
+    container.querySelectorAll('h1, h2, h3, h4, [role="heading"]'),
+    6,
+    200,
+  );
+  if (headingCandidates.length > 0) {
+    return headingCandidates.sort((left, right) => right.length - left.length)[0];
+  }
+
+  const anchorCandidates = getElementTextCandidates(
+    container.querySelectorAll('a[href]'),
+    10,
+    200,
+  );
+  if (anchorCandidates.length > 0) {
+    return anchorCandidates.sort((left, right) => right.length - left.length)[0];
+  }
+
+  return null;
+}
+
+function getBestContainerLink(container: Element, preferredTitle?: string | null): string | null {
+  const anchors = Array.from(container.querySelectorAll('a[href]')).filter(
+    (candidate): candidate is HTMLAnchorElement => candidate instanceof HTMLAnchorElement,
+  );
+
+  if (preferredTitle) {
+    const exactMatch = anchors.find((anchor) => {
+      const text = normalizeText(anchor.textContent, 200);
+      return text === preferredTitle;
+    });
+    if (exactMatch?.href) {
+      return exactMatch.href;
+    }
+  }
+
+  const longestAnchor = anchors
+    .map((anchor) => ({
+      href: anchor.href,
+      text: normalizeText(anchor.textContent, 200),
+    }))
+    .filter(
+      (anchor): anchor is { href: string; text: string } =>
+        Boolean(anchor.href && anchor.text && anchor.text.length >= 10),
+    )
+    .sort((left, right) => right.text.length - left.text.length)[0];
+
+  return longestAnchor?.href || null;
+}
+
+function classifyContainerKind(container: Element): string {
+  const tagName = container.tagName.toLowerCase();
+  const role = (container.getAttribute('role') || '').toLowerCase();
+  const className = normalizeClassName(
+    typeof (container as HTMLElement).className === 'string'
+      ? (container as HTMLElement).className
+      : '',
+    240,
+  )?.toLowerCase() || '';
+
+  if (tagName === 'article' || role === 'article') {
+    return 'article';
+  }
+  if (role === 'dialog' || tagName === 'dialog') {
+    return 'dialog';
+  }
+  if (tagName === 'form' || role === 'form') {
+    return 'form';
+  }
+  if (role === 'listitem' || tagName === 'li') {
+    return 'listitem';
+  }
+  if (/comment/.test(className)) {
+    return 'comment';
+  }
+  if (/answer/.test(className)) {
+    return 'answer';
+  }
+  if (/question/.test(className)) {
+    return 'question';
+  }
+  if (/post|feed|contentitem|content-item/.test(className)) {
+    return 'post';
+  }
+  if (/card/.test(className)) {
+    return 'card';
+  }
+  if (tagName === 'section' || role === 'region') {
+    return 'section';
+  }
+
+  return 'container';
+}
+
+function scoreSemanticContainer(container: Element, depth: number): number {
+  const tagName = container.tagName.toLowerCase();
+  const role = (container.getAttribute('role') || '').toLowerCase();
+  const className = normalizeClassName(
+    typeof (container as HTMLElement).className === 'string'
+      ? (container as HTMLElement).className
+      : '',
+    240,
+  )?.toLowerCase() || '';
+  const textLength = normalizeText(container.textContent, 800)?.length || 0;
+  const rect = container.getBoundingClientRect();
+
+  let score = 0;
+
+  if (tagName === 'article') {
+    score += 6;
+  }
+  if (tagName === 'section' || tagName === 'li' || tagName === 'form') {
+    score += 2;
+  }
+  if (role === 'article' || role === 'listitem' || role === 'dialog' || role === 'form' || role === 'region') {
+    score += 4;
+  }
+  if (
+    /(contentitem|content-item|card|post|feed|list|item|article|answer|question|comment|modal|dialog|sheet|panel|result|row)/.test(
+      className,
+    )
+  ) {
+    score += 4;
+  }
+  if (container.querySelector('h1, h2, h3, h4, [role="heading"], a[href]')) {
+    score += 2;
+  }
+  if (textLength >= 40) {
+    score += 1;
+  }
+  if (textLength >= 120) {
+    score += 1;
+  }
+  if (rect.width >= 240 && rect.height >= 40) {
+    score += 1;
+  }
+
+  return score - depth * 0.35;
+}
+
+function findSemanticContainer(element: Element): Element | null {
+  let current = element.parentElement;
+  let bestCandidate: Element | null = null;
+  let bestScore = 0;
+  let depth = 0;
+
+  while (current && depth < 8) {
+    const score = scoreSemanticContainer(current, depth);
+    if (score > bestScore) {
+      bestScore = score;
+      bestCandidate = current;
+    }
+    current = current.parentElement;
+    depth += 1;
+  }
+
+  return bestScore >= 4 ? bestCandidate : null;
+}
+
+function serializeContainerContext(container: Element): Record<string, unknown> {
+  const rect = container.getBoundingClientRect();
+  const className =
+    typeof (container as HTMLElement).className === 'string'
+      ? (container as HTMLElement).className
+      : null;
+  const title = getBestContainerTitle(container);
+  const href = getBestContainerLink(container, title);
+
+  return {
+    kind: classifyContainerKind(container),
+    selector: buildSelector(container),
+    title,
+    href,
+    textSnippet: normalizeText(container.textContent, CONTAINER_TEXT_MAX_LENGTH),
+    className: normalizeClassName(className, 200),
+    role: container.getAttribute('role'),
+    ariaLabel: container.getAttribute('aria-label'),
+    bbox: {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    },
+  };
+}
+
 function isSensitiveInputElement(
   element: HTMLInputElement | HTMLTextAreaElement,
 ): boolean {
@@ -127,6 +332,7 @@ function isSensitiveInputElement(
 function serializeElement(element: Element): Record<string, unknown> {
   const rect = element.getBoundingClientRect();
   const htmlElement = element as HTMLElement;
+  const semanticContainer = findSemanticContainer(element);
   const payload: Record<string, unknown> = {
     tagName: element.tagName.toLowerCase(),
     selector: buildSelector(element),
@@ -148,6 +354,9 @@ function serializeElement(element: Element): Record<string, unknown> {
       width: rect.width,
       height: rect.height,
     },
+    container: semanticContainer
+      ? serializeContainerContext(semanticContainer)
+      : null,
   };
 
   if (element instanceof HTMLAnchorElement) {

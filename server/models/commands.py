@@ -214,6 +214,13 @@ class RecordingControlAction(str, Enum):
     STOP = "stop"
 
 
+class RecordingLaunchMode(str, Enum):
+    """How a recording session should allocate browser workspace."""
+
+    DEDICATED_WINDOW = "dedicated_window"
+    CURRENT_WINDOW = "current_window"
+
+
 class HandleDialogCommand(BaseCommand):
     """Handle an open JavaScript dialog (confirm/prompt)"""
 
@@ -435,6 +442,14 @@ class RecordingControlCommand(BaseCommand):
         description="Recording action to perform: 'start' or 'stop'"
     )
     recording_id: str = Field(description="Recording session ID")
+    launch_mode: Optional[RecordingLaunchMode] = Field(
+        default=None,
+        description=(
+            "Optional recording workspace strategy for start actions. "
+            "'dedicated_window' opens a fresh browser window, while "
+            "'current_window' scopes recording to the focused window."
+        ),
+    )
 
 
 class CommandResponse(BaseModel):

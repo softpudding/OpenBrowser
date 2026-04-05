@@ -12,7 +12,11 @@ from server.core.recording_manager import (
     RecordingStatus,
     recording_manager,
 )
-from server.models.commands import RecordingControlAction, RecordingControlCommand
+from server.models.commands import (
+    RecordingControlAction,
+    RecordingControlCommand,
+    RecordingLaunchMode,
+)
 from server.websocket.manager import ws_manager
 
 router = APIRouter(prefix="/recordings", tags=["recordings"])
@@ -35,6 +39,7 @@ class CreateRecordingRequest(BaseModel):
 
     browser_id: str
     name: Optional[str] = None
+    launch_mode: RecordingLaunchMode = RecordingLaunchMode.DEDICATED_WINDOW
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -54,7 +59,10 @@ async def create_recording(request: CreateRecordingRequest):
         session = recording_manager.create_recording(
             browser_id=browser_id,
             name=request.name,
-            metadata=request.metadata,
+            metadata={
+                **request.metadata,
+                "launch_mode": request.launch_mode.value,
+            },
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
@@ -63,6 +71,7 @@ async def create_recording(request: CreateRecordingRequest):
         action=RecordingControlAction.START,
         recording_id=session.recording_id,
         browser_id=browser_id,
+        launch_mode=request.launch_mode,
     )
     response = await command_processor.execute(command)
     if not response.success:

@@ -1085,7 +1085,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
     switch (command.type) {
       case 'recording_control': {
         if (command.action === 'start') {
-          await startRecording(command.recording_id);
+          await startRecording(command.recording_id, command.launch_mode);
           return {
             success: true,
             message: `Recording ${command.recording_id} started`,

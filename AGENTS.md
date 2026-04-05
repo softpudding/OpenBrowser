@@ -326,6 +326,13 @@ OpenBrowser has explicit screenshot control for maximum flexibility:
 
 - Screenshots also serve as a practical page warmup mechanism for background tabs. They can unblock page paint and media decode work that passive DOM/readiness inspection does not reliably trigger on its own.
 
+### Recording Keyframes
+
+- Recording keyframes must **not** be attached to `page_view` events.
+- Reason: `page_view` is emitted during content-script `resume` / `start-recording` after refresh or reload, which is earlier than a stable post-load milestone.
+- Capturing a screenshot in that early `page_view` phase was reproduced to shrink the live Chrome page into the top-left corner during recording sessions.
+- Use `tab_ready` for startup keyframes and keep `page_view` as a lifecycle/event log signal only.
+
 ### Commands That Return Screenshots
 
 | Command | Auto-Screenshot | Notes |

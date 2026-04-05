@@ -2029,9 +2029,58 @@
             word-break: break-word;
         }
 
+        .recording-event-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 9px;
+            border-radius: 999px;
+            background: rgba(205, 175, 132, 0.1);
+            border: 1px solid rgba(205, 175, 132, 0.2);
+            color: #e5cda5;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .recording-event-detail-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 0 16px 16px;
+        }
+
+        .recording-keyframe {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 16px;
+            background: rgba(31, 24, 19, 0.78);
+            border: 1px solid rgba(205, 175, 132, 0.12);
+        }
+
+        .recording-keyframe-meta {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+
+        .recording-keyframe-image {
+            display: block;
+            width: 100%;
+            max-height: 320px;
+            object-fit: contain;
+            border-radius: 12px;
+            border: 1px solid rgba(205, 175, 132, 0.12);
+            background: rgba(14, 11, 9, 0.92);
+        }
+
         .recording-event-details {
             margin: 0;
-            padding: 0 16px 16px;
+            padding: 0;
             color: var(--text-secondary);
             font-size: 12px;
             line-height: 1.7;
@@ -3194,7 +3243,7 @@
                     </div>
 
                     <p class="recording-status-copy" id="recording-panel-copy">
-                        Start a recording, perform the workflow manually in the browser, then stop recording to inspect the captured event trace.
+                        Start a recording to open a dedicated browser window, perform the workflow manually there, then stop recording to inspect the captured event trace.
                     </p>
 
                     <div class="recording-panel-toolbar">
@@ -3884,8 +3933,10 @@
         function formatRecordingSummary(event) {
             const data = event?.event_data || {};
             const element = data.element || {};
+            const container = element.container || {};
             const page = data.page || {};
             const tab = data.tab || {};
+            const containerLabel = container.title || container.textSnippet || container.selector || null;
 
             switch (event?.event_type) {
                 case 'recording_started':
@@ -3899,6 +3950,9 @@
                             ? `Viewed ${page.url}`
                             : 'Page viewed.';
                 case 'click':
+                    if (element.text && containerLabel) {
+                        return `Clicked ${element.text} in ${containerLabel}`;
+                    }
                     return element.text
                         ? `Clicked ${element.text}`
                         : element.selector
@@ -3913,6 +3967,9 @@
                         ? `Changed ${element.selector}`
                         : 'Changed a form control.';
                 case 'focus':
+                    if (element.text && containerLabel) {
+                        return `Focused ${element.text} in ${containerLabel}`;
+                    }
                     return element.selector
                         ? `Focused ${element.selector}`
                         : 'Focused an element.';
@@ -3951,6 +4008,53 @@
             }
         }
 
+        function sanitizeRecordingEventData(eventData) {
+            const source = eventData || {};
+            const cloned = JSON.parse(JSON.stringify(source));
+            if (cloned.keyframe && typeof cloned.keyframe === 'object' && cloned.keyframe.imageData) {
+                cloned.keyframe.imageData = '[IMAGE_DATA_OMITTED]';
+            }
+            return cloned;
+        }
+
+        function renderRecordingKeyframe(eventData, eventType) {
+            const keyframe = eventData?.keyframe;
+            if (!keyframe?.imageData) {
+                return '';
+            }
+
+            const metaParts = [];
+            if (keyframe.trigger) {
+                metaParts.push(`Trigger: ${keyframe.trigger}`);
+            }
+            if (keyframe.width && keyframe.height) {
+                metaParts.push(`${keyframe.width}x${keyframe.height}`);
+            }
+            if (keyframe.format) {
+                metaParts.push(String(keyframe.format).toUpperCase());
+            }
+            if (keyframe.title) {
+                metaParts.push(String(keyframe.title));
+            }
+
+            const metaText = metaParts.length > 0
+                ? `<div class="recording-keyframe-meta">${escapeHtml(metaParts.join(' · '))}</div>`
+                : '';
+            const altText = escapeHtml(`Recording keyframe for ${eventType || 'event'}`);
+
+            return `
+                <div class="recording-keyframe">
+                    ${metaText}
+                    <img
+                        class="recording-keyframe-image"
+                        src="${keyframe.imageData}"
+                        alt="${altText}"
+                        loading="lazy"
+                    >
+                </div>
+            `;
+        }
+
         function renderRecordingEvents() {
             const container = document.getElementById('recording-event-list');
             if (!container) {
@@ -3969,10 +4073,13 @@
             const itemsHtml = recordingEvents.map((event, index) => {
                 const createdAt = formatDisplayTime(event.created_at || event.event_data?.timestamp);
                 const summary = escapeHtml(formatRecordingSummary(event));
+                const sanitizedEventData = sanitizeRecordingEventData(event.event_data || {});
                 const prettyDetails = escapeHtml(
-                    JSON.stringify(event.event_data || {}, null, 2)
+                    JSON.stringify(sanitizedEventData, null, 2)
                 );
+                const keyframeHtml = renderRecordingKeyframe(event.event_data || {}, event.event_type || 'event');
                 const shouldOpen = index >= Math.max(0, recordingEvents.length - 4);
+                const hasKeyframe = Boolean(event.event_data?.keyframe?.imageData);
 
                 return `
                     <details class="recording-event-card"${shouldOpen ? ' open' : ''}>
@@ -3982,11 +4089,15 @@
                                     <span class="recording-event-type">${escapeHtml(event.event_type || 'event')}</span>
                                     <span class="recording-event-index">#${escapeHtml(event.event_index ?? index)}</span>
                                     <span class="recording-event-time">${escapeHtml(createdAt)}</span>
+                                    ${hasKeyframe ? '<span class="recording-event-badge">Keyframe</span>' : ''}
                                 </div>
                                 <div class="recording-event-summary">${summary}</div>
                             </div>
                         </summary>
-                        <pre class="recording-event-details">${prettyDetails}</pre>
+                        <div class="recording-event-detail-stack">
+                            ${keyframeHtml}
+                            <pre class="recording-event-details">${prettyDetails}</pre>
+                        </div>
                     </details>
                 `;
             }).join('');
@@ -4004,6 +4115,7 @@
             const copyValue = document.getElementById('recording-panel-copy');
             const activeSession = recordingPanelSession;
             const isRecording = Boolean(currentRecordingId);
+            const launchMode = activeSession?.metadata?.launch_mode || 'dedicated_window';
 
             if (actionButton) {
                 actionButton.textContent = isRecording ? 'Stop Recording' : 'Start Recording';
@@ -4041,10 +4153,14 @@
 
             if (copyValue) {
                 copyValue.textContent = isRecording
-                    ? 'Recording is active. Perform the workflow manually in the browser. This panel updates as events arrive.'
+                    ? launchMode === 'current_window'
+                        ? 'Recording is active in the current browser window. Perform the workflow manually there while this panel updates as events arrive.'
+                        : 'Recording is active in a dedicated browser window. Perform the workflow manually there while this panel updates as events arrive.'
                     : activeSession
-                        ? 'Recording has finished. Review the captured event trace below or start another recording.'
-                        : 'Start a recording, perform the workflow manually in the browser, then stop recording to inspect the captured event trace.';
+                        ? launchMode === 'current_window'
+                            ? 'Recording has finished. Review the captured event trace below or start another current-window recording.'
+                            : 'Recording has finished. Review the captured event trace below or start another dedicated-window recording.'
+                        : 'Start a recording to open a dedicated browser window, perform the workflow manually there, then stop recording to inspect the captured event trace.';
             }
 
             renderRecordingEvents();
@@ -4434,7 +4550,7 @@
             } else if (sisyphusEnabled) {
                 nextStep = 'Sisyphus is armed. Press Start Sisyphus or type a task.';
             } else if (recordingPanelVisible && currentRecordingId) {
-                nextStep = 'Recorder is active. Perform the workflow manually and watch the captured events below.';
+                nextStep = 'Recorder is active. Use the dedicated recording window and watch the captured events below.';
             } else if (recordingPanelVisible) {
                 nextStep = 'Recording trace ready. Review the captured events or go back to task mode.';
             } else if (currentRecordingId) {
@@ -4644,7 +4760,8 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        browser_id: browserId
+                        browser_id: browserId,
+                        launch_mode: 'dedicated_window'
                     })
                 });
                 const data = await response.json();
@@ -4657,7 +4774,7 @@
                 await refreshRecordingEvents(data.recording?.recording_id);
                 addEvent({
                     type: 'SystemEvent',
-                    text: `Recording started for browser ${shortDisplay(browserId, browserId)}. Operate the browser manually, then stop the recording to save the trace.`,
+                    text: `Recording started for browser ${shortDisplay(browserId, browserId)}. A dedicated recording window has been opened; perform the workflow there, then stop the recording to save the trace.`,
                     timestamp: new Date().toISOString()
                 });
             } catch (error) {

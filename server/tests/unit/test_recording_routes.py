@@ -55,7 +55,44 @@ class TestRecordingRoutes:
         assert data["success"] is True
         assert data["recording"]["browser_id"] == "browser-123"
         assert data["recording"]["status"] == RecordingStatus.ACTIVE.value
+        assert data["recording"]["metadata"]["launch_mode"] == "dedicated_window"
         assert mock_execute.await_count == 1
+        command = mock_execute.await_args.args[0]
+        assert command.launch_mode.value == "dedicated_window"
+
+    def test_create_recording_supports_current_window_launch_mode(
+        self, client: TestClient, temp_recording_manager: RecordingManager
+    ) -> None:
+        """Route should pass through an explicit current_window launch mode."""
+        with (
+            patch(
+                "server.api.routes.recordings.recording_manager",
+                temp_recording_manager,
+            ),
+            patch(
+                "server.api.routes.recordings.ws_manager.is_browser_valid",
+                return_value=True,
+            ),
+            patch(
+                "server.api.routes.recordings.command_processor.execute",
+                new=AsyncMock(
+                    return_value=CommandResponse(success=True, data={"active": True})
+                ),
+            ) as mock_execute,
+        ):
+            response = client.post(
+                "/recordings",
+                json={
+                    "browser_id": "browser-123",
+                    "launch_mode": "current_window",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["recording"]["metadata"]["launch_mode"] == "current_window"
+        command = mock_execute.await_args.args[0]
+        assert command.launch_mode.value == "current_window"
 
     def test_create_recording_rejects_duplicate_active_browser(
         self, client: TestClient, temp_recording_manager: RecordingManager

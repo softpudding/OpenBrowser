@@ -13,6 +13,7 @@ export type TabAction =
 export type DialogType = 'alert' | 'confirm' | 'prompt' | 'beforeunload';
 export type DialogAction = 'accept' | 'dismiss';
 export type RecordingControlAction = 'start' | 'stop';
+export type RecordingLaunchMode = 'dedicated_window' | 'current_window';
 
 export interface BaseCommand {
   type: string;
@@ -223,6 +224,7 @@ export interface RecordingControlCommand extends BaseCommand {
   type: 'recording_control';
   action: RecordingControlAction;
   recording_id: string;
+  launch_mode?: RecordingLaunchMode;
 }
 
 export interface GroundedElementsResponse {
