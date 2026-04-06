@@ -253,17 +253,36 @@ Next product work should proceed in this order:
 4. Build a review loop where the Compiler Agent and the user refine the draft.
 5. Produce the final workflow artifact for later execution.
 
+Recent progress on the compilation layer:
+
+- post-recording intent note is now implemented: the user can add a short text
+  note after stopping a recording, saved to recording session metadata via
+  `POST /recordings/{id}/intent-note`.
+- the Compiler Agent is implemented in `server/core/compiler_agent.py` using
+  the openhands-sdk `Agent` + `Conversation` pattern with three tools:
+  - `trace_viewer` — lets the agent navigate events incrementally (summary,
+    paginated event list, single event detail, keyframe screenshots,
+    normalized steps) instead of receiving the entire trace in one message.
+  - `file` (FileEditorTool) — lets the agent write the SOP file.
+  - `submit_workflow` — validates the SOP file structure and ends the
+    conversation.
+- the compiler agent system prompt teaches OpenBrowser's tool vocabulary
+  (highlight, click, keyboard_input, scroll, etc.) and the SOP format, so
+  the output is an executable Standard Operating Procedure.
+- the SOP is pure text (no embedded images). Keyframes are only used by the
+  compiler agent to understand the recorded trace.
+- the compile endpoint is `POST /recordings/{id}/compile`. The previous
+  iteration endpoint has been removed — clarification happens during
+  compilation as part of the agent conversation loop.
+- the frontend has a "Compile SOP" button and displays the resulting SOP
+  markdown.
+
 The next concrete work item is now:
 
-1. complete the remaining trace-review flow by letting the user add a short
-   intent note after recording stops,
-2. implement the first Compiler Agent path that consumes:
-   - raw trace,
-   - keyframes,
-   - user note,
-   and produces the first workflow draft,
-3. make that draft explicitly iterative between the Compiler Agent and the
-   user.
+1. test the full end-to-end flow with a real recording,
+2. tune the compiler agent system prompt and tool descriptions based on
+   real-world trace quality,
+3. integrate the approved SOP with the execution layer.
 
 ## Summary
 
@@ -271,7 +290,7 @@ OpenBrowser should separate facts from interpretation.
 
 - Recording captures facts.
 - The user provides intent.
-- The Compiler Agent produces the draft.
-- The user and agent iterate to reach the final workflow.
+- The Compiler Agent produces the executable SOP.
+- The SOP instructs OpenBrowser what to do step by step.
 
 That is the intended foundation for workflow execution.

@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import json
+import logging
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from server.api.sse import create_sse_response_headers
+from server.core.compiler_agent import (
+    compile_with_agent,
+    continue_compilation,
+    has_compiler_session,
+)
+from server.core.llm_config import llm_config_manager
 from server.core.processor import command_processor
 from server.core.recording_manager import (
     RecordingStatus,
@@ -20,7 +31,30 @@ from server.models.commands import (
 )
 from server.websocket.manager import ws_manager
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/recordings", tags=["recordings"])
+
+
+async def _wrap_compiler_stream(
+    inner: AsyncGenerator[str, None],
+    recording_id: str,
+) -> AsyncGenerator[str, None]:
+    """Wrap compiler SSE stream to persist SOP metadata on completion."""
+    async for payload in inner:
+        yield payload
+        # Intercept the complete event to save metadata
+        if payload.startswith("event: complete\n"):
+            try:
+                data_line = payload.split("data: ", 1)[1].split("\n")[0]
+                data = json.loads(data_line)
+                result = data.get("result", {})
+                if result.get("status") == "completed":
+                    recording_manager.update_metadata(
+                        recording_id, {"compiler_sop": result}
+                    )
+            except Exception as exc:
+                logger.warning("Failed to save compiler SOP metadata: %s", exc)
 
 
 def _require_valid_browser_id(browser_id: str) -> str:
@@ -42,6 +76,24 @@ class CreateRecordingRequest(BaseModel):
     name: str | None = None
     launch_mode: RecordingLaunchMode = RecordingLaunchMode.DEDICATED_WINDOW
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class IntentNoteRequest(BaseModel):
+    """Request body for saving a user intent note."""
+
+    intent_note: str
+
+
+class CompileRecordingRequest(BaseModel):
+    """Request body for compiling a recording trace."""
+
+    model_alias: str | None = None
+
+
+class CompileAnswerRequest(BaseModel):
+    """Request body for answering a compiler clarification question."""
+
+    answer: str
 
 
 class RecordingEventRequest(BaseModel):
@@ -210,6 +262,23 @@ async def stop_recording(recording_id: str):
     }
 
 
+@router.post("/{recording_id}/intent-note")
+async def save_intent_note(recording_id: str, request: IntentNoteRequest):
+    """Save or update the user intent note for a recording."""
+    session = recording_manager.get_recording(recording_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    recording_manager.update_metadata(
+        recording_id, {"intent_note": request.intent_note}
+    )
+    updated = recording_manager.get_recording(recording_id)
+    return {
+        "success": True,
+        "recording": updated.to_dict() if updated else None,
+    }
+
+
 @router.post("/{recording_id}/events")
 async def append_recording_event(recording_id: str, request: RecordingEventRequest):
     """Append one event to an active recording trace."""
@@ -234,3 +303,71 @@ async def append_recording_event(recording_id: str, request: RecordingEventReque
         raise HTTPException(status_code=500, detail="Failed to save recording event")
 
     return {"success": True, "recording_id": recording_id}
+
+
+@router.post("/{recording_id}/compile")
+async def compile_recording_with_agent(
+    recording_id: str, request: CompileRecordingRequest
+):
+    """Compile a recording trace into a workflow SOP using the Compiler Agent.
+
+    Returns an SSE stream. Events:
+    - agent_event: compiler agent tool calls and reasoning
+    - complete: final result with status "asking" or "completed"
+    - error: on failure
+    """
+    session = recording_manager.get_recording(recording_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    events = recording_manager.get_recording_events(recording_id)
+    intent_note = (session.metadata or {}).get("intent_note")
+
+    # Pre-validate LLM config before starting the stream
+    llm_config = llm_config_manager.get_llm_config(request.model_alias)
+    if not llm_config.api_key:
+        raise HTTPException(status_code=400, detail="LLM API key is not configured")
+
+    sse_generator = compile_with_agent(
+        recording_id=recording_id,
+        events=events,
+        intent_note=intent_note,
+        recording_name=session.name,
+        model_alias=request.model_alias,
+    )
+
+    return StreamingResponse(
+        _wrap_compiler_stream(sse_generator, recording_id),
+        media_type="text/event-stream",
+        headers=create_sse_response_headers(),
+    )
+
+
+@router.post("/{recording_id}/compile/answer")
+async def answer_compiler_question(
+    recording_id: str, request: CompileAnswerRequest
+):
+    """Answer a clarification question from the Compiler Agent.
+
+    Returns an SSE stream as the compiler agent resumes.
+    """
+    session = recording_manager.get_recording(recording_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    if not has_compiler_session(recording_id):
+        raise HTTPException(
+            status_code=400,
+            detail=f"No active compiler session for recording {recording_id}. Call compile first.",
+        )
+
+    sse_generator = continue_compilation(
+        recording_id=recording_id,
+        user_answer=request.answer,
+    )
+
+    return StreamingResponse(
+        _wrap_compiler_stream(sse_generator, recording_id),
+        media_type="text/event-stream",
+        headers=create_sse_response_headers(),
+    )

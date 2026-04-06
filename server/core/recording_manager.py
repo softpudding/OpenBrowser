@@ -361,6 +361,36 @@ class RecordingManager:
         finally:
             conn.close()
 
+    def update_metadata(
+        self,
+        recording_id: str,
+        metadata_updates: dict[str, Any],
+    ) -> bool:
+        """Merge metadata fields without changing status or stopped_at."""
+        existing = self.get_recording(recording_id)
+        if existing is None:
+            return False
+
+        metadata = existing.metadata.copy()
+        metadata.update(metadata_updates)
+
+        now = datetime.now().isoformat()
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                UPDATE recording_sessions
+                SET updated_at = ?, metadata = ?
+                WHERE recording_id = ?
+                """,
+                (now, json.dumps(metadata), recording_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+        finally:
+            conn.close()
+
     def save_recording_event(
         self,
         recording_id: str,

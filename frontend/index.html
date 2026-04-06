@@ -1726,6 +1726,13 @@
             flex-wrap: wrap;
             justify-content: flex-end;
             position: relative;
+        }
+
+        .header-actions-recording {
+            display: none;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
             z-index: 2;
         }
 
@@ -1988,6 +1995,88 @@
             line-height: 1.6;
         }
 
+        /* ── Phase stepper ── */
+        .recording-phase-stepper {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            padding: 2px 0 6px;
+            user-select: none;
+        }
+
+        .recording-phase-step {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            color: var(--text-muted);
+            cursor: default;
+            border-radius: 8px;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .recording-phase-step.clickable {
+            cursor: pointer;
+        }
+
+        .recording-phase-step.clickable:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .recording-phase-step.active {
+            color: var(--text-primary);
+            background: rgba(215, 111, 92, 0.12);
+        }
+
+        .recording-phase-step.done {
+            color: rgba(155, 231, 193, 0.8);
+        }
+
+        .recording-phase-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1.5px solid currentColor;
+            flex-shrink: 0;
+        }
+
+        .recording-phase-step.active .recording-phase-num {
+            background: rgba(215, 111, 92, 0.25);
+            border-color: rgba(215, 111, 92, 0.6);
+        }
+
+        .recording-phase-step.done .recording-phase-num {
+            border-color: rgba(155, 231, 193, 0.5);
+        }
+
+        .recording-phase-connector {
+            width: 24px;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.12);
+            flex-shrink: 0;
+        }
+
+        /* ── Phase section visibility ── */
+        .recording-phase-content {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        .recording-phase-content[hidden] {
+            display: none !important;
+        }
+
         .recording-summary-grid {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2019,6 +2108,231 @@
             font-weight: 700;
             line-height: 1.5;
             overflow-wrap: anywhere;
+        }
+
+        .recording-intent-note {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px 16px;
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            background: rgba(21, 17, 13, 0.6);
+        }
+
+        .recording-intent-note[hidden] {
+            display: none !important;
+        }
+
+        .recording-intent-note-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .recording-intent-note textarea {
+            min-height: 56px;
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--panel-border);
+            background: rgba(21, 17, 13, 0.92);
+            color: var(--text-primary);
+            font: inherit;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .recording-intent-note textarea:focus {
+            outline: none;
+            border-color: rgba(255, 210, 140, 0.42);
+            box-shadow: 0 0 0 4px rgba(255, 210, 140, 0.08);
+        }
+
+        .recording-intent-note-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .recording-intent-note-status {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .recording-compiler-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .recording-compiler-section[hidden] {
+            display: none !important;
+        }
+
+        .recording-compiler-log {
+            padding: 10px 12px;
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            background: rgba(21, 17, 13, 0.75);
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            max-height: 420px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .compiler-log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            cursor: pointer;
+        }
+
+        .compiler-log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .compiler-log-label {
+            font-weight: 600;
+            margin-right: 6px;
+        }
+
+        .compiler-log-label.action { color: #e6c48d; }
+        .compiler-log-label.result { color: #9be7c1; }
+        .compiler-log-label.message { color: #b8c9e8; }
+        .compiler-log-label.ask { color: #ffd28c; }
+
+        .compiler-log-text {
+            display: inline;
+        }
+
+        .compiler-log-entry.collapsed .compiler-log-full,
+        .compiler-log-entry.collapsed .compiler-log-image {
+            display: none;
+        }
+
+        .compiler-log-entry.collapsed .compiler-log-preview {
+            display: inline;
+        }
+
+        .compiler-log-entry:not(.collapsed) .compiler-log-full {
+            display: inline;
+        }
+
+        .compiler-log-entry:not(.collapsed) .compiler-log-preview {
+            display: none;
+        }
+
+        .compiler-log-entry:not(.collapsed) .compiler-log-image {
+            display: block;
+        }
+
+        .compiler-log-ellipsis {
+            color: rgba(255, 210, 140, 0.5);
+            margin-left: 2px;
+            font-style: italic;
+            user-select: none;
+        }
+
+        .compiler-log-image {
+            display: block;
+            max-width: 100%;
+            max-height: 240px;
+            margin-top: 6px;
+            border-radius: 6px;
+            border: 1px solid var(--panel-border);
+        }
+
+        .recording-compiler-draft {
+            padding: 14px 16px;
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            background: rgba(21, 17, 13, 0.6);
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-primary);
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            max-height: 480px;
+            overflow-y: auto;
+        }
+
+        .recording-compiler-draft h2,
+        .recording-compiler-draft h3 {
+            margin: 12px 0 4px;
+            font-size: 14px;
+            font-weight: 700;
+            color: rgba(255, 210, 140, 0.9);
+        }
+
+        .recording-compiler-draft h2:first-child,
+        .recording-compiler-draft h3:first-child {
+            margin-top: 0;
+        }
+
+        .recording-compiler-draft ol,
+        .recording-compiler-draft ul {
+            padding-left: 20px;
+            margin: 4px 0;
+        }
+
+        .recording-compiler-draft li {
+            margin: 4px 0;
+        }
+
+        .recording-compiler-sop-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .recording-compiler-question {
+            padding: 12px 14px;
+            border: 1px solid rgba(255, 210, 140, 0.25);
+            border-radius: 10px;
+            background: rgba(255, 210, 140, 0.06);
+        }
+
+        .recording-compiler-question-text {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            white-space: pre-wrap;
+        }
+
+        .recording-compiler-answer-input {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .recording-compiler-answer-input textarea {
+            flex: 1;
+            min-height: 40px;
+            max-height: 120px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--panel-border);
+            background: rgba(21, 17, 13, 0.92);
+            color: var(--text-primary);
+            font: inherit;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .recording-compiler-answer-input textarea:focus {
+            outline: none;
+            border-color: rgba(255, 210, 140, 0.42);
         }
 
         .recording-view {
@@ -3284,7 +3598,17 @@
             height: 100%;
             min-height: 0;
             max-height: none;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        /* Hide main header actions, show recording-specific ones */
+        body.recording-panel-mode .header-actions {
+            display: none;
+        }
+
+        body.recording-panel-mode .header-actions-recording {
+            display: flex;
         }
 
         @media (max-width: 1320px) {
@@ -3579,6 +3903,10 @@
                     </div>
                     <button class="header-action-btn primary" onclick="openConfigPage()" title="Configure LLM Settings">Settings</button>
                 </div>
+
+                <div class="header-actions-recording" style="display:none;">
+                    <button class="header-action-btn" id="header-rec-back-btn" onclick="closeRecordingPanel()">Back to Tasks</button>
+                </div>
             </div>
         </div>
 
@@ -3671,6 +3999,7 @@
                 </section>
 
                 <section class="panel-card recording-panel-card" id="recording-panel-card" style="display: none;">
+                    <!-- Header row -->
                     <div class="recording-panel-header">
                         <div>
                             <div class="panel-kicker">Recording Mode</div>
@@ -3679,71 +4008,185 @@
                         <span class="stage-badge" id="recording-panel-state">Idle</span>
                     </div>
 
-                    <p class="recording-status-copy" id="recording-panel-copy">
-                        Start a recording to open a dedicated browser window, perform the workflow manually there, then stop recording to inspect the captured event trace.
-                    </p>
+                    <!-- Phase stepper -->
+                    <div class="recording-phase-stepper" id="recording-phase-stepper">
+                        <div class="recording-phase-step active" id="phase-step-record" onclick="void goToRecordingPhase('record')">
+                            <span class="recording-phase-num">1</span> Record
+                        </div>
+                        <div class="recording-phase-connector"></div>
+                        <div class="recording-phase-step" id="phase-step-review" onclick="void goToRecordingPhase('review')">
+                            <span class="recording-phase-num">2</span> Review
+                        </div>
+                        <div class="recording-phase-connector"></div>
+                        <div class="recording-phase-step" id="phase-step-compile" onclick="void goToRecordingPhase('compile')">
+                            <span class="recording-phase-num">3</span> Compile
+                        </div>
+                    </div>
 
+                    <!-- Toolbar -->
                     <div class="recording-panel-toolbar">
                         <div class="recording-panel-meta">
                             <button class="header-action-btn" id="recording-panel-action-btn" onclick="toggleRecording()">Start Recording</button>
                             <button class="ghost-button" id="recording-panel-history-btn" onclick="void openRecordingHistoryList()">View History</button>
-                            <button class="ghost-button" onclick="closeRecordingPanel()">Back to Tasks</button>
+                            <button class="ghost-button" id="recording-panel-back-btn" onclick="closeRecordingPanel()">Back to Tasks</button>
                         </div>
                     </div>
 
-                    <div class="recording-summary-grid">
-                        <div class="recording-summary-card">
-                            <span class="recording-summary-label">Browser UUID</span>
-                            <strong class="recording-summary-value" id="recording-panel-browser">Required</strong>
-                        </div>
-                        <div class="recording-summary-card">
-                            <span class="recording-summary-label" id="recording-panel-id-label">Recording ID</span>
-                            <strong class="recording-summary-value" id="recording-panel-id">Not started</strong>
-                        </div>
-                        <div class="recording-summary-card">
-                            <span class="recording-summary-label" id="recording-panel-count-label">Captured events</span>
-                            <strong class="recording-summary-value" id="recording-panel-count">0</strong>
-                        </div>
-                        <div class="recording-summary-card">
-                            <span class="recording-summary-label" id="recording-panel-updated-label">Last update</span>
-                            <strong class="recording-summary-value" id="recording-panel-updated">Waiting</strong>
-                        </div>
-                    </div>
+                    <!-- ═══ PHASE 1: RECORD ═══ -->
+                    <div class="recording-phase-content" id="recording-phase-record">
+                        <p class="recording-status-copy" id="recording-panel-copy">
+                            Start a recording to open a dedicated browser window. Perform the workflow manually, then stop recording to proceed.
+                        </p>
 
-                    <div class="recording-view" id="recording-detail-view">
-                        <div class="recording-split-layout">
-                            <section class="recording-review-pane recording-list-pane">
-                                <div class="recording-review-header">
-                                    <div class="recording-review-title" id="recording-selection-list-title">Captured Events</div>
-                                    <span class="recording-event-badge" id="recording-selection-list-badge">Timeline</span>
-                                </div>
-                                <div class="recording-review-copy" id="recording-selection-list-copy">
-                                    Review the concrete user actions first. This trace is the source of truth for later workflow compilation.
-                                </div>
-                                <div class="recording-selection-list scrollbar" id="recording-selection-list">
-                                    <div class="recording-empty-state">
-                                        No recording trace yet. Click <strong>Start Recording</strong>, do the workflow manually, and the captured events will appear here.
+                        <div class="recording-summary-grid">
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Browser UUID</span>
+                                <strong class="recording-summary-value" id="recording-panel-browser">Required</strong>
+                            </div>
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Recording ID</span>
+                                <strong class="recording-summary-value" id="recording-panel-id">Not started</strong>
+                            </div>
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Captured events</span>
+                                <strong class="recording-summary-value" id="recording-panel-count">0</strong>
+                            </div>
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Last update</span>
+                                <strong class="recording-summary-value" id="recording-panel-updated">Waiting</strong>
+                            </div>
+                        </div>
+
+                        <div class="recording-view" id="recording-detail-view">
+                            <div class="recording-split-layout">
+                                <section class="recording-review-pane recording-list-pane">
+                                    <div class="recording-review-header">
+                                        <div class="recording-review-title" id="recording-selection-list-title">Captured Events</div>
+                                        <span class="recording-event-badge" id="recording-selection-list-badge">Timeline</span>
                                     </div>
-                                </div>
-                            </section>
-
-                            <section class="recording-review-pane recording-detail-pane">
-                                <div class="recording-review-header">
-                                    <div class="recording-review-title" id="recording-selection-detail-title">Event Detail</div>
-                                    <span class="recording-event-badge" id="recording-selection-detail-badge">Waiting</span>
-                                </div>
-                                <div class="recording-review-copy" id="recording-selection-detail-copy">
-                                    Select an item from the left to inspect its detail here.
-                                </div>
-                                <div class="recording-detail-content scrollbar" id="recording-selection-detail">
-                                    <div class="recording-empty-state">
-                                        Select an item from the left to inspect its detail here.
+                                    <div class="recording-review-copy" id="recording-selection-list-copy">
+                                        Events will appear here as you interact with the browser.
                                     </div>
-                                </div>
-                            </section>
+                                    <div class="recording-selection-list scrollbar" id="recording-selection-list">
+                                        <div class="recording-empty-state">
+                                            No events yet. Click <strong>Start Recording</strong> and perform the workflow in the browser.
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section class="recording-review-pane recording-detail-pane">
+                                    <div class="recording-review-header">
+                                        <div class="recording-review-title" id="recording-selection-detail-title">Event Detail</div>
+                                        <span class="recording-event-badge" id="recording-selection-detail-badge">Waiting</span>
+                                    </div>
+                                    <div class="recording-review-copy" id="recording-selection-detail-copy">
+                                        Select an event from the left to inspect it.
+                                    </div>
+                                    <div class="recording-detail-content scrollbar" id="recording-selection-detail">
+                                        <div class="recording-empty-state">
+                                            Select an event to see its detail here.
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
                         </div>
                     </div>
 
+                    <!-- ═══ PHASE 2: REVIEW ═══ -->
+                    <div class="recording-phase-content" id="recording-phase-review" hidden>
+                        <div class="recording-summary-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Recording ID</span>
+                                <strong class="recording-summary-value" id="review-recording-id">—</strong>
+                            </div>
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Captured events</span>
+                                <strong class="recording-summary-value" id="review-event-count">0</strong>
+                            </div>
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Last update</span>
+                                <strong class="recording-summary-value" id="review-updated">—</strong>
+                            </div>
+                        </div>
+
+                        <div class="recording-view" id="review-events-view">
+                            <div class="recording-split-layout">
+                                <section class="recording-review-pane recording-list-pane">
+                                    <div class="recording-review-header">
+                                        <div class="recording-review-title">Captured Events</div>
+                                        <span class="recording-event-badge" id="review-events-badge">Timeline</span>
+                                    </div>
+                                    <div class="recording-selection-list scrollbar" id="review-selection-list"></div>
+                                </section>
+
+                                <section class="recording-review-pane recording-detail-pane">
+                                    <div class="recording-review-header">
+                                        <div class="recording-review-title" id="review-detail-title">Event Detail</div>
+                                        <span class="recording-event-badge" id="review-detail-badge">Waiting</span>
+                                    </div>
+                                    <div class="recording-detail-content scrollbar" id="review-selection-detail">
+                                        <div class="recording-empty-state">Select an event to see its detail.</div>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+
+                        <div class="recording-intent-note" id="recording-intent-note">
+                            <span class="recording-intent-note-label">What did you intend to do?</span>
+                            <textarea
+                                id="recording-intent-note-input"
+                                placeholder="Describe the workflow you just recorded, e.g. &quot;Filter Finviz to large-cap stocks and inspect the results.&quot;"
+                                rows="2"
+                            ></textarea>
+                            <div class="recording-intent-note-actions">
+                                <button class="ghost-button" id="recording-intent-note-save" onclick="void saveIntentNote()">Save Note</button>
+                                <span class="recording-intent-note-status" id="recording-intent-note-status"></span>
+                                <span style="flex:1"></span>
+                                <button class="header-action-btn" id="review-to-compile-btn" onclick="void goToRecordingPhase('compile')">Continue to Compile →</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ═══ PHASE 3: COMPILE ═══ -->
+                    <div class="recording-phase-content" id="recording-phase-compile" hidden>
+                        <div class="recording-summary-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Recording ID</span>
+                                <strong class="recording-summary-value" id="compile-recording-id">—</strong>
+                            </div>
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Events</span>
+                                <strong class="recording-summary-value" id="compile-event-count">0</strong>
+                            </div>
+                            <div class="recording-summary-card">
+                                <span class="recording-summary-label">Intent</span>
+                                <strong class="recording-summary-value" id="compile-intent-preview">—</strong>
+                            </div>
+                        </div>
+
+                        <div class="recording-compiler-section" id="recording-compiler-section">
+                            <div class="recording-intent-note-actions">
+                                <button class="header-action-btn" id="recording-compile-btn" onclick="void compileRecording()">Compile SOP</button>
+                                <span class="recording-intent-note-status" id="recording-compile-status"></span>
+                            </div>
+                            <div class="recording-compiler-log scrollbar" id="recording-compiler-log" hidden></div>
+                            <div class="recording-compiler-question" id="recording-compiler-question" hidden>
+                                <div class="recording-compiler-question-text" id="recording-compiler-question-text"></div>
+                                <div class="recording-compiler-answer-input">
+                                    <textarea
+                                        id="recording-compiler-answer-textarea"
+                                        placeholder="Your answer..."
+                                        rows="2"
+                                    ></textarea>
+                                    <button class="header-action-btn" onclick="void sendCompilerAnswer()">Answer</button>
+                                </div>
+                            </div>
+                            <div class="recording-compiler-draft scrollbar" id="recording-compiler-draft" hidden></div>
+                            <div class="recording-compiler-sop-meta" id="recording-compiler-sop-meta" hidden></div>
+                        </div>
+                    </div>
+
+                    <!-- ═══ HISTORY VIEW (overlay) ═══ -->
                     <div class="recording-view" id="recording-history-view" hidden>
                         <section class="recording-review-pane is-primary">
                             <div class="recording-review-header">
@@ -3751,11 +4194,11 @@
                                 <span class="recording-event-badge" id="recording-history-badge">Waiting</span>
                             </div>
                             <div class="recording-review-copy">
-                                Pick an existing recording to reopen its review workspace. History is scoped to the currently connected browser UUID.
+                                Pick an existing recording to reopen its review workspace.
                             </div>
                             <div class="recording-history-list" id="recording-history-list">
                                 <div class="recording-empty-state">
-                                    No saved recordings yet. Start a new recording to create the first trace for this browser.
+                                    No saved recordings yet. Start a new recording to create the first trace.
                                 </div>
                             </div>
                         </section>
@@ -4081,7 +4524,8 @@
         let currentRecordingId = null;
         let currentRecordingStatus = 'idle';
         let recordingPanelVisible = false;
-        let recordingPanelMode = 'detail';
+        let recordingPanelMode = 'detail'; // 'detail' | 'history'
+        let recordingPhase = 'record'; // 'record' | 'review' | 'compile'
         let recordingPanelSession = null;
         let recordingHistory = [];
         let recordingHistoryLoading = false;
@@ -4818,82 +5262,91 @@
         }
 
         function renderRecordingSelectionList() {
+            const containers = [
+                document.getElementById('recording-selection-list'),
+                document.getElementById('review-selection-list'),
+            ].filter(Boolean);
+            if (!containers.length) return;
+
+            const displayEntries = buildRecordingDisplayEntries(recordingEvents);
+
+            // Update badges/titles in record phase
             const titleNode = document.getElementById('recording-selection-list-title');
             const badgeNode = document.getElementById('recording-selection-list-badge');
             const copyNode = document.getElementById('recording-selection-list-copy');
-            const container = document.getElementById('recording-selection-list');
-            if (!titleNode || !badgeNode || !copyNode || !container) {
-                return;
-            }
-
-            const displayEntries = buildRecordingDisplayEntries(recordingEvents);
-            titleNode.textContent = 'Captured Events';
-            badgeNode.textContent = displayEntries.length === recordingEvents.length
+            if (titleNode) titleNode.textContent = 'Captured Events';
+            if (badgeNode) badgeNode.textContent = displayEntries.length === recordingEvents.length
                 ? `${displayEntries.length} events`
                 : `${displayEntries.length} shown`;
-            copyNode.textContent = 'Select a grouped event on the left, then inspect its keyframe and raw payload on the right.';
+            if (copyNode) copyNode.textContent = displayEntries.length
+                ? 'Select an event to inspect its keyframe and payload.'
+                : 'Events will appear here as you interact with the browser.';
 
-            if (!displayEntries.length) {
-                container.innerHTML = `
-                    <div class="recording-empty-state">
-                        No recording trace yet. Click <strong>Start Recording</strong>, do the workflow manually, and the captured events will appear here.
-                    </div>
-                `;
-                return;
-            }
+            // Update review phase badge
+            const reviewBadge = document.getElementById('review-events-badge');
+            if (reviewBadge) reviewBadge.textContent = `${displayEntries.length} events`;
 
-            container.innerHTML = displayEntries.map((entry, index) => {
-                const event = entry.primaryEvent;
-                const entryKey = getRecordingEntryKey(entry, index);
-                const isSelected = entryKey === selectedRecordingEntryKey;
-                const createdAt = formatDisplayTime(getRecordingEventDisplayTime(event));
-                const summary = escapeHtml(formatRecordingEntrySummary(entry));
-                const hasKeyframe = Boolean(event.event_data?.keyframe?.imageData);
-                const hasSupportingEvents = Array.isArray(entry.supportingEvents) && entry.supportingEvents.length > 0;
+            const html = !displayEntries.length
+                ? `<div class="recording-empty-state">No events yet.</div>`
+                : displayEntries.map((entry, index) => {
+                    const event = entry.primaryEvent;
+                    const entryKey = getRecordingEntryKey(entry, index);
+                    const isSelected = entryKey === selectedRecordingEntryKey;
+                    const createdAt = formatDisplayTime(getRecordingEventDisplayTime(event));
+                    const summary = escapeHtml(formatRecordingEntrySummary(entry));
+                    const hasKeyframe = Boolean(event.event_data?.keyframe?.imageData);
+                    const hasSupportingEvents = Array.isArray(entry.supportingEvents) && entry.supportingEvents.length > 0;
 
-                return `
-                    <button
-                        class="recording-selection-item${isSelected ? ' is-selected' : ''}"
-                        data-entry-key="${escapeHtml(entryKey)}"
-                        onclick="setSelectedRecordingEntry(this.dataset.entryKey)"
-                    >
-                        <div class="recording-selection-line">
-                            <span class="recording-event-type">${escapeHtml(event.event_type || 'event')}</span>
-                            <span class="recording-event-index">#${escapeHtml(event.event_index ?? index)}</span>
-                            <span class="recording-event-time">${escapeHtml(createdAt)}</span>
-                            ${hasKeyframe ? '<span class="recording-event-badge">Keyframe</span>' : ''}
-                            ${hasSupportingEvents ? `<span class="recording-event-badge">Folded ${escapeHtml(entry.supportingEvents.length)}</span>` : ''}
-                        </div>
-                        <div class="recording-selection-title">${summary}</div>
-                    </button>
-                `;
-            }).join('');
+                    return `
+                        <button
+                            class="recording-selection-item${isSelected ? ' is-selected' : ''}"
+                            data-entry-key="${escapeHtml(entryKey)}"
+                            onclick="setSelectedRecordingEntry(this.dataset.entryKey)"
+                        >
+                            <div class="recording-selection-line">
+                                <span class="recording-event-type">${escapeHtml(event.event_type || 'event')}</span>
+                                <span class="recording-event-index">#${escapeHtml(event.event_index ?? index)}</span>
+                                <span class="recording-event-time">${escapeHtml(createdAt)}</span>
+                                ${hasKeyframe ? '<span class="recording-event-badge">Keyframe</span>' : ''}
+                                ${hasSupportingEvents ? `<span class="recording-event-badge">Folded ${escapeHtml(entry.supportingEvents.length)}</span>` : ''}
+                            </div>
+                            <div class="recording-selection-title">${summary}</div>
+                        </button>
+                    `;
+                }).join('');
+
+            for (const c of containers) c.innerHTML = html;
         }
 
         function renderRecordingSelectionDetail() {
-            const titleNode = document.getElementById('recording-selection-detail-title');
-            const badgeNode = document.getElementById('recording-selection-detail-badge');
-            const copyNode = document.getElementById('recording-selection-detail-copy');
-            const container = document.getElementById('recording-selection-detail');
-            if (!titleNode || !badgeNode || !copyNode || !container) {
-                return;
-            }
+            const containers = [
+                document.getElementById('recording-selection-detail'),
+                document.getElementById('review-selection-detail'),
+            ].filter(Boolean);
+            if (!containers.length) return;
 
             const displayEntries = buildRecordingDisplayEntries(recordingEvents);
             const selectedEntry = displayEntries.find((entry, index) => getRecordingEntryKey(entry, index) === selectedRecordingEntryKey)
                 || displayEntries[displayEntries.length - 1]
                 || null;
 
-            titleNode.textContent = 'Event Detail';
-            badgeNode.textContent = selectedEntry?.primaryEvent?.event_type || 'Waiting';
-            copyNode.textContent = 'Inspect the selected recorded event, including its keyframe, folded supporting events, and raw payload.';
+            // Update badges in record phase
+            const titleNode = document.getElementById('recording-selection-detail-title');
+            const badgeNode = document.getElementById('recording-selection-detail-badge');
+            const copyNode = document.getElementById('recording-selection-detail-copy');
+            if (titleNode) titleNode.textContent = 'Event Detail';
+            if (badgeNode) badgeNode.textContent = selectedEntry?.primaryEvent?.event_type || 'Waiting';
+            if (copyNode) copyNode.textContent = selectedEntry ? '' : 'Select an event to see its detail.';
+
+            // Update review phase badge
+            const reviewBadge = document.getElementById('review-detail-badge');
+            if (reviewBadge) reviewBadge.textContent = selectedEntry?.primaryEvent?.event_type || 'Waiting';
+            const reviewTitle = document.getElementById('review-detail-title');
+            if (reviewTitle) reviewTitle.textContent = 'Event Detail';
 
             if (!selectedEntry) {
-                container.innerHTML = `
-                    <div class="recording-empty-state">
-                        Select an event on the left to inspect its detail here.
-                    </div>
-                `;
+                const emptyHtml = `<div class="recording-empty-state">Select an event to see its detail.</div>`;
+                for (const c of containers) c.innerHTML = emptyHtml;
                 return;
             }
 
@@ -4905,7 +5358,7 @@
             const summary = escapeHtml(formatRecordingEntrySummary(selectedEntry));
             const createdAt = escapeHtml(formatDisplayTime(getRecordingEventDisplayTime(event)));
 
-            container.innerHTML = `
+            const html = `
                 <div class="recording-detail-card">
                     <div class="recording-detail-card-title">Summary</div>
                     <div class="recording-detail-card-copy">${summary}\nTime: ${createdAt}</div>
@@ -4917,6 +5370,7 @@
                     <pre class="recording-event-details">${prettyDetails}</pre>
                 </div>
             `;
+            for (const c of containers) c.innerHTML = html;
         }
 
         function formatRecordingStatusLabel(status) {
@@ -5013,16 +5467,68 @@
         }
 
         function updateRecordingViewState() {
-            const detailView = document.getElementById('recording-detail-view');
             const historyView = document.getElementById('recording-history-view');
-            const isDetailMode = recordingPanelMode === 'detail';
+            const isHistoryMode = recordingPanelMode === 'history';
 
-            if (detailView) {
-                detailView.hidden = !isDetailMode;
+            // Phase content sections
+            const phaseRecord = document.getElementById('recording-phase-record');
+            const phaseReview = document.getElementById('recording-phase-review');
+            const phaseCompile = document.getElementById('recording-phase-compile');
+
+            if (isHistoryMode) {
+                // History overlay hides all phase content
+                if (phaseRecord) phaseRecord.hidden = true;
+                if (phaseReview) phaseReview.hidden = true;
+                if (phaseCompile) phaseCompile.hidden = true;
+                if (historyView) historyView.hidden = false;
+            } else {
+                if (historyView) historyView.hidden = true;
+                if (phaseRecord) phaseRecord.hidden = recordingPhase !== 'record';
+                if (phaseReview) phaseReview.hidden = recordingPhase !== 'review';
+                if (phaseCompile) phaseCompile.hidden = recordingPhase !== 'compile';
             }
-            if (historyView) {
-                historyView.hidden = isDetailMode;
+
+            // Phase stepper state
+            const stepRecord = document.getElementById('phase-step-record');
+            const stepReview = document.getElementById('phase-step-review');
+            const stepCompile = document.getElementById('phase-step-compile');
+            const stepper = document.getElementById('recording-phase-stepper');
+
+            // Hide stepper in history mode
+            if (stepper) stepper.hidden = isHistoryMode;
+
+            const activeSession = recordingPanelSession;
+            const isStopped = activeSession && activeSession.status !== 'active';
+
+            if (stepRecord) {
+                stepRecord.classList.toggle('active', recordingPhase === 'record');
+                stepRecord.classList.toggle('done', recordingPhase !== 'record' && Boolean(activeSession));
+                stepRecord.classList.toggle('clickable', recordingPhase !== 'record');
             }
+            if (stepReview) {
+                stepReview.classList.toggle('active', recordingPhase === 'review');
+                stepReview.classList.toggle('done', recordingPhase === 'compile' && isStopped);
+                stepReview.classList.toggle('clickable', isStopped && recordingPhase !== 'review');
+            }
+            if (stepCompile) {
+                stepCompile.classList.toggle('active', recordingPhase === 'compile');
+                stepCompile.classList.toggle('done', false);
+                stepCompile.classList.toggle('clickable', isStopped && recordingPhase !== 'compile');
+            }
+        }
+
+        function goToRecordingPhase(phase) {
+            const activeSession = recordingPanelSession;
+            const isStopped = activeSession && activeSession.status !== 'active';
+
+            // Can only go to review/compile if recording is stopped and we have a session
+            if (phase === 'review' && !isStopped) return;
+            if (phase === 'compile' && !isStopped) return;
+
+            // Can always go back to record phase
+            recordingPhase = phase;
+            recordingPanelMode = 'detail';
+            updateRecordingPanel();
         }
 
         function closeRecordingMenu() {
@@ -5087,7 +5593,7 @@
             }
 
             if (action === 'history') {
-                void openLatestRecordingReview();
+                void openRecordingHistoryList();
             }
         }
 
@@ -5155,8 +5661,12 @@
             }
 
             recordingPanelMode = 'detail';
+            recordingPhase = 'review'; // Opening a saved recording → review phase
             recordingEvents = [];
             selectedRecordingEntryKey = null;
+            compilerSop = null;
+            compilerCompiling = false;
+            compilerQuestion = null;
             openRecordingPanel('detail');
 
             const selectedRecording = recordingHistory.find((recording) => recording.recording_id === recordingId);
@@ -5177,132 +5687,166 @@
             const titleNode = document.getElementById('recording-panel-title');
             const actionButton = document.getElementById('recording-panel-action-btn');
             const historyButton = document.getElementById('recording-panel-history-btn');
+            const backButton = document.getElementById('recording-panel-back-btn');
             const panelState = document.getElementById('recording-panel-state');
-            const browserValue = document.getElementById('recording-panel-browser');
-            const recordingIdLabel = document.getElementById('recording-panel-id-label');
-            const recordingIdValue = document.getElementById('recording-panel-id');
-            const countLabel = document.getElementById('recording-panel-count-label');
-            const countValue = document.getElementById('recording-panel-count');
-            const updatedLabel = document.getElementById('recording-panel-updated-label');
-            const updatedValue = document.getElementById('recording-panel-updated');
-            const copyValue = document.getElementById('recording-panel-copy');
-            const eventsBadge = document.getElementById('recording-events-badge');
             const activeSession = recordingPanelSession;
             const isRecording = Boolean(currentRecordingId);
-            const launchMode = activeSession?.metadata?.launch_mode || 'dedicated_window';
             const isHistoryMode = recordingPanelMode === 'history';
             const displayCount = buildRecordingDisplayEntries(recordingEvents).length;
-            const latestHistory = recordingHistory[0] || null;
 
-            if (actionButton) {
-                actionButton.textContent = isRecording ? 'Stop Recording' : 'Start Recording';
-                actionButton.disabled = !currentBrowserId && !isRecording;
-            }
-
-            if (historyButton) {
-                historyButton.style.display = isHistoryMode ? 'none' : '';
-                historyButton.disabled = !currentBrowserId || isRecording;
+            // ── Title & state badge ──
+            if (titleNode) {
+                if (isHistoryMode) {
+                    titleNode.textContent = 'Browse saved recordings';
+                } else if (recordingPhase === 'compile') {
+                    titleNode.textContent = 'Compile SOP';
+                } else if (recordingPhase === 'review') {
+                    titleNode.textContent = 'Review recorded trace';
+                } else {
+                    titleNode.textContent = isRecording
+                        ? 'Recording in progress'
+                        : 'Capture a manual browser workflow';
+                }
             }
 
             if (panelState) {
-                panelState.textContent = isHistoryMode
-                    ? 'History'
-                    : isRecording
-                        ? 'Recording'
-                        : activeSession
-                            ? 'Captured'
-                            : 'Idle';
+                if (isHistoryMode) {
+                    panelState.textContent = 'History';
+                } else if (recordingPhase === 'compile') {
+                    panelState.textContent = compilerCompiling ? 'Compiling' : (compilerSop ? 'SOP Ready' : 'Compile');
+                } else if (recordingPhase === 'review') {
+                    panelState.textContent = 'Review';
+                } else {
+                    panelState.textContent = isRecording ? 'Recording' : 'Idle';
+                }
             }
+
+            // ── Toolbar buttons ──
+            if (actionButton) {
+                if (recordingPhase === 'record') {
+                    actionButton.style.display = '';
+                    if (isRecording) {
+                        actionButton.textContent = 'Stop Recording';
+                        actionButton.disabled = false;
+                    } else {
+                        actionButton.textContent = 'Start Recording';
+                        actionButton.disabled = !currentBrowserId;
+                    }
+                } else {
+                    actionButton.style.display = 'none';
+                }
+            }
+
+            if (historyButton) {
+                // Show history button only in record phase (not recording) or history mode
+                historyButton.style.display = (recordingPhase === 'record' && !isRecording && !isHistoryMode) ? '' : 'none';
+                historyButton.disabled = !currentBrowserId;
+            }
+
+            if (backButton) {
+                // In review/compile, show "← Back" to go to previous phase; in record phase, show "Back to Tasks"
+                if (recordingPhase === 'review') {
+                    backButton.textContent = '← Back to Record';
+                    backButton.onclick = () => goToRecordingPhase('record');
+                } else if (recordingPhase === 'compile') {
+                    backButton.textContent = '← Back to Review';
+                    backButton.onclick = () => goToRecordingPhase('review');
+                } else if (isHistoryMode) {
+                    backButton.textContent = '← Back';
+                    backButton.onclick = () => { recordingPanelMode = 'detail'; updateRecordingPanel(); };
+                } else {
+                    backButton.textContent = 'Back to Tasks';
+                    backButton.onclick = () => closeRecordingPanel();
+                }
+            }
+
+            // ── Phase 1: Record — summary grid ──
+            const browserValue = document.getElementById('recording-panel-browser');
+            const recordingIdValue = document.getElementById('recording-panel-id');
+            const countValue = document.getElementById('recording-panel-count');
+            const updatedValue = document.getElementById('recording-panel-updated');
+            const copyValue = document.getElementById('recording-panel-copy');
 
             if (browserValue) {
                 browserValue.textContent = currentBrowserId || 'Required';
                 browserValue.title = currentBrowserId || '';
             }
-
-            if (titleNode) {
-                titleNode.textContent = isHistoryMode
-                    ? 'Browse saved recordings'
-                    : isRecording
-                        ? 'Capture a manual browser workflow'
-                        : activeSession
-                            ? 'Review a recorded trace'
-                            : 'Capture a manual browser workflow';
-            }
-
-            if (recordingIdLabel) {
-                recordingIdLabel.textContent = isHistoryMode ? 'History entries' : 'Recording ID';
-            }
-
             if (recordingIdValue) {
-                recordingIdValue.textContent = isHistoryMode
-                    ? String(recordingHistory.length)
-                    : activeSession?.recording_id || 'Not started';
-                recordingIdValue.title = isHistoryMode
-                    ? ''
-                    : activeSession?.recording_id || '';
+                recordingIdValue.textContent = activeSession?.recording_id || 'Not started';
+                recordingIdValue.title = activeSession?.recording_id || '';
             }
-
-            if (countLabel) {
-                countLabel.textContent = isHistoryMode ? 'Active recording' : 'Captured events';
-            }
-
             if (countValue) {
-                if (isHistoryMode) {
-                    countValue.textContent = currentRecordingId
-                        ? shortDisplay(currentRecordingId, currentRecordingId)
-                        : 'None';
-                    countValue.title = currentRecordingId || '';
-                } else {
-                    countValue.textContent = displayCount === recordingEvents.length
-                        ? String(recordingEvents.length)
-                        : `${displayCount} shown · ${recordingEvents.length} raw`;
-                    countValue.title = displayCount === recordingEvents.length
-                        ? ''
-                        : `Showing ${displayCount} grouped timeline entries from ${recordingEvents.length} raw events.`;
-                }
+                countValue.textContent = displayCount === recordingEvents.length
+                    ? String(recordingEvents.length)
+                    : `${displayCount} shown · ${recordingEvents.length} raw`;
             }
-
-            if (eventsBadge) {
-                eventsBadge.textContent = displayCount === recordingEvents.length
-                    ? `${displayCount} events`
-                    : `${displayCount} shown`;
-            }
-
-            if (updatedLabel) {
-                updatedLabel.textContent = isHistoryMode ? 'Latest recording' : 'Last update';
-            }
-
             if (updatedValue) {
-                if (isHistoryMode) {
-                    updatedValue.textContent = formatDisplayTime(latestHistory?.updated_at);
-                } else {
-                    const lastEvent = recordingEvents[recordingEvents.length - 1];
-                    updatedValue.textContent = formatDisplayTime(
-                        lastEvent?.created_at || activeSession?.updated_at
-                    );
-                }
+                const lastEvent = recordingEvents[recordingEvents.length - 1];
+                updatedValue.textContent = formatDisplayTime(
+                    lastEvent?.created_at || activeSession?.updated_at
+                );
             }
-
             if (copyValue) {
-                copyValue.textContent = isHistoryMode
-                    ? 'Open an older recording from history when you want to inspect the trace again after leaving task mode.'
-                    : isRecording
-                        ? launchMode === 'current_window'
-                            ? 'Recording is active in the current browser window. Perform the workflow manually there while this panel updates as events arrive.'
-                            : 'Recording is active in a dedicated browser window. Perform the workflow manually there while this panel updates as events arrive.'
-                        : activeSession
-                            ? launchMode === 'current_window'
-                                ? 'Recording has finished. Inspect the captured events and keyframes here before handing the trace to the compiler agent.'
-                                : 'Recording has finished. Inspect the captured events and keyframes here before handing the trace to the compiler agent.'
-                            : 'Start a recording to open a dedicated browser window, perform the workflow manually there, then stop recording to inspect the captured event trace.';
+                copyValue.textContent = isRecording
+                    ? 'Recording is active. Perform the workflow in the browser window, then click Stop.'
+                    : 'Start a recording to open a dedicated browser window. Perform the workflow manually, then stop.';
             }
 
+            // ── Phase 2: Review — summary grid ──
+            const reviewId = document.getElementById('review-recording-id');
+            const reviewCount = document.getElementById('review-event-count');
+            const reviewUpdated = document.getElementById('review-updated');
+            const reviewBadge = document.getElementById('review-events-badge');
+
+            if (reviewId) {
+                reviewId.textContent = activeSession?.recording_id
+                    ? shortDisplay(activeSession.recording_id, activeSession.recording_id)
+                    : '—';
+                reviewId.title = activeSession?.recording_id || '';
+            }
+            if (reviewCount) {
+                reviewCount.textContent = displayCount === recordingEvents.length
+                    ? String(recordingEvents.length)
+                    : `${displayCount} shown · ${recordingEvents.length} raw`;
+            }
+            if (reviewUpdated) {
+                const lastEvent = recordingEvents[recordingEvents.length - 1];
+                reviewUpdated.textContent = formatDisplayTime(
+                    lastEvent?.created_at || activeSession?.updated_at
+                );
+            }
+            if (reviewBadge) {
+                reviewBadge.textContent = `${displayCount} events`;
+            }
+
+            // ── Phase 3: Compile — summary grid ──
+            const compileId = document.getElementById('compile-recording-id');
+            const compileCount = document.getElementById('compile-event-count');
+            const compileIntent = document.getElementById('compile-intent-preview');
+
+            if (compileId) {
+                compileId.textContent = activeSession?.recording_id
+                    ? shortDisplay(activeSession.recording_id, activeSession.recording_id)
+                    : '—';
+            }
+            if (compileCount) {
+                compileCount.textContent = String(recordingEvents.length);
+            }
+            if (compileIntent) {
+                const note = activeSession?.metadata?.intent_note || '';
+                compileIntent.textContent = note ? (note.length > 60 ? note.substring(0, 60) + '…' : note) : '—';
+                compileIntent.title = note;
+            }
+
+            // ── Render sub-sections ──
             syncRecordingReviewSelection();
             renderRecordingSelectionList();
             renderRecordingSelectionDetail();
             renderRecordingHistory();
             updateRecordingViewState();
             updateRecordingMenu();
+            updateIntentNoteSection();
+            updateCompilerSection();
         }
 
         function stopRecordingPolling() {
@@ -5766,12 +6310,14 @@
                 return;
             }
 
+            recordingPhase = 'record';
             recordingPanelMode = 'detail';
             openRecordingPanel('detail');
             void startRecording();
         }
 
         function setRecordingState(recording) {
+            const wasRecording = Boolean(currentRecordingId);
             const isActiveRecording = recording?.status === 'active';
             currentRecordingId = isActiveRecording ? recording.recording_id : null;
             currentRecordingStatus = recording?.status || 'idle';
@@ -5789,6 +6335,14 @@
             } else {
                 selectedRecordingEntryKey = null;
             }
+
+            // Auto-advance phase: recording → review when recording stops
+            if (wasRecording && !isActiveRecording && recording) {
+                recordingPhase = 'review';
+            } else if (isActiveRecording) {
+                recordingPhase = 'record';
+            }
+
             updateRecordingUi();
             updateRecordingPanel();
             updateGuidedPanels();
@@ -5919,6 +6473,7 @@
                 return;
             }
 
+            recordingPhase = 'record';
             recordingPanelMode = 'detail';
             openRecordingPanel('detail');
             recordingPanelSession = null;
@@ -5983,12 +6538,377 @@
                     text: `Recording ${shortDisplay(recordingId, recordingId)} stopped. Trace is stored on the server and ready for the next compilation step.`,
                     timestamp: new Date().toISOString()
                 });
+                updateIntentNoteSection();
+                const noteInput = document.getElementById('recording-intent-note-input');
+                if (noteInput) {
+                    setTimeout(() => noteInput.focus(), 120);
+                }
             } catch (error) {
                 addEvent({
                     type: 'ErrorEvent',
                     text: `Failed to stop recording: ${error.message}`,
                     timestamp: new Date().toISOString()
                 });
+            }
+        }
+
+        let compilerSop = null;
+        let compilerCompiling = false;
+        let compilerQuestion = null;
+
+        function updateIntentNoteSection() {
+            // Intent note is now inside the review phase section — always visible there.
+            // Just sync the textarea value from session metadata.
+            const noteInput = document.getElementById('recording-intent-note-input');
+            const isStopped = recordingPanelSession?.status === 'stopped';
+
+            if (noteInput && isStopped) {
+                const savedNote = recordingPanelSession?.metadata?.intent_note || '';
+                if (noteInput.value !== savedNote && !noteInput.matches(':focus')) {
+                    noteInput.value = savedNote;
+                }
+            }
+
+            const statusNode = document.getElementById('recording-intent-note-status');
+            if (statusNode && !isStopped) {
+                statusNode.textContent = '';
+            }
+        }
+
+        async function saveIntentNote() {
+            const recordingId = recordingPanelSession?.recording_id;
+            const noteInput = document.getElementById('recording-intent-note-input');
+            const statusNode = document.getElementById('recording-intent-note-status');
+            if (!recordingId || !noteInput) {
+                return;
+            }
+
+            const note = noteInput.value.trim();
+            if (statusNode) {
+                statusNode.textContent = 'Saving...';
+            }
+
+            try {
+                const response = await fetch(apiUrl(`/recordings/${recordingId}/intent-note`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ intent_note: note }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to save note');
+                }
+
+                if (data.recording && recordingPanelSession) {
+                    recordingPanelSession.metadata = data.recording.metadata || recordingPanelSession.metadata;
+                }
+
+                if (statusNode) {
+                    statusNode.textContent = 'Saved';
+                    setTimeout(() => { statusNode.textContent = ''; }, 2000);
+                }
+            } catch (error) {
+                if (statusNode) {
+                    statusNode.textContent = `Error: ${error.message}`;
+                }
+            }
+        }
+
+        function updateCompilerSection() {
+            const draftNode = document.getElementById('recording-compiler-draft');
+            const metaNode = document.getElementById('recording-compiler-sop-meta');
+            const questionNode = document.getElementById('recording-compiler-question');
+            const questionText = document.getElementById('recording-compiler-question-text');
+            const compileBtn = document.getElementById('recording-compile-btn');
+
+            if (compileBtn) {
+                compileBtn.disabled = compilerCompiling || Boolean(compilerQuestion);
+                compileBtn.textContent = compilerCompiling ? 'Compiling...' : (compilerSop ? 'Recompile SOP' : 'Compile SOP');
+            }
+
+            // Show question UI when the agent is asking
+            if (questionNode && questionText) {
+                if (compilerQuestion) {
+                    questionText.textContent = compilerQuestion;
+                    questionNode.hidden = false;
+                } else {
+                    questionNode.hidden = true;
+                }
+            }
+
+            if (draftNode) {
+                if (compilerSop?.sop_markdown) {
+                    draftNode.innerHTML = renderSimpleMarkdown(compilerSop.sop_markdown);
+                    draftNode.hidden = false;
+                } else {
+                    draftNode.hidden = true;
+                }
+            }
+
+            if (metaNode) {
+                if (compilerSop) {
+                    const parts = [];
+                    if (compilerSop.goal) parts.push(`Goal: ${compilerSop.goal}`);
+                    if (compilerSop.step_count) parts.push(`${compilerSop.step_count} steps`);
+                    if (compilerSop.model) parts.push(`Model: ${compilerSop.model}`);
+                    metaNode.textContent = parts.join(' · ');
+                    metaNode.hidden = false;
+                } else {
+                    metaNode.hidden = true;
+                }
+            }
+        }
+
+        function renderSimpleMarkdown(md) {
+            return md
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function handleCompileResult(result) {
+            const compileStatus = document.getElementById('recording-compile-status');
+            if (!result) {
+                if (compileStatus) compileStatus.textContent = 'No result returned';
+                return;
+            }
+
+            if (result.status === 'asking') {
+                compilerQuestion = result.question || 'The compiler agent has a question.';
+                if (compileStatus) {
+                    compileStatus.textContent = 'Waiting for your answer...';
+                }
+            } else {
+                compilerQuestion = null;
+                compilerSop = result;
+                if (compileStatus) {
+                    compileStatus.textContent = result.sop_markdown ? 'SOP ready' : 'No SOP returned';
+                    setTimeout(() => { compileStatus.textContent = ''; }, 3000);
+                }
+                // Save to recording metadata if completed
+                if (result.status === 'completed' && recordingPanelSession?.recording_id) {
+                    // Metadata save happens server-side; frontend just displays.
+                }
+            }
+        }
+
+        function appendCompilerLogEntry(data) {
+            const logNode = document.getElementById('recording-compiler-log');
+            if (!logNode) return;
+            logNode.hidden = false;
+
+            const entry = document.createElement('div');
+            entry.className = 'compiler-log-entry collapsed';
+
+            const evtType = data.type || '';
+            const toolName = data.tool_name || '';
+            const fullText = data.text || '';
+            const TRUNCATE = 160;
+            const needsTruncation = fullText.length > TRUNCATE;
+            const preview = needsTruncation ? fullText.substring(0, TRUNCATE) : fullText;
+
+            let label = '';
+            let labelClass = '';
+            if (evtType === 'ActionEvent') {
+                label = toolName ? `STEP [${toolName}]` : 'STEP';
+                labelClass = 'action';
+                if (toolName === 'ask_user') {
+                    label = 'ASK';
+                    labelClass = 'ask';
+                }
+            } else if (evtType === 'ObservationEvent') {
+                label = toolName ? `RESULT [${toolName}]` : 'RESULT';
+                labelClass = 'result';
+            } else if (evtType === 'MessageEvent') {
+                const role = data.role || data.source || '';
+                label = role === 'user' ? 'USER' : 'AGENT';
+                labelClass = 'message';
+            } else {
+                label = evtType;
+                labelClass = 'message';
+            }
+
+            let textHtml = '';
+            if (needsTruncation) {
+                textHtml = `<span class="compiler-log-preview">${escapeHtml(preview)}<span class="compiler-log-ellipsis"> [+${fullText.length - TRUNCATE} chars]</span></span>` +
+                           `<span class="compiler-log-full">${escapeHtml(fullText)}</span>`;
+            } else {
+                textHtml = `<span class="compiler-log-full">${escapeHtml(fullText)}</span>`;
+            }
+
+            // Image support (keyframe screenshots from trace_viewer)
+            let imageHtml = '';
+            const imageUrl = data.image || '';
+            if (imageUrl) {
+                imageHtml = `<img class="compiler-log-image" src="${escapeHtml(imageUrl)}" alt="keyframe" loading="lazy">`;
+            }
+
+            entry.innerHTML = `<span class="compiler-log-label ${labelClass}">${label}</span><span class="compiler-log-text">${textHtml}</span>${imageHtml}`;
+
+            if (needsTruncation || imageUrl) {
+                entry.addEventListener('click', () => entry.classList.toggle('collapsed'));
+            } else {
+                entry.style.cursor = 'default';
+            }
+
+            logNode.appendChild(entry);
+            logNode.scrollTop = logNode.scrollHeight;
+        }
+
+        async function streamCompilerSSE(url, body) {
+            const compileStatus = document.getElementById('recording-compile-status');
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+                let detail = 'Compilation failed';
+                try {
+                    const err = await response.json();
+                    detail = err.detail || detail;
+                } catch (_) {}
+                throw new Error(detail);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let currentEvent = { type: 'message', data: '' };
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (let line of lines) {
+                    line = line.trim();
+
+                    if (line === '' && currentEvent.data) {
+                        // End of SSE event — process it
+                        const evtType = currentEvent.type;
+                        const evtData = currentEvent.data;
+                        currentEvent = { type: 'message', data: '' };
+
+                        if (evtType === 'agent_event') {
+                            try {
+                                const parsed = JSON.parse(evtData);
+                                appendCompilerLogEntry(parsed);
+                                if (compileStatus) {
+                                    const toolName = parsed.tool_name || '';
+                                    const pType = parsed.type || '';
+                                    if (pType === 'ActionEvent' && toolName) {
+                                        compileStatus.textContent = `Running ${toolName}...`;
+                                    } else if (pType === 'MessageEvent' && parsed.source === 'agent') {
+                                        compileStatus.textContent = 'Agent thinking...';
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('[Compiler SSE] Bad JSON in agent_event:', e);
+                            }
+                        } else if (evtType === 'complete') {
+                            try {
+                                const parsed = JSON.parse(evtData);
+                                handleCompileResult(parsed.result);
+                            } catch (e) {
+                                console.warn('[Compiler SSE] Bad JSON in complete:', e);
+                            }
+                        } else if (evtType === 'error') {
+                            try {
+                                const parsed = JSON.parse(evtData);
+                                throw new Error(parsed.error || 'Compiler agent error');
+                            } catch (e) {
+                                if (e.message) throw e;
+                                throw new Error('Unknown compiler error');
+                            }
+                        }
+                        continue;
+                    }
+
+                    if (line === '' || line.startsWith(':')) continue;
+
+                    const colonIndex = line.indexOf(':');
+                    if (colonIndex < 0) continue;
+                    const field = line.substring(0, colonIndex).trim();
+                    let val = line.substring(colonIndex + 1);
+                    if (val.startsWith(' ')) val = val.substring(1);
+
+                    if (field === 'event') {
+                        currentEvent.type = val;
+                    } else if (field === 'data') {
+                        currentEvent.data = currentEvent.data ? currentEvent.data + '\n' + val : val;
+                    }
+                }
+            }
+        }
+
+        async function compileRecording() {
+            const recordingId = recordingPanelSession?.recording_id;
+            if (!recordingId || compilerCompiling) return;
+
+            // Ensure we're in compile phase
+            recordingPhase = 'compile';
+            compilerCompiling = true;
+            compilerSop = null;
+            compilerQuestion = null;
+
+            // Clear the log
+            const logNode = document.getElementById('recording-compiler-log');
+            if (logNode) { logNode.innerHTML = ''; logNode.hidden = true; }
+
+            updateRecordingPanel();
+
+            const compileStatus = document.getElementById('recording-compile-status');
+            if (compileStatus) compileStatus.textContent = 'Starting compiler agent...';
+
+            try {
+                await streamCompilerSSE(
+                    apiUrl(`/recordings/${recordingId}/compile`),
+                    { model_alias: getSelectedModelAlias() },
+                );
+            } catch (error) {
+                if (compileStatus) compileStatus.textContent = `Error: ${error.message}`;
+            } finally {
+                compilerCompiling = false;
+                updateRecordingPanel();
+            }
+        }
+
+        async function sendCompilerAnswer() {
+            const recordingId = recordingPanelSession?.recording_id;
+            const textarea = document.getElementById('recording-compiler-answer-textarea');
+            if (!recordingId || !compilerQuestion || !textarea) return;
+
+            const answer = textarea.value.trim();
+            if (!answer) return;
+
+            compilerCompiling = true;
+            compilerQuestion = null;
+            textarea.value = '';
+            updateRecordingPanel();
+
+            const compileStatus = document.getElementById('recording-compile-status');
+            if (compileStatus) compileStatus.textContent = 'Continuing compilation...';
+
+            try {
+                await streamCompilerSSE(
+                    apiUrl(`/recordings/${recordingId}/compile/answer`),
+                    { answer },
+                );
+            } catch (error) {
+                if (compileStatus) compileStatus.textContent = `Error: ${error.message}`;
+            } finally {
+                compilerCompiling = false;
+                updateRecordingPanel();
             }
         }
 
