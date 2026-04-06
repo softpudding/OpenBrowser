@@ -331,8 +331,9 @@ OpenBrowser has explicit screenshot control for maximum flexibility:
 - Recording keyframes must **not** be attached to `page_view` events.
 - Reason: `page_view` is emitted during content-script `resume` / `start-recording` after refresh or reload, which is earlier than a stable post-load milestone.
 - Capturing a screenshot in that early `page_view` phase was reproduced to shrink the live Chrome page into the top-left corner during recording sessions.
-- During manual recording, prefer `tab_ready` as the only screenshot-bearing event and keep `page_view`, `click`, and `submit` as trace/log signals only.
-- Reason: action-time keyframes on the live recording tab were observed to cause visible flashing and can still reproduce the same top-left shrink artifact during navigation or compositor transitions.
+- `tab_ready` should stay as a lifecycle event and must not be the sole source of recording screenshots.
+- Reason: on slow pages, users often start interacting while the tab still reports loading; waiting for `tab_ready` can miss the meaningful pre-load-complete actions entirely.
+- Prefer action-timed keyframes on `click` / `submit`, but discard them when the captured screenshot has already drifted to a different URL than the source event page. This preserves useful action context without trusting navigation-transition screenshots.
 
 ### Commands That Return Screenshots
 

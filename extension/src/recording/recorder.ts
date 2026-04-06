@@ -2,6 +2,11 @@ import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import type { RecordingLaunchMode } from '../types';
 import { captureScreenshot, compressIfNeeded } from '../commands/screenshot';
 import type { ScreenshotCaptureOptions } from '../utils/highlight-screenshot';
+import {
+  getRecordingKeyframeWaitForRender,
+  shouldCaptureRecordingKeyframe,
+  shouldDiscardPostCaptureRecordingKeyframe,
+} from './keyframe-policy';
 
 const SERVER_HTTP_URL = 'http://127.0.0.1:8765';
 const DEFAULT_RECORDING_LAUNCH_MODE: RecordingLaunchMode = 'dedicated_window';
@@ -22,7 +27,6 @@ const RECORDING_KEYFRAME_THRESHOLD_BYTES = 380 * 1024;
 const RECORDING_KEYFRAME_MIN_QUALITY = 40;
 const RECORDING_SCREENSHOT_CONVERSATION_PREFIX = 'recording';
 const ACTIVE_RECORDING_STORAGE_KEY = 'openbrowser_active_recording';
-const CRITICAL_KEYFRAME_EVENT_TYPES = new Set(['tab_ready']);
 
 interface RecordingScope {
   launchMode: RecordingLaunchMode;
@@ -278,10 +282,6 @@ function postRecordingEvent(
     });
 }
 
-function shouldCaptureKeyframe(eventType: string): boolean {
-  return CRITICAL_KEYFRAME_EVENT_TYPES.has(eventType);
-}
-
 async function buildRecordingKeyframe(
   tabId: number,
   recordingId: string,
@@ -349,17 +349,49 @@ async function enrichEventDataWithKeyframe(
   // fires during content-script resume/start-recording immediately after reloads,
   // before the page has fully stabilized. Recording experiments showed that
   // capturing a keyframe in that early phase can shrink the live Chrome page
-  // into the top-left corner. Use tab_ready for startup snapshots instead.
+  // into the top-left corner. Keep page_view as a lifecycle signal only.
   if (eventType === 'page_view') {
     return eventData;
   }
 
-  if (!shouldCaptureKeyframe(eventType) || !tab.id || !isRecordableUrl(tab.url)) {
+  if (
+    !shouldCaptureRecordingKeyframe(eventType) ||
+    !tab.id ||
+    !isRecordableUrl(tab.url)
+  ) {
     return eventData;
   }
 
-  const keyframe = await buildRecordingKeyframe(tab.id, recording.recordingId, eventType);
+  const keyframe = await buildRecordingKeyframe(
+    tab.id,
+    recording.recordingId,
+    eventType,
+    getRecordingKeyframeWaitForRender(eventType),
+  );
   if (!keyframe) {
+    return eventData;
+  }
+
+  if (shouldDiscardPostCaptureRecordingKeyframe(eventType, eventData, keyframe)) {
+    console.warn(
+      `⚠️ [Recorder] Discarding ${eventType} keyframe because capture drifted to another page`,
+      {
+        tabId: tab.id,
+        eventUrl:
+          (eventData.page &&
+          typeof eventData.page === 'object' &&
+          'url' in eventData.page
+            ? (eventData.page as { url?: unknown }).url
+            : undefined) ??
+          (eventData.tab &&
+          typeof eventData.tab === 'object' &&
+          'url' in eventData.tab
+            ? (eventData.tab as { url?: unknown }).url
+            : undefined) ??
+          null,
+        capturedUrl: keyframe.url ?? null,
+      },
+    );
     return eventData;
   }
 
@@ -815,19 +847,7 @@ export function initializeRecordingEventListeners(): void {
             .catch(() => {
               // Ignore tabs that cannot receive content-script messages.
             });
-          void enrichEventDataWithKeyframe(
-            recording,
-            'tab_ready',
-            tab,
-            serializeTab(tab, { tabId }),
-          )
-            .then((eventData) => {
-              postRecordingEvent('tab_ready', eventData);
-            })
-            .catch((error) => {
-              console.warn('⚠️ [Recorder] Failed to enrich tab_ready keyframe:', error);
-              postRecordingEvent('tab_ready', serializeTab(tab, { tabId }));
-            });
+          postRecordingEvent('tab_ready', serializeTab(tab, { tabId }));
         }
       })
       .catch((error) => {
