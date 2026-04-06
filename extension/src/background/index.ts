@@ -1028,8 +1028,19 @@ chrome.action.onClicked.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'openbrowser:get-recording-state') {
-    sendResponse(getRecordingState());
-    return false;
+    void getRecordingState()
+      .then((state) => {
+        sendResponse(state);
+      })
+      .catch((error) => {
+        console.warn('⚠️ Failed to resolve recording state:', error);
+        sendResponse({
+          active: false,
+          recording_id: null,
+          scope: null,
+        });
+      });
+    return true;
   }
 
   if (message?.type === 'openbrowser:recording-event') {
@@ -1089,7 +1100,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           return {
             success: true,
             message: `Recording ${command.recording_id} started`,
-            data: getRecordingState(),
+            data: await getRecordingState(),
             timestamp: Date.now(),
           };
         }
@@ -1098,7 +1109,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         return {
           success: true,
           message: `Recording ${command.recording_id} stopped`,
-          data: getRecordingState(),
+          data: await getRecordingState(),
           timestamp: Date.now(),
         };
       }

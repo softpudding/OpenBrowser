@@ -165,3 +165,118 @@ class TestRecordingRoutes:
         updated = temp_recording_manager.get_recording(session.recording_id)
         assert updated is not None
         assert updated.status == RecordingStatus.STOPPED
+
+    def test_stop_recording_rejects_disconnected_browser(
+        self, client: TestClient, temp_recording_manager: RecordingManager
+    ) -> None:
+        """Stop should fail instead of silently marking the session stopped."""
+        session = temp_recording_manager.create_recording(browser_id="browser-123")
+
+        with (
+            patch(
+                "server.api.routes.recordings.recording_manager",
+                temp_recording_manager,
+            ),
+            patch(
+                "server.api.routes.recordings.ws_manager.is_browser_valid",
+                return_value=False,
+            ),
+        ):
+            response = client.post(f"/recordings/{session.recording_id}/stop")
+
+        assert response.status_code == 409
+        updated = temp_recording_manager.get_recording(session.recording_id)
+        assert updated is not None
+        assert updated.status == RecordingStatus.ACTIVE
+
+    def test_workflow_draft_compiles_normalized_steps(
+        self, client: TestClient, temp_recording_manager: RecordingManager
+    ) -> None:
+        """Workflow draft should merge raw form events and extract inputs."""
+        session = temp_recording_manager.create_recording(
+            browser_id="browser-123",
+            name="Search flow",
+        )
+
+        events = [
+            {
+                "event_type": "page_view",
+                "event_data": {
+                    "timestamp": 1000,
+                    "page": {"url": "https://example.com", "title": "Example"},
+                },
+            },
+            {
+                "event_type": "focus",
+                "event_data": {
+                    "timestamp": 1100,
+                    "element": {
+                        "selector": "#search",
+                        "placeholder": "Search",
+                    },
+                },
+            },
+            {
+                "event_type": "input",
+                "event_data": {
+                    "timestamp": 1200,
+                    "element": {
+                        "selector": "#search",
+                        "value": "openbrowser",
+                        "placeholder": "Search",
+                        "isSensitive": False,
+                    },
+                },
+            },
+            {
+                "event_type": "change",
+                "event_data": {
+                    "timestamp": 1250,
+                    "element": {
+                        "selector": "#search",
+                        "value": "openbrowser",
+                        "placeholder": "Search",
+                        "isSensitive": False,
+                    },
+                },
+            },
+            {
+                "event_type": "submit",
+                "event_data": {
+                    "timestamp": 1300,
+                    "form": {"selector": "form.search-form"},
+                },
+            },
+        ]
+
+        for index, event in enumerate(events):
+            temp_recording_manager.save_recording_event(
+                recording_id=session.recording_id,
+                event_type=event["event_type"],
+                event_data=event["event_data"],
+                event_index=index,
+            )
+
+        with patch(
+            "server.api.routes.recordings.recording_manager",
+            temp_recording_manager,
+        ):
+            response = client.get(f"/recordings/{session.recording_id}/workflow-draft")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["normalized_step_count"] == 2
+
+        steps = data["normalized_steps"]
+        assert steps[0]["type"] == "navigate"
+        assert steps[1]["type"] == "form"
+        assert steps[1]["action"] == "form_fill_submit"
+        assert steps[1]["source_event_indexes"] == [1, 2, 3, 4]
+
+        workflow = data["workflow"]
+        assert workflow["goal"]["text"] == "Search flow"
+        assert workflow["executor_preference"] == "hybrid"
+        assert len(workflow["inputs"]) == 1
+        assert workflow["inputs"][0]["name"] == "input_1"
+        assert workflow["inputs"][0]["default"] == "openbrowser"

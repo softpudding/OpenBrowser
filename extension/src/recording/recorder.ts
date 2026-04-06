@@ -21,11 +21,8 @@ const RECORDING_KEYFRAME_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
 const RECORDING_KEYFRAME_THRESHOLD_BYTES = 380 * 1024;
 const RECORDING_KEYFRAME_MIN_QUALITY = 40;
 const RECORDING_SCREENSHOT_CONVERSATION_PREFIX = 'recording';
-const CRITICAL_KEYFRAME_EVENT_TYPES = new Set([
-  'click',
-  'submit',
-  'tab_ready',
-]);
+const ACTIVE_RECORDING_STORAGE_KEY = 'openbrowser_active_recording';
+const CRITICAL_KEYFRAME_EVENT_TYPES = new Set(['tab_ready']);
 
 interface RecordingScope {
   launchMode: RecordingLaunchMode;
@@ -38,6 +35,19 @@ interface ActiveRecording {
   recordingId: string;
   startedAt: number;
   scope: RecordingScope;
+}
+
+interface PersistedRecordingScope {
+  launchMode: RecordingLaunchMode;
+  windowId: number | null;
+  groupId: number | null;
+  tabIds: number[];
+}
+
+interface PersistedActiveRecording {
+  recordingId: string;
+  startedAt: number;
+  scope: PersistedRecordingScope;
 }
 
 interface ContentRecordingEventMessage {
@@ -87,6 +97,116 @@ function serializeRecordingScope(scope: RecordingScope): Record<string, unknown>
     group_id: scope.groupId,
     tab_ids: Array.from(scope.tabIds.values()).sort((a, b) => a - b),
   };
+}
+
+function serializeRecordingScopeForStorage(
+  scope: RecordingScope,
+): PersistedRecordingScope {
+  return {
+    launchMode: scope.launchMode,
+    windowId: scope.windowId,
+    groupId: scope.groupId,
+    tabIds: Array.from(scope.tabIds.values()).sort((a, b) => a - b),
+  };
+}
+
+function serializeActiveRecordingForStorage(
+  recording: ActiveRecording,
+): PersistedActiveRecording {
+  return {
+    recordingId: recording.recordingId,
+    startedAt: recording.startedAt,
+    scope: serializeRecordingScopeForStorage(recording.scope),
+  };
+}
+
+function deserializeRecordingScope(
+  value: unknown,
+): RecordingScope | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const scope = value as {
+    launchMode?: unknown;
+    windowId?: unknown;
+    groupId?: unknown;
+    tabIds?: unknown;
+  };
+  const launchMode =
+    scope.launchMode === 'current_window' ? 'current_window' : 'dedicated_window';
+  const tabIds = Array.isArray(scope.tabIds)
+    ? scope.tabIds.filter((tabId): tabId is number => typeof tabId === 'number')
+    : [];
+
+  return {
+    launchMode,
+    windowId: typeof scope.windowId === 'number' ? scope.windowId : null,
+    groupId: typeof scope.groupId === 'number' ? scope.groupId : null,
+    tabIds: new Set(tabIds),
+  };
+}
+
+function deserializeActiveRecording(value: unknown): ActiveRecording | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const raw = value as {
+    recordingId?: unknown;
+    startedAt?: unknown;
+    scope?: unknown;
+  };
+  if (
+    typeof raw.recordingId !== 'string' ||
+    typeof raw.startedAt !== 'number'
+  ) {
+    return null;
+  }
+
+  const scope = deserializeRecordingScope(raw.scope);
+  if (!scope) {
+    return null;
+  }
+
+  return {
+    recordingId: raw.recordingId,
+    startedAt: raw.startedAt,
+    scope,
+  };
+}
+
+async function persistActiveRecording(
+  recording: ActiveRecording | null,
+): Promise<void> {
+  await chrome.storage.local.set({
+    [ACTIVE_RECORDING_STORAGE_KEY]: recording
+      ? serializeActiveRecordingForStorage(recording)
+      : null,
+  });
+}
+
+async function loadActiveRecordingFromStorage(): Promise<ActiveRecording | null> {
+  try {
+    const stored = await chrome.storage.local.get(ACTIVE_RECORDING_STORAGE_KEY);
+    const restored = deserializeActiveRecording(
+      stored?.[ACTIVE_RECORDING_STORAGE_KEY],
+    );
+    activeRecording = restored;
+    return restored;
+  } catch (error) {
+    console.warn('⚠️ [Recorder] Failed to restore active recording state:', error);
+    activeRecording = null;
+    return null;
+  }
+}
+
+async function getActiveRecording(): Promise<ActiveRecording | null> {
+  if (activeRecording) {
+    return activeRecording;
+  }
+
+  return loadActiveRecordingFromStorage();
 }
 
 function serializeTab(
@@ -145,14 +265,17 @@ function postRecordingEvent(
   eventType: string,
   eventData: Record<string, unknown> = {},
 ): void {
-  const recording = activeRecording;
-  if (!recording) {
-    return;
-  }
+  void getActiveRecording()
+    .then((recording) => {
+      if (!recording) {
+        return;
+      }
 
-  void postRecordingEventFor(recording, eventType, eventData).catch((error) => {
-    console.error(`❌ [Recorder] Failed to upload ${eventType}:`, error);
-  });
+      return postRecordingEventFor(recording, eventType, eventData);
+    })
+    .catch((error) => {
+      console.error(`❌ [Recorder] Failed to upload ${eventType}:`, error);
+    });
 }
 
 function shouldCaptureKeyframe(eventType: string): boolean {
@@ -309,6 +432,7 @@ async function addTabToRecordingScope(
 
   recording.scope.tabIds.add(tab.id);
   await ensureTabIsGrouped(tab.id, recording.scope);
+  await persistActiveRecording(recording);
 }
 
 async function createDedicatedWindowScope(
@@ -318,13 +442,14 @@ async function createDedicatedWindowScope(
     focused: true,
   });
 
-  if (!createdWindow.id) {
+  const windowId = createdWindow?.id;
+  if (typeof windowId !== 'number') {
     throw new Error('Failed to create dedicated recording window');
   }
 
   const initialTab =
-    createdWindow.tabs?.find((tab) => typeof tab.id === 'number') ??
-    (await chrome.tabs.query({ windowId: createdWindow.id }))[0];
+    createdWindow?.tabs?.find((tab) => typeof tab.id === 'number') ??
+    (await chrome.tabs.query({ windowId }))[0];
 
   if (!initialTab?.id) {
     throw new Error('Failed to create initial tab for dedicated recording window');
@@ -344,7 +469,7 @@ async function createDedicatedWindowScope(
     }
 
     groupId = await chrome.tabs.group({
-      createProperties: { windowId: createdWindow.id },
+      createProperties: { windowId },
       tabIds: [initialTab.id],
     });
 
@@ -357,7 +482,7 @@ async function createDedicatedWindowScope(
 
   return {
     launchMode: 'dedicated_window',
-    windowId: createdWindow.id,
+    windowId,
     groupId,
     tabIds: new Set([initialTab.id]),
   };
@@ -407,15 +532,30 @@ async function sendRecordingStateMessageToScope(
   recording: ActiveRecording,
   message: Record<string, unknown>,
 ): Promise<void> {
-  const tabIds = Array.from(recording.scope.tabIds.values());
+  const tabs =
+    recording.scope.windowId !== null
+      ? await chrome.tabs.query({ windowId: recording.scope.windowId })
+      : await Promise.all(
+          Array.from(recording.scope.tabIds.values()).map(async (tabId) => {
+            try {
+              return await chrome.tabs.get(tabId);
+            } catch {
+              return null;
+            }
+          }),
+        );
+
   await Promise.all(
-    tabIds.map(async (tabId) => {
+    tabs.map(async (tab) => {
+      if (!tab?.id) {
+        return;
+      }
+
       try {
-        const tab = await chrome.tabs.get(tabId);
         if (!isRecordableUrl(tab.url)) {
           return;
         }
-        await chrome.tabs.sendMessage(tabId, message);
+        await chrome.tabs.sendMessage(tab.id, message);
       } catch {
         // Some pages cannot receive messages or the tab may have been removed.
       }
@@ -423,11 +563,64 @@ async function sendRecordingStateMessageToScope(
   );
 }
 
+async function cleanupRecordingTabGroup(scope: RecordingScope): Promise<void> {
+  if (!chrome.tabGroups || scope.groupId === null) {
+    return;
+  }
+
+  try {
+    const tabsInWindow =
+      scope.windowId !== null
+        ? await chrome.tabs.query({ windowId: scope.windowId })
+        : await chrome.tabs.query({});
+
+    const groupedTabIds = tabsInWindow
+      .filter(
+        (tab): tab is chrome.tabs.Tab & { id: number } =>
+          typeof tab.id === 'number' && tab.groupId === scope.groupId,
+      )
+      .map((tab) => tab.id);
+
+    if (groupedTabIds.length === 0) {
+      return;
+    }
+
+    const [firstTabId, ...otherTabIds] = groupedTabIds;
+    await chrome.tabs.ungroup([firstTabId, ...otherTabIds]);
+  } catch (error) {
+    console.warn(
+      `⚠️ [Recorder] Failed to ungroup recording tab group ${scope.groupId}:`,
+      error,
+    );
+  }
+}
+
+async function cleanupRecordingScope(scope: RecordingScope): Promise<void> {
+  await cleanupRecordingTabGroup(scope);
+
+  if (
+    scope.launchMode !== 'dedicated_window' ||
+    scope.windowId === null
+  ) {
+    return;
+  }
+
+  try {
+    await chrome.windows.remove(scope.windowId);
+  } catch (error) {
+    console.warn(
+      `⚠️ [Recorder] Failed to close dedicated recording window ${scope.windowId}:`,
+      error,
+    );
+  }
+}
+
 export async function startRecording(
   recordingId: string,
   launchMode?: RecordingLaunchMode,
 ): Promise<void> {
-  if (activeRecording?.recordingId === recordingId) {
+  const existingRecording = await getActiveRecording();
+  if (existingRecording?.recordingId === recordingId) {
     return;
   }
 
@@ -439,6 +632,7 @@ export async function startRecording(
   };
 
   activeRecording = recording;
+  await persistActiveRecording(recording);
 
   await sendRecordingStateMessageToScope(recording, {
     type: 'openbrowser:start-recording',
@@ -452,7 +646,7 @@ export async function startRecording(
 }
 
 export async function stopRecording(recordingId?: string): Promise<void> {
-  const recording = activeRecording;
+  const recording = await getActiveRecording();
   if (!recording) {
     return;
   }
@@ -475,18 +669,21 @@ export async function stopRecording(recordingId?: string): Promise<void> {
     console.error('❌ [Recorder] Failed to upload recording_stopped:', error);
   });
 
+  await cleanupRecordingScope(recording.scope);
   activeRecording = null;
+  await persistActiveRecording(null);
 }
 
-export function getRecordingState(): {
+export async function getRecordingState(): Promise<{
   active: boolean;
   recording_id: string | null;
   scope: Record<string, unknown> | null;
-} {
+}> {
+  const recording = await getActiveRecording();
   return {
-    active: activeRecording !== null,
-    recording_id: activeRecording?.recordingId ?? null,
-    scope: activeRecording ? serializeRecordingScope(activeRecording.scope) : null,
+    active: recording !== null,
+    recording_id: recording?.recordingId ?? null,
+    scope: recording ? serializeRecordingScope(recording.scope) : null,
   };
 }
 
@@ -494,7 +691,7 @@ export async function handleContentRecordingEvent(
   message: ContentRecordingEventMessage,
   sender: chrome.runtime.MessageSender,
 ): Promise<void> {
-  const recording = activeRecording;
+  const recording = await getActiveRecording();
   if (!recording) {
     return;
   }
@@ -532,13 +729,13 @@ export function initializeRecordingEventListeners(): void {
   listenersInitialized = true;
 
   chrome.tabs.onCreated.addListener((tab) => {
-    const recording = activeRecording;
-    if (!recording || !isTabRelatedToRecordingScope(recording.scope, tab)) {
-      return;
-    }
+    void getActiveRecording()
+      .then(async (recording) => {
+        if (!recording || !isTabRelatedToRecordingScope(recording.scope, tab)) {
+          return;
+        }
 
-    void addTabToRecordingScope(recording, tab)
-      .then(() => {
+        await addTabToRecordingScope(recording, tab);
         if (isRecordableUrl(tab.url)) {
           postRecordingEvent('tab_created', serializeTab(tab));
         }
@@ -549,24 +746,24 @@ export function initializeRecordingEventListeners(): void {
   });
 
   chrome.tabs.onActivated.addListener((activeInfo) => {
-    const recording = activeRecording;
-    if (!recording) {
-      return;
-    }
-
-    void chrome.tabs
-      .get(activeInfo.tabId)
-      .then(async (tab) => {
-        if (!isTabRelatedToRecordingScope(recording.scope, tab)) {
+    void getActiveRecording()
+      .then((recording) => {
+        if (!recording) {
           return;
         }
 
-        await addTabToRecordingScope(recording, tab);
-        if (!isRecordableUrl(tab.url)) {
-          return;
-        }
+        return chrome.tabs.get(activeInfo.tabId).then(async (tab) => {
+          if (!isTabRelatedToRecordingScope(recording.scope, tab)) {
+            return;
+          }
 
-        postRecordingEvent('tab_activated', serializeTab(tab));
+          await addTabToRecordingScope(recording, tab);
+          if (!isRecordableUrl(tab.url)) {
+            return;
+          }
+
+          postRecordingEvent('tab_activated', serializeTab(tab));
+        });
       })
       .catch((error) => {
         console.warn('⚠️ [Recorder] Failed to read activated tab:', error);
@@ -574,31 +771,37 @@ export function initializeRecordingEventListeners(): void {
   });
 
   chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
-    const recording = activeRecording;
-    if (
-      !recording ||
-      (!isTabIdInRecordingScope(recording.scope, tabId) &&
-        recording.scope.windowId !== removeInfo.windowId)
-    ) {
-      return;
-    }
+    void getActiveRecording()
+      .then(async (recording) => {
+        if (
+          !recording ||
+          (!isTabIdInRecordingScope(recording.scope, tabId) &&
+            recording.scope.windowId !== removeInfo.windowId)
+        ) {
+          return;
+        }
 
-    recording.scope.tabIds.delete(tabId);
-    postRecordingEvent('tab_closed', {
-      tabId,
-      windowId: removeInfo.windowId,
-      isWindowClosing: removeInfo.isWindowClosing,
-    });
+        recording.scope.tabIds.delete(tabId);
+        await persistActiveRecording(recording);
+        postRecordingEvent('tab_closed', {
+          tabId,
+          windowId: removeInfo.windowId,
+          isWindowClosing: removeInfo.isWindowClosing,
+        });
+      })
+      .catch((error) => {
+        console.warn('⚠️ [Recorder] Failed to update removed tab state:', error);
+      });
   });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    const recording = activeRecording;
-    if (!recording || !isTabRelatedToRecordingScope(recording.scope, tab)) {
-      return;
-    }
+    void getActiveRecording()
+      .then(async (recording) => {
+        if (!recording || !isTabRelatedToRecordingScope(recording.scope, tab)) {
+          return;
+        }
 
-    void addTabToRecordingScope(recording, tab)
-      .then(() => {
+        await addTabToRecordingScope(recording, tab);
         if (changeInfo.url && isRecordableUrl(changeInfo.url)) {
           postRecordingEvent('tab_navigated', serializeTab(tab, { tabId }));
         }

@@ -1883,12 +1883,16 @@
         .recording-panel-card {
             flex: 1 1 auto;
             min-height: 0;
+            max-height: 100%;
             gap: 18px;
             border-color: rgba(215, 111, 92, 0.26);
             background:
                 radial-gradient(circle at top right, rgba(215, 111, 92, 0.14), transparent 40%),
                 linear-gradient(180deg, rgba(39, 29, 24, 0.98), rgba(23, 19, 16, 0.94));
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
         }
 
         .recording-panel-header,
@@ -1916,7 +1920,7 @@
 
         .recording-summary-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 12px;
         }
 
@@ -1947,6 +1951,48 @@
             overflow-wrap: anywhere;
         }
 
+        .recording-review-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+            gap: 18px;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        .recording-review-pane {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            border-radius: 18px;
+            border: 1px solid rgba(204, 175, 140, 0.12);
+            background: rgba(20, 16, 13, 0.74);
+            overflow: hidden;
+        }
+
+        .recording-review-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 16px 18px 0;
+            flex-wrap: wrap;
+        }
+
+        .recording-review-title {
+            color: var(--text-primary);
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .recording-review-copy {
+            padding: 0 18px;
+            color: var(--text-muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
         .recording-event-list {
             display: grid;
             grid-auto-rows: max-content;
@@ -1954,8 +2000,9 @@
             flex: 1 1 auto;
             gap: 12px;
             min-height: 0;
+            max-height: none;
             overflow-y: auto;
-            padding-right: 6px;
+            padding: 16px 18px 18px;
             overscroll-behavior: contain;
             scrollbar-gutter: stable;
         }
@@ -2139,6 +2186,52 @@
             color: var(--text-muted);
             font-size: 14px;
             line-height: 1.7;
+        }
+
+        .recording-workflow-draft {
+            display: flex;
+            flex: 1 1 auto;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+            padding: 16px 18px 18px;
+        }
+
+        .recording-workflow-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .recording-workflow-title {
+            color: var(--text-primary);
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .recording-workflow-summary {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .recording-workflow-json {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: none;
+            overflow: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
         }
 
         .agent-voice-header {
@@ -2909,11 +3002,24 @@
         }
 
         body.recording-panel-mode .main-terminal {
+            flex: 1 1 auto;
+            max-width: none;
+            min-width: 0;
             overflow: hidden;
+            padding-right: 0;
+        }
+
+        body.recording-panel-mode .right-panel,
+        body.recording-panel-mode .vertical-resizer {
+            display: none;
         }
 
         body.recording-panel-mode #recording-panel-card {
+            flex: 1 1 auto;
             height: 100%;
+            min-height: 0;
+            max-height: none;
+            overflow: hidden;
         }
 
         @media (max-width: 1320px) {
@@ -2986,6 +3092,10 @@
 
             body.recording-panel-mode .main-terminal {
                 overflow: hidden;
+            }
+
+            .recording-review-layout {
+                grid-template-columns: 1fr;
             }
 
             body.advanced-mode .composer-card,
@@ -3315,10 +3425,34 @@
                         </div>
                     </div>
 
-                    <div class="recording-event-list scrollbar" id="recording-event-list">
-                        <div class="recording-empty-state">
-                            No recording trace yet. Click <strong>Start Recording</strong>, do the workflow manually, and the captured events will appear here.
-                        </div>
+                    <div class="recording-review-layout">
+                        <section class="recording-review-pane">
+                            <div class="recording-review-header">
+                                <div class="recording-review-title">Captured Events</div>
+                                <span class="recording-event-badge" id="recording-events-badge">Timeline</span>
+                            </div>
+                            <div class="recording-review-copy">
+                                Review the normalized trace on the left before you decide whether the workflow draft matches the real intent.
+                            </div>
+                            <div class="recording-event-list scrollbar" id="recording-event-list">
+                                <div class="recording-empty-state">
+                                    No recording trace yet. Click <strong>Start Recording</strong>, do the workflow manually, and the captured events will appear here.
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="recording-review-pane">
+                            <section class="recording-workflow-draft" id="recording-workflow-draft">
+                                <div class="recording-workflow-header">
+                                    <div class="recording-workflow-title">Workflow Draft</div>
+                                    <span class="recording-event-badge" id="recording-workflow-badge">Waiting</span>
+                                </div>
+                                <div class="recording-workflow-summary" id="recording-workflow-summary">
+                                    Workflow JSON draft will appear after events are captured.
+                                </div>
+                                <pre class="recording-workflow-json scrollbar" id="recording-workflow-json">{}</pre>
+                            </section>
+                        </section>
                     </div>
                 </section>
 
@@ -3643,6 +3777,7 @@
         let recordingPanelVisible = false;
         let recordingPanelSession = null;
         let recordingEvents = [];
+        let recordingWorkflowDraft = null;
         let recordingPollTimer = null;
         let eventSource = null;
         let isProcessing = false;
@@ -4351,6 +4486,32 @@
             container.innerHTML = itemsHtml;
         }
 
+        function renderRecordingWorkflowDraft() {
+            const summaryNode = document.getElementById('recording-workflow-summary');
+            const jsonNode = document.getElementById('recording-workflow-json');
+            const badgeNode = document.getElementById('recording-workflow-badge');
+            if (!summaryNode || !jsonNode || !badgeNode) {
+                return;
+            }
+
+            if (!recordingWorkflowDraft || !recordingWorkflowDraft.workflow) {
+                badgeNode.textContent = 'Waiting';
+                summaryNode.textContent = 'Workflow JSON draft will appear after events are captured.';
+                jsonNode.textContent = '{}';
+                return;
+            }
+
+            const stepCount = Number(recordingWorkflowDraft.normalized_step_count) || 0;
+            const inputCount = Array.isArray(recordingWorkflowDraft.workflow?.inputs)
+                ? recordingWorkflowDraft.workflow.inputs.length
+                : 0;
+            const goal = recordingWorkflowDraft.workflow?.goal?.text || 'Unspecified goal';
+
+            badgeNode.textContent = `${stepCount} Steps`;
+            summaryNode.textContent = `Goal: ${goal}\nInputs: ${inputCount}\nExecutor: ${recordingWorkflowDraft.workflow?.executor_preference || 'hybrid'}`;
+            jsonNode.textContent = JSON.stringify(recordingWorkflowDraft.workflow, null, 2);
+        }
+
         function updateRecordingPanel() {
             const actionButton = document.getElementById('recording-panel-action-btn');
             const panelState = document.getElementById('recording-panel-state');
@@ -4359,6 +4520,7 @@
             const countValue = document.getElementById('recording-panel-count');
             const updatedValue = document.getElementById('recording-panel-updated');
             const copyValue = document.getElementById('recording-panel-copy');
+            const eventsBadge = document.getElementById('recording-events-badge');
             const activeSession = recordingPanelSession;
             const isRecording = Boolean(currentRecordingId);
             const launchMode = activeSession?.metadata?.launch_mode || 'dedicated_window';
@@ -4396,6 +4558,13 @@
                     : `Showing ${displayCount} grouped timeline entries from ${recordingEvents.length} raw events.`;
             }
 
+            if (eventsBadge) {
+                const displayCount = buildRecordingDisplayEntries(recordingEvents).length;
+                eventsBadge.textContent = displayCount === recordingEvents.length
+                    ? `${displayCount} events`
+                    : `${displayCount} shown`;
+            }
+
             if (updatedValue) {
                 const lastEvent = recordingEvents[recordingEvents.length - 1];
                 updatedValue.textContent = formatDisplayTime(
@@ -4416,6 +4585,7 @@
             }
 
             renderRecordingEvents();
+            renderRecordingWorkflowDraft();
         }
 
         function stopRecordingPolling() {
@@ -4457,6 +4627,7 @@
         async function refreshRecordingEvents(recordingId = recordingPanelSession?.recording_id) {
             if (!recordingId) {
                 recordingEvents = [];
+                recordingWorkflowDraft = null;
                 updateRecordingPanel();
                 return;
             }
@@ -4469,6 +4640,13 @@
                 }
 
                 recordingEvents = Array.isArray(data.events) ? data.events : [];
+                const workflowResponse = await fetch(apiUrl(`/recordings/${recordingId}/workflow-draft`));
+                const workflowData = await workflowResponse.json();
+                if (!workflowResponse.ok) {
+                    throw new Error(workflowData.detail || 'Failed to compile workflow draft');
+                }
+
+                recordingWorkflowDraft = workflowData;
                 updateRecordingPanel();
             } catch (error) {
                 console.warn('Failed to refresh recording events:', error);
@@ -4875,6 +5053,8 @@
             currentRecordingStatus = recording?.status || 'idle';
             if (recording) {
                 recordingPanelSession = recording;
+            } else {
+                recordingWorkflowDraft = null;
             }
             updateRecordingUi();
             updateRecordingPanel();
@@ -4921,6 +5101,7 @@
                 setRecordingState(null);
                 recordingPanelSession = null;
                 recordingEvents = [];
+                recordingWorkflowDraft = null;
                 stopRecordingPolling();
                 if (currentBrowserId) {
                     void syncRecordingStateForBrowser(currentBrowserId);
@@ -5006,6 +5187,7 @@
             openRecordingPanel();
             recordingPanelSession = null;
             recordingEvents = [];
+            recordingWorkflowDraft = null;
             updateRecordingPanel();
             try {
                 const response = await fetch(apiUrl('/recordings'), {
@@ -5023,6 +5205,7 @@
 
                 setRecordingState(data.recording);
                 recordingEvents = [];
+                recordingWorkflowDraft = null;
                 await refreshRecordingEvents(data.recording?.recording_id);
                 addEvent({
                     type: 'SystemEvent',

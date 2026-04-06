@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -12,6 +12,7 @@ from server.core.recording_manager import (
     RecordingStatus,
     recording_manager,
 )
+from server.core.workflow_compiler import compile_recording_trace
 from server.models.commands import (
     RecordingControlAction,
     RecordingControlCommand,
@@ -38,7 +39,7 @@ class CreateRecordingRequest(BaseModel):
     """Request body for creating a recording session."""
 
     browser_id: str
-    name: Optional[str] = None
+    name: str | None = None
     launch_mode: RecordingLaunchMode = RecordingLaunchMode.DEDICATED_WINDOW
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -65,7 +66,7 @@ async def create_recording(request: CreateRecordingRequest):
             },
         )
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     command = RecordingControlCommand(
         action=RecordingControlAction.START,
@@ -94,14 +95,16 @@ async def create_recording(request: CreateRecordingRequest):
 
 
 @router.get("")
-async def list_recordings(status: Optional[str] = None, browser_id: Optional[str] = None):
+async def list_recordings(status: str | None = None, browser_id: str | None = None):
     """List recording sessions."""
-    parsed_status: Optional[RecordingStatus] = None
+    parsed_status: RecordingStatus | None = None
     if status:
         try:
             parsed_status = RecordingStatus(status)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Unknown status: {status}")
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail=f"Unknown status: {status}"
+            ) from exc
 
     sessions = recording_manager.list_recordings(
         status=parsed_status,
@@ -138,6 +141,29 @@ async def get_recording_events(recording_id: str):
     }
 
 
+@router.get("/{recording_id}/workflow-draft")
+async def get_recording_workflow_draft(recording_id: str):
+    """Compile recording trace into normalized steps and workflow JSON draft."""
+    session = recording_manager.get_recording(recording_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    events = recording_manager.get_recording_events(recording_id)
+    draft = compile_recording_trace(
+        recording_id=recording_id,
+        events=events,
+        recording_name=session.name,
+    )
+
+    return {
+        "success": True,
+        "recording_id": recording_id,
+        "normalized_steps": draft.normalized_steps,
+        "normalized_step_count": len(draft.normalized_steps),
+        "workflow": draft.workflow,
+    }
+
+
 @router.post("/{recording_id}/stop")
 async def stop_recording(recording_id: str):
     """Stop an active recording session."""
@@ -146,9 +172,16 @@ async def stop_recording(recording_id: str):
         raise HTTPException(status_code=404, detail="Recording not found")
 
     extension_response = None
-    if session.status == RecordingStatus.ACTIVE and ws_manager.is_browser_valid(
-        session.browser_id
-    ):
+    if session.status == RecordingStatus.ACTIVE:
+        if not ws_manager.is_browser_valid(session.browser_id):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Browser is no longer connected, so the stop command "
+                    "cannot be delivered cleanly. Reconnect the browser and try again."
+                ),
+            )
+
         response = await command_processor.execute(
             RecordingControlCommand(
                 action=RecordingControlAction.STOP,
