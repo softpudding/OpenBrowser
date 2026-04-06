@@ -8,6 +8,7 @@ import {
   getRecordingKeyframeWaitForRender,
   getRecordingPreActionCaptureOptions,
   getRecordingPreActionWaitForRender,
+  isInputLikeRecordingTarget,
   shouldCaptureRecordingKeyframe,
   shouldDiscardPostCaptureRecordingKeyframe,
 } from './keyframe-policy';
@@ -22,6 +23,8 @@ const RECORDING_KEYFRAME_MIN_QUALITY = 40;
 const RECORDING_SCREENSHOT_CONVERSATION_PREFIX = 'recording';
 const ACTIVE_RECORDING_STORAGE_KEY = 'openbrowser_active_recording';
 const PRE_ACTION_KEYFRAME_TTL_MS = 1500;
+const FOCUS_CLICK_DEDUP_WINDOW_MS = 220;
+const INPUT_ENTER_DEDUP_WINDOW_MS = 240;
 
 interface RecordingScope {
   launchMode: RecordingLaunchMode;
@@ -30,10 +33,20 @@ interface RecordingScope {
   tabIds: Set<number>;
 }
 
+interface TabNavigationHistory {
+  entries: string[];
+  index: number;
+}
+
+interface RecordingNavigationState {
+  tabHistories: Map<number, TabNavigationHistory>;
+}
+
 interface ActiveRecording {
   recordingId: string;
   startedAt: number;
   scope: RecordingScope;
+  navigation: RecordingNavigationState;
 }
 
 interface PersistedRecordingScope {
@@ -47,6 +60,13 @@ interface PersistedActiveRecording {
   recordingId: string;
   startedAt: number;
   scope: PersistedRecordingScope;
+  navigation?: {
+    tabHistories?: Array<{
+      tabId: number;
+      entries: string[];
+      index: number;
+    }>;
+  } | null;
 }
 
 interface ContentRecordingEventMessage {
@@ -68,6 +88,10 @@ interface ContentRecordingPreActionMessage {
 }
 
 type RecordingPreActionType = 'click' | 'enter';
+type RecordingTabNavigationEventType =
+  | 'tab_navigated'
+  | 'tab_back'
+  | 'tab_forward';
 
 interface PendingPreActionKeyframe {
   recordingId: string;
@@ -81,9 +105,36 @@ interface PendingPreActionKeyframe {
   keyframePromise: Promise<Record<string, unknown> | null>;
 }
 
+interface PendingFocusEvent {
+  recordingId: string;
+  tabId: number;
+  targetSignature: string;
+  timeoutId: number;
+  tab: chrome.tabs.Tab;
+  eventData: Record<string, unknown>;
+}
+
+interface PendingInputEvent {
+  recordingId: string;
+  tabId: number;
+  targetSignature: string;
+  tab: chrome.tabs.Tab;
+  latestEventData: Record<string, unknown>;
+  sourceEventCount: number;
+  boundaryTimeoutId: number | null;
+}
+
 let activeRecording: ActiveRecording | null = null;
 let listenersInitialized = false;
 const pendingPreActionKeyframes = new Map<string, PendingPreActionKeyframe>();
+const pendingFocusEvents = new Map<string, PendingFocusEvent>();
+const pendingInputEvents = new Map<string, PendingInputEvent>();
+
+function createEmptyRecordingNavigationState(): RecordingNavigationState {
+  return {
+    tabHistories: new Map<number, TabNavigationHistory>(),
+  };
+}
 
 function getRecordingScreenshotConversationId(recordingId: string): string {
   return `${RECORDING_SCREENSHOT_CONVERSATION_PREFIX}:${recordingId}`;
@@ -95,6 +146,22 @@ function getPendingPreActionKey(
   actionType: RecordingPreActionType,
 ): string {
   return `${recordingId}:${tabId}:${actionType}`;
+}
+
+function getPendingFocusKey(
+  recordingId: string,
+  tabId: number,
+  targetSignature: string,
+): string {
+  return `${recordingId}:${tabId}:focus:${targetSignature}`;
+}
+
+function getPendingInputKey(
+  recordingId: string,
+  tabId: number,
+  targetSignature: string,
+): string {
+  return `${recordingId}:${tabId}:input:${targetSignature}`;
 }
 
 function normalizeComparableString(value: unknown): string | null {
@@ -207,6 +274,10 @@ function getPreActionBindingType(
     return 'click';
   }
 
+  if (eventType === 'focus') {
+    return isInputLikeRecordingTarget(eventData.element) ? 'click' : null;
+  }
+
   if (eventType === 'keydown') {
     return normalizeComparableString(eventData.key) === 'Enter' ? 'enter' : null;
   }
@@ -250,6 +321,439 @@ function clearPendingPreActionKeyframesForRecording(recordingId: string): void {
       pendingPreActionKeyframes.delete(key);
     }
   }
+}
+
+function clearPendingFocusEventsForRecording(recordingId: string): void {
+  for (const [key, pending] of pendingFocusEvents.entries()) {
+    if (pending.recordingId === recordingId) {
+      clearTimeout(pending.timeoutId);
+      pendingFocusEvents.delete(key);
+    }
+  }
+}
+
+function clearPendingInputEventsForRecording(recordingId: string): void {
+  for (const [key, pending] of pendingInputEvents.entries()) {
+    if (pending.recordingId === recordingId) {
+      if (pending.boundaryTimeoutId !== null) {
+        clearTimeout(pending.boundaryTimeoutId);
+      }
+      pendingInputEvents.delete(key);
+    }
+  }
+}
+
+function clearPendingInputBoundaryTimer(pending: PendingInputEvent): void {
+  if (pending.boundaryTimeoutId !== null) {
+    clearTimeout(pending.boundaryTimeoutId);
+    pending.boundaryTimeoutId = null;
+  }
+}
+
+function serializeRecordingNavigationForStorage(
+  navigation: RecordingNavigationState,
+): {
+  tabHistories: Array<{ tabId: number; entries: string[]; index: number }>;
+} {
+  return {
+    tabHistories: Array.from(navigation.tabHistories.entries())
+      .map(([tabId, history]) => ({
+        tabId,
+        entries: [...history.entries],
+        index: history.index,
+      }))
+      .sort((left, right) => left.tabId - right.tabId),
+  };
+}
+
+function deserializeRecordingNavigation(
+  value: unknown,
+): RecordingNavigationState {
+  const navigation = createEmptyRecordingNavigationState();
+  if (!value || typeof value !== 'object') {
+    return navigation;
+  }
+
+  const rawTabHistories = (value as { tabHistories?: unknown }).tabHistories;
+  if (!Array.isArray(rawTabHistories)) {
+    return navigation;
+  }
+
+  for (const candidate of rawTabHistories) {
+    if (!candidate || typeof candidate !== 'object') {
+      continue;
+    }
+
+    const tabId = (candidate as { tabId?: unknown }).tabId;
+    const entries = (candidate as { entries?: unknown }).entries;
+    const index = (candidate as { index?: unknown }).index;
+    if (
+      typeof tabId !== 'number' ||
+      !Array.isArray(entries) ||
+      entries.some((entry) => typeof entry !== 'string') ||
+      typeof index !== 'number'
+    ) {
+      continue;
+    }
+
+    if (!entries.length) {
+      continue;
+    }
+
+    const boundedIndex = Math.max(0, Math.min(index, entries.length - 1));
+    navigation.tabHistories.set(tabId, {
+      entries: [...entries],
+      index: boundedIndex,
+    });
+  }
+
+  return navigation;
+}
+
+function ensureTabNavigationHistory(
+  recording: ActiveRecording,
+  tabId: number,
+  url: string | null | undefined,
+): boolean {
+  if (typeof tabId !== 'number' || !isRecordableUrl(url)) {
+    return false;
+  }
+
+  if (recording.navigation.tabHistories.has(tabId)) {
+    return false;
+  }
+
+  recording.navigation.tabHistories.set(tabId, {
+    entries: [url],
+    index: 0,
+  });
+  return true;
+}
+
+function forgetTabNavigationHistory(
+  recording: ActiveRecording,
+  tabId: number,
+): boolean {
+  return recording.navigation.tabHistories.delete(tabId);
+}
+
+function classifyAndRecordTabNavigation(
+  recording: ActiveRecording,
+  tabId: number,
+  nextUrl: string,
+): {
+  eventType: RecordingTabNavigationEventType;
+  previousUrl: string | null;
+} {
+  const existingHistory = recording.navigation.tabHistories.get(tabId);
+  if (!existingHistory) {
+    recording.navigation.tabHistories.set(tabId, {
+      entries: [nextUrl],
+      index: 0,
+    });
+    return {
+      eventType: 'tab_navigated',
+      previousUrl: null,
+    };
+  }
+
+  const previousUrl = existingHistory.entries[existingHistory.index] ?? null;
+  if (previousUrl === nextUrl) {
+    return {
+      eventType: 'tab_navigated',
+      previousUrl,
+    };
+  }
+
+  const backUrl =
+    existingHistory.index > 0
+      ? existingHistory.entries[existingHistory.index - 1] ?? null
+      : null;
+  if (backUrl === nextUrl) {
+    existingHistory.index -= 1;
+    return {
+      eventType: 'tab_back',
+      previousUrl,
+    };
+  }
+
+  const forwardUrl =
+    existingHistory.index < existingHistory.entries.length - 1
+      ? existingHistory.entries[existingHistory.index + 1] ?? null
+      : null;
+  if (forwardUrl === nextUrl) {
+    existingHistory.index += 1;
+    return {
+      eventType: 'tab_forward',
+      previousUrl,
+    };
+  }
+
+  existingHistory.entries = existingHistory.entries.slice(
+    0,
+    existingHistory.index + 1,
+  );
+  existingHistory.entries.push(nextUrl);
+  existingHistory.index = existingHistory.entries.length - 1;
+  return {
+    eventType: 'tab_navigated',
+    previousUrl,
+  };
+}
+
+function isTextEntryRecordingTarget(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const target = value as Record<string, unknown>;
+  const tagName = normalizeComparableString(target.tagName)?.toLowerCase();
+  const role = normalizeComparableString(target.role)?.toLowerCase();
+  const inputType = normalizeComparableString(target.inputType)?.toLowerCase();
+
+  if (tagName === 'textarea' || role === 'textbox' || role === 'searchbox') {
+    return true;
+  }
+
+  if (tagName !== 'input') {
+    return false;
+  }
+
+  return !new Set([
+    'button',
+    'submit',
+    'reset',
+    'checkbox',
+    'radio',
+    'file',
+    'range',
+    'color',
+    'image',
+  ]).has(inputType ?? '');
+}
+
+function getInputAggregationBoundaryReason(
+  eventType: string,
+  eventData: Record<string, unknown>,
+): string {
+  if (eventType === 'keydown') {
+    return normalizeComparableString(eventData.key)?.toLowerCase() ?? 'keydown';
+  }
+
+  return eventType;
+}
+
+function getEventDataTabId(eventData: Record<string, unknown>): number | null {
+  if (typeof eventData.tabId === 'number') {
+    return eventData.tabId;
+  }
+
+  const tab = eventData.tab;
+  if (tab && typeof tab === 'object') {
+    const tabId = (tab as { tabId?: unknown }).tabId;
+    if (typeof tabId === 'number') {
+      return tabId;
+    }
+  }
+
+  return null;
+}
+
+function bufferPendingInputEvent(
+  recording: ActiveRecording,
+  tab: chrome.tabs.Tab,
+  eventData: Record<string, unknown>,
+): boolean {
+  if (!tab.id || !isTextEntryRecordingTarget(eventData.element)) {
+    return false;
+  }
+
+  const targetSignature = buildSerializedElementSignature(eventData.element);
+  if (!targetSignature) {
+    return false;
+  }
+
+  const key = getPendingInputKey(recording.recordingId, tab.id, targetSignature);
+  const existing = pendingInputEvents.get(key);
+  if (existing) {
+    clearPendingInputBoundaryTimer(existing);
+    existing.latestEventData = eventData;
+    existing.tab = tab;
+    existing.sourceEventCount += 1;
+    pendingInputEvents.set(key, existing);
+    return true;
+  }
+
+  pendingInputEvents.set(key, {
+    recordingId: recording.recordingId,
+    tabId: tab.id,
+    targetSignature,
+    tab,
+    latestEventData: eventData,
+    sourceEventCount: 1,
+    boundaryTimeoutId: null,
+  });
+  return true;
+}
+
+async function flushPendingInputEventsForTab(
+  recording: ActiveRecording,
+  tabId: number,
+  endedBy: string,
+): Promise<number> {
+  const matches = Array.from(pendingInputEvents.entries()).filter(
+    ([, pending]) =>
+      pending.recordingId === recording.recordingId && pending.tabId === tabId,
+  );
+
+  if (!matches.length) {
+    return 0;
+  }
+
+  matches.sort(([, left], [, right]) => {
+    const leftTimestamp =
+      typeof left.latestEventData.timestamp === 'number'
+        ? left.latestEventData.timestamp
+        : 0;
+    const rightTimestamp =
+      typeof right.latestEventData.timestamp === 'number'
+        ? right.latestEventData.timestamp
+        : 0;
+    return leftTimestamp - rightTimestamp;
+  });
+
+  for (const [key, pending] of matches) {
+    clearPendingInputBoundaryTimer(pending);
+    pendingInputEvents.delete(key);
+    await postRecordingEventFor(recording, 'input', {
+      ...pending.latestEventData,
+      inputAggregation: {
+        sourceEventCount: pending.sourceEventCount,
+        endedBy,
+      },
+    });
+  }
+
+  return matches.length;
+}
+
+function hasPendingInputForTarget(
+  recording: ActiveRecording,
+  tabId: number,
+  targetSignature: string | null,
+): boolean {
+  if (!targetSignature) {
+    return false;
+  }
+
+  return pendingInputEvents.has(
+    getPendingInputKey(recording.recordingId, tabId, targetSignature),
+  );
+}
+
+function shouldIgnoreInteractionAsTypingBoundary(
+  recording: ActiveRecording,
+  tabId: number,
+  eventData: Record<string, unknown>,
+): boolean {
+  const targetSignature = buildSerializedElementSignature(eventData.element);
+  return hasPendingInputForTarget(recording, tabId, targetSignature);
+}
+
+function schedulePendingInputBoundaryFlush(
+  recording: ActiveRecording,
+  tab: chrome.tabs.Tab,
+  eventData: Record<string, unknown>,
+  endedBy: string,
+  delayMs: number,
+): boolean {
+  if (!tab.id) {
+    return false;
+  }
+
+  const targetSignature = buildSerializedElementSignature(eventData.element);
+  if (!targetSignature) {
+    return false;
+  }
+
+  const key = getPendingInputKey(recording.recordingId, tab.id, targetSignature);
+  const pending = pendingInputEvents.get(key);
+  if (!pending) {
+    return false;
+  }
+
+  clearPendingInputBoundaryTimer(pending);
+  pending.boundaryTimeoutId = globalThis.setTimeout(() => {
+    void flushPendingInputEventsForTab(recording, tab.id!, endedBy).catch((error) => {
+      console.error(
+        `❌ [Recorder] Failed to flush buffered input events for delayed ${endedBy}:`,
+        error,
+      );
+    });
+  }, delayMs);
+  pendingInputEvents.set(key, pending);
+  return true;
+}
+
+async function flushPendingInputEventsForRecording(
+  recording: ActiveRecording,
+  endedBy: string,
+): Promise<void> {
+  const tabIds = new Set<number>();
+  for (const pending of pendingInputEvents.values()) {
+    if (pending.recordingId === recording.recordingId) {
+      tabIds.add(pending.tabId);
+    }
+  }
+
+  for (const tabId of tabIds) {
+    await flushPendingInputEventsForTab(recording, tabId, endedBy);
+  }
+}
+
+async function flushPendingInputEventsBeforeLifecycleEvent(
+  recording: ActiveRecording,
+  eventType: string,
+  eventData: Record<string, unknown>,
+): Promise<void> {
+  if (
+    !new Set([
+      'tab_activated',
+      'tab_closed',
+      'tab_navigated',
+      'tab_back',
+      'tab_forward',
+    ]).has(eventType)
+  ) {
+    return;
+  }
+
+  const tabId = getEventDataTabId(eventData);
+  if (typeof tabId !== 'number') {
+    return;
+  }
+
+  if (
+    eventType === 'tab_navigated' ||
+    eventType === 'tab_back' ||
+    eventType === 'tab_forward'
+  ) {
+    const nextUrl = getEventDataPageUrl(eventData);
+    const pendingForTab = Array.from(pendingInputEvents.values()).filter(
+      (pending) =>
+        pending.recordingId === recording.recordingId && pending.tabId === tabId,
+    );
+    const shouldFlush = pendingForTab.some((pending) => {
+      const pendingUrl = getEventDataPageUrl(pending.latestEventData);
+      return Boolean(nextUrl && pendingUrl && nextUrl !== pendingUrl);
+    });
+
+    if (!shouldFlush) {
+      return;
+    }
+  }
+
+  await flushPendingInputEventsForTab(recording, tabId, eventType);
 }
 
 function isOpenBrowserUiUrl(url?: string | null): boolean {
@@ -307,6 +811,7 @@ function serializeActiveRecordingForStorage(
     recordingId: recording.recordingId,
     startedAt: recording.startedAt,
     scope: serializeRecordingScopeForStorage(recording.scope),
+    navigation: serializeRecordingNavigationForStorage(recording.navigation),
   };
 }
 
@@ -363,6 +868,7 @@ function deserializeActiveRecording(value: unknown): ActiveRecording | null {
     recordingId: raw.recordingId,
     startedAt: raw.startedAt,
     scope,
+    navigation: deserializeRecordingNavigation(raw.navigation),
   };
 }
 
@@ -456,11 +962,16 @@ function postRecordingEvent(
   eventData: Record<string, unknown> = {},
 ): void {
   void getActiveRecording()
-    .then((recording) => {
+    .then(async (recording) => {
       if (!recording) {
         return;
       }
 
+      await flushPendingInputEventsBeforeLifecycleEvent(
+        recording,
+        eventType,
+        eventData,
+      );
       return postRecordingEventFor(recording, eventType, eventData);
     })
     .catch((error) => {
@@ -647,6 +1158,96 @@ async function consumePendingPreActionKeyframe(
   };
 }
 
+async function flushPendingFocusEvent(key: string): Promise<void> {
+  const pending = pendingFocusEvents.get(key);
+  if (!pending) {
+    return;
+  }
+
+  pendingFocusEvents.delete(key);
+
+  const recording = await getActiveRecording();
+  if (!recording || recording.recordingId !== pending.recordingId) {
+    return;
+  }
+
+  try {
+    const eventData = await enrichEventDataWithKeyframe(
+      recording,
+      'focus',
+      pending.tab,
+      pending.eventData,
+    );
+    await postRecordingEventFor(recording, 'focus', {
+      ...eventData,
+    });
+  } catch (error) {
+    console.error('❌ [Recorder] Failed to upload buffered focus event:', error);
+  }
+}
+
+function schedulePendingFocusEvent(
+  recording: ActiveRecording,
+  tab: chrome.tabs.Tab,
+  eventData: Record<string, unknown>,
+): boolean {
+  if (!tab.id || !isInputLikeRecordingTarget(eventData.element)) {
+    return false;
+  }
+
+  const targetSignature = buildSerializedElementSignature(eventData.element);
+  if (!targetSignature) {
+    return false;
+  }
+
+  const key = getPendingFocusKey(recording.recordingId, tab.id, targetSignature);
+  const existing = pendingFocusEvents.get(key);
+  if (existing) {
+    clearTimeout(existing.timeoutId);
+    pendingFocusEvents.delete(key);
+  }
+
+  const timeoutId = globalThis.setTimeout(() => {
+    void flushPendingFocusEvent(key);
+  }, FOCUS_CLICK_DEDUP_WINDOW_MS);
+
+  pendingFocusEvents.set(key, {
+    recordingId: recording.recordingId,
+    tabId: tab.id,
+    targetSignature,
+    timeoutId,
+    tab,
+    eventData,
+  });
+
+  return true;
+}
+
+function cancelDuplicatePendingFocusEvent(
+  recording: ActiveRecording,
+  tabId: number,
+  eventType: string,
+  eventData: Record<string, unknown>,
+): void {
+  if (eventType !== 'click') {
+    return;
+  }
+
+  const targetSignature = buildSerializedElementSignature(eventData.element);
+  if (!targetSignature) {
+    return;
+  }
+
+  const key = getPendingFocusKey(recording.recordingId, tabId, targetSignature);
+  const pending = pendingFocusEvents.get(key);
+  if (!pending) {
+    return;
+  }
+
+  clearTimeout(pending.timeoutId);
+  pendingFocusEvents.delete(key);
+}
+
 async function enrichEventDataWithKeyframe(
   recording: ActiveRecording,
   eventType: string,
@@ -679,7 +1280,7 @@ async function enrichEventDataWithKeyframe(
   }
 
   if (
-    !shouldCaptureRecordingKeyframe(eventType) ||
+    !shouldCaptureRecordingKeyframe(eventType, eventData) ||
     !tab.id ||
     !isRecordableUrl(tab.url)
   ) {
@@ -784,6 +1385,7 @@ async function addTabToRecordingScope(
   }
 
   recording.scope.tabIds.add(tab.id);
+  ensureTabNavigationHistory(recording, tab.id, tab.url);
   await ensureTabIsGrouped(tab.id, recording.scope);
   await persistActiveRecording(recording);
 }
@@ -982,7 +1584,17 @@ export async function startRecording(
     recordingId,
     startedAt: Date.now(),
     scope,
+    navigation: createEmptyRecordingNavigationState(),
   };
+
+  for (const tabId of recording.scope.tabIds) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      ensureTabNavigationHistory(recording, tabId, tab.url);
+    } catch {
+      // Ignore tabs that disappear during recording bootstrap.
+    }
+  }
 
   activeRecording = recording;
   await persistActiveRecording(recording);
@@ -1015,6 +1627,15 @@ export async function stopRecording(recordingId?: string): Promise<void> {
     recording_id: recording.recordingId,
   });
 
+  await flushPendingInputEventsForRecording(recording, 'recording_stopped').catch(
+    (error) => {
+      console.error(
+        '❌ [Recorder] Failed to flush buffered input events before stop:',
+        error,
+      );
+    },
+  );
+
   await postRecordingEventFor(recording, 'recording_stopped', {
     stoppedAt: Date.now(),
     scope: serializeRecordingScope(recording.scope),
@@ -1032,6 +1653,8 @@ export async function stopRecording(recordingId?: string): Promise<void> {
     });
 
   clearPendingPreActionKeyframesForRecording(recording.recordingId);
+  clearPendingFocusEventsForRecording(recording.recordingId);
+  clearPendingInputEventsForRecording(recording.recordingId);
   await cleanupRecordingScope(recording.scope);
   activeRecording = null;
   await persistActiveRecording(null);
@@ -1132,18 +1755,77 @@ export async function handleContentRecordingEvent(
   }
 
   await addTabToRecordingScope(recording, tab);
-
-  const eventData = await enrichEventDataWithKeyframe(recording, eventType, tab, {
+  const eventData: Record<string, unknown> = {
     source: 'content',
     timestamp: message.event?.timestamp ?? Date.now(),
     frameId:
       typeof sender.frameId === 'number' ? sender.frameId : undefined,
     tab: serializeTab(tab),
     ...(message.event?.data ?? {}),
-  });
+  };
+
+  if (eventType === 'input' && bufferPendingInputEvent(recording, tab, eventData)) {
+    return;
+  }
+
+  if (tab.id) {
+    if (eventType === 'change' && isTextEntryRecordingTarget(eventData.element)) {
+      const flushedCount = await flushPendingInputEventsForTab(
+        recording,
+        tab.id,
+        'change',
+      );
+      if (flushedCount > 0) {
+        return;
+      }
+    } else if (eventType === 'keydown') {
+      const key = normalizeComparableString(eventData.key);
+      if (key === 'Enter') {
+        schedulePendingInputBoundaryFlush(
+          recording,
+          tab,
+          eventData,
+          'enter',
+          INPUT_ENTER_DEDUP_WINDOW_MS,
+        );
+      } else if (key === 'Tab') {
+        await flushPendingInputEventsForTab(recording, tab.id, 'tab');
+      }
+    } else if (eventType === 'submit' || eventType === 'scroll') {
+      await flushPendingInputEventsForTab(
+        recording,
+        tab.id,
+        getInputAggregationBoundaryReason(eventType, eventData),
+      );
+    } else if (
+      new Set(['click', 'focus']).has(eventType) &&
+      !shouldIgnoreInteractionAsTypingBoundary(recording, tab.id, eventData)
+    ) {
+      await flushPendingInputEventsForTab(
+        recording,
+        tab.id,
+        getInputAggregationBoundaryReason(eventType, eventData),
+      );
+    }
+  }
+
+  if (eventType === 'focus' && schedulePendingFocusEvent(recording, tab, eventData)) {
+    return;
+  }
+
+  if (tab.id) {
+    cancelDuplicatePendingFocusEvent(recording, tab.id, eventType, eventData);
+  }
+
+  const enrichedEventData = await enrichEventDataWithKeyframe(
+    recording,
+    eventType,
+    tab,
+    eventData,
+  );
 
   await postRecordingEventFor(recording, eventType, {
-    ...eventData,
+    ...enrichedEventData,
   });
 }
 
@@ -1207,6 +1889,7 @@ export function initializeRecordingEventListeners(): void {
         }
 
         recording.scope.tabIds.delete(tabId);
+        forgetTabNavigationHistory(recording, tabId);
         await persistActiveRecording(recording);
         postRecordingEvent('tab_closed', {
           tabId,
@@ -1228,7 +1911,19 @@ export function initializeRecordingEventListeners(): void {
 
         await addTabToRecordingScope(recording, tab);
         if (changeInfo.url && isRecordableUrl(changeInfo.url)) {
-          postRecordingEvent('tab_navigated', serializeTab(tab, { tabId }));
+          const { eventType, previousUrl } = classifyAndRecordTabNavigation(
+            recording,
+            tabId,
+            changeInfo.url,
+          );
+          await persistActiveRecording(recording);
+          postRecordingEvent(
+            eventType,
+            serializeTab(tab, {
+              tabId,
+              previousUrl,
+            }),
+          );
         }
 
         if (changeInfo.status === 'complete' && isRecordableUrl(tab.url)) {
@@ -1250,9 +1945,20 @@ export function initializeRecordingEventListeners(): void {
 }
 
 export const __testing__ = {
+  classifyAndRecordTabNavigation,
   buildSerializedElementSignature,
   clearPendingPreActionKeyframes(): void {
     pendingPreActionKeyframes.clear();
+  },
+  clearPendingInputEvents(): void {
+    clearPendingInputEventsForRecording(activeRecording?.recordingId ?? '');
+  },
+  async flushPendingInputEventsBeforeLifecycleEvent(
+    recording: ActiveRecording,
+    eventType: string,
+    eventData: Record<string, unknown>,
+  ): Promise<void> {
+    await flushPendingInputEventsBeforeLifecycleEvent(recording, eventType, eventData);
   },
   setPendingPreActionKeyframe(
     recordingId: string,

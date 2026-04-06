@@ -6,6 +6,8 @@
  * is now done via JavaScript execution (javascript_execute command).
  */
 
+import { shouldIgnoreRecordingClickTarget } from '../recording/recording-event-filter';
+
 console.log('🖥️ OpenBrowser content script loaded', {
   location: window.location.href,
   readyState: document.readyState,
@@ -447,6 +449,10 @@ function sendRecordingPreAction(
 }
 
 function emitPageView(reason: string): void {
+  if (window.top !== window.self) {
+    return;
+  }
+
   sendRecordingEvent('page_view', {
     reason,
     url: window.location.href,
@@ -479,6 +485,9 @@ function installRecordingListeners(): void {
       if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
         return;
       }
+      if (shouldIgnoreRecordingClickTarget(event.target)) {
+        return;
+      }
 
       const pointerEvent = event as PointerEvent;
       if (pointerEvent.button !== 0) {
@@ -500,6 +509,9 @@ function installRecordingListeners(): void {
     'click',
     (event) => {
       if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        return;
+      }
+      if (shouldIgnoreRecordingClickTarget(event.target)) {
         return;
       }
 

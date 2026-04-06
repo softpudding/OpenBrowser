@@ -1,6 +1,6 @@
 import { calculateConfirmationBannerLayout } from '../commands/single-highlight';
 
-type AnnotatableRecordingEventType = 'click' | 'change' | 'submit';
+type AnnotatableRecordingEventType = 'click' | 'focus' | 'change' | 'submit';
 
 interface RecordingEventBBox {
   x: number;
@@ -76,6 +76,10 @@ export function getRecordingAnnotationMessage(
     return 'This is the element the user just clicked.';
   }
 
+  if (eventType === 'focus') {
+    return 'This is the input the user just focused.';
+  }
+
   return 'This is the element the user just typed into.';
 }
 
@@ -83,7 +87,12 @@ export function resolveRecordingKeyframeAnnotationTarget(
   eventType: string,
   eventData: Record<string, unknown>,
 ): RecordingKeyframeAnnotationTarget | null {
-  if (eventType !== 'click' && eventType !== 'change' && eventType !== 'submit') {
+  if (
+    eventType !== 'click' &&
+    eventType !== 'focus' &&
+    eventType !== 'change' &&
+    eventType !== 'submit'
+  ) {
     return null;
   }
 

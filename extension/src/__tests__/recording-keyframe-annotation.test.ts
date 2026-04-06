@@ -34,6 +34,20 @@ describe('recording keyframe annotation', () => {
     });
   });
 
+  test('resolves focus annotations from element bbox', () => {
+    expect(
+      resolveRecordingKeyframeAnnotationTarget('focus', {
+        element: {
+          bbox: { x: 5, y: 8, width: 160, height: 34 },
+        },
+      }),
+    ).toEqual({
+      bbox: { x: 5, y: 8, width: 160, height: 34 },
+      intendedAction: 'keyboard_input',
+      message: 'This is the input the user just focused.',
+    });
+  });
+
   test('resolves submit annotations from form bbox', () => {
     expect(
       resolveRecordingKeyframeAnnotationTarget('submit', {
@@ -60,6 +74,9 @@ describe('recording keyframe annotation', () => {
   test('formats human-readable messages', () => {
     expect(getRecordingAnnotationMessage('click')).toBe(
       'This is the element the user just clicked.',
+    );
+    expect(getRecordingAnnotationMessage('focus')).toBe(
+      'This is the input the user just focused.',
     );
     expect(getRecordingAnnotationMessage('change')).toBe(
       'This is the element the user just typed into.',

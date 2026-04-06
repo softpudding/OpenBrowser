@@ -2030,45 +2030,8 @@
         }
 
         .recording-view[hidden],
-        .recording-review-pane[hidden],
-        .recording-workflow-draft[hidden] {
+        .recording-review-pane[hidden] {
             display: none !important;
-        }
-
-        .recording-focus-switch {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .recording-focus-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 10px 14px;
-            border-radius: 999px;
-            border: 1px solid rgba(205, 175, 132, 0.16);
-            background: rgba(28, 22, 18, 0.62);
-            color: var(--text-secondary);
-            cursor: pointer;
-            font: inherit;
-            font-size: 13px;
-            font-weight: 700;
-            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
-        }
-
-        .recording-focus-btn:hover {
-            transform: translateY(-1px);
-            background: rgba(47, 37, 29, 0.92);
-            border-color: rgba(205, 175, 132, 0.3);
-            color: var(--text-primary);
-        }
-
-        .recording-focus-btn.is-active {
-            background: rgba(198, 154, 92, 0.14);
-            border-color: rgba(198, 154, 92, 0.34);
-            color: #f4ddbb;
         }
 
         .recording-review-stack {
@@ -2449,52 +2412,6 @@
             color: var(--text-muted);
             font-size: 14px;
             line-height: 1.7;
-        }
-
-        .recording-workflow-draft {
-            display: flex;
-            flex: 1 1 auto;
-            flex-direction: column;
-            gap: 12px;
-            min-height: 0;
-            padding: 16px 18px 18px;
-        }
-
-        .recording-workflow-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .recording-workflow-title {
-            color: var(--text-primary);
-            font-size: 13px;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            font-weight: 700;
-        }
-
-        .recording-workflow-summary {
-            color: var(--text-secondary);
-            font-size: 13px;
-            line-height: 1.6;
-            white-space: pre-wrap;
-        }
-
-        .recording-workflow-json {
-            margin: 0;
-            color: var(--text-secondary);
-            font-size: 12px;
-            line-height: 1.7;
-            white-space: pre-wrap;
-            flex: 1 1 auto;
-            min-height: 0;
-            max-height: none;
-            overflow: auto;
-            overscroll-behavior: contain;
-            scrollbar-gutter: stable;
         }
 
         .recording-history-list {
@@ -3656,7 +3573,7 @@
                             </button>
                             <button class="header-menu-item" id="recording-menu-history-btn" onclick="handleRecordingMenuAction('history')">
                                 <span class="header-menu-title">View History</span>
-                                <span class="header-menu-copy">Reopen a saved recording, inspect the captured events, and review its workflow draft.</span>
+                                <span class="header-menu-copy">Reopen a saved recording, inspect the captured events, and review the trace again.</span>
                             </button>
                         </div>
                     </div>
@@ -3794,11 +3711,6 @@
                     </div>
 
                     <div class="recording-view" id="recording-detail-view">
-                        <div class="recording-focus-switch">
-                            <button class="recording-focus-btn is-active" id="recording-focus-events-btn" onclick="setRecordingPrimaryView('events')">Captured Events</button>
-                            <button class="recording-focus-btn" id="recording-focus-workflow-btn" onclick="setRecordingPrimaryView('workflow')">Workflow Draft</button>
-                        </div>
-
                         <div class="recording-split-layout">
                             <section class="recording-review-pane recording-list-pane">
                                 <div class="recording-review-header">
@@ -3806,7 +3718,7 @@
                                     <span class="recording-event-badge" id="recording-selection-list-badge">Timeline</span>
                                 </div>
                                 <div class="recording-review-copy" id="recording-selection-list-copy">
-                                    Review the concrete user actions first. This should be the source of truth before you trust the compiled workflow draft.
+                                    Review the concrete user actions first. This trace is the source of truth for later workflow compilation.
                                 </div>
                                 <div class="recording-selection-list scrollbar" id="recording-selection-list">
                                     <div class="recording-empty-state">
@@ -4170,14 +4082,11 @@
         let currentRecordingStatus = 'idle';
         let recordingPanelVisible = false;
         let recordingPanelMode = 'detail';
-        let recordingPrimaryView = 'events';
         let recordingPanelSession = null;
         let recordingHistory = [];
         let recordingHistoryLoading = false;
         let recordingEvents = [];
-        let recordingWorkflowDraft = null;
         let selectedRecordingEntryKey = null;
-        let selectedWorkflowStepId = null;
         let recordingMenuOpen = false;
         let recordingPollTimer = null;
         let eventSource = null;
@@ -4890,44 +4799,8 @@
             container.innerHTML = itemsHtml;
         }
 
-        function renderRecordingWorkflowDraft() {
-            const summaryNode = document.getElementById('recording-workflow-summary');
-            const jsonNode = document.getElementById('recording-workflow-json');
-            const badgeNode = document.getElementById('recording-workflow-badge');
-            if (!summaryNode || !jsonNode || !badgeNode) {
-                return;
-            }
-
-            if (!recordingWorkflowDraft || !recordingWorkflowDraft.workflow) {
-                badgeNode.textContent = 'Waiting';
-                summaryNode.textContent = 'Workflow JSON draft will appear after events are captured.';
-                jsonNode.textContent = '{}';
-                return;
-            }
-
-            const stepCount = Number(recordingWorkflowDraft.normalized_step_count) || 0;
-            const inputCount = Array.isArray(recordingWorkflowDraft.workflow?.inputs)
-                ? recordingWorkflowDraft.workflow.inputs.length
-                : 0;
-            const goal = recordingWorkflowDraft.workflow?.goal?.text || 'Unspecified goal';
-
-            badgeNode.textContent = `${stepCount} Steps`;
-            summaryNode.textContent = `Goal: ${goal}\nInputs: ${inputCount}\nExecutor: ${recordingWorkflowDraft.workflow?.executor_preference || 'hybrid'}`;
-            jsonNode.textContent = JSON.stringify(recordingWorkflowDraft.workflow, null, 2);
-        }
-
         function getRecordingEntryKey(entry, fallbackIndex = 0) {
             return String(entry?.primaryEvent?.event_index ?? `entry-${fallbackIndex}`);
-        }
-
-        function getWorkflowDraftSteps() {
-            return Array.isArray(recordingWorkflowDraft?.workflow?.steps)
-                ? recordingWorkflowDraft.workflow.steps
-                : [];
-        }
-
-        function getWorkflowStepKey(step, fallbackIndex = 0) {
-            return String(step?.id || `step-${fallbackIndex + 1}`);
         }
 
         function syncRecordingReviewSelection() {
@@ -4937,22 +4810,10 @@
             } else if (!displayEntries.some((entry, index) => getRecordingEntryKey(entry, index) === selectedRecordingEntryKey)) {
                 selectedRecordingEntryKey = getRecordingEntryKey(displayEntries[displayEntries.length - 1], displayEntries.length - 1);
             }
-
-            const steps = getWorkflowDraftSteps();
-            if (!steps.length) {
-                selectedWorkflowStepId = null;
-            } else if (!steps.some((step, index) => getWorkflowStepKey(step, index) === selectedWorkflowStepId)) {
-                selectedWorkflowStepId = getWorkflowStepKey(steps[0], 0);
-            }
         }
 
         function setSelectedRecordingEntry(entryKey) {
             selectedRecordingEntryKey = String(entryKey || '');
-            updateRecordingPanel();
-        }
-
-        function setSelectedWorkflowStep(stepId) {
-            selectedWorkflowStepId = String(stepId || '');
             updateRecordingPanel();
         }
 
@@ -4962,55 +4823,6 @@
             const copyNode = document.getElementById('recording-selection-list-copy');
             const container = document.getElementById('recording-selection-list');
             if (!titleNode || !badgeNode || !copyNode || !container) {
-                return;
-            }
-
-            if (recordingPrimaryView === 'workflow') {
-                const steps = getWorkflowDraftSteps();
-                titleNode.textContent = 'Workflow Steps';
-                badgeNode.textContent = steps.length ? `${steps.length} steps` : 'Waiting';
-                copyNode.textContent = 'Select a compiled workflow step on the left, then inspect the normalized detail on the right.';
-
-                if (!steps.length) {
-                    container.innerHTML = `
-                        <div class="recording-empty-state">
-                            Workflow JSON draft will appear after events are captured.
-                        </div>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = steps.map((step, index) => {
-                    const stepKey = getWorkflowStepKey(step, index);
-                    const isSelected = stepKey === selectedWorkflowStepId;
-                    const title = escapeHtml(step?.title || step?.action || step?.kind || `Step ${index + 1}`);
-                    const summary = escapeHtml(
-                        truncateForSummary(
-                            step?.reasoning ||
-                            step?.description ||
-                            step?.postcondition ||
-                            step?.intent ||
-                            '',
-                            120
-                        ) || 'No additional reasoning recorded.'
-                    );
-                    const badge = escapeHtml(step?.executor_preference || step?.kind || `Step ${index + 1}`);
-
-                    return `
-                        <button
-                            class="recording-selection-item${isSelected ? ' is-selected' : ''}"
-                            data-step-id="${escapeHtml(stepKey)}"
-                            onclick="setSelectedWorkflowStep(this.dataset.stepId)"
-                        >
-                            <div class="recording-selection-line">
-                                <span class="recording-event-badge">${escapeHtml(`Step ${index + 1}`)}</span>
-                                <span class="recording-event-type">${badge}</span>
-                            </div>
-                            <div class="recording-selection-title">${title}</div>
-                            <div class="recording-selection-summary">${summary}</div>
-                        </button>
-                    `;
-                }).join('');
                 return;
             }
 
@@ -5064,49 +4876,6 @@
             const copyNode = document.getElementById('recording-selection-detail-copy');
             const container = document.getElementById('recording-selection-detail');
             if (!titleNode || !badgeNode || !copyNode || !container) {
-                return;
-            }
-
-            if (recordingPrimaryView === 'workflow') {
-                const workflow = recordingWorkflowDraft?.workflow;
-                const steps = getWorkflowDraftSteps();
-                const selectedStep = steps.find((step, index) => getWorkflowStepKey(step, index) === selectedWorkflowStepId) || steps[0] || null;
-
-                titleNode.textContent = 'Workflow Detail';
-                badgeNode.textContent = selectedStep
-                    ? (selectedStep?.executor_preference || selectedStep?.kind || 'Step')
-                    : 'Waiting';
-                copyNode.textContent = 'Inspect the compiled workflow step on the right. This is what later replay execution will consume.';
-
-                if (!workflow || !selectedStep) {
-                    container.innerHTML = `
-                        <div class="recording-empty-state">
-                            Workflow JSON draft will appear after events are captured.
-                        </div>
-                    `;
-                    return;
-                }
-
-                const goal = escapeHtml(workflow?.goal?.text || 'Unspecified goal');
-                const inputs = Array.isArray(workflow?.inputs) ? workflow.inputs : [];
-                const selectedStepJson = escapeHtml(JSON.stringify(selectedStep, null, 2));
-                const workflowJson = escapeHtml(JSON.stringify(workflow, null, 2));
-
-                container.innerHTML = `
-                    <div class="recording-detail-card">
-                        <div class="recording-detail-card-title">Workflow Goal</div>
-                        <div class="recording-detail-card-copy">Goal: ${goal}\nInputs: ${escapeHtml(String(inputs.length))}\nExecutor: ${escapeHtml(workflow?.executor_preference || 'hybrid')}</div>
-                    </div>
-                    <div class="recording-detail-card">
-                        <div class="recording-detail-card-title">Selected Step</div>
-                        <div class="recording-detail-card-copy">${escapeHtml(selectedStep?.title || selectedStep?.action || selectedStep?.kind || 'Step')}</div>
-                        <pre class="recording-event-details">${selectedStepJson}</pre>
-                    </div>
-                    <div class="recording-detail-card">
-                        <div class="recording-detail-card-title">Full Workflow JSON</div>
-                        <pre class="recording-event-details">${workflowJson}</pre>
-                    </div>
-                `;
                 return;
             }
 
@@ -5246,9 +5015,6 @@
         function updateRecordingViewState() {
             const detailView = document.getElementById('recording-detail-view');
             const historyView = document.getElementById('recording-history-view');
-            const eventsButton = document.getElementById('recording-focus-events-btn');
-            const workflowButton = document.getElementById('recording-focus-workflow-btn');
-            const isEventsPrimary = recordingPrimaryView !== 'workflow';
             const isDetailMode = recordingPanelMode === 'detail';
 
             if (detailView) {
@@ -5257,20 +5023,6 @@
             if (historyView) {
                 historyView.hidden = isDetailMode;
             }
-
-            if (eventsButton) {
-                eventsButton.classList.toggle('is-active', isEventsPrimary);
-            }
-
-            if (workflowButton) {
-                workflowButton.classList.toggle('is-active', !isEventsPrimary);
-            }
-        }
-
-        function setRecordingPrimaryView(view) {
-            recordingPrimaryView = view === 'workflow' ? 'workflow' : 'events';
-            updateRecordingViewState();
-            updateRecordingPanel();
         }
 
         function closeRecordingMenu() {
@@ -5402,12 +5154,9 @@
                 return;
             }
 
-            recordingPrimaryView = 'events';
             recordingPanelMode = 'detail';
             recordingEvents = [];
-            recordingWorkflowDraft = null;
             selectedRecordingEntryKey = null;
-            selectedWorkflowStepId = null;
             openRecordingPanel('detail');
 
             const selectedRecording = recordingHistory.find((recording) => recording.recording_id === recordingId);
@@ -5476,7 +5225,7 @@
                     : isRecording
                         ? 'Capture a manual browser workflow'
                         : activeSession
-                            ? 'Review a recorded workflow'
+                            ? 'Review a recorded trace'
                             : 'Capture a manual browser workflow';
             }
 
@@ -5543,8 +5292,8 @@
                             : 'Recording is active in a dedicated browser window. Perform the workflow manually there while this panel updates as events arrive.'
                         : activeSession
                             ? launchMode === 'current_window'
-                                ? 'Recording has finished. Focus on either the raw events or the compiled workflow, then switch when you need the other view.'
-                                : 'Recording has finished. Focus on either the raw events or the compiled workflow, then switch when you need the other view.'
+                                ? 'Recording has finished. Inspect the captured events and keyframes here before handing the trace to the compiler agent.'
+                                : 'Recording has finished. Inspect the captured events and keyframes here before handing the trace to the compiler agent.'
                             : 'Start a recording to open a dedicated browser window, perform the workflow manually there, then stop recording to inspect the captured event trace.';
             }
 
@@ -5597,9 +5346,7 @@
         async function refreshRecordingEvents(recordingId = recordingPanelSession?.recording_id) {
             if (!recordingId) {
                 recordingEvents = [];
-                recordingWorkflowDraft = null;
                 selectedRecordingEntryKey = null;
-                selectedWorkflowStepId = null;
                 updateRecordingPanel();
                 return;
             }
@@ -5612,13 +5359,6 @@
                 }
 
                 recordingEvents = Array.isArray(data.events) ? data.events : [];
-                const workflowResponse = await fetch(apiUrl(`/recordings/${recordingId}/workflow-draft`));
-                const workflowData = await workflowResponse.json();
-                if (!workflowResponse.ok) {
-                    throw new Error(workflowData.detail || 'Failed to compile workflow draft');
-                }
-
-                recordingWorkflowDraft = workflowData;
                 const selectedRecording = recordingHistory.find((recording) => recording.recording_id === recordingId);
                 if (selectedRecording) {
                     const lastEvent = recordingEvents[recordingEvents.length - 1];
@@ -5962,7 +5702,7 @@
             } else if (recordingPanelVisible && recordingPanelMode === 'history') {
                 nextStep = 'Recording history is open. Pick a saved trace to review it again.';
             } else if (recordingPanelVisible) {
-                nextStep = 'Recording trace ready. Choose whether to focus on captured events or the workflow draft.';
+                nextStep = 'Recording trace ready. Review the captured events and keyframes before moving into compilation.';
             } else if (currentRecordingId) {
                 nextStep = 'Recording is still active. Stop it from the header or reopen the recording panel.';
             } else if (!currentBrowserId) {
@@ -6047,9 +5787,7 @@
                     };
                 }
             } else {
-                recordingWorkflowDraft = null;
                 selectedRecordingEntryKey = null;
-                selectedWorkflowStepId = null;
             }
             updateRecordingUi();
             updateRecordingPanel();
@@ -6098,9 +5836,7 @@
                 recordingHistory = [];
                 recordingHistoryLoading = false;
                 recordingEvents = [];
-                recordingWorkflowDraft = null;
                 selectedRecordingEntryKey = null;
-                selectedWorkflowStepId = null;
                 stopRecordingPolling();
                 if (currentBrowserId) {
                     void syncRecordingStateForBrowser(currentBrowserId);
@@ -6187,9 +5923,7 @@
             openRecordingPanel('detail');
             recordingPanelSession = null;
             recordingEvents = [];
-            recordingWorkflowDraft = null;
             selectedRecordingEntryKey = null;
-            selectedWorkflowStepId = null;
             updateRecordingPanel();
             try {
                 const response = await fetch(apiUrl('/recordings'), {
@@ -6207,9 +5941,7 @@
 
                 setRecordingState(data.recording);
                 recordingEvents = [];
-                recordingWorkflowDraft = null;
                 selectedRecordingEntryKey = null;
-                selectedWorkflowStepId = null;
                 await refreshRecordingHistory(browserId);
                 await refreshRecordingEvents(data.recording?.recording_id);
                 addEvent({

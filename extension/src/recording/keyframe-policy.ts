@@ -48,7 +48,42 @@ function getSourcePageUrl(eventData: Record<string, unknown>): string | null {
   return null;
 }
 
-export function shouldCaptureRecordingKeyframe(eventType: string): boolean {
+function normalizeComparableString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+export function isInputLikeRecordingTarget(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const target = value as Record<string, unknown>;
+  const tagName = normalizeComparableString(target.tagName)?.toLowerCase();
+  const role = normalizeComparableString(target.role)?.toLowerCase();
+
+  return (
+    tagName === 'input' ||
+    tagName === 'textarea' ||
+    tagName === 'select' ||
+    role === 'textbox' ||
+    role === 'searchbox' ||
+    role === 'combobox'
+  );
+}
+
+export function shouldCaptureRecordingKeyframe(
+  eventType: string,
+  eventData?: Record<string, unknown>,
+): boolean {
+  if (eventType === 'focus') {
+    return isInputLikeRecordingTarget(eventData?.element);
+  }
+
   return ACTION_KEYFRAME_EVENT_TYPES.has(eventType);
 }
 
@@ -75,7 +110,10 @@ export function shouldDiscardPostCaptureRecordingKeyframe(
   eventData: Record<string, unknown>,
   keyframe: Record<string, unknown> | null | undefined,
 ): boolean {
-  if (!ACTION_KEYFRAME_EVENT_TYPES.has(eventType) || !keyframe) {
+  if (
+    (!ACTION_KEYFRAME_EVENT_TYPES.has(eventType) && eventType !== 'focus') ||
+    !keyframe
+  ) {
     return false;
   }
 

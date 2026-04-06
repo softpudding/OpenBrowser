@@ -5,6 +5,7 @@ import {
   getRecordingKeyframeWaitForRender,
   getRecordingPreActionCaptureOptions,
   getRecordingPreActionWaitForRender,
+  isInputLikeRecordingTarget,
   shouldCaptureRecordingKeyframe,
   shouldDiscardPostCaptureRecordingKeyframe,
 } from '../recording/keyframe-policy';
@@ -12,9 +13,26 @@ import {
 describe('recording keyframe policy', () => {
   test('captures keyframes for click, change, and submit actions', () => {
     expect(shouldCaptureRecordingKeyframe('click')).toBe(true);
+    expect(
+      shouldCaptureRecordingKeyframe('focus', {
+        element: { tagName: 'input' },
+      }),
+    ).toBe(true);
     expect(shouldCaptureRecordingKeyframe('change')).toBe(true);
     expect(shouldCaptureRecordingKeyframe('submit')).toBe(true);
+    expect(
+      shouldCaptureRecordingKeyframe('focus', {
+        element: { tagName: 'div' },
+      }),
+    ).toBe(false);
     expect(shouldCaptureRecordingKeyframe('tab_ready')).toBe(false);
+  });
+
+  test('recognizes input-like targets', () => {
+    expect(isInputLikeRecordingTarget({ tagName: 'input' })).toBe(true);
+    expect(isInputLikeRecordingTarget({ tagName: 'textarea' })).toBe(true);
+    expect(isInputLikeRecordingTarget({ role: 'combobox' })).toBe(true);
+    expect(isInputLikeRecordingTarget({ tagName: 'div' })).toBe(false);
   });
 
   test('uses shorter render wait for action-timed keyframes', () => {
