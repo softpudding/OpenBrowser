@@ -1595,6 +1595,9 @@
             box-shadow: var(--shadow-strong);
             gap: 16px;
             align-items: center;
+            position: relative;
+            z-index: 30;
+            overflow: visible;
         }
 
         .ascii-title {
@@ -1722,6 +1725,8 @@
             gap: 8px;
             flex-wrap: wrap;
             justify-content: flex-end;
+            position: relative;
+            z-index: 2;
         }
 
         .header-action-btn,
@@ -1790,6 +1795,71 @@
         .header-action-btn.recording.recording-active::before {
             background: #ff9a88;
             box-shadow: 0 0 0 4px rgba(255, 154, 136, 0.18);
+        }
+
+        .header-action-menu {
+            position: relative;
+        }
+
+        .header-action-menu-panel {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            min-width: 260px;
+            padding: 10px;
+            border-radius: 18px;
+            border: 1px solid rgba(205, 175, 132, 0.16);
+            background:
+                linear-gradient(180deg, rgba(35, 28, 22, 0.98), rgba(22, 18, 14, 0.96));
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.32);
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 40;
+        }
+
+        .header-action-menu.open .header-action-menu-panel {
+            display: flex;
+        }
+
+        .header-menu-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(205, 175, 132, 0.1);
+            background: rgba(39, 31, 24, 0.72);
+            color: var(--text-primary);
+            cursor: pointer;
+            text-align: left;
+            font: inherit;
+            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .header-menu-item:hover {
+            background: rgba(57, 45, 35, 0.9);
+            border-color: rgba(205, 175, 132, 0.22);
+            transform: translateY(-1px);
+        }
+
+        .header-menu-item:disabled {
+            cursor: not-allowed;
+            opacity: 0.54;
+            transform: none;
+        }
+
+        .header-menu-title {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .header-menu-copy {
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.55;
         }
 
         .container {
@@ -1951,12 +2021,71 @@
             overflow-wrap: anywhere;
         }
 
-        .recording-review-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
-            gap: 18px;
+        .recording-view {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
             flex: 1 1 auto;
             min-height: 0;
+        }
+
+        .recording-view[hidden],
+        .recording-review-pane[hidden],
+        .recording-workflow-draft[hidden] {
+            display: none !important;
+        }
+
+        .recording-focus-switch {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .recording-focus-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(205, 175, 132, 0.16);
+            background: rgba(28, 22, 18, 0.62);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+
+        .recording-focus-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(47, 37, 29, 0.92);
+            border-color: rgba(205, 175, 132, 0.3);
+            color: var(--text-primary);
+        }
+
+        .recording-focus-btn.is-active {
+            background: rgba(198, 154, 92, 0.14);
+            border-color: rgba(198, 154, 92, 0.34);
+            color: #f4ddbb;
+        }
+
+        .recording-review-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        .recording-split-layout {
+            display: grid;
+            grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+            gap: 16px;
+            flex: 1 1 auto;
+            min-height: 0;
+            align-items: stretch;
         }
 
         .recording-review-pane {
@@ -1967,6 +2096,140 @@
             border: 1px solid rgba(204, 175, 140, 0.12);
             background: rgba(20, 16, 13, 0.74);
             overflow: hidden;
+        }
+
+        .recording-review-pane.is-primary,
+        .recording-primary-pane {
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        .recording-review-pane.is-secondary,
+        .recording-secondary-pane {
+            flex: 0 0 auto;
+        }
+
+        .recording-list-pane,
+        .recording-detail-pane {
+            min-height: 0;
+        }
+
+        .recording-selection-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 16px 18px 18px;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
+        .recording-selection-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(204, 175, 140, 0.12);
+            background: rgba(20, 16, 13, 0.74);
+            color: var(--text-primary);
+            cursor: pointer;
+            text-align: left;
+            font: inherit;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .recording-selection-item:hover {
+            transform: translateY(-1px);
+            border-color: rgba(205, 175, 132, 0.26);
+            background: rgba(31, 24, 19, 0.88);
+        }
+
+        .recording-selection-item.is-selected {
+            border-color: rgba(198, 154, 92, 0.34);
+            background: rgba(44, 33, 26, 0.96);
+            box-shadow: inset 0 0 0 1px rgba(198, 154, 92, 0.12);
+        }
+
+        .recording-selection-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .recording-selection-title {
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .recording-selection-summary {
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .recording-detail-content {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 16px 18px 18px;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
+        .recording-detail-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(205, 175, 132, 0.1);
+            background: rgba(31, 24, 19, 0.56);
+        }
+
+        .recording-detail-card-title {
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .recording-detail-card-copy {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .recording-secondary-body {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 0 18px 18px;
+        }
+
+        .recording-secondary-summary {
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(205, 175, 132, 0.1);
+            background: rgba(31, 24, 19, 0.56);
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.65;
+            white-space: pre-wrap;
         }
 
         .recording-review-header {
@@ -2232,6 +2495,91 @@
             overflow: auto;
             overscroll-behavior: contain;
             scrollbar-gutter: stable;
+        }
+
+        .recording-history-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 14px;
+            min-height: 0;
+        }
+
+        .recording-history-card {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            width: 100%;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(205, 175, 132, 0.12);
+            background: rgba(20, 16, 13, 0.74);
+            color: var(--text-primary);
+            text-align: left;
+            cursor: pointer;
+            font: inherit;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .recording-history-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(205, 175, 132, 0.28);
+            background: rgba(31, 24, 19, 0.9);
+        }
+
+        .recording-history-card.is-selected {
+            border-color: rgba(198, 154, 92, 0.34);
+            background: rgba(40, 30, 24, 0.92);
+            box-shadow: inset 0 0 0 1px rgba(198, 154, 92, 0.12);
+        }
+
+        .recording-history-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .recording-history-id {
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .recording-history-meta {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .recording-history-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .recording-history-stat-label {
+            color: var(--text-muted);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .recording-history-stat-value {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .recording-history-open {
+            color: #f4ddbb;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
 
         .agent-voice-header {
@@ -3094,10 +3442,6 @@
                 overflow: hidden;
             }
 
-            .recording-review-layout {
-                grid-template-columns: 1fr;
-            }
-
             body.advanced-mode .composer-card,
             body.advanced-mode .timeline-card {
                 visibility: visible;
@@ -3117,8 +3461,19 @@
             .viewer-status-stack,
             .timeline-meta,
             .header-actions,
-            .agent-voice-meta {
+            .agent-voice-meta,
+            .recording-history-meta {
                 justify-content: flex-start;
+            }
+
+            .recording-split-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .header-action-menu-panel {
+                left: 0;
+                right: auto;
+                min-width: min(320px, calc(100vw - 48px));
             }
         }
 
@@ -3292,7 +3647,19 @@
 
                 <div class="header-actions">
                     <button class="header-action-btn" id="advanced-toggle-btn" onclick="toggleAdvancedMode()">Advanced</button>
-                    <button class="header-action-btn recording" id="recording-toggle-btn" onclick="toggleRecording()" title="Start recording manual browser actions">Record</button>
+                    <div class="header-action-menu" id="recording-menu-shell">
+                        <button class="header-action-btn recording" id="recording-toggle-btn" onclick="handleRecordingToggle(event)" title="Start recording manual browser actions">Record</button>
+                        <div class="header-action-menu-panel" id="recording-menu-panel">
+                            <button class="header-menu-item" id="recording-menu-start-btn" onclick="handleRecordingMenuAction('start')">
+                                <span class="header-menu-title">Start New Recording</span>
+                                <span class="header-menu-copy">Open a fresh dedicated recording window and capture a new workflow trace.</span>
+                            </button>
+                            <button class="header-menu-item" id="recording-menu-history-btn" onclick="handleRecordingMenuAction('history')">
+                                <span class="header-menu-title">View History</span>
+                                <span class="header-menu-copy">Reopen a saved recording, inspect the captured events, and review its workflow draft.</span>
+                            </button>
+                        </div>
+                    </div>
                     <button class="header-action-btn primary" onclick="openConfigPage()" title="Configure LLM Settings">Settings</button>
                 </div>
             </div>
@@ -3390,7 +3757,7 @@
                     <div class="recording-panel-header">
                         <div>
                             <div class="panel-kicker">Recording Mode</div>
-                            <h2 class="panel-title">Capture a manual browser workflow</h2>
+                            <h2 class="panel-title" id="recording-panel-title">Capture a manual browser workflow</h2>
                         </div>
                         <span class="stage-badge" id="recording-panel-state">Idle</span>
                     </div>
@@ -3402,6 +3769,7 @@
                     <div class="recording-panel-toolbar">
                         <div class="recording-panel-meta">
                             <button class="header-action-btn" id="recording-panel-action-btn" onclick="toggleRecording()">Start Recording</button>
+                            <button class="ghost-button" id="recording-panel-history-btn" onclick="void openRecordingHistoryList()">View History</button>
                             <button class="ghost-button" onclick="closeRecordingPanel()">Back to Tasks</button>
                         </div>
                     </div>
@@ -3412,46 +3780,72 @@
                             <strong class="recording-summary-value" id="recording-panel-browser">Required</strong>
                         </div>
                         <div class="recording-summary-card">
-                            <span class="recording-summary-label">Recording ID</span>
+                            <span class="recording-summary-label" id="recording-panel-id-label">Recording ID</span>
                             <strong class="recording-summary-value" id="recording-panel-id">Not started</strong>
                         </div>
                         <div class="recording-summary-card">
-                            <span class="recording-summary-label">Captured events</span>
+                            <span class="recording-summary-label" id="recording-panel-count-label">Captured events</span>
                             <strong class="recording-summary-value" id="recording-panel-count">0</strong>
                         </div>
                         <div class="recording-summary-card">
-                            <span class="recording-summary-label">Last update</span>
+                            <span class="recording-summary-label" id="recording-panel-updated-label">Last update</span>
                             <strong class="recording-summary-value" id="recording-panel-updated">Waiting</strong>
                         </div>
                     </div>
 
-                    <div class="recording-review-layout">
-                        <section class="recording-review-pane">
+                    <div class="recording-view" id="recording-detail-view">
+                        <div class="recording-focus-switch">
+                            <button class="recording-focus-btn is-active" id="recording-focus-events-btn" onclick="setRecordingPrimaryView('events')">Captured Events</button>
+                            <button class="recording-focus-btn" id="recording-focus-workflow-btn" onclick="setRecordingPrimaryView('workflow')">Workflow Draft</button>
+                        </div>
+
+                        <div class="recording-split-layout">
+                            <section class="recording-review-pane recording-list-pane">
+                                <div class="recording-review-header">
+                                    <div class="recording-review-title" id="recording-selection-list-title">Captured Events</div>
+                                    <span class="recording-event-badge" id="recording-selection-list-badge">Timeline</span>
+                                </div>
+                                <div class="recording-review-copy" id="recording-selection-list-copy">
+                                    Review the concrete user actions first. This should be the source of truth before you trust the compiled workflow draft.
+                                </div>
+                                <div class="recording-selection-list scrollbar" id="recording-selection-list">
+                                    <div class="recording-empty-state">
+                                        No recording trace yet. Click <strong>Start Recording</strong>, do the workflow manually, and the captured events will appear here.
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="recording-review-pane recording-detail-pane">
+                                <div class="recording-review-header">
+                                    <div class="recording-review-title" id="recording-selection-detail-title">Event Detail</div>
+                                    <span class="recording-event-badge" id="recording-selection-detail-badge">Waiting</span>
+                                </div>
+                                <div class="recording-review-copy" id="recording-selection-detail-copy">
+                                    Select an item from the left to inspect its detail here.
+                                </div>
+                                <div class="recording-detail-content scrollbar" id="recording-selection-detail">
+                                    <div class="recording-empty-state">
+                                        Select an item from the left to inspect its detail here.
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <div class="recording-view" id="recording-history-view" hidden>
+                        <section class="recording-review-pane is-primary">
                             <div class="recording-review-header">
-                                <div class="recording-review-title">Captured Events</div>
-                                <span class="recording-event-badge" id="recording-events-badge">Timeline</span>
+                                <div class="recording-review-title">Recording History</div>
+                                <span class="recording-event-badge" id="recording-history-badge">Waiting</span>
                             </div>
                             <div class="recording-review-copy">
-                                Review the normalized trace on the left before you decide whether the workflow draft matches the real intent.
+                                Pick an existing recording to reopen its review workspace. History is scoped to the currently connected browser UUID.
                             </div>
-                            <div class="recording-event-list scrollbar" id="recording-event-list">
+                            <div class="recording-history-list" id="recording-history-list">
                                 <div class="recording-empty-state">
-                                    No recording trace yet. Click <strong>Start Recording</strong>, do the workflow manually, and the captured events will appear here.
+                                    No saved recordings yet. Start a new recording to create the first trace for this browser.
                                 </div>
                             </div>
-                        </section>
-
-                        <section class="recording-review-pane">
-                            <section class="recording-workflow-draft" id="recording-workflow-draft">
-                                <div class="recording-workflow-header">
-                                    <div class="recording-workflow-title">Workflow Draft</div>
-                                    <span class="recording-event-badge" id="recording-workflow-badge">Waiting</span>
-                                </div>
-                                <div class="recording-workflow-summary" id="recording-workflow-summary">
-                                    Workflow JSON draft will appear after events are captured.
-                                </div>
-                                <pre class="recording-workflow-json scrollbar" id="recording-workflow-json">{}</pre>
-                            </section>
                         </section>
                     </div>
                 </section>
@@ -3775,9 +4169,16 @@
         let currentRecordingId = null;
         let currentRecordingStatus = 'idle';
         let recordingPanelVisible = false;
+        let recordingPanelMode = 'detail';
+        let recordingPrimaryView = 'events';
         let recordingPanelSession = null;
+        let recordingHistory = [];
+        let recordingHistoryLoading = false;
         let recordingEvents = [];
         let recordingWorkflowDraft = null;
+        let selectedRecordingEntryKey = null;
+        let selectedWorkflowStepId = null;
+        let recordingMenuOpen = false;
         let recordingPollTimer = null;
         let eventSource = null;
         let isProcessing = false;
@@ -4375,6 +4776,9 @@
             if (keyframe.trigger) {
                 metaParts.push(`Trigger: ${keyframe.trigger}`);
             }
+            if (keyframe.annotationMessage) {
+                metaParts.push(String(keyframe.annotationMessage));
+            }
             if (keyframe.width && keyframe.height) {
                 metaParts.push(`${keyframe.width}x${keyframe.height}`);
             }
@@ -4512,30 +4916,553 @@
             jsonNode.textContent = JSON.stringify(recordingWorkflowDraft.workflow, null, 2);
         }
 
+        function getRecordingEntryKey(entry, fallbackIndex = 0) {
+            return String(entry?.primaryEvent?.event_index ?? `entry-${fallbackIndex}`);
+        }
+
+        function getWorkflowDraftSteps() {
+            return Array.isArray(recordingWorkflowDraft?.workflow?.steps)
+                ? recordingWorkflowDraft.workflow.steps
+                : [];
+        }
+
+        function getWorkflowStepKey(step, fallbackIndex = 0) {
+            return String(step?.id || `step-${fallbackIndex + 1}`);
+        }
+
+        function syncRecordingReviewSelection() {
+            const displayEntries = buildRecordingDisplayEntries(recordingEvents);
+            if (!displayEntries.length) {
+                selectedRecordingEntryKey = null;
+            } else if (!displayEntries.some((entry, index) => getRecordingEntryKey(entry, index) === selectedRecordingEntryKey)) {
+                selectedRecordingEntryKey = getRecordingEntryKey(displayEntries[displayEntries.length - 1], displayEntries.length - 1);
+            }
+
+            const steps = getWorkflowDraftSteps();
+            if (!steps.length) {
+                selectedWorkflowStepId = null;
+            } else if (!steps.some((step, index) => getWorkflowStepKey(step, index) === selectedWorkflowStepId)) {
+                selectedWorkflowStepId = getWorkflowStepKey(steps[0], 0);
+            }
+        }
+
+        function setSelectedRecordingEntry(entryKey) {
+            selectedRecordingEntryKey = String(entryKey || '');
+            updateRecordingPanel();
+        }
+
+        function setSelectedWorkflowStep(stepId) {
+            selectedWorkflowStepId = String(stepId || '');
+            updateRecordingPanel();
+        }
+
+        function renderRecordingSelectionList() {
+            const titleNode = document.getElementById('recording-selection-list-title');
+            const badgeNode = document.getElementById('recording-selection-list-badge');
+            const copyNode = document.getElementById('recording-selection-list-copy');
+            const container = document.getElementById('recording-selection-list');
+            if (!titleNode || !badgeNode || !copyNode || !container) {
+                return;
+            }
+
+            if (recordingPrimaryView === 'workflow') {
+                const steps = getWorkflowDraftSteps();
+                titleNode.textContent = 'Workflow Steps';
+                badgeNode.textContent = steps.length ? `${steps.length} steps` : 'Waiting';
+                copyNode.textContent = 'Select a compiled workflow step on the left, then inspect the normalized detail on the right.';
+
+                if (!steps.length) {
+                    container.innerHTML = `
+                        <div class="recording-empty-state">
+                            Workflow JSON draft will appear after events are captured.
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = steps.map((step, index) => {
+                    const stepKey = getWorkflowStepKey(step, index);
+                    const isSelected = stepKey === selectedWorkflowStepId;
+                    const title = escapeHtml(step?.title || step?.action || step?.kind || `Step ${index + 1}`);
+                    const summary = escapeHtml(
+                        truncateForSummary(
+                            step?.reasoning ||
+                            step?.description ||
+                            step?.postcondition ||
+                            step?.intent ||
+                            '',
+                            120
+                        ) || 'No additional reasoning recorded.'
+                    );
+                    const badge = escapeHtml(step?.executor_preference || step?.kind || `Step ${index + 1}`);
+
+                    return `
+                        <button
+                            class="recording-selection-item${isSelected ? ' is-selected' : ''}"
+                            data-step-id="${escapeHtml(stepKey)}"
+                            onclick="setSelectedWorkflowStep(this.dataset.stepId)"
+                        >
+                            <div class="recording-selection-line">
+                                <span class="recording-event-badge">${escapeHtml(`Step ${index + 1}`)}</span>
+                                <span class="recording-event-type">${badge}</span>
+                            </div>
+                            <div class="recording-selection-title">${title}</div>
+                            <div class="recording-selection-summary">${summary}</div>
+                        </button>
+                    `;
+                }).join('');
+                return;
+            }
+
+            const displayEntries = buildRecordingDisplayEntries(recordingEvents);
+            titleNode.textContent = 'Captured Events';
+            badgeNode.textContent = displayEntries.length === recordingEvents.length
+                ? `${displayEntries.length} events`
+                : `${displayEntries.length} shown`;
+            copyNode.textContent = 'Select a grouped event on the left, then inspect its keyframe and raw payload on the right.';
+
+            if (!displayEntries.length) {
+                container.innerHTML = `
+                    <div class="recording-empty-state">
+                        No recording trace yet. Click <strong>Start Recording</strong>, do the workflow manually, and the captured events will appear here.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = displayEntries.map((entry, index) => {
+                const event = entry.primaryEvent;
+                const entryKey = getRecordingEntryKey(entry, index);
+                const isSelected = entryKey === selectedRecordingEntryKey;
+                const createdAt = formatDisplayTime(getRecordingEventDisplayTime(event));
+                const summary = escapeHtml(formatRecordingEntrySummary(entry));
+                const hasKeyframe = Boolean(event.event_data?.keyframe?.imageData);
+                const hasSupportingEvents = Array.isArray(entry.supportingEvents) && entry.supportingEvents.length > 0;
+
+                return `
+                    <button
+                        class="recording-selection-item${isSelected ? ' is-selected' : ''}"
+                        data-entry-key="${escapeHtml(entryKey)}"
+                        onclick="setSelectedRecordingEntry(this.dataset.entryKey)"
+                    >
+                        <div class="recording-selection-line">
+                            <span class="recording-event-type">${escapeHtml(event.event_type || 'event')}</span>
+                            <span class="recording-event-index">#${escapeHtml(event.event_index ?? index)}</span>
+                            <span class="recording-event-time">${escapeHtml(createdAt)}</span>
+                            ${hasKeyframe ? '<span class="recording-event-badge">Keyframe</span>' : ''}
+                            ${hasSupportingEvents ? `<span class="recording-event-badge">Folded ${escapeHtml(entry.supportingEvents.length)}</span>` : ''}
+                        </div>
+                        <div class="recording-selection-title">${summary}</div>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function renderRecordingSelectionDetail() {
+            const titleNode = document.getElementById('recording-selection-detail-title');
+            const badgeNode = document.getElementById('recording-selection-detail-badge');
+            const copyNode = document.getElementById('recording-selection-detail-copy');
+            const container = document.getElementById('recording-selection-detail');
+            if (!titleNode || !badgeNode || !copyNode || !container) {
+                return;
+            }
+
+            if (recordingPrimaryView === 'workflow') {
+                const workflow = recordingWorkflowDraft?.workflow;
+                const steps = getWorkflowDraftSteps();
+                const selectedStep = steps.find((step, index) => getWorkflowStepKey(step, index) === selectedWorkflowStepId) || steps[0] || null;
+
+                titleNode.textContent = 'Workflow Detail';
+                badgeNode.textContent = selectedStep
+                    ? (selectedStep?.executor_preference || selectedStep?.kind || 'Step')
+                    : 'Waiting';
+                copyNode.textContent = 'Inspect the compiled workflow step on the right. This is what later replay execution will consume.';
+
+                if (!workflow || !selectedStep) {
+                    container.innerHTML = `
+                        <div class="recording-empty-state">
+                            Workflow JSON draft will appear after events are captured.
+                        </div>
+                    `;
+                    return;
+                }
+
+                const goal = escapeHtml(workflow?.goal?.text || 'Unspecified goal');
+                const inputs = Array.isArray(workflow?.inputs) ? workflow.inputs : [];
+                const selectedStepJson = escapeHtml(JSON.stringify(selectedStep, null, 2));
+                const workflowJson = escapeHtml(JSON.stringify(workflow, null, 2));
+
+                container.innerHTML = `
+                    <div class="recording-detail-card">
+                        <div class="recording-detail-card-title">Workflow Goal</div>
+                        <div class="recording-detail-card-copy">Goal: ${goal}\nInputs: ${escapeHtml(String(inputs.length))}\nExecutor: ${escapeHtml(workflow?.executor_preference || 'hybrid')}</div>
+                    </div>
+                    <div class="recording-detail-card">
+                        <div class="recording-detail-card-title">Selected Step</div>
+                        <div class="recording-detail-card-copy">${escapeHtml(selectedStep?.title || selectedStep?.action || selectedStep?.kind || 'Step')}</div>
+                        <pre class="recording-event-details">${selectedStepJson}</pre>
+                    </div>
+                    <div class="recording-detail-card">
+                        <div class="recording-detail-card-title">Full Workflow JSON</div>
+                        <pre class="recording-event-details">${workflowJson}</pre>
+                    </div>
+                `;
+                return;
+            }
+
+            const displayEntries = buildRecordingDisplayEntries(recordingEvents);
+            const selectedEntry = displayEntries.find((entry, index) => getRecordingEntryKey(entry, index) === selectedRecordingEntryKey)
+                || displayEntries[displayEntries.length - 1]
+                || null;
+
+            titleNode.textContent = 'Event Detail';
+            badgeNode.textContent = selectedEntry?.primaryEvent?.event_type || 'Waiting';
+            copyNode.textContent = 'Inspect the selected recorded event, including its keyframe, folded supporting events, and raw payload.';
+
+            if (!selectedEntry) {
+                container.innerHTML = `
+                    <div class="recording-empty-state">
+                        Select an event on the left to inspect its detail here.
+                    </div>
+                `;
+                return;
+            }
+
+            const event = selectedEntry.primaryEvent;
+            const sanitizedEventData = sanitizeRecordingEventData(event.event_data || {});
+            const prettyDetails = escapeHtml(JSON.stringify(sanitizedEventData, null, 2));
+            const keyframeHtml = renderRecordingKeyframe(event.event_data || {}, event.event_type || 'event');
+            const supportingEventsHtml = renderRecordingSupportingEvents(selectedEntry.supportingEvents);
+            const summary = escapeHtml(formatRecordingEntrySummary(selectedEntry));
+            const createdAt = escapeHtml(formatDisplayTime(getRecordingEventDisplayTime(event)));
+
+            container.innerHTML = `
+                <div class="recording-detail-card">
+                    <div class="recording-detail-card-title">Summary</div>
+                    <div class="recording-detail-card-copy">${summary}\nTime: ${createdAt}</div>
+                </div>
+                ${keyframeHtml}
+                ${supportingEventsHtml}
+                <div class="recording-detail-card">
+                    <div class="recording-detail-card-title">Raw Event Data</div>
+                    <pre class="recording-event-details">${prettyDetails}</pre>
+                </div>
+            `;
+        }
+
+        function formatRecordingStatusLabel(status) {
+            const normalized = String(status || 'idle').replace(/_/g, ' ').trim();
+            if (!normalized) {
+                return 'Idle';
+            }
+
+            return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+        }
+
+        function renderRecordingHistory() {
+            const container = document.getElementById('recording-history-list');
+            const badgeNode = document.getElementById('recording-history-badge');
+            if (!container || !badgeNode) {
+                return;
+            }
+
+            if (!currentBrowserId) {
+                badgeNode.textContent = 'Browser Required';
+                container.innerHTML = `
+                    <div class="recording-empty-state">
+                        Paste a browser UUID first. Recording history is scoped to the currently connected browser.
+                    </div>
+                `;
+                return;
+            }
+
+            if (recordingHistoryLoading) {
+                badgeNode.textContent = 'Loading';
+                container.innerHTML = `
+                    <div class="recording-empty-state">
+                        Loading saved recordings for this browser...
+                    </div>
+                `;
+                return;
+            }
+
+            if (!recordingHistory.length) {
+                badgeNode.textContent = 'Empty';
+                container.innerHTML = `
+                    <div class="recording-empty-state">
+                        No saved recordings yet. Start a new recording to create the first trace for this browser.
+                    </div>
+                `;
+                return;
+            }
+
+            badgeNode.textContent = `${recordingHistory.length} Saved`;
+            container.innerHTML = recordingHistory.map((recording) => {
+                const isSelected = recordingPanelSession?.recording_id === recording.recording_id;
+                const launchMode = recording?.metadata?.launch_mode === 'current_window'
+                    ? 'Current window'
+                    : 'Dedicated window';
+                const createdAt = formatDisplayTime(recording.created_at);
+                const updatedAt = formatDisplayTime(recording.updated_at);
+                const eventCount = Number(recording.event_count) || 0;
+
+                return `
+                    <button
+                        class="recording-history-card${isSelected ? ' is-selected' : ''}"
+                        onclick="void openRecordingDetail('${recording.recording_id}')"
+                    >
+                        <div class="recording-history-top">
+                            <div class="recording-history-id">${escapeHtml(shortDisplay(recording.recording_id, recording.recording_id))}</div>
+                            <span class="recording-event-badge">${escapeHtml(formatRecordingStatusLabel(recording.status))}</span>
+                        </div>
+                        <div class="recording-history-meta">
+                            <div class="recording-history-stat">
+                                <span class="recording-history-stat-label">Updated</span>
+                                <span class="recording-history-stat-value">${escapeHtml(updatedAt)}</span>
+                            </div>
+                            <div class="recording-history-stat">
+                                <span class="recording-history-stat-label">Events</span>
+                                <span class="recording-history-stat-value">${escapeHtml(String(eventCount))}</span>
+                            </div>
+                            <div class="recording-history-stat">
+                                <span class="recording-history-stat-label">Started</span>
+                                <span class="recording-history-stat-value">${escapeHtml(createdAt)}</span>
+                            </div>
+                            <div class="recording-history-stat">
+                                <span class="recording-history-stat-label">Mode</span>
+                                <span class="recording-history-stat-value">${escapeHtml(launchMode)}</span>
+                            </div>
+                        </div>
+                        <span class="recording-history-open">Open Review</span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function renderRecordingSecondaryPane() {
+            return;
+        }
+
+        function updateRecordingViewState() {
+            const detailView = document.getElementById('recording-detail-view');
+            const historyView = document.getElementById('recording-history-view');
+            const eventsButton = document.getElementById('recording-focus-events-btn');
+            const workflowButton = document.getElementById('recording-focus-workflow-btn');
+            const isEventsPrimary = recordingPrimaryView !== 'workflow';
+            const isDetailMode = recordingPanelMode === 'detail';
+
+            if (detailView) {
+                detailView.hidden = !isDetailMode;
+            }
+            if (historyView) {
+                historyView.hidden = isDetailMode;
+            }
+
+            if (eventsButton) {
+                eventsButton.classList.toggle('is-active', isEventsPrimary);
+            }
+
+            if (workflowButton) {
+                workflowButton.classList.toggle('is-active', !isEventsPrimary);
+            }
+        }
+
+        function setRecordingPrimaryView(view) {
+            recordingPrimaryView = view === 'workflow' ? 'workflow' : 'events';
+            updateRecordingViewState();
+            updateRecordingPanel();
+        }
+
+        function closeRecordingMenu() {
+            recordingMenuOpen = false;
+            const shell = document.getElementById('recording-menu-shell');
+            const toggleButton = document.getElementById('recording-toggle-btn');
+            if (shell) {
+                shell.classList.remove('open');
+            }
+            if (toggleButton) {
+                toggleButton.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function updateRecordingMenu() {
+            const shell = document.getElementById('recording-menu-shell');
+            const toggleButton = document.getElementById('recording-toggle-btn');
+            const startButton = document.getElementById('recording-menu-start-btn');
+            const historyButton = document.getElementById('recording-menu-history-btn');
+            const canUseRecording = Boolean(currentBrowserId);
+
+            if (shell) {
+                shell.classList.toggle('open', recordingMenuOpen);
+            }
+
+            if (toggleButton) {
+                toggleButton.setAttribute('aria-expanded', recordingMenuOpen ? 'true' : 'false');
+            }
+
+            if (startButton) {
+                startButton.disabled = !canUseRecording;
+            }
+
+            if (historyButton) {
+                historyButton.disabled = !canUseRecording;
+            }
+        }
+
+        function handleRecordingToggle(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            if (currentRecordingId) {
+                closeRecordingMenu();
+                void stopRecording();
+                return;
+            }
+
+            recordingMenuOpen = !recordingMenuOpen;
+            updateRecordingMenu();
+        }
+
+        function handleRecordingMenuAction(action) {
+            closeRecordingMenu();
+
+            if (action === 'start') {
+                recordingPanelMode = 'detail';
+                void startRecording();
+                return;
+            }
+
+            if (action === 'history') {
+                void openLatestRecordingReview();
+            }
+        }
+
+        async function refreshRecordingHistory(browserId = currentBrowserId) {
+            if (!browserId) {
+                recordingHistory = [];
+                recordingHistoryLoading = false;
+                updateRecordingPanel();
+                return;
+            }
+
+            recordingHistoryLoading = true;
+            updateRecordingPanel();
+
+            try {
+                const response = await fetch(
+                    apiUrl(`/recordings?browser_id=${encodeURIComponent(browserId)}`)
+                );
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to load recording history');
+                }
+
+                recordingHistory = Array.isArray(data.recordings) ? data.recordings : [];
+            } catch (error) {
+                console.warn('Failed to refresh recording history:', error);
+                recordingHistory = [];
+            } finally {
+                recordingHistoryLoading = false;
+                updateRecordingPanel();
+            }
+        }
+
+        async function openRecordingHistoryList() {
+            const browserId = requireBrowserId();
+            if (!browserId) {
+                return;
+            }
+
+            recordingPanelMode = 'history';
+            openRecordingPanel('history');
+            await refreshRecordingHistory(browserId);
+        }
+
+        async function openLatestRecordingReview() {
+            const browserId = requireBrowserId();
+            if (!browserId) {
+                return;
+            }
+
+            await refreshRecordingHistory(browserId);
+            const latestRecording = recordingHistory[0] || null;
+            if (!latestRecording?.recording_id) {
+                recordingPanelMode = 'history';
+                openRecordingPanel('history');
+                return;
+            }
+
+            await openRecordingDetail(latestRecording.recording_id);
+        }
+
+        async function openRecordingDetail(recordingId) {
+            if (!recordingId) {
+                return;
+            }
+
+            recordingPrimaryView = 'events';
+            recordingPanelMode = 'detail';
+            recordingEvents = [];
+            recordingWorkflowDraft = null;
+            selectedRecordingEntryKey = null;
+            selectedWorkflowStepId = null;
+            openRecordingPanel('detail');
+
+            const selectedRecording = recordingHistory.find((recording) => recording.recording_id === recordingId);
+            if (selectedRecording) {
+                setRecordingState(selectedRecording);
+            } else if (recordingPanelSession?.recording_id !== recordingId) {
+                recordingPanelSession = {
+                    recording_id: recordingId,
+                    status: 'stopped',
+                };
+                updateRecordingPanel();
+            }
+
+            await refreshRecordingEvents(recordingId);
+        }
+
         function updateRecordingPanel() {
+            const titleNode = document.getElementById('recording-panel-title');
             const actionButton = document.getElementById('recording-panel-action-btn');
+            const historyButton = document.getElementById('recording-panel-history-btn');
             const panelState = document.getElementById('recording-panel-state');
             const browserValue = document.getElementById('recording-panel-browser');
+            const recordingIdLabel = document.getElementById('recording-panel-id-label');
             const recordingIdValue = document.getElementById('recording-panel-id');
+            const countLabel = document.getElementById('recording-panel-count-label');
             const countValue = document.getElementById('recording-panel-count');
+            const updatedLabel = document.getElementById('recording-panel-updated-label');
             const updatedValue = document.getElementById('recording-panel-updated');
             const copyValue = document.getElementById('recording-panel-copy');
             const eventsBadge = document.getElementById('recording-events-badge');
             const activeSession = recordingPanelSession;
             const isRecording = Boolean(currentRecordingId);
             const launchMode = activeSession?.metadata?.launch_mode || 'dedicated_window';
+            const isHistoryMode = recordingPanelMode === 'history';
+            const displayCount = buildRecordingDisplayEntries(recordingEvents).length;
+            const latestHistory = recordingHistory[0] || null;
 
             if (actionButton) {
                 actionButton.textContent = isRecording ? 'Stop Recording' : 'Start Recording';
                 actionButton.disabled = !currentBrowserId && !isRecording;
             }
 
+            if (historyButton) {
+                historyButton.style.display = isHistoryMode ? 'none' : '';
+                historyButton.disabled = !currentBrowserId || isRecording;
+            }
+
             if (panelState) {
-                panelState.textContent = isRecording
-                    ? 'Recording'
-                    : activeSession
-                        ? 'Captured'
-                        : 'Idle';
+                panelState.textContent = isHistoryMode
+                    ? 'History'
+                    : isRecording
+                        ? 'Recording'
+                        : activeSession
+                            ? 'Captured'
+                            : 'Idle';
             }
 
             if (browserValue) {
@@ -4543,49 +5470,90 @@
                 browserValue.title = currentBrowserId || '';
             }
 
+            if (titleNode) {
+                titleNode.textContent = isHistoryMode
+                    ? 'Browse saved recordings'
+                    : isRecording
+                        ? 'Capture a manual browser workflow'
+                        : activeSession
+                            ? 'Review a recorded workflow'
+                            : 'Capture a manual browser workflow';
+            }
+
+            if (recordingIdLabel) {
+                recordingIdLabel.textContent = isHistoryMode ? 'History entries' : 'Recording ID';
+            }
+
             if (recordingIdValue) {
-                recordingIdValue.textContent = activeSession?.recording_id || 'Not started';
-                recordingIdValue.title = activeSession?.recording_id || '';
+                recordingIdValue.textContent = isHistoryMode
+                    ? String(recordingHistory.length)
+                    : activeSession?.recording_id || 'Not started';
+                recordingIdValue.title = isHistoryMode
+                    ? ''
+                    : activeSession?.recording_id || '';
+            }
+
+            if (countLabel) {
+                countLabel.textContent = isHistoryMode ? 'Active recording' : 'Captured events';
             }
 
             if (countValue) {
-                const displayCount = buildRecordingDisplayEntries(recordingEvents).length;
-                countValue.textContent = displayCount === recordingEvents.length
-                    ? String(recordingEvents.length)
-                    : `${displayCount} shown · ${recordingEvents.length} raw`;
-                countValue.title = displayCount === recordingEvents.length
-                    ? ''
-                    : `Showing ${displayCount} grouped timeline entries from ${recordingEvents.length} raw events.`;
+                if (isHistoryMode) {
+                    countValue.textContent = currentRecordingId
+                        ? shortDisplay(currentRecordingId, currentRecordingId)
+                        : 'None';
+                    countValue.title = currentRecordingId || '';
+                } else {
+                    countValue.textContent = displayCount === recordingEvents.length
+                        ? String(recordingEvents.length)
+                        : `${displayCount} shown · ${recordingEvents.length} raw`;
+                    countValue.title = displayCount === recordingEvents.length
+                        ? ''
+                        : `Showing ${displayCount} grouped timeline entries from ${recordingEvents.length} raw events.`;
+                }
             }
 
             if (eventsBadge) {
-                const displayCount = buildRecordingDisplayEntries(recordingEvents).length;
                 eventsBadge.textContent = displayCount === recordingEvents.length
                     ? `${displayCount} events`
                     : `${displayCount} shown`;
             }
 
+            if (updatedLabel) {
+                updatedLabel.textContent = isHistoryMode ? 'Latest recording' : 'Last update';
+            }
+
             if (updatedValue) {
-                const lastEvent = recordingEvents[recordingEvents.length - 1];
-                updatedValue.textContent = formatDisplayTime(
-                    lastEvent?.created_at || activeSession?.updated_at
-                );
+                if (isHistoryMode) {
+                    updatedValue.textContent = formatDisplayTime(latestHistory?.updated_at);
+                } else {
+                    const lastEvent = recordingEvents[recordingEvents.length - 1];
+                    updatedValue.textContent = formatDisplayTime(
+                        lastEvent?.created_at || activeSession?.updated_at
+                    );
+                }
             }
 
             if (copyValue) {
-                copyValue.textContent = isRecording
-                    ? launchMode === 'current_window'
-                        ? 'Recording is active in the current browser window. Perform the workflow manually there while this panel updates as events arrive.'
-                        : 'Recording is active in a dedicated browser window. Perform the workflow manually there while this panel updates as events arrive.'
-                    : activeSession
+                copyValue.textContent = isHistoryMode
+                    ? 'Open an older recording from history when you want to inspect the trace again after leaving task mode.'
+                    : isRecording
                         ? launchMode === 'current_window'
-                            ? 'Recording has finished. Review the captured event trace below or start another current-window recording.'
-                            : 'Recording has finished. Review the captured event trace below or start another dedicated-window recording.'
-                        : 'Start a recording to open a dedicated browser window, perform the workflow manually there, then stop recording to inspect the captured event trace.';
+                            ? 'Recording is active in the current browser window. Perform the workflow manually there while this panel updates as events arrive.'
+                            : 'Recording is active in a dedicated browser window. Perform the workflow manually there while this panel updates as events arrive.'
+                        : activeSession
+                            ? launchMode === 'current_window'
+                                ? 'Recording has finished. Focus on either the raw events or the compiled workflow, then switch when you need the other view.'
+                                : 'Recording has finished. Focus on either the raw events or the compiled workflow, then switch when you need the other view.'
+                            : 'Start a recording to open a dedicated browser window, perform the workflow manually there, then stop recording to inspect the captured event trace.';
             }
 
-            renderRecordingEvents();
-            renderRecordingWorkflowDraft();
+            syncRecordingReviewSelection();
+            renderRecordingSelectionList();
+            renderRecordingSelectionDetail();
+            renderRecordingHistory();
+            updateRecordingViewState();
+            updateRecordingMenu();
         }
 
         function stopRecordingPolling() {
@@ -4598,7 +5566,7 @@
         function ensureRecordingPolling() {
             stopRecordingPolling();
 
-            if (!recordingPanelVisible || !recordingPanelSession?.recording_id) {
+            if (recordingPanelMode !== 'detail' || !recordingPanelVisible || !recordingPanelSession?.recording_id) {
                 return;
             }
 
@@ -4611,7 +5579,8 @@
             }, 1500);
         }
 
-        function openRecordingPanel() {
+        function openRecordingPanel(mode = recordingPanelMode) {
+            recordingPanelMode = mode === 'history' ? 'history' : 'detail';
             recordingPanelVisible = true;
             updateRecordingPanel();
             updateGuidedPanels();
@@ -4620,6 +5589,7 @@
 
         function closeRecordingPanel() {
             recordingPanelVisible = false;
+            closeRecordingMenu();
             stopRecordingPolling();
             updateGuidedPanels();
         }
@@ -4628,6 +5598,8 @@
             if (!recordingId) {
                 recordingEvents = [];
                 recordingWorkflowDraft = null;
+                selectedRecordingEntryKey = null;
+                selectedWorkflowStepId = null;
                 updateRecordingPanel();
                 return;
             }
@@ -4647,6 +5619,12 @@
                 }
 
                 recordingWorkflowDraft = workflowData;
+                const selectedRecording = recordingHistory.find((recording) => recording.recording_id === recordingId);
+                if (selectedRecording) {
+                    const lastEvent = recordingEvents[recordingEvents.length - 1];
+                    selectedRecording.event_count = recordingEvents.length;
+                    selectedRecording.updated_at = lastEvent?.created_at || selectedRecording.updated_at;
+                }
                 updateRecordingPanel();
             } catch (error) {
                 console.warn('Failed to refresh recording events:', error);
@@ -4981,8 +5959,10 @@
                 nextStep = 'Sisyphus is armed. Press Start Sisyphus or type a task.';
             } else if (recordingPanelVisible && currentRecordingId) {
                 nextStep = 'Recorder is active. Use the dedicated recording window and watch the captured events below.';
+            } else if (recordingPanelVisible && recordingPanelMode === 'history') {
+                nextStep = 'Recording history is open. Pick a saved trace to review it again.';
             } else if (recordingPanelVisible) {
-                nextStep = 'Recording trace ready. Review the captured events or go back to task mode.';
+                nextStep = 'Recording trace ready. Choose whether to focus on captured events or the workflow draft.';
             } else if (currentRecordingId) {
                 nextStep = 'Recording is still active. Stop it from the header or reopen the recording panel.';
             } else if (!currentBrowserId) {
@@ -5029,21 +6009,25 @@
                 } else {
                     toggleButton.textContent = 'Record';
                     toggleButton.title = currentBrowserId
-                        ? 'Start recording manual browser actions'
+                        ? 'Open recording options'
                         : 'Paste Browser UUID before starting a recording';
                     toggleButton.classList.remove('recording-active');
                     toggleButton.disabled = !currentBrowserId;
                 }
             }
+
+            updateRecordingMenu();
         }
 
         function toggleRecording() {
+            closeRecordingMenu();
             if (currentRecordingId) {
                 void stopRecording();
                 return;
             }
 
-            openRecordingPanel();
+            recordingPanelMode = 'detail';
+            openRecordingPanel('detail');
             void startRecording();
         }
 
@@ -5053,8 +6037,19 @@
             currentRecordingStatus = recording?.status || 'idle';
             if (recording) {
                 recordingPanelSession = recording;
+                const historyIndex = recordingHistory.findIndex(
+                    (item) => item.recording_id === recording.recording_id
+                );
+                if (historyIndex >= 0) {
+                    recordingHistory[historyIndex] = {
+                        ...recordingHistory[historyIndex],
+                        ...recording,
+                    };
+                }
             } else {
                 recordingWorkflowDraft = null;
+                selectedRecordingEntryKey = null;
+                selectedWorkflowStepId = null;
             }
             updateRecordingUi();
             updateRecordingPanel();
@@ -5100,8 +6095,12 @@
             if (previousBrowserId !== currentBrowserId) {
                 setRecordingState(null);
                 recordingPanelSession = null;
+                recordingHistory = [];
+                recordingHistoryLoading = false;
                 recordingEvents = [];
                 recordingWorkflowDraft = null;
+                selectedRecordingEntryKey = null;
+                selectedWorkflowStepId = null;
                 stopRecordingPolling();
                 if (currentBrowserId) {
                     void syncRecordingStateForBrowser(currentBrowserId);
@@ -5169,7 +6168,7 @@
                 const activeRecording = Array.isArray(data.recordings) ? data.recordings[0] : null;
                 setRecordingState(activeRecording || null);
                 if (activeRecording) {
-                    openRecordingPanel();
+                    openRecordingPanel('detail');
                     await refreshRecordingEvents(activeRecording.recording_id);
                 }
             } catch (error) {
@@ -5184,10 +6183,13 @@
                 return;
             }
 
-            openRecordingPanel();
+            recordingPanelMode = 'detail';
+            openRecordingPanel('detail');
             recordingPanelSession = null;
             recordingEvents = [];
             recordingWorkflowDraft = null;
+            selectedRecordingEntryKey = null;
+            selectedWorkflowStepId = null;
             updateRecordingPanel();
             try {
                 const response = await fetch(apiUrl('/recordings'), {
@@ -5206,6 +6208,9 @@
                 setRecordingState(data.recording);
                 recordingEvents = [];
                 recordingWorkflowDraft = null;
+                selectedRecordingEntryKey = null;
+                selectedWorkflowStepId = null;
+                await refreshRecordingHistory(browserId);
                 await refreshRecordingEvents(data.recording?.recording_id);
                 addEvent({
                     type: 'SystemEvent',
@@ -5236,8 +6241,10 @@
                     throw new Error(data.detail || 'Failed to stop recording');
                 }
 
-                openRecordingPanel();
+                recordingPanelMode = 'detail';
+                openRecordingPanel('detail');
                 setRecordingState(data.recording);
+                await refreshRecordingHistory(currentBrowserId);
                 await refreshRecordingEvents(recordingId);
                 addEvent({
                     type: 'SystemEvent',
@@ -6209,6 +7216,21 @@
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
                     sendCommand();
+                }
+            });
+            document.addEventListener('click', function(event) {
+                if (!recordingMenuOpen) {
+                    return;
+                }
+
+                const menuShell = document.getElementById('recording-menu-shell');
+                if (menuShell && !menuShell.contains(event.target)) {
+                    closeRecordingMenu();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape' && recordingMenuOpen) {
+                    closeRecordingMenu();
                 }
             });
             

@@ -2,6 +2,7 @@ import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import type { RecordingLaunchMode } from '../types';
 import { captureScreenshot, compressIfNeeded } from '../commands/screenshot';
 import type { ScreenshotCaptureOptions } from '../utils/highlight-screenshot';
+import { annotateRecordingKeyframe } from './keyframe-annotation';
 import {
   getRecordingKeyframeWaitForRender,
   shouldCaptureRecordingKeyframe,
@@ -329,6 +330,8 @@ async function buildRecordingKeyframe(
       imageData: finalResult.imageData,
       width: metadata.width ?? null,
       height: metadata.height ?? null,
+      viewportWidth: metadata.viewportWidth ?? null,
+      viewportHeight: metadata.viewportHeight ?? null,
       format: metadata.format ?? null,
       url: metadata.url ?? null,
       title: metadata.title ?? null,
@@ -395,9 +398,32 @@ async function enrichEventDataWithKeyframe(
     return eventData;
   }
 
+  const annotation = await annotateRecordingKeyframe({
+    imageData: String(keyframe.imageData || ''),
+    eventType,
+    eventData,
+    viewportWidth:
+      typeof keyframe.viewportWidth === 'number' ? keyframe.viewportWidth : null,
+    viewportHeight:
+      typeof keyframe.viewportHeight === 'number'
+        ? keyframe.viewportHeight
+        : null,
+  }).catch((error) => {
+    console.warn(`⚠️ [Recorder] Failed to annotate ${eventType} keyframe:`, error);
+    return null;
+  });
+
+  const annotatedKeyframe = annotation
+    ? {
+        ...keyframe,
+        imageData: annotation.imageData,
+        annotationMessage: annotation.annotationMessage,
+      }
+    : keyframe;
+
   return {
     ...eventData,
-    keyframe,
+    keyframe: annotatedKeyframe,
   };
 }
 

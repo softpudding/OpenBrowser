@@ -1,4 +1,4 @@
-const ACTION_KEYFRAME_EVENT_TYPES = new Set(['click', 'submit']);
+const ACTION_KEYFRAME_EVENT_TYPES = new Set(['click', 'change', 'submit']);
 const DEFAULT_RECORDING_KEYFRAME_WAIT_MS = 180;
 const ACTION_RECORDING_KEYFRAME_WAIT_MS = 60;
 

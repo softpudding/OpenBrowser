@@ -7,14 +7,16 @@ import {
 } from '../recording/keyframe-policy';
 
 describe('recording keyframe policy', () => {
-  test('captures keyframes for click and submit actions', () => {
+  test('captures keyframes for click, change, and submit actions', () => {
     expect(shouldCaptureRecordingKeyframe('click')).toBe(true);
+    expect(shouldCaptureRecordingKeyframe('change')).toBe(true);
     expect(shouldCaptureRecordingKeyframe('submit')).toBe(true);
     expect(shouldCaptureRecordingKeyframe('tab_ready')).toBe(false);
   });
 
   test('uses shorter render wait for action-timed keyframes', () => {
     expect(getRecordingKeyframeWaitForRender('click')).toBe(60);
+    expect(getRecordingKeyframeWaitForRender('change')).toBe(60);
     expect(getRecordingKeyframeWaitForRender('submit')).toBe(60);
     expect(getRecordingKeyframeWaitForRender('tab_ready')).toBe(180);
   });
