@@ -282,3 +282,140 @@ class TestRecordingRoutes:
         assert len(workflow["inputs"]) == 1
         assert workflow["inputs"][0]["name"] == "input_1"
         assert workflow["inputs"][0]["default"] == "openbrowser"
+
+    def test_workflow_draft_keeps_significant_scroll_before_action(
+        self, client: TestClient, temp_recording_manager: RecordingManager
+    ) -> None:
+        """Meaningful scroll clusters before a same-page action become high-level steps."""
+        session = temp_recording_manager.create_recording(
+            browser_id="browser-123",
+            name="Scroll and inspect",
+        )
+
+        events = [
+            {
+                "event_type": "page_view",
+                "event_data": {
+                    "timestamp": 1000,
+                    "page": {"url": "https://example.com/feed", "title": "Feed"},
+                },
+            },
+            {
+                "event_type": "scroll",
+                "event_data": {
+                    "timestamp": 1100,
+                    "page": {"url": "https://example.com/feed", "title": "Feed"},
+                    "scrollX": 0,
+                    "scrollY": 560,
+                    "maxScrollY": 2400,
+                },
+            },
+            {
+                "event_type": "scroll",
+                "event_data": {
+                    "timestamp": 1200,
+                    "page": {"url": "https://example.com/feed", "title": "Feed"},
+                    "scrollX": 0,
+                    "scrollY": 1180,
+                    "maxScrollY": 2400,
+                },
+            },
+            {
+                "event_type": "click",
+                "event_data": {
+                    "timestamp": 1300,
+                    "page": {"url": "https://example.com/feed", "title": "Feed"},
+                    "element": {
+                        "selector": ".post-card button.open",
+                        "text": "Open",
+                    },
+                },
+            },
+        ]
+
+        for index, event in enumerate(events):
+            temp_recording_manager.save_recording_event(
+                recording_id=session.recording_id,
+                event_type=event["event_type"],
+                event_data=event["event_data"],
+                event_index=index,
+            )
+
+        with patch(
+            "server.api.routes.recordings.recording_manager",
+            temp_recording_manager,
+        ):
+            response = client.get(
+                f"/recordings/{session.recording_id}/workflow-draft"
+            )
+
+        assert response.status_code == 200
+        steps = response.json()["workflow"]["steps"]
+
+        assert [step["action"] for step in steps] == [
+            "navigate",
+            "scroll_to_reveal",
+            "click",
+        ]
+        assert steps[1]["type"] == "scroll"
+        assert steps[1]["target"]["direction"] == "down"
+        assert steps[1]["target"]["reveals_for_next_action"] == "click"
+        assert steps[1]["source_event_indexes"] == [1, 2]
+        assert steps[1]["executor_preference"] == "agent"
+
+    def test_workflow_draft_discards_small_scroll_noise(
+        self, client: TestClient, temp_recording_manager: RecordingManager
+    ) -> None:
+        """Small scroll movement without a strong execution effect stays out of the draft."""
+        session = temp_recording_manager.create_recording(browser_id="browser-123")
+
+        events = [
+            {
+                "event_type": "page_view",
+                "event_data": {
+                    "timestamp": 1000,
+                    "page": {"url": "https://example.com/feed", "title": "Feed"},
+                },
+            },
+            {
+                "event_type": "scroll",
+                "event_data": {
+                    "timestamp": 1100,
+                    "page": {"url": "https://example.com/feed", "title": "Feed"},
+                    "scrollX": 0,
+                    "scrollY": 120,
+                    "maxScrollY": 2400,
+                },
+            },
+            {
+                "event_type": "click",
+                "event_data": {
+                    "timestamp": 1200,
+                    "page": {"url": "https://example.com/feed", "title": "Feed"},
+                    "element": {
+                        "selector": ".toolbar button.like",
+                        "text": "Like",
+                    },
+                },
+            },
+        ]
+
+        for index, event in enumerate(events):
+            temp_recording_manager.save_recording_event(
+                recording_id=session.recording_id,
+                event_type=event["event_type"],
+                event_data=event["event_data"],
+                event_index=index,
+            )
+
+        with patch(
+            "server.api.routes.recordings.recording_manager",
+            temp_recording_manager,
+        ):
+            response = client.get(
+                f"/recordings/{session.recording_id}/workflow-draft"
+            )
+
+        assert response.status_code == 200
+        steps = response.json()["workflow"]["steps"]
+        assert [step["action"] for step in steps] == ["navigate", "click"]

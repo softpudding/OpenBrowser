@@ -1,10 +1,13 @@
 import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import type { RecordingLaunchMode } from '../types';
 import { captureScreenshot, compressIfNeeded } from '../commands/screenshot';
+import { debuggerSessionManager } from '../commands/debugger-manager';
 import { annotateRecordingKeyframe } from './keyframe-annotation';
 import {
   getRecordingKeyframeCaptureOptions,
   getRecordingKeyframeWaitForRender,
+  getRecordingPreActionCaptureOptions,
+  getRecordingPreActionWaitForRender,
   shouldCaptureRecordingKeyframe,
   shouldDiscardPostCaptureRecordingKeyframe,
 } from './keyframe-policy';
@@ -18,6 +21,7 @@ const RECORDING_KEYFRAME_THRESHOLD_BYTES = 380 * 1024;
 const RECORDING_KEYFRAME_MIN_QUALITY = 40;
 const RECORDING_SCREENSHOT_CONVERSATION_PREFIX = 'recording';
 const ACTIVE_RECORDING_STORAGE_KEY = 'openbrowser_active_recording';
+const PRE_ACTION_KEYFRAME_TTL_MS = 1500;
 
 interface RecordingScope {
   launchMode: RecordingLaunchMode;
@@ -54,8 +58,199 @@ interface ContentRecordingEventMessage {
   };
 }
 
+interface ContentRecordingPreActionMessage {
+  type: 'openbrowser:recording-pre-action';
+  preAction?: {
+    actionType?: string;
+    data?: Record<string, unknown>;
+    timestamp?: number;
+  };
+}
+
+type RecordingPreActionType = 'click' | 'enter';
+
+interface PendingPreActionKeyframe {
+  recordingId: string;
+  tabId: number;
+  actionType: RecordingPreActionType;
+  pageUrl: string | null;
+  targetSignature: string | null;
+  formSignature: string | null;
+  createdAt: number;
+  matchedEventTypes: Set<string>;
+  keyframePromise: Promise<Record<string, unknown> | null>;
+}
+
 let activeRecording: ActiveRecording | null = null;
 let listenersInitialized = false;
+const pendingPreActionKeyframes = new Map<string, PendingPreActionKeyframe>();
+
+function getRecordingScreenshotConversationId(recordingId: string): string {
+  return `${RECORDING_SCREENSHOT_CONVERSATION_PREFIX}:${recordingId}`;
+}
+
+function getPendingPreActionKey(
+  recordingId: string,
+  tabId: number,
+  actionType: RecordingPreActionType,
+): string {
+  return `${recordingId}:${tabId}:${actionType}`;
+}
+
+function normalizeComparableString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function pushSignaturePart(
+  parts: string[],
+  label: string,
+  value: unknown,
+): void {
+  const normalized = normalizeComparableString(value);
+  if (normalized) {
+    parts.push(`${label}:${normalized}`);
+  }
+}
+
+function pushRoundedSignaturePart(
+  parts: string[],
+  label: string,
+  value: unknown,
+): void {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return;
+  }
+
+  parts.push(`${label}:${Math.round(value)}`);
+}
+
+function buildSerializedElementSignature(value: unknown): string | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const element = value as Record<string, unknown>;
+  const parts: string[] = [];
+
+  pushSignaturePart(parts, 'tag', element.tagName);
+  pushSignaturePart(parts, 'selector', element.selector);
+  pushSignaturePart(parts, 'id', element.id);
+  pushSignaturePart(parts, 'href', element.href);
+  pushSignaturePart(parts, 'role', element.role);
+  pushSignaturePart(parts, 'aria', element.ariaLabel);
+  pushSignaturePart(parts, 'title', element.title);
+  pushSignaturePart(parts, 'name', element.name);
+  pushSignaturePart(parts, 'placeholder', element.placeholder);
+  pushSignaturePart(parts, 'text', element.text);
+  pushSignaturePart(parts, 'parentText', element.parentText);
+  pushSignaturePart(parts, 'inputType', element.inputType);
+  pushSignaturePart(parts, 'selectedText', element.selectedText);
+
+  const container =
+    element.container && typeof element.container === 'object'
+      ? (element.container as Record<string, unknown>)
+      : null;
+  if (container) {
+    pushSignaturePart(parts, 'containerKind', container.kind);
+    pushSignaturePart(parts, 'containerSelector', container.selector);
+    pushSignaturePart(parts, 'containerTitle', container.title);
+    pushSignaturePart(parts, 'containerHref', container.href);
+  }
+
+  const bbox =
+    element.bbox && typeof element.bbox === 'object'
+      ? (element.bbox as Record<string, unknown>)
+      : null;
+  if (bbox) {
+    pushRoundedSignaturePart(parts, 'x', bbox.x);
+    pushRoundedSignaturePart(parts, 'y', bbox.y);
+    pushRoundedSignaturePart(parts, 'w', bbox.width);
+    pushRoundedSignaturePart(parts, 'h', bbox.height);
+  }
+
+  return parts.length > 0 ? parts.join('|') : null;
+}
+
+function getEventDataPageUrl(eventData: Record<string, unknown>): string | null {
+  const page = eventData.page;
+  if (page && typeof page === 'object') {
+    const url = normalizeComparableString((page as { url?: unknown }).url);
+    if (url) {
+      return url;
+    }
+  }
+
+  const tab = eventData.tab;
+  if (tab && typeof tab === 'object') {
+    return normalizeComparableString((tab as { url?: unknown }).url);
+  }
+
+  return null;
+}
+
+function getSupportedRecordingPreActionType(
+  value: unknown,
+): RecordingPreActionType | null {
+  return value === 'click' || value === 'enter' ? value : null;
+}
+
+function getPreActionBindingType(
+  eventType: string,
+  eventData: Record<string, unknown>,
+): RecordingPreActionType | null {
+  if (eventType === 'click') {
+    return 'click';
+  }
+
+  if (eventType === 'keydown') {
+    return normalizeComparableString(eventData.key) === 'Enter' ? 'enter' : null;
+  }
+
+  if (eventType === 'submit') {
+    return 'enter';
+  }
+
+  return null;
+}
+
+function getPreActionTargetSignatureForEvent(
+  eventType: string,
+  eventData: Record<string, unknown>,
+): string | null {
+  if (eventType === 'submit') {
+    return buildSerializedElementSignature(eventData.form);
+  }
+
+  return buildSerializedElementSignature(eventData.element);
+}
+
+function getPreActionFormSignatureForEvent(
+  eventData: Record<string, unknown>,
+): string | null {
+  return buildSerializedElementSignature(eventData.form);
+}
+
+function pruneExpiredPendingPreActionKeyframes(): void {
+  const now = Date.now();
+  for (const [key, pending] of pendingPreActionKeyframes.entries()) {
+    if (now - pending.createdAt > PRE_ACTION_KEYFRAME_TTL_MS) {
+      pendingPreActionKeyframes.delete(key);
+    }
+  }
+}
+
+function clearPendingPreActionKeyframesForRecording(recordingId: string): void {
+  for (const [key, pending] of pendingPreActionKeyframes.entries()) {
+    if (pending.recordingId === recordingId) {
+      pendingPreActionKeyframes.delete(key);
+    }
+  }
+}
 
 function isOpenBrowserUiUrl(url?: string | null): boolean {
   if (typeof url !== 'string' || !url) {
@@ -278,16 +473,18 @@ async function buildRecordingKeyframe(
   recordingId: string,
   trigger: string,
   waitForRender: number = 180,
+  captureOptions = getRecordingKeyframeCaptureOptions(),
 ): Promise<Record<string, unknown> | null> {
+  const conversationId = getRecordingScreenshotConversationId(recordingId);
   try {
     const screenshotResult = await captureScreenshot(
       tabId,
-      `${RECORDING_SCREENSHOT_CONVERSATION_PREFIX}:${recordingId}`,
+      conversationId,
       false,
       65,
       false,
       waitForRender,
-      getRecordingKeyframeCaptureOptions(),
+      captureOptions,
     );
 
     const compressedResult = await compressIfNeeded(
@@ -329,7 +526,125 @@ async function buildRecordingKeyframe(
   } catch (error) {
     console.warn(`⚠️ [Recorder] Failed to capture keyframe for ${trigger}:`, error);
     return null;
+  } finally {
+    await debuggerSessionManager.cleanupSession(conversationId).catch((error) => {
+      console.warn(
+        `⚠️ [Recorder] Failed to cleanup debugger session for recording ${recordingId}:`,
+        error,
+      );
+    });
   }
+}
+
+async function attachRecordingKeyframeToEventData(
+  eventType: string,
+  eventData: Record<string, unknown>,
+  keyframe: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const annotation = await annotateRecordingKeyframe({
+    imageData: String(keyframe.imageData || ''),
+    eventType,
+    eventData,
+    viewportWidth:
+      typeof keyframe.viewportWidth === 'number' ? keyframe.viewportWidth : null,
+    viewportHeight:
+      typeof keyframe.viewportHeight === 'number'
+        ? keyframe.viewportHeight
+        : null,
+  }).catch((error) => {
+    console.warn(`⚠️ [Recorder] Failed to annotate ${eventType} keyframe:`, error);
+    return null;
+  });
+
+  const annotatedKeyframe = annotation
+    ? {
+        ...keyframe,
+        imageData: annotation.imageData,
+        annotationMessage: annotation.annotationMessage,
+      }
+    : keyframe;
+
+  return {
+    ...eventData,
+    keyframe: annotatedKeyframe,
+  };
+}
+
+function matchesPendingPreActionKeyframe(
+  pending: PendingPreActionKeyframe,
+  eventType: string,
+  eventData: Record<string, unknown>,
+): boolean {
+  const pageUrl = getEventDataPageUrl(eventData);
+  if (pending.pageUrl && pageUrl && pending.pageUrl !== pageUrl) {
+    return false;
+  }
+
+  const targetSignature = getPreActionTargetSignatureForEvent(eventType, eventData);
+  const formSignature = getPreActionFormSignatureForEvent(eventData);
+
+  if (eventType === 'submit') {
+    if (pending.formSignature && formSignature) {
+      return pending.formSignature === formSignature;
+    }
+
+    if (pending.targetSignature && targetSignature) {
+      return pending.targetSignature === targetSignature;
+    }
+
+    return true;
+  }
+
+  if (pending.targetSignature && targetSignature) {
+    return pending.targetSignature === targetSignature;
+  }
+
+  if (pending.formSignature && formSignature) {
+    return pending.formSignature === formSignature;
+  }
+
+  return true;
+}
+
+async function consumePendingPreActionKeyframe(
+  recording: ActiveRecording,
+  eventType: string,
+  tabId: number,
+  eventData: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  pruneExpiredPendingPreActionKeyframes();
+
+  const actionType = getPreActionBindingType(eventType, eventData);
+  if (!actionType) {
+    return null;
+  }
+
+  const key = getPendingPreActionKey(recording.recordingId, tabId, actionType);
+  const pending = pendingPreActionKeyframes.get(key);
+  if (!pending || pending.matchedEventTypes.has(eventType)) {
+    return null;
+  }
+
+  if (!matchesPendingPreActionKeyframe(pending, eventType, eventData)) {
+    return null;
+  }
+
+  pending.matchedEventTypes.add(eventType);
+  if (!(pending.actionType === 'enter' && eventType === 'keydown')) {
+    pendingPreActionKeyframes.delete(key);
+  }
+
+  const keyframe = await pending.keyframePromise;
+  if (!keyframe) {
+    pendingPreActionKeyframes.delete(key);
+    return null;
+  }
+
+  return {
+    ...keyframe,
+    captureTiming: 'pre_action',
+    preActionType: pending.actionType,
+  };
 }
 
 async function enrichEventDataWithKeyframe(
@@ -345,6 +660,22 @@ async function enrichEventDataWithKeyframe(
   // into the top-left corner. Keep page_view as a lifecycle signal only.
   if (eventType === 'page_view') {
     return eventData;
+  }
+
+  if (tab.id) {
+    const preActionKeyframe = await consumePendingPreActionKeyframe(
+      recording,
+      eventType,
+      tab.id,
+      eventData,
+    );
+    if (preActionKeyframe) {
+      return attachRecordingKeyframeToEventData(
+        eventType,
+        eventData,
+        preActionKeyframe,
+      );
+    }
   }
 
   if (
@@ -388,33 +719,7 @@ async function enrichEventDataWithKeyframe(
     return eventData;
   }
 
-  const annotation = await annotateRecordingKeyframe({
-    imageData: String(keyframe.imageData || ''),
-    eventType,
-    eventData,
-    viewportWidth:
-      typeof keyframe.viewportWidth === 'number' ? keyframe.viewportWidth : null,
-    viewportHeight:
-      typeof keyframe.viewportHeight === 'number'
-        ? keyframe.viewportHeight
-        : null,
-  }).catch((error) => {
-    console.warn(`⚠️ [Recorder] Failed to annotate ${eventType} keyframe:`, error);
-    return null;
-  });
-
-  const annotatedKeyframe = annotation
-    ? {
-        ...keyframe,
-        imageData: annotation.imageData,
-        annotationMessage: annotation.annotationMessage,
-      }
-    : keyframe;
-
-  return {
-    ...eventData,
-    keyframe: annotatedKeyframe,
-  };
+  return attachRecordingKeyframeToEventData(eventType, eventData, keyframe);
 }
 
 function isTabIdInRecordingScope(
@@ -717,6 +1022,16 @@ export async function stopRecording(recordingId?: string): Promise<void> {
     console.error('❌ [Recorder] Failed to upload recording_stopped:', error);
   });
 
+  await debuggerSessionManager
+    .cleanupSession(getRecordingScreenshotConversationId(recording.recordingId))
+    .catch((error) => {
+      console.warn(
+        `⚠️ [Recorder] Failed to cleanup final debugger session for recording ${recording.recordingId}:`,
+        error,
+      );
+    });
+
+  clearPendingPreActionKeyframesForRecording(recording.recordingId);
   await cleanupRecordingScope(recording.scope);
   activeRecording = null;
   await persistActiveRecording(null);
@@ -733,6 +1048,68 @@ export async function getRecordingState(): Promise<{
     recording_id: recording?.recordingId ?? null,
     scope: recording ? serializeRecordingScope(recording.scope) : null,
   };
+}
+
+export async function handleContentRecordingPreAction(
+  message: ContentRecordingPreActionMessage,
+  sender: chrome.runtime.MessageSender,
+): Promise<void> {
+  const recording = await getActiveRecording();
+  if (!recording) {
+    return;
+  }
+
+  const actionType = getSupportedRecordingPreActionType(
+    message.preAction?.actionType,
+  );
+  if (!actionType) {
+    return;
+  }
+
+  const tab = sender.tab;
+  if (!tab?.id || !isTabRelatedToRecordingScope(recording.scope, tab)) {
+    return;
+  }
+
+  if (!isRecordableUrl(tab.url)) {
+    return;
+  }
+
+  void addTabToRecordingScope(recording, tab).catch((error) => {
+    console.warn('⚠️ [Recorder] Failed to add pre-action tab to scope:', error);
+  });
+
+  pruneExpiredPendingPreActionKeyframes();
+
+  const preActionData: Record<string, unknown> = {
+    source: 'content',
+    timestamp: message.preAction?.timestamp ?? Date.now(),
+    frameId:
+      typeof sender.frameId === 'number' ? sender.frameId : undefined,
+    tab: serializeTab(tab),
+    ...(message.preAction?.data ?? {}),
+  };
+
+  pendingPreActionKeyframes.set(
+    getPendingPreActionKey(recording.recordingId, tab.id, actionType),
+    {
+      recordingId: recording.recordingId,
+      tabId: tab.id,
+      actionType,
+      pageUrl: getEventDataPageUrl(preActionData),
+      targetSignature: buildSerializedElementSignature(preActionData.element),
+      formSignature: buildSerializedElementSignature(preActionData.form),
+      createdAt: Date.now(),
+      matchedEventTypes: new Set<string>(),
+      keyframePromise: buildRecordingKeyframe(
+        tab.id,
+        recording.recordingId,
+        `pre_${actionType}`,
+        getRecordingPreActionWaitForRender(),
+        getRecordingPreActionCaptureOptions(),
+      ),
+    },
+  );
 }
 
 export async function handleContentRecordingEvent(
@@ -871,3 +1248,37 @@ export function initializeRecordingEventListeners(): void {
       });
   });
 }
+
+export const __testing__ = {
+  buildSerializedElementSignature,
+  clearPendingPreActionKeyframes(): void {
+    pendingPreActionKeyframes.clear();
+  },
+  setPendingPreActionKeyframe(
+    recordingId: string,
+    tabId: number,
+    actionType: RecordingPreActionType,
+    value: {
+      pageUrl?: string | null;
+      targetSignature?: string | null;
+      formSignature?: string | null;
+      createdAt?: number;
+      keyframe?: Record<string, unknown> | Promise<Record<string, unknown> | null> | null;
+    },
+  ): void {
+    pendingPreActionKeyframes.set(
+      getPendingPreActionKey(recordingId, tabId, actionType),
+      {
+        recordingId,
+        tabId,
+        actionType,
+        pageUrl: value.pageUrl ?? null,
+        targetSignature: value.targetSignature ?? null,
+        formSignature: value.formSignature ?? null,
+        createdAt: value.createdAt ?? Date.now(),
+        matchedEventTypes: new Set<string>(),
+        keyframePromise: Promise.resolve(value.keyframe ?? null),
+      },
+    );
+  },
+};

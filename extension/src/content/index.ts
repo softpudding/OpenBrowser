@@ -417,6 +417,35 @@ function sendRecordingEvent(
     });
 }
 
+function sendRecordingPreAction(
+  actionType: 'click' | 'enter',
+  data: Record<string, unknown> = {},
+): void {
+  if (!activeRecordingId || isOpenBrowserUiPage()) {
+    return;
+  }
+
+  void chrome.runtime
+    .sendMessage({
+      type: 'openbrowser:recording-pre-action',
+      preAction: {
+        actionType,
+        timestamp: Date.now(),
+        data: {
+          recordingId: activeRecordingId,
+          page: {
+            url: window.location.href,
+            title: document.title,
+          },
+          ...data,
+        },
+      },
+    })
+    .catch((error) => {
+      console.debug('Recorder pre-action send failed:', error);
+    });
+}
+
 function emitPageView(reason: string): void {
   sendRecordingEvent('page_view', {
     reason,
@@ -439,7 +468,34 @@ function shouldRecordTrustedEvent(event: Event): boolean {
   return activeRecordingId !== null && event.isTrusted && !isOpenBrowserUiPage();
 }
 
+function findOwningForm(element: Element): HTMLFormElement | null {
+  return element instanceof HTMLFormElement ? element : element.closest('form');
+}
+
 function installRecordingListeners(): void {
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        return;
+      }
+
+      const pointerEvent = event as PointerEvent;
+      if (pointerEvent.button !== 0) {
+        return;
+      }
+
+      const form = findOwningForm(event.target);
+      sendRecordingPreAction('click', {
+        element: serializeElement(event.target),
+        form: form ? serializeElement(form) : null,
+        clientX: pointerEvent.clientX,
+        clientY: pointerEvent.clientY,
+      });
+    },
+    true,
+  );
+
   document.addEventListener(
     'click',
     (event) => {
@@ -534,10 +590,21 @@ function installRecordingListeners(): void {
         return;
       }
 
+      const form = findOwningForm(event.target);
+      if (keyboardEvent.key === 'Enter') {
+        sendRecordingPreAction('enter', {
+          key: keyboardEvent.key,
+          code: keyboardEvent.code,
+          element: serializeElement(event.target),
+          form: form ? serializeElement(form) : null,
+        });
+      }
+
       sendRecordingEvent('keydown', {
         key: keyboardEvent.key,
         code: keyboardEvent.code,
         element: serializeElement(event.target),
+        form: form ? serializeElement(form) : null,
       });
     },
     true,

@@ -66,6 +66,7 @@ import {
 import {
   getRecordingState,
   handleContentRecordingEvent,
+  handleContentRecordingPreAction,
   initializeRecordingEventListeners,
   startRecording,
   stopRecording,
@@ -1053,6 +1054,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           success: false,
           error:
             error instanceof Error ? error.message : 'Recording event error',
+        });
+      });
+    return true;
+  }
+
+  if (message?.type === 'openbrowser:recording-pre-action') {
+    handleContentRecordingPreAction(message, _sender)
+      .then(() => {
+        sendResponse({ success: true });
+      })
+      .catch((error) => {
+        sendResponse({
+          success: false,
+          error:
+            error instanceof Error ? error.message : 'Recording pre-action error',
         });
       });
     return true;

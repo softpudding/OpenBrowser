@@ -18,10 +18,30 @@ Current state:
 - A first-pass trace compiler exists in
   [server/core/workflow_compiler.py](/Users/yangxiao/git/OpenBrowser/server/core/workflow_compiler.py),
   but it is still a draft compiler, not a full replay system.
+- A review UI already exists in
+  [frontend/index.html](/Users/yangxiao/git/OpenBrowser/frontend/index.html),
+  where the user can inspect captured events and the compiled workflow draft.
 
 The missing gap is not trace replay. The missing gap is:
 
 `recording trace -> executable intentful workflow -> OpenBrowser execution`
+
+### Current Implementation Snapshot
+
+As of the current implementation:
+
+- `trace -> normalized steps -> workflow draft` is already wired through end to
+  end.
+- The current compiler output is a structured workflow draft JSON, not yet a
+  polished natural-language plan with explicit reasoning blocks.
+- All compiled workflow steps are currently forced to
+  `executor_preference = "agent"`.
+- This is intentional. Deterministic execution is temporarily deferred so the
+  system can first converge on the right workflow semantics and review loop.
+- User-supplied intent description after recording is part of the target design,
+  but is not yet fully integrated into the compile path.
+- Clarification questions are part of the target design, but are not yet fully
+  implemented as a first-class workflow review flow.
 
 ## Goal
 
@@ -47,6 +67,13 @@ should be a higher-level workflow that OpenBrowser can understand and execute.
 
 This description is required because trace alone usually does not contain the
 business rule behind the actions.
+
+Implementation note:
+
+- This is the intended product behavior.
+- The current system can already store and review the recording, but the
+  explicit "describe the overall intent" step still needs to be added as a
+  formal part of the recording completion flow.
 
 Examples:
 
@@ -118,10 +145,13 @@ execution agent so it remains focused on interpretation and compilation.
 
 ## First-Version Simplification
 
-For the first version, execution can ignore the distinction between
+For the first version, execution ignores the distinction between
 "deterministic" and "dynamic" actions at runtime.
 
-Assume that all final steps are executed by OpenBrowser.
+Assume that all final steps are executed by OpenBrowser as agent-driven steps.
+
+This is no longer just a design preference. It is the current implementation
+decision.
 
 However, the compiler still needs to distinguish between:
 
@@ -155,6 +185,13 @@ That natural-language draft is for user review.
 
 Internally, the system should also keep a structured representation so the
 workflow can later be executed reliably.
+
+Implementation note:
+
+- Today the structured form is the primary artifact.
+- The review UI currently exposes compiled steps and raw workflow JSON.
+- A richer natural-language rendering with explicit reasoning should be added on
+  top of the structured draft rather than replacing it.
 
 The structured form should eventually include fields such as:
 
@@ -210,6 +247,17 @@ The user should be able to:
 
 After clarification and review, the workflow becomes the approved input for
 execution.
+
+Implementation note:
+
+- The current review UI already supports inspection of:
+  - captured events,
+  - compiled workflow steps,
+  - workflow JSON.
+- The next missing layer is true review interaction:
+  - collecting intent corrections,
+  - collecting clarification answers,
+  - and turning the draft into an approved executable workflow.
 
 ## Execution Model
 
@@ -287,6 +335,23 @@ The near-term product shape should be:
 - clarification questions,
 - user approval,
 - then execution from approved workflow.
+
+## Immediate Working Rules
+
+Until deterministic replay is reintroduced deliberately, the project should
+follow these rules:
+
+- Do not treat a recorded selector or recorded click as inherently replayable.
+- Do not mark compiled steps as deterministic by default.
+- Prefer emitting `agent` steps and preserving trace evidence.
+- Use the review step to determine the real user intent before worrying about
+  fixed execution.
+- Keep the structured workflow draft as the system of record for later runtime
+  integration.
+
+This keeps the project aligned with the real problem:
+
+`understand the workflow first, then optimize execution strategy`
 
 This is a better foundation than a macro-style replay system because it aligns
 with how OpenBrowser already works: high-level, visual, tool-driven, and

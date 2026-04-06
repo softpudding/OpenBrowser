@@ -9,7 +9,6 @@ from typing import Any, Literal
 AmbientEventType = Literal[
     "recording_started",
     "recording_stopped",
-    "scroll",
 ]
 
 
@@ -145,7 +144,6 @@ def _is_ambient_event(event_type: str) -> bool:
     ambient_types: set[AmbientEventType] = {
         "recording_started",
         "recording_stopped",
-        "scroll",
     }
     return event_type in ambient_types
 
@@ -226,6 +224,115 @@ def _build_click_step(
                 "value": _get_page_url(event_data),
             }
         ],
+        "postconditions": [],
+        "executor_preference": "agent",
+    }
+
+
+def _get_scroll_position(event_data: dict[str, Any]) -> tuple[float | None, float | None]:
+    scroll_x = event_data.get("scrollX")
+    scroll_y = event_data.get("scrollY")
+
+    return (
+        float(scroll_x) if isinstance(scroll_x, (int, float)) else None,
+        float(scroll_y) if isinstance(scroll_y, (int, float)) else None,
+    )
+
+
+def _build_scroll_step(
+    cluster: list[dict[str, Any]],
+    next_event: dict[str, Any] | None,
+    sorted_index: int,
+) -> dict[str, Any] | None:
+    if not cluster:
+        return None
+
+    first_event_data = _event_data(cluster[0])
+    last_event_data = _event_data(cluster[-1])
+    _, first_scroll_y = _get_scroll_position(first_event_data)
+    scroll_x, last_scroll_y = _get_scroll_position(last_event_data)
+
+    if last_scroll_y is None:
+        return None
+
+    max_scroll_y_raw = last_event_data.get("maxScrollY")
+    max_scroll_y = (
+        float(max_scroll_y_raw) if isinstance(max_scroll_y_raw, (int, float)) else None
+    )
+    source_event_indexes = [
+        int(raw)
+        for raw in (event.get("event_index") for event in cluster)
+        if isinstance(raw, int)
+    ]
+    page_url = _get_page_url(last_event_data)
+    next_event_type = _event_type(next_event) if next_event is not None else None
+    next_page_url = _get_page_url(_event_data(next_event)) if next_event is not None else None
+
+    cluster_size = len(cluster)
+    absolute_scroll_y = abs(last_scroll_y)
+    delta_scroll_y = (
+        last_scroll_y - first_scroll_y if first_scroll_y is not None else last_scroll_y
+    )
+    absolute_delta_y = abs(delta_scroll_y)
+    near_bottom = bool(
+        max_scroll_y
+        and max_scroll_y > 0
+        and last_scroll_y / max_scroll_y >= 0.82
+    )
+    has_following_same_page_action = bool(
+        next_event_type in {"click", "focus", "input", "change", "keydown", "submit"}
+        and page_url
+        and next_page_url == page_url
+    )
+
+    if not (
+        has_following_same_page_action
+        and (cluster_size >= 2 or absolute_delta_y >= 480 or absolute_scroll_y >= 720 or near_bottom)
+    ):
+        return None
+
+    direction = "down" if delta_scroll_y >= 0 else "up"
+    description = (
+        "Scroll down to reveal more content before the next action"
+        if direction == "down"
+        else "Scroll up to return to earlier content before the next action"
+    )
+
+    target: dict[str, Any] = {
+        "direction": direction,
+        "scroll_y": round(last_scroll_y),
+        "page_url": page_url,
+        "cluster_size": cluster_size,
+    }
+    if absolute_delta_y > 0:
+        target["delta_y"] = round(delta_scroll_y)
+    if scroll_x is not None:
+        target["scroll_x"] = round(scroll_x)
+    if max_scroll_y is not None:
+        target["max_scroll_y"] = round(max_scroll_y)
+    if near_bottom:
+        target["near_page_bottom"] = True
+    if next_event_type:
+        target["reveals_for_next_action"] = next_event_type
+
+    preconditions: list[dict[str, Any]] = []
+    if page_url:
+        preconditions.append(
+            {
+                "type": "page_url_contains",
+                "value": page_url,
+            }
+        )
+
+    return {
+        "id": f"step_{sorted_index + 1:03d}",
+        "type": "scroll",
+        "action": "scroll_to_reveal",
+        "description": description,
+        "target": target,
+        "source_event_indexes": source_event_indexes,
+        "anchors": [],
+        "preconditions": preconditions,
         "postconditions": [],
         "executor_preference": "agent",
     }
@@ -373,6 +480,18 @@ def normalize_trace_events(
 
         if _is_ambient_event(event_type):
             index += 1
+            continue
+
+        if event_type == "scroll":
+            cluster: list[dict[str, Any]] = []
+            while index < len(sorted_events) and _event_type(sorted_events[index]) == "scroll":
+                cluster.append(sorted_events[index])
+                index += 1
+
+            next_event = sorted_events[index] if index < len(sorted_events) else None
+            step = _build_scroll_step(cluster, next_event, len(steps))
+            if step is not None:
+                steps.append(step)
             continue
 
         if event_type in {"tab_ready", "tab_navigated", "page_view"}:

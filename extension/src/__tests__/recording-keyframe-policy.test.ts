@@ -3,6 +3,8 @@ import { describe, expect, test } from 'bun:test';
 import {
   getRecordingKeyframeCaptureOptions,
   getRecordingKeyframeWaitForRender,
+  getRecordingPreActionCaptureOptions,
+  getRecordingPreActionWaitForRender,
   shouldCaptureRecordingKeyframe,
   shouldDiscardPostCaptureRecordingKeyframe,
 } from '../recording/keyframe-policy';
@@ -30,6 +32,17 @@ describe('recording keyframe policy', () => {
     expect(options.maxOutputHeight).toBe(540);
     expect(options.warmupBeforeCapture).toBe(true);
     expect(options.settleBeforeCapture).toBe(true);
+  });
+
+  test('uses aggressive capture settings for pre-action snapshots', () => {
+    const options = getRecordingPreActionCaptureOptions();
+
+    expect(getRecordingPreActionWaitForRender()).toBe(0);
+    expect(options.preferredFormat).toBe('jpeg');
+    expect(options.maxOutputWidth).toBe(960);
+    expect(options.maxOutputHeight).toBe(540);
+    expect(options.warmupBeforeCapture).toBe(false);
+    expect(options.settleBeforeCapture).toBe(false);
   });
 
   test('discards post-capture action keyframes that drift to another url', () => {
