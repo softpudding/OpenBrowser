@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  getRecordingKeyframeCaptureOptions,
   getRecordingKeyframeWaitForRender,
   shouldCaptureRecordingKeyframe,
   shouldDiscardPostCaptureRecordingKeyframe,
@@ -19,6 +20,16 @@ describe('recording keyframe policy', () => {
     expect(getRecordingKeyframeWaitForRender('change')).toBe(60);
     expect(getRecordingKeyframeWaitForRender('submit')).toBe(60);
     expect(getRecordingKeyframeWaitForRender('tab_ready')).toBe(180);
+  });
+
+  test('keeps recording keyframe size limits as offline output bounds', () => {
+    const options = getRecordingKeyframeCaptureOptions();
+
+    expect(options.preferredFormat).toBe('jpeg');
+    expect(options.maxOutputWidth).toBe(960);
+    expect(options.maxOutputHeight).toBe(540);
+    expect(options.warmupBeforeCapture).toBe(true);
+    expect(options.settleBeforeCapture).toBe(true);
   });
 
   test('discards post-capture action keyframes that drift to another url', () => {

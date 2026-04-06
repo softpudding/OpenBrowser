@@ -1,9 +1,9 @@
 import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import type { RecordingLaunchMode } from '../types';
 import { captureScreenshot, compressIfNeeded } from '../commands/screenshot';
-import type { ScreenshotCaptureOptions } from '../utils/highlight-screenshot';
 import { annotateRecordingKeyframe } from './keyframe-annotation';
 import {
+  getRecordingKeyframeCaptureOptions,
   getRecordingKeyframeWaitForRender,
   shouldCaptureRecordingKeyframe,
   shouldDiscardPostCaptureRecordingKeyframe,
@@ -14,16 +14,6 @@ const DEFAULT_RECORDING_LAUNCH_MODE: RecordingLaunchMode = 'dedicated_window';
 const RECORDING_GROUP_TITLE_PREFIX = 'OpenBrowser Recording';
 const RECORDING_GROUP_COLOR = 'grey' as chrome.tabGroups.Color;
 const RECORDING_GROUP_COLLAPSED = false;
-const RECORDING_KEYFRAME_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
-  preferredFormat: 'jpeg',
-  maxOutputWidth: 960,
-  maxOutputHeight: 540,
-  warmupBeforeCapture: true,
-  warmupMaxAttempts: 1,
-  settleBeforeCapture: true,
-  settleTimeoutMs: 450,
-  settleQuietWindowMs: 160,
-};
 const RECORDING_KEYFRAME_THRESHOLD_BYTES = 380 * 1024;
 const RECORDING_KEYFRAME_MIN_QUALITY = 40;
 const RECORDING_SCREENSHOT_CONVERSATION_PREFIX = 'recording';
@@ -297,7 +287,7 @@ async function buildRecordingKeyframe(
       65,
       false,
       waitForRender,
-      RECORDING_KEYFRAME_CAPTURE_OPTIONS,
+      getRecordingKeyframeCaptureOptions(),
     );
 
     const compressedResult = await compressIfNeeded(

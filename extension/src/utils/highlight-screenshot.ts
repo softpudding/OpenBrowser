@@ -35,34 +35,31 @@ export const TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
   warmupMaxAttempts: 3,
 };
 
-export function calculateScreenshotCaptureScale(
-  viewportWidth: number,
-  viewportHeight: number,
-  devicePixelRatio: number,
+export function calculateScreenshotOutputScale(
+  imageWidth: number,
+  imageHeight: number,
   options?: ScreenshotCaptureOptions,
 ): number {
-  if (viewportWidth <= 0 || viewportHeight <= 0 || devicePixelRatio <= 0) {
+  if (imageWidth <= 0 || imageHeight <= 0) {
     return 1;
   }
 
-  // Chrome's Page.captureScreenshot clip.scale composes with the source DPR.
-  // A scale of 1 already produces device-pixel output on HiDPI displays.
-  let captureScale = 1;
+  let outputScale = 1;
 
   if (options?.maxOutputWidth && options.maxOutputWidth > 0) {
-    captureScale = Math.min(
-      captureScale,
-      options.maxOutputWidth / (viewportWidth * devicePixelRatio),
+    outputScale = Math.min(
+      outputScale,
+      options.maxOutputWidth / imageWidth,
     );
   }
 
   if (options?.maxOutputHeight && options.maxOutputHeight > 0) {
-    captureScale = Math.min(
-      captureScale,
-      options.maxOutputHeight / (viewportHeight * devicePixelRatio),
+    outputScale = Math.min(
+      outputScale,
+      options.maxOutputHeight / imageHeight,
     );
   }
 
   const minCaptureScale = options?.minCaptureScale ?? 0.1;
-  return Math.max(minCaptureScale, Math.min(1, captureScale));
+  return Math.max(minCaptureScale, Math.min(1, outputScale));
 }

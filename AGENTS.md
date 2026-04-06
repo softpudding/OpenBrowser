@@ -325,6 +325,9 @@ cd extension && npm run build
 OpenBrowser has explicit screenshot control for maximum flexibility:
 
 - Screenshots also serve as a practical page warmup mechanism for background tabs. They can unblock page paint and media decode work that passive DOM/readiness inspection does not reliably trigger on its own.
+- Screenshot output sizing must not rely on `Page.captureScreenshot` with `clip.scale < 1` on a live tab.
+- Reason: scaled CDP captures were reproduced to leave the visible page shrunk into the top-left corner, including during recording.
+- Preferred strategy: capture at the tab's natural device-pixel size first, then downscale/compress offline inside the extension.
 
 ### Recording Keyframes
 
@@ -334,6 +337,7 @@ OpenBrowser has explicit screenshot control for maximum flexibility:
 - `tab_ready` should stay as a lifecycle event and must not be the sole source of recording screenshots.
 - Reason: on slow pages, users often start interacting while the tab still reports loading; waiting for `tab_ready` can miss the meaningful pre-load-complete actions entirely.
 - Prefer action-timed keyframes on `click` / `submit`, but discard them when the captured screenshot has already drifted to a different URL than the source event page. This preserves useful action context without trusting navigation-transition screenshots.
+- Recording output size limits such as `960x540` should be enforced only by offline downscale/compression after a full-size capture, never by CDP `clip.scale`.
 - Action-timed recording keyframes may include an in-image bbox/banner annotation for the acted-on element (or submitted form) so review UI can show exactly what the user just clicked or typed into.
 
 ### Commands That Return Screenshots

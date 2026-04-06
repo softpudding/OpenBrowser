@@ -181,7 +181,7 @@ def _build_navigation_step(
                 "url": url,
             }
         ],
-        "executor_preference": "deterministic",
+        "executor_preference": "agent",
     }
 
 
@@ -212,10 +212,6 @@ def _build_click_step(
     selector = anchor.get("selector")
     label = anchor.get("text") or anchor.get("aria_label") or selector or "target"
 
-    has_locator = bool(
-        anchor.get("selector") or anchor.get("text") or anchor.get("aria_label")
-    )
-
     return {
         "id": f"step_{sorted_index + 1:03d}",
         "type": "click",
@@ -231,7 +227,7 @@ def _build_click_step(
             }
         ],
         "postconditions": [],
-        "executor_preference": "deterministic" if has_locator else "agent",
+        "executor_preference": "agent",
     }
 
 
@@ -286,7 +282,6 @@ def _build_form_step(
             source_event_indexes.append(raw)
 
     fields_payload: list[dict[str, Any]] = []
-    needs_agent = False
     for position, field in enumerate(field_entries, start=1):
         anchor = field["anchor"]
         value = field.get("value")
@@ -301,7 +296,6 @@ def _build_form_step(
                 "required": True,
                 "sensitive": True,
             }
-            needs_agent = True
         elif isinstance(value, str) and value:
             value_spec = {
                 "kind": "variable",
@@ -317,12 +311,6 @@ def _build_form_step(
                 "required": True,
                 "sensitive": False,
             }
-            needs_agent = True
-
-        if not (
-            anchor.get("selector") or anchor.get("text") or anchor.get("aria_label")
-        ):
-            needs_agent = True
 
         fields_payload.append(
             {
@@ -363,7 +351,7 @@ def _build_form_step(
                 "expected": has_submit,
             }
         ],
-        "executor_preference": "agent" if needs_agent else "deterministic",
+        "executor_preference": "agent",
     }
 
 
@@ -556,7 +544,7 @@ def build_workflow_ir(
                 "expected_step_count": len(steps),
             }
         ],
-        "executor_preference": "hybrid",
+        "executor_preference": "agent",
     }
 
 

@@ -270,13 +270,15 @@ class TestRecordingRoutes:
 
         steps = data["normalized_steps"]
         assert steps[0]["type"] == "navigate"
+        assert steps[0]["executor_preference"] == "agent"
         assert steps[1]["type"] == "form"
         assert steps[1]["action"] == "form_fill_submit"
+        assert steps[1]["executor_preference"] == "agent"
         assert steps[1]["source_event_indexes"] == [1, 2, 3, 4]
 
         workflow = data["workflow"]
         assert workflow["goal"]["text"] == "Search flow"
-        assert workflow["executor_preference"] == "hybrid"
+        assert workflow["executor_preference"] == "agent"
         assert len(workflow["inputs"]) == 1
         assert workflow["inputs"][0]["name"] == "input_1"
         assert workflow["inputs"][0]["default"] == "openbrowser"

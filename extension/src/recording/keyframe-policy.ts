@@ -1,6 +1,18 @@
+import type { ScreenshotCaptureOptions } from '../utils/highlight-screenshot';
+
 const ACTION_KEYFRAME_EVENT_TYPES = new Set(['click', 'change', 'submit']);
 const DEFAULT_RECORDING_KEYFRAME_WAIT_MS = 180;
 const ACTION_RECORDING_KEYFRAME_WAIT_MS = 60;
+const RECORDING_KEYFRAME_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
+  preferredFormat: 'jpeg',
+  maxOutputWidth: 960,
+  maxOutputHeight: 540,
+  warmupBeforeCapture: true,
+  warmupMaxAttempts: 1,
+  settleBeforeCapture: true,
+  settleTimeoutMs: 450,
+  settleQuietWindowMs: 160,
+};
 
 function normalizeComparableUrl(value: unknown): string | null {
   if (typeof value !== 'string') {
@@ -36,6 +48,10 @@ export function getRecordingKeyframeWaitForRender(eventType: string): number {
   return ACTION_KEYFRAME_EVENT_TYPES.has(eventType)
     ? ACTION_RECORDING_KEYFRAME_WAIT_MS
     : DEFAULT_RECORDING_KEYFRAME_WAIT_MS;
+}
+
+export function getRecordingKeyframeCaptureOptions(): ScreenshotCaptureOptions {
+  return { ...RECORDING_KEYFRAME_CAPTURE_OPTIONS };
 }
 
 export function shouldDiscardPostCaptureRecordingKeyframe(
