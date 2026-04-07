@@ -3550,84 +3550,60 @@
             gap: 8px;
         }
 
-        .routines-header {
+        .routines-launcher {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-        }
-
-        .routines-label {
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-        }
-
-        .routines-manage-btn {
-            background: transparent;
-            border: 1px solid var(--panel-border);
-            color: var(--text-secondary);
-            padding: 4px 12px;
-            border-radius: 999px;
-            font: inherit;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: border-color 120ms ease, color 120ms ease;
-        }
-
-        .routines-manage-btn:hover {
-            border-color: rgba(var(--accent-rgb), 0.4);
+            gap: 10px;
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(var(--accent-rgb), 0.32);
+            background: rgba(var(--accent-rgb), 0.10);
             color: var(--text-primary);
-        }
-
-        .routines-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .routines-empty {
-            font-size: 12px;
-            color: var(--text-subtle);
-            font-style: italic;
-        }
-
-        .routine-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 14px;
-            border-radius: 999px;
-            border: 1px solid rgba(var(--accent-rgb), 0.22);
-            background: rgba(var(--accent-rgb), 0.08);
-            color: var(--text-secondary);
             font: inherit;
             font-size: 13px;
             font-weight: 600;
+            text-align: left;
             cursor: pointer;
-            max-width: 280px;
             transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
         }
 
-        .routine-chip:hover {
+        .routines-launcher:hover:not(:disabled) {
             transform: translateY(-1px);
-            border-color: rgba(var(--accent-rgb), 0.4);
-            background: rgba(var(--accent-rgb), 0.16);
-            color: var(--text-primary);
+            border-color: rgba(var(--accent-rgb), 0.5);
+            background: rgba(var(--accent-rgb), 0.18);
         }
 
-        .routine-chip-name {
+        .routines-launcher:disabled {
+            cursor: default;
+            opacity: 0.5;
+            border-color: var(--panel-border);
+            background: transparent;
+            color: var(--text-subtle);
+            font-weight: 500;
+            font-style: italic;
+        }
+
+        .routines-launcher-icon {
+            font-size: 11px;
+            opacity: 0.75;
+            flex-shrink: 0;
+        }
+
+        .routines-launcher-label {
+            flex: 1 1 auto;
+            min-width: 0;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        .routine-chip-icon {
+        .routines-launcher-count {
+            flex-shrink: 0;
             font-size: 11px;
-            opacity: 0.75;
+            font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 0.04em;
         }
 
         .input-area-body {
@@ -3894,6 +3870,49 @@
             text-align: center;
             color: var(--text-subtle);
             font-style: italic;
+        }
+
+        .routines-modal-pager {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--panel-border);
+        }
+
+        .routines-modal-pager-info {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 0.04em;
+        }
+
+        .routines-modal-pager-buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        .routines-modal-pager-buttons button {
+            background: transparent;
+            border: 1px solid var(--panel-border);
+            color: var(--text-secondary);
+            padding: 5px 12px;
+            border-radius: 999px;
+            font: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .routines-modal-pager-buttons button:hover:not(:disabled) {
+            border-color: rgba(var(--accent-rgb), 0.4);
+            color: var(--text-primary);
+        }
+
+        .routines-modal-pager-buttons button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
 
         .routines-modal-edit {
@@ -4932,15 +4951,17 @@
                     </div>
 
                     <div class="routines-section" id="routines-section">
-                        <div class="routines-header">
-                            <span class="routines-label">Saved routines</span>
-                            <button type="button" class="routines-manage-btn" onclick="openRoutinesModal()">Manage</button>
-                        </div>
-                        <div class="routines-list" id="routines-list">
-                            <div class="routines-empty" id="routines-empty">
-                                No saved routines yet — record a workflow and finalize it to save one here.
-                            </div>
-                        </div>
+                        <button
+                            type="button"
+                            class="routines-launcher"
+                            id="routines-launcher"
+                            onclick="openRoutinesModal()"
+                            title="Browse, run, edit, or delete saved routines"
+                        >
+                            <span class="routines-launcher-icon">▶</span>
+                            <span class="routines-launcher-label" id="routines-launcher-label">Saved routines</span>
+                            <span class="routines-launcher-count" id="routines-launcher-count"></span>
+                        </button>
                     </div>
 
                     <div class="quick-prompts">
@@ -7291,6 +7312,7 @@
         // Routines: saved, named, executable SOPs
         // ─────────────────────────────────────────────────────────────────
 
+        const ROUTINES_MODAL_PAGE_SIZE = 10;
         let routinesCache = [];
         let stagedRoutine = null;
         let slashMenuActive = false;
@@ -7298,6 +7320,7 @@
         let slashMenuActiveIndex = 0;
         let slashMenuMatches = [];
         let routinesEditingId = null;
+        let routinesModalPage = 1;
 
         function buildRoutinePrompt(routine) {
             // The agent receives the SOP markdown verbatim plus a one-line
@@ -7339,54 +7362,24 @@
         }
 
         function renderRoutinesSection() {
-            const list = document.getElementById('routines-list');
-            const empty = document.getElementById('routines-empty');
-            if (!list) return;
+            const launcher = document.getElementById('routines-launcher');
+            const label = document.getElementById('routines-launcher-label');
+            const count = document.getElementById('routines-launcher-count');
+            if (!launcher || !label || !count) return;
 
-            // Wipe non-empty children (keep the empty state node so we can
-            // toggle visibility on it).
-            Array.from(list.children).forEach((node) => {
-                if (node.id !== 'routines-empty') {
-                    node.remove();
-                }
-            });
-
-            if (!routinesCache.length) {
-                if (empty) empty.style.display = '';
+            const total = routinesCache.length;
+            if (!total) {
+                launcher.disabled = true;
+                launcher.title = 'No saved routines yet — record a workflow and finalize it to save one here.';
+                label.textContent = 'No saved routines yet';
+                count.textContent = '';
                 return;
             }
-            if (empty) empty.style.display = 'none';
 
-            // Show at most 8 chips inline; the rest live in the modal.
-            const visible = routinesCache.slice(0, 8);
-            visible.forEach((routine) => {
-                const chip = document.createElement('button');
-                chip.type = 'button';
-                chip.className = 'routine-chip';
-                chip.title = routine.goal
-                    ? `${routine.name} — ${routine.goal}`
-                    : routine.name;
-                const icon = document.createElement('span');
-                icon.className = 'routine-chip-icon';
-                icon.textContent = '▶';
-                const name = document.createElement('span');
-                name.className = 'routine-chip-name';
-                name.textContent = routine.name;
-                chip.appendChild(icon);
-                chip.appendChild(name);
-                chip.addEventListener('click', () => stageRoutine(routine));
-                list.appendChild(chip);
-            });
-
-            if (routinesCache.length > visible.length) {
-                const more = document.createElement('button');
-                more.type = 'button';
-                more.className = 'routine-chip';
-                more.title = 'Show all saved routines';
-                more.textContent = `+${routinesCache.length - visible.length} more…`;
-                more.addEventListener('click', () => openRoutinesModal());
-                list.appendChild(more);
-            }
+            launcher.disabled = false;
+            launcher.title = 'Browse, run, edit, or delete saved routines';
+            label.textContent = 'Browse saved routines';
+            count.textContent = `(${total})`;
         }
 
         function stageRoutine(routine) {
@@ -7577,6 +7570,7 @@
             if (!overlay) return;
             overlay.hidden = false;
             routinesEditingId = null;
+            routinesModalPage = 1;
             renderRoutinesModal();
             // Refresh in the background so the modal reflects the latest state.
             void refreshRoutines();
@@ -7616,7 +7610,14 @@
                 return;
             }
 
-            routinesCache.forEach((routine) => {
+            const totalRoutines = routinesCache.length;
+            const totalPages = Math.max(1, Math.ceil(totalRoutines / ROUTINES_MODAL_PAGE_SIZE));
+            if (routinesModalPage > totalPages) routinesModalPage = totalPages;
+            if (routinesModalPage < 1) routinesModalPage = 1;
+            const startIdx = (routinesModalPage - 1) * ROUTINES_MODAL_PAGE_SIZE;
+            const pageItems = routinesCache.slice(startIdx, startIdx + ROUTINES_MODAL_PAGE_SIZE);
+
+            pageItems.forEach((routine) => {
                 const row = document.createElement('div');
                 row.className = 'routines-modal-row';
 
@@ -7672,6 +7673,48 @@
                 row.appendChild(actions);
                 body.appendChild(row);
             });
+
+            if (totalPages > 1) {
+                const pager = document.createElement('div');
+                pager.className = 'routines-modal-pager';
+
+                const info = document.createElement('div');
+                info.className = 'routines-modal-pager-info';
+                const firstShown = startIdx + 1;
+                const lastShown = startIdx + pageItems.length;
+                info.textContent = `Showing ${firstShown}–${lastShown} of ${totalRoutines} · Page ${routinesModalPage} / ${totalPages}`;
+
+                const buttons = document.createElement('div');
+                buttons.className = 'routines-modal-pager-buttons';
+
+                const prevBtn = document.createElement('button');
+                prevBtn.type = 'button';
+                prevBtn.textContent = '← Prev';
+                prevBtn.disabled = routinesModalPage <= 1;
+                prevBtn.addEventListener('click', () => {
+                    if (routinesModalPage > 1) {
+                        routinesModalPage -= 1;
+                        renderRoutinesModal();
+                    }
+                });
+
+                const nextBtn = document.createElement('button');
+                nextBtn.type = 'button';
+                nextBtn.textContent = 'Next →';
+                nextBtn.disabled = routinesModalPage >= totalPages;
+                nextBtn.addEventListener('click', () => {
+                    if (routinesModalPage < totalPages) {
+                        routinesModalPage += 1;
+                        renderRoutinesModal();
+                    }
+                });
+
+                buttons.appendChild(prevBtn);
+                buttons.appendChild(nextBtn);
+                pager.appendChild(info);
+                pager.appendChild(buttons);
+                body.appendChild(pager);
+            }
         }
 
         function buildRoutineEditor(routine) {
