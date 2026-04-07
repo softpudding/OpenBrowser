@@ -1961,15 +1961,22 @@
             flex: 1 1 auto;
             min-height: 0;
             max-height: 100%;
-            gap: 18px;
+            gap: 10px;
+            padding: 14px 18px 16px;
             border-color: rgba(215, 111, 92, 0.26);
             background:
                 radial-gradient(circle at top right, rgba(215, 111, 92, 0.14), transparent 40%),
                 linear-gradient(180deg, rgba(39, 29, 24, 0.98), rgba(23, 19, 16, 0.94));
-            overflow-x: hidden;
-            overflow-y: auto;
-            overscroll-behavior: contain;
-            scrollbar-gutter: stable;
+            overflow: hidden;
+        }
+
+        .recording-panel-card .panel-title {
+            font-size: 18px;
+            line-height: 1.2;
+        }
+
+        .recording-panel-card .panel-kicker {
+            font-size: 10px;
         }
 
         .recording-panel-header,
@@ -1996,26 +2003,40 @@
         }
 
         /* ── Phase stepper ── */
+        .recording-phase-stepper-wrap {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 8px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(215, 111, 92, 0.22);
+            background:
+                radial-gradient(circle at 0% 50%, rgba(215, 111, 92, 0.10), transparent 60%),
+                rgba(20, 16, 13, 0.78);
+            box-shadow: inset 0 0 0 1px rgba(255, 210, 140, 0.04);
+            flex-wrap: wrap;
+        }
+
         .recording-phase-stepper {
             display: flex;
             align-items: center;
             gap: 0;
-            padding: 2px 0 6px;
             user-select: none;
+            flex: 0 0 auto;
         }
 
         .recording-phase-step {
             display: flex;
             align-items: center;
-            gap: 7px;
-            padding: 6px 14px;
-            font-size: 12px;
+            gap: 8px;
+            padding: 6px 12px;
+            font-size: 13px;
             font-weight: 600;
-            letter-spacing: 0.04em;
-            color: var(--text-muted);
+            letter-spacing: 0.02em;
+            color: rgba(190, 175, 155, 0.62);
             cursor: default;
-            border-radius: 8px;
-            transition: color 0.15s, background 0.15s;
+            border-radius: 999px;
+            transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
         }
 
         .recording-phase-step.clickable {
@@ -2023,45 +2044,71 @@
         }
 
         .recording-phase-step.clickable:hover {
-            background: rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
         }
 
         .recording-phase-step.active {
-            color: var(--text-primary);
-            background: rgba(215, 111, 92, 0.12);
+            color: #ffd9b3;
+            background: linear-gradient(135deg, rgba(215, 111, 92, 0.28), rgba(140, 64, 38, 0.32));
+            box-shadow:
+                0 0 0 1px rgba(255, 180, 130, 0.32),
+                0 8px 18px rgba(80, 22, 8, 0.28);
+            font-weight: 700;
+            font-size: 14px;
         }
 
         .recording-phase-step.done {
-            color: rgba(155, 231, 193, 0.8);
+            color: rgba(155, 231, 193, 0.92);
         }
 
         .recording-phase-num {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 20px;
-            height: 20px;
+            width: 22px;
+            height: 22px;
             border-radius: 50%;
             font-size: 11px;
             font-weight: 700;
             border: 1.5px solid currentColor;
             flex-shrink: 0;
+            opacity: 0.78;
         }
 
         .recording-phase-step.active .recording-phase-num {
-            background: rgba(215, 111, 92, 0.25);
-            border-color: rgba(215, 111, 92, 0.6);
+            background: linear-gradient(135deg, rgba(255, 180, 130, 0.42), rgba(215, 111, 92, 0.42));
+            border-color: rgba(255, 200, 150, 0.85);
+            color: #fff1e0;
+            opacity: 1;
+            box-shadow: 0 0 12px rgba(255, 180, 130, 0.32);
         }
 
         .recording-phase-step.done .recording-phase-num {
-            border-color: rgba(155, 231, 193, 0.5);
+            background: rgba(155, 231, 193, 0.16);
+            border-color: rgba(155, 231, 193, 0.62);
+            opacity: 1;
         }
 
         .recording-phase-connector {
-            width: 24px;
+            width: 22px;
             height: 1px;
-            background: rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.14);
             flex-shrink: 0;
+        }
+
+        .recording-phase-microcopy {
+            font-size: 13px;
+            line-height: 1.55;
+            color: var(--text-secondary);
+            min-width: 0;
+            flex: 1 1 220px;
+        }
+
+        .recording-phase-microcopy strong {
+            color: #ffd9b3;
+            font-weight: 700;
+            margin-right: 6px;
         }
 
         /* ── Phase section visibility ── */
@@ -2069,8 +2116,16 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
-            flex: 1 1 auto;
+            flex: 1 1 0;
             min-height: 0;
+            overflow: hidden;
+        }
+
+        /* Compile phase: outer container scrolls if compiler log + draft overflow */
+        #recording-phase-compile {
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
         }
 
         .recording-phase-content[hidden] {
@@ -2124,6 +2179,38 @@
             display: none !important;
         }
 
+        .recording-intent-note--footer {
+            flex: 0 0 auto;
+            padding: 10px 14px;
+            margin-top: 4px;
+        }
+
+        .recording-intent-note--footer .recording-intent-note-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .recording-intent-note--footer .recording-intent-note-label {
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+
+        .recording-intent-note--footer textarea {
+            flex: 1 1 240px;
+            min-width: 200px;
+            min-height: 36px;
+            padding: 8px 12px;
+            font-size: 13px;
+            line-height: 1.4;
+            resize: vertical;
+        }
+
+        .recording-intent-note--footer .recording-intent-note-status {
+            flex: 0 0 auto;
+        }
+
         .recording-intent-note-label {
             font-size: 12px;
             font-weight: 600;
@@ -2168,6 +2255,37 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+        }
+
+        .recording-compiler-model-picker {
+            display: grid;
+            grid-template-columns: auto minmax(220px, 320px) minmax(0, 1fr);
+            gap: 10px 14px;
+            align-items: center;
+            padding: 14px 16px;
+            border: 1px solid rgba(255, 200, 150, 0.18);
+            border-radius: 14px;
+            background: rgba(28, 22, 17, 0.72);
+        }
+
+        .recording-compiler-model-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #f4ddbb;
+        }
+
+        .recording-compiler-model-helper {
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 720px) {
+            .recording-compiler-model-picker {
+                grid-template-columns: 1fr;
+            }
         }
 
         .recording-compiler-section[hidden] {
@@ -2293,6 +2411,21 @@
             margin-top: 4px;
         }
 
+        .recording-compiler-trace-path {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            cursor: pointer;
+            user-select: all;
+            opacity: 0.75;
+            word-break: break-all;
+        }
+
+        .recording-compiler-trace-path:hover {
+            opacity: 1;
+        }
+
         .recording-compiler-question {
             padding: 12px 14px;
             border: 1px solid rgba(255, 210, 140, 0.25);
@@ -2339,8 +2472,9 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
-            flex: 1 1 auto;
+            flex: 1 1 0;
             min-height: 0;
+            overflow: hidden;
         }
 
         .recording-view[hidden],
@@ -2359,15 +2493,18 @@
         .recording-split-layout {
             display: grid;
             grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+            grid-template-rows: minmax(0, 1fr);
             gap: 16px;
-            flex: 1 1 auto;
+            flex: 1 1 0;
             min-height: 0;
             align-items: stretch;
+            overflow: hidden;
         }
 
         .recording-review-pane {
             display: flex;
             flex-direction: column;
+            height: 100%;
             min-height: 0;
             border-radius: 18px;
             border: 1px solid rgba(204, 175, 140, 0.12);
@@ -2394,10 +2531,11 @@
         .recording-selection-list {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 6px;
+            flex: 1 1 0;
             min-height: 0;
             overflow-y: auto;
-            padding: 16px 18px 18px;
+            padding: 10px 14px 14px;
             overscroll-behavior: contain;
             scrollbar-gutter: stable;
         }
@@ -2405,10 +2543,10 @@
         .recording-selection-item {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 2px;
             width: 100%;
-            padding: 14px 16px;
-            border-radius: 16px;
+            padding: 6px 10px;
+            border-radius: 10px;
             border: 1px solid rgba(204, 175, 140, 0.12);
             background: rgba(20, 16, 13, 0.74);
             color: var(--text-primary);
@@ -2433,36 +2571,43 @@
         .recording-selection-line {
             display: flex;
             align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
+            gap: 6px;
+            flex-wrap: nowrap;
+            overflow: hidden;
         }
 
         .recording-selection-title {
             color: var(--text-primary);
-            font-size: 13px;
-            font-weight: 700;
-            line-height: 1.45;
-            white-space: pre-wrap;
-            word-break: break-word;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .recording-selection-summary {
             color: var(--text-muted);
-            font-size: 12px;
-            line-height: 1.55;
-            white-space: pre-wrap;
-            word-break: break-word;
+            font-size: 11px;
+            line-height: 1.4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .recording-detail-content {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
+            display: block;
+            flex: 1 1 0;
             min-height: 0;
+            height: 0;
             overflow-y: auto;
             padding: 16px 18px 18px;
             overscroll-behavior: contain;
             scrollbar-gutter: stable;
+        }
+
+        .recording-detail-content > * + * {
+            margin-top: 14px;
         }
 
         .recording-detail-card {
@@ -2514,7 +2659,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 10px;
-            padding: 16px 18px 0;
+            padding: 10px 14px 4px;
             flex-wrap: wrap;
         }
 
@@ -2716,6 +2861,249 @@
             line-height: 1.7;
             white-space: pre-wrap;
             overflow-x: auto;
+        }
+
+        /* ── Bottom status bar ── */
+        .recording-status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 28px;
+            padding: 12px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(204, 175, 140, 0.12);
+            background: rgba(15, 12, 10, 0.62);
+            flex-wrap: wrap;
+        }
+
+        .recording-status-bar-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+
+        .recording-status-bar-icon {
+            display: inline-flex;
+            width: 18px;
+            height: 18px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            background: rgba(215, 111, 92, 0.16);
+            color: #ffc7a8;
+            font-size: 11px;
+        }
+
+        .recording-status-bar-value {
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+
+        /* ── Detail viewing header ── */
+        .recording-detail-viewing {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 2px 6px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #f4ddbb;
+        }
+
+        .recording-detail-viewing-label {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .recording-detail-viewing-value {
+            color: #ffd9b3;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .recording-detail-viewing-index {
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* ── Emphasized summary box ── */
+        .recording-detail-card.is-summary {
+            border-color: rgba(255, 200, 150, 0.22);
+            background: rgba(35, 26, 20, 0.78);
+            box-shadow: inset 0 0 0 1px rgba(255, 210, 140, 0.05);
+            padding: 16px 18px;
+        }
+
+        .recording-detail-card.is-summary .recording-detail-card-title {
+            color: #f4ddbb;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .recording-detail-card.is-summary .recording-detail-card-title::after {
+            content: "✓";
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            background: rgba(155, 231, 193, 0.18);
+            color: #9be7c1;
+            font-size: 10px;
+        }
+
+        .recording-detail-card.is-summary .recording-detail-card-copy {
+            color: var(--text-primary);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .recording-detail-card.is-summary .recording-detail-card-copy strong {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .recording-detail-card.is-summary .recording-detail-card-time {
+            display: block;
+            margin-top: 8px;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* ── Collapsible raw event data ── */
+        .recording-detail-raw {
+            border: 1px solid rgba(205, 175, 132, 0.12);
+            border-radius: 14px;
+            background: rgba(15, 12, 10, 0.6);
+            overflow: hidden;
+        }
+
+        .recording-detail-raw[open] {
+            background: rgba(20, 16, 13, 0.72);
+        }
+
+        .recording-detail-raw > summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .recording-detail-raw > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .recording-detail-raw > summary::after {
+            content: "▾";
+            font-size: 11px;
+            color: var(--text-muted);
+            transition: transform 0.18s ease;
+        }
+
+        .recording-detail-raw[open] > summary::after {
+            transform: rotate(180deg);
+        }
+
+        .recording-detail-raw-body {
+            padding: 0 16px 14px;
+        }
+
+        .recording-detail-raw .recording-event-details {
+            font-size: 11px;
+        }
+
+        /* ── Dominant CTA ── */
+        .cta-button-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 22px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 200, 150, 0.42);
+            background: linear-gradient(135deg, #d76f5c, #8a3a23);
+            color: #fff1e0;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            box-shadow:
+                0 12px 28px rgba(80, 22, 8, 0.34),
+                inset 0 1px 0 rgba(255, 220, 180, 0.32);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+        }
+
+        .cta-button-primary:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.06);
+            box-shadow:
+                0 16px 32px rgba(80, 22, 8, 0.42),
+                inset 0 1px 0 rgba(255, 220, 180, 0.4);
+        }
+
+        .cta-button-primary:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+            transform: none;
+            filter: none;
+            box-shadow: none;
+        }
+
+        .cta-button-primary .cta-arrow {
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        /* ── Intent helper text ── */
+        .recording-intent-note-helper {
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        /* ── Review pane: scrolling detail above sticky intent ── */
+        #review-selection-detail {
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        .recording-detail-pane .recording-intent-note {
+            flex: 0 0 auto;
+        }
+
+        /* ── Stronger event-list selection ── */
+        .recording-selection-item.is-selected {
+            border-color: rgba(255, 180, 130, 0.55);
+            background: rgba(48, 32, 22, 0.96);
+            box-shadow:
+                inset 0 0 0 1px rgba(255, 180, 130, 0.22),
+                0 6px 16px rgba(80, 22, 8, 0.22);
+        }
+
+        .recording-selection-item.is-selected .recording-event-type {
+            background: rgba(255, 180, 130, 0.18);
+            border-color: rgba(255, 180, 130, 0.42);
+            color: #ffd9b3;
         }
 
         .recording-empty-state {
@@ -3598,8 +3986,7 @@
             height: 100%;
             min-height: 0;
             max-height: none;
-            overflow-x: hidden;
-            overflow-y: auto;
+            overflow: hidden;
         }
 
         /* Hide main header actions, show recording-specific ones */
@@ -4009,17 +4396,22 @@
                     </div>
 
                     <!-- Phase stepper -->
-                    <div class="recording-phase-stepper" id="recording-phase-stepper">
-                        <div class="recording-phase-step active" id="phase-step-record" onclick="void goToRecordingPhase('record')">
-                            <span class="recording-phase-num">1</span> Record
+                    <div class="recording-phase-stepper-wrap" id="recording-phase-stepper-wrap">
+                        <div class="recording-phase-stepper" id="recording-phase-stepper">
+                            <div class="recording-phase-step active" id="phase-step-record" onclick="void goToRecordingPhase('record')">
+                                <span class="recording-phase-num">1</span> Record
+                            </div>
+                            <div class="recording-phase-connector"></div>
+                            <div class="recording-phase-step" id="phase-step-review" onclick="void goToRecordingPhase('review')">
+                                <span class="recording-phase-num">2</span> Review
+                            </div>
+                            <div class="recording-phase-connector"></div>
+                            <div class="recording-phase-step" id="phase-step-compile" onclick="void goToRecordingPhase('compile')">
+                                <span class="recording-phase-num">3</span> Compile
+                            </div>
                         </div>
-                        <div class="recording-phase-connector"></div>
-                        <div class="recording-phase-step" id="phase-step-review" onclick="void goToRecordingPhase('review')">
-                            <span class="recording-phase-num">2</span> Review
-                        </div>
-                        <div class="recording-phase-connector"></div>
-                        <div class="recording-phase-step" id="phase-step-compile" onclick="void goToRecordingPhase('compile')">
-                            <span class="recording-phase-num">3</span> Compile
+                        <div class="recording-phase-microcopy" id="recording-phase-microcopy">
+                            <strong>Step 1:</strong>Capture a workflow by interacting with the browser.
                         </div>
                     </div>
 
@@ -4090,83 +4482,95 @@
                                 </section>
                             </div>
                         </div>
+
+                        <div class="recording-status-bar">
+                            <div class="recording-status-bar-item">
+                                <span class="recording-status-bar-icon">●</span>
+                                <span>Total Events Captured</span>
+                                <span class="recording-status-bar-value" id="record-statbar-count">0</span>
+                            </div>
+                            <div class="recording-status-bar-item">
+                                <span class="recording-status-bar-icon">↻</span>
+                                <span>Last Event</span>
+                                <span class="recording-status-bar-value" id="record-statbar-updated">Waiting</span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- ═══ PHASE 2: REVIEW ═══ -->
                     <div class="recording-phase-content" id="recording-phase-review" hidden>
-                        <div class="recording-summary-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
-                            <div class="recording-summary-card">
-                                <span class="recording-summary-label">Recording ID</span>
-                                <strong class="recording-summary-value" id="review-recording-id">—</strong>
-                            </div>
-                            <div class="recording-summary-card">
-                                <span class="recording-summary-label">Captured events</span>
-                                <strong class="recording-summary-value" id="review-event-count">0</strong>
-                            </div>
-                            <div class="recording-summary-card">
-                                <span class="recording-summary-label">Last update</span>
-                                <strong class="recording-summary-value" id="review-updated">—</strong>
-                            </div>
-                        </div>
-
                         <div class="recording-view" id="review-events-view">
                             <div class="recording-split-layout">
                                 <section class="recording-review-pane recording-list-pane">
                                     <div class="recording-review-header">
-                                        <div class="recording-review-title">Captured Events</div>
-                                        <span class="recording-event-badge" id="review-events-badge">Timeline</span>
+                                        <div class="recording-review-title">Captured Events <span id="review-recording-id-strong" style="color: var(--text-muted); font-weight: 500; font-size: 11px; letter-spacing: 0; text-transform: none; margin-left: 6px;"></span></div>
+                                        <span class="recording-event-badge" id="review-events-badge">0 events</span>
                                     </div>
                                     <div class="recording-selection-list scrollbar" id="review-selection-list"></div>
                                 </section>
 
                                 <section class="recording-review-pane recording-detail-pane">
                                     <div class="recording-review-header">
-                                        <div class="recording-review-title" id="review-detail-title">Event Detail</div>
+                                        <div class="recording-review-title" id="review-detail-title">Event Details</div>
                                         <span class="recording-event-badge" id="review-detail-badge">Waiting</span>
                                     </div>
                                     <div class="recording-detail-content scrollbar" id="review-selection-detail">
-                                        <div class="recording-empty-state">Select an event to see its detail.</div>
+                                        <div class="recording-empty-state">Select an event from the left to see its detail.</div>
                                     </div>
                                 </section>
                             </div>
                         </div>
 
-                        <div class="recording-intent-note" id="recording-intent-note">
-                            <span class="recording-intent-note-label">What did you intend to do?</span>
-                            <textarea
-                                id="recording-intent-note-input"
-                                placeholder="Describe the workflow you just recorded, e.g. &quot;Filter Finviz to large-cap stocks and inspect the results.&quot;"
-                                rows="2"
-                            ></textarea>
-                            <div class="recording-intent-note-actions">
-                                <button class="ghost-button" id="recording-intent-note-save" onclick="void saveIntentNote()">Save Note</button>
+                        <div class="recording-intent-note recording-intent-note--footer" id="recording-intent-note">
+                            <div class="recording-intent-note-row">
+                                <span class="recording-intent-note-label">Annotate Your Intent</span>
+                                <textarea
+                                    id="recording-intent-note-input"
+                                    placeholder="e.g. &quot;Filter Finviz to large-cap stocks and inspect the results.&quot;"
+                                    rows="1"
+                                ></textarea>
+                                <button class="ghost-button" id="recording-intent-note-save" onclick="void saveIntentNote()">Save</button>
                                 <span class="recording-intent-note-status" id="recording-intent-note-status"></span>
-                                <span style="flex:1"></span>
-                                <button class="header-action-btn" id="review-to-compile-btn" onclick="void goToRecordingPhase('compile')">Continue to Compile →</button>
+                                <button class="cta-button-primary" id="review-to-compile-btn" onclick="void goToRecordingPhase('compile')">
+                                    Continue to Compile <span class="cta-arrow">→</span>
+                                </button>
                             </div>
                         </div>
                     </div>
 
                     <!-- ═══ PHASE 3: COMPILE ═══ -->
                     <div class="recording-phase-content" id="recording-phase-compile" hidden>
-                        <div class="recording-summary-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                        <div class="recording-summary-grid" style="grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);">
                             <div class="recording-summary-card">
                                 <span class="recording-summary-label">Recording ID</span>
                                 <strong class="recording-summary-value" id="compile-recording-id">—</strong>
                             </div>
                             <div class="recording-summary-card">
-                                <span class="recording-summary-label">Events</span>
-                                <strong class="recording-summary-value" id="compile-event-count">0</strong>
-                            </div>
-                            <div class="recording-summary-card">
-                                <span class="recording-summary-label">Intent</span>
-                                <strong class="recording-summary-value" id="compile-intent-preview">—</strong>
+                                <span class="recording-summary-label">Your intent</span>
+                                <strong class="recording-summary-value" id="compile-intent-preview" style="font-weight: 500; color: var(--text-secondary); font-size: 13px; line-height: 1.6;">—</strong>
                             </div>
                         </div>
 
                         <div class="recording-compiler-section" id="recording-compiler-section">
+                            <div class="recording-compiler-model-picker">
+                                <label for="compiler-model-select" class="recording-compiler-model-label">
+                                    Compiler model
+                                </label>
+                                <select
+                                    id="compiler-model-select"
+                                    class="model-select"
+                                    onchange="handleCompilerModelChange()"
+                                >
+                                    <option value="">Loading...</option>
+                                </select>
+                                <span class="recording-compiler-model-helper">
+                                    The LLM the compiler agent will use to read the trace and write the SOP. Defaults to your global model.
+                                </span>
+                            </div>
                             <div class="recording-intent-note-actions">
-                                <button class="header-action-btn" id="recording-compile-btn" onclick="void compileRecording()">Compile SOP</button>
+                                <button class="cta-button-primary" id="recording-compile-btn" onclick="void compileRecording()">
+                                    Compile SOP <span class="cta-arrow">→</span>
+                                </button>
                                 <span class="recording-intent-note-status" id="recording-compile-status"></span>
                             </div>
                             <div class="recording-compiler-log scrollbar" id="recording-compiler-log" hidden></div>
@@ -4183,6 +4587,19 @@
                             </div>
                             <div class="recording-compiler-draft scrollbar" id="recording-compiler-draft" hidden></div>
                             <div class="recording-compiler-sop-meta" id="recording-compiler-sop-meta" hidden></div>
+                        </div>
+
+                        <div class="recording-status-bar">
+                            <div class="recording-status-bar-item">
+                                <span class="recording-status-bar-icon">●</span>
+                                <span>Total Events Captured</span>
+                                <span class="recording-status-bar-value" id="compile-statbar-count">0</span>
+                            </div>
+                            <div class="recording-status-bar-item">
+                                <span class="recording-status-bar-icon">↻</span>
+                                <span>Last Event</span>
+                                <span class="recording-status-bar-value" id="compile-statbar-updated">—</span>
+                            </div>
                         </div>
                     </div>
 
@@ -5358,19 +5775,50 @@
             const summary = escapeHtml(formatRecordingEntrySummary(selectedEntry));
             const createdAt = escapeHtml(formatDisplayTime(getRecordingEventDisplayTime(event)));
 
+            const eventTypeLabel = escapeHtml(event.event_type || 'event');
+            const eventIndexLabel = escapeHtml(String(event.event_index ?? ''));
+            const relativeTime = escapeHtml(formatRelativeTime(getRecordingEventDisplayTime(event)));
+
             const html = `
-                <div class="recording-detail-card">
-                    <div class="recording-detail-card-title">Summary</div>
-                    <div class="recording-detail-card-copy">${summary}\nTime: ${createdAt}</div>
+                <div class="recording-detail-viewing">
+                    <span class="recording-detail-viewing-label">Viewing event</span>
+                    <span class="recording-detail-viewing-value">${eventTypeLabel}</span>
+                    ${eventIndexLabel ? `<span class="recording-detail-viewing-index">#${eventIndexLabel}</span>` : ''}
+                </div>
+                <div class="recording-detail-card is-summary">
+                    <div class="recording-detail-card-title">Human-readable summary</div>
+                    <div class="recording-detail-card-copy">
+                        <strong>${summary}</strong>
+                        <span class="recording-detail-card-time">Time: ${createdAt}${relativeTime ? ` (${relativeTime})` : ''}</span>
+                    </div>
                 </div>
                 ${keyframeHtml}
                 ${supportingEventsHtml}
-                <div class="recording-detail-card">
-                    <div class="recording-detail-card-title">Raw Event Data</div>
-                    <pre class="recording-event-details">${prettyDetails}</pre>
-                </div>
+                <details class="recording-detail-raw" open>
+                    <summary>Raw payload (JSON)</summary>
+                    <div class="recording-detail-raw-body">
+                        <pre class="recording-event-details">${prettyDetails}</pre>
+                    </div>
+                </details>
             `;
             for (const c of containers) c.innerHTML = html;
+        }
+
+        function formatRelativeTime(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            const diffMs = Date.now() - date.getTime();
+            if (diffMs < 0) return 'just now';
+            const sec = Math.floor(diffMs / 1000);
+            if (sec < 5) return 'just now';
+            if (sec < 60) return `${sec}s ago`;
+            const min = Math.floor(sec / 60);
+            if (min < 60) return `${min} min ago`;
+            const hr = Math.floor(min / 60);
+            if (hr < 24) return `${hr} hr ago`;
+            const day = Math.floor(hr / 24);
+            return `${day} day${day === 1 ? '' : 's'} ago`;
         }
 
         function formatRecordingStatusLabel(status) {
@@ -5492,10 +5940,10 @@
             const stepRecord = document.getElementById('phase-step-record');
             const stepReview = document.getElementById('phase-step-review');
             const stepCompile = document.getElementById('phase-step-compile');
-            const stepper = document.getElementById('recording-phase-stepper');
+            const stepperWrap = document.getElementById('recording-phase-stepper-wrap');
 
             // Hide stepper in history mode
-            if (stepper) stepper.hidden = isHistoryMode;
+            if (stepperWrap) stepperWrap.hidden = isHistoryMode;
 
             const activeSession = recordingPanelSession;
             const isStopped = activeSession && activeSession.status !== 'active';
@@ -5792,31 +6240,62 @@
                     : 'Start a recording to open a dedicated browser window. Perform the workflow manually, then stop.';
             }
 
-            // ── Phase 2: Review — summary grid ──
-            const reviewId = document.getElementById('review-recording-id');
-            const reviewCount = document.getElementById('review-event-count');
-            const reviewUpdated = document.getElementById('review-updated');
+            // ── Phase 2: Review — prominent ID + status bar ──
+            const reviewIdStrong = document.getElementById('review-recording-id-strong');
             const reviewBadge = document.getElementById('review-events-badge');
 
-            if (reviewId) {
-                reviewId.textContent = activeSession?.recording_id
+            if (reviewIdStrong) {
+                reviewIdStrong.textContent = activeSession?.recording_id
                     ? shortDisplay(activeSession.recording_id, activeSession.recording_id)
                     : '—';
-                reviewId.title = activeSession?.recording_id || '';
-            }
-            if (reviewCount) {
-                reviewCount.textContent = displayCount === recordingEvents.length
-                    ? String(recordingEvents.length)
-                    : `${displayCount} shown · ${recordingEvents.length} raw`;
-            }
-            if (reviewUpdated) {
-                const lastEvent = recordingEvents[recordingEvents.length - 1];
-                reviewUpdated.textContent = formatDisplayTime(
-                    lastEvent?.created_at || activeSession?.updated_at
-                );
+                reviewIdStrong.title = activeSession?.recording_id || '';
             }
             if (reviewBadge) {
                 reviewBadge.textContent = `${displayCount} events`;
+            }
+
+            // ── Status bars (all phases) ──
+            const lastEvent = recordingEvents[recordingEvents.length - 1];
+            const lastEventTime = lastEvent?.created_at || activeSession?.updated_at;
+            const relativeUpdated = formatRelativeTime(lastEventTime) || (lastEventTime ? formatDisplayTime(lastEventTime) : 'Waiting');
+            const countText = displayCount === recordingEvents.length
+                ? String(recordingEvents.length)
+                : `${displayCount} shown · ${recordingEvents.length} raw`;
+
+            for (const id of ['record-statbar-count', 'review-statbar-count', 'compile-statbar-count']) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = countText;
+            }
+            for (const id of ['record-statbar-updated', 'review-statbar-updated', 'compile-statbar-updated']) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = relativeUpdated;
+            }
+
+            // ── Stepper microcopy ──
+            const microcopy = document.getElementById('recording-phase-microcopy');
+            if (microcopy) {
+                let label = '';
+                let body = '';
+                if (isHistoryMode) {
+                    label = 'History:';
+                    body = 'Pick an existing recording to reopen its review workspace.';
+                } else if (recordingPhase === 'record') {
+                    label = 'Step 1:';
+                    body = isRecording
+                        ? 'Recording in progress — perform the workflow in the browser, then stop.'
+                        : 'Capture a workflow by interacting with the browser.';
+                } else if (recordingPhase === 'review') {
+                    label = 'Step 2:';
+                    body = 'Review captured events and annotate your intent.';
+                } else if (recordingPhase === 'compile') {
+                    label = 'Step 3:';
+                    body = compilerCompiling
+                        ? 'Compiler agent is working — answer any questions it asks.'
+                        : (compilerSop
+                            ? 'SOP ready — review the compiled workflow.'
+                            : 'Compile the recording into an executable SOP.');
+                }
+                microcopy.innerHTML = `<strong>${escapeHtml(label)}</strong>${escapeHtml(body)}`;
             }
 
             // ── Phase 3: Compile — summary grid ──
@@ -5825,16 +6304,19 @@
             const compileIntent = document.getElementById('compile-intent-preview');
 
             if (compileId) {
-                compileId.textContent = activeSession?.recording_id
-                    ? shortDisplay(activeSession.recording_id, activeSession.recording_id)
-                    : '—';
+                const fullId = activeSession?.recording_id || '';
+                compileId.textContent = fullId || '—';
+                compileId.title = fullId;
+                compileId.style.fontSize = fullId ? '13px' : '';
+                compileId.style.fontFamily = fullId ? "'SF Mono', 'Fira Code', 'Cascadia Code', monospace" : '';
+                compileId.style.wordBreak = 'break-all';
             }
             if (compileCount) {
                 compileCount.textContent = String(recordingEvents.length);
             }
             if (compileIntent) {
                 const note = activeSession?.metadata?.intent_note || '';
-                compileIntent.textContent = note ? (note.length > 60 ? note.substring(0, 60) + '…' : note) : '—';
+                compileIntent.textContent = note || 'No intent note saved.';
                 compileIntent.title = note;
             }
 
@@ -5847,6 +6329,7 @@
             updateRecordingMenu();
             updateIntentNoteSection();
             updateCompilerSection();
+            populateCompilerModelSelect();
         }
 
         function stopRecordingPolling() {
@@ -6555,6 +7038,64 @@
         let compilerSop = null;
         let compilerCompiling = false;
         let compilerQuestion = null;
+        let compilerModelAlias = null;
+        const COMPILER_MODEL_ALIAS_STORAGE_KEY = 'openbrowser_compiler_model_alias';
+
+        function getCompilerModelAlias() {
+            const models = getConfiguredModels();
+            if (
+                compilerModelAlias
+                && models.some((config) => config.alias === compilerModelAlias)
+            ) {
+                return compilerModelAlias;
+            }
+            return getSelectedModelAlias();
+        }
+
+        function populateCompilerModelSelect() {
+            const select = document.getElementById('compiler-model-select');
+            if (!select) return;
+
+            const models = getConfiguredModels();
+            select.innerHTML = '';
+
+            if (models.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No configured models';
+                select.appendChild(option);
+                select.disabled = true;
+                return;
+            }
+
+            const stored = localStorage.getItem(COMPILER_MODEL_ALIAS_STORAGE_KEY);
+            if (stored && models.some((config) => config.alias === stored)) {
+                compilerModelAlias = stored;
+            }
+
+            const effective = getCompilerModelAlias();
+
+            models.forEach((config) => {
+                const option = document.createElement('option');
+                option.value = config.alias;
+                option.textContent = formatModelOptionLabel(config);
+                option.selected = config.alias === effective;
+                select.appendChild(option);
+            });
+
+            select.disabled = compilerCompiling;
+        }
+
+        function handleCompilerModelChange() {
+            const select = document.getElementById('compiler-model-select');
+            if (!select) return;
+            compilerModelAlias = select.value || null;
+            if (compilerModelAlias) {
+                localStorage.setItem(COMPILER_MODEL_ALIAS_STORAGE_KEY, compilerModelAlias);
+            } else {
+                localStorage.removeItem(COMPILER_MODEL_ALIAS_STORAGE_KEY);
+            }
+        }
 
         function updateIntentNoteSection() {
             // Intent note is now inside the review phase section — always visible there.
@@ -6647,11 +7188,26 @@
 
             if (metaNode) {
                 if (compilerSop) {
+                    metaNode.innerHTML = '';
                     const parts = [];
                     if (compilerSop.goal) parts.push(`Goal: ${compilerSop.goal}`);
                     if (compilerSop.step_count) parts.push(`${compilerSop.step_count} steps`);
                     if (compilerSop.model) parts.push(`Model: ${compilerSop.model}`);
-                    metaNode.textContent = parts.join(' · ');
+                    if (parts.length) {
+                        const summaryLine = document.createElement('div');
+                        summaryLine.textContent = parts.join(' · ');
+                        metaNode.appendChild(summaryLine);
+                    }
+                    if (compilerSop.trace_path) {
+                        const traceLine = document.createElement('div');
+                        traceLine.className = 'recording-compiler-trace-path';
+                        traceLine.textContent = `Trace: ${compilerSop.trace_path}`;
+                        traceLine.title = 'Click to copy';
+                        traceLine.addEventListener('click', () => {
+                            navigator.clipboard?.writeText(compilerSop.trace_path);
+                        });
+                        metaNode.appendChild(traceLine);
+                    }
                     metaNode.hidden = false;
                 } else {
                     metaNode.hidden = true;
@@ -6707,7 +7263,30 @@
 
             const evtType = data.type || '';
             const toolName = data.tool_name || '';
-            const fullText = data.text || '';
+            let fullText = data.text || '';
+
+            // Fallback bodies for ActionEvent / ObservationEvent so the entry is
+            // never empty (some tools like trace_viewer / submit_workflow produce
+            // an empty visualize on the first call before the action runs).
+            if (!fullText.trim() && evtType === 'ActionEvent') {
+                if (data.summary) {
+                    fullText = String(data.summary);
+                } else if (data.action) {
+                    fullText = String(data.action);
+                } else if (toolName) {
+                    fullText = `Calling ${toolName}…`;
+                }
+            }
+            if (!fullText.trim() && evtType === 'ObservationEvent') {
+                if (data.message) {
+                    fullText = String(data.message);
+                } else if (data.error) {
+                    fullText = `Error: ${data.error}`;
+                } else if (toolName) {
+                    fullText = `${toolName} returned (no text output).`;
+                }
+            }
+
             const TRUNCATE = 160;
             const needsTruncation = fullText.length > TRUNCATE;
             const preview = needsTruncation ? fullText.substring(0, TRUNCATE) : fullText;
@@ -6733,12 +7312,14 @@
                 labelClass = 'message';
             }
 
+            // Always render the preview so the body is visible while collapsed.
+            // The full body lives in a separate span shown only when expanded.
             let textHtml = '';
             if (needsTruncation) {
                 textHtml = `<span class="compiler-log-preview">${escapeHtml(preview)}<span class="compiler-log-ellipsis"> [+${fullText.length - TRUNCATE} chars]</span></span>` +
                            `<span class="compiler-log-full">${escapeHtml(fullText)}</span>`;
             } else {
-                textHtml = `<span class="compiler-log-full">${escapeHtml(fullText)}</span>`;
+                textHtml = `<span class="compiler-log-preview">${escapeHtml(fullText)}</span>`;
             }
 
             // Image support (keyframe screenshots from trace_viewer)
@@ -6748,13 +7329,11 @@
                 imageHtml = `<img class="compiler-log-image" src="${escapeHtml(imageUrl)}" alt="keyframe" loading="lazy">`;
             }
 
-            entry.innerHTML = `<span class="compiler-log-label ${labelClass}">${label}</span><span class="compiler-log-text">${textHtml}</span>${imageHtml}`;
+            entry.innerHTML = `<span class="compiler-log-label ${labelClass}">${label}</span> <span class="compiler-log-text">${textHtml}</span>${imageHtml}`;
 
-            if (needsTruncation || imageUrl) {
-                entry.addEventListener('click', () => entry.classList.toggle('collapsed'));
-            } else {
-                entry.style.cursor = 'default';
-            }
+            // Make every entry clickable: short ones can still hold tool_call_id
+            // and we want a consistent affordance.
+            entry.addEventListener('click', () => entry.classList.toggle('collapsed'));
 
             logNode.appendChild(entry);
             logNode.scrollTop = logNode.scrollHeight;
@@ -6825,7 +7404,9 @@
                         } else if (evtType === 'error') {
                             try {
                                 const parsed = JSON.parse(evtData);
-                                throw new Error(parsed.error || 'Compiler agent error');
+                                const err = new Error(parsed.error || 'Compiler agent error');
+                                if (parsed.trace_path) err.tracePath = parsed.trace_path;
+                                throw err;
                             } catch (e) {
                                 if (e.message) throw e;
                                 throw new Error('Unknown compiler error');
@@ -6873,10 +7454,15 @@
             try {
                 await streamCompilerSSE(
                     apiUrl(`/recordings/${recordingId}/compile`),
-                    { model_alias: getSelectedModelAlias() },
+                    { model_alias: getCompilerModelAlias() },
                 );
             } catch (error) {
-                if (compileStatus) compileStatus.textContent = `Error: ${error.message}`;
+                if (compileStatus) {
+                    compileStatus.textContent = `Error: ${error.message}`;
+                    if (error.tracePath) {
+                        compileStatus.textContent += `  ·  Trace: ${error.tracePath}`;
+                    }
+                }
             } finally {
                 compilerCompiling = false;
                 updateRecordingPanel();
@@ -6905,7 +7491,12 @@
                     { answer },
                 );
             } catch (error) {
-                if (compileStatus) compileStatus.textContent = `Error: ${error.message}`;
+                if (compileStatus) {
+                    compileStatus.textContent = `Error: ${error.message}`;
+                    if (error.tracePath) {
+                        compileStatus.textContent += `  ·  Trace: ${error.tracePath}`;
+                    }
+                }
             } finally {
                 compilerCompiling = false;
                 updateRecordingPanel();

@@ -20,6 +20,7 @@ import threading
 import time
 from collections.abc import AsyncGenerator, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -58,6 +59,9 @@ logger = logging.getLogger(__name__)
 COMPILER_PROMPT_FILENAME = "system_prompt_compiler.j2"
 DRAFT_FILENAME = "workflow_draft.md"
 DEFAULT_EVENT_PAGE_SIZE = 15
+
+TRACE_DIR = Path.home() / ".openbrowser" / "compiler_traces"
+TRACE_MAX_STRING_LENGTH = 2000
 
 
 # ---------------------------------------------------------------------------
@@ -712,6 +716,7 @@ class CompilerSession:
     draft_path: str
     workspace_dir: str
     model: str
+    trace_path: str | None = None
 
 
 # Active compiler sessions keyed by recording_id
@@ -721,6 +726,56 @@ _compiler_sessions: dict[str, CompilerSession] = {}
 def has_compiler_session(recording_id: str) -> bool:
     """Check whether an active compiler session exists for a recording."""
     return recording_id in _compiler_sessions
+
+
+def _truncate_long_strings(value: Any) -> Any:
+    """Recursively truncate base64 / very long strings in a JSON-able structure."""
+    if isinstance(value, str):
+        if len(value) > TRACE_MAX_STRING_LENGTH:
+            return f"{value[:TRACE_MAX_STRING_LENGTH]}…[truncated {len(value) - TRACE_MAX_STRING_LENGTH} chars]"
+        return value
+    if isinstance(value, dict):
+        return {k: _truncate_long_strings(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_truncate_long_strings(v) for v in value]
+    return value
+
+
+def _dump_trace(
+    session: CompilerSession,
+    error: str | None = None,
+) -> str | None:
+    """Write the conversation event log to session.trace_path. Returns the path."""
+    if not session.trace_path:
+        return None
+    try:
+        events_payload: list[Any] = []
+        for evt in session.conversation.state.events:
+            try:
+                dumped = evt.model_dump(mode="json")
+            except Exception:
+                dumped = {"_repr": repr(evt), "_type": type(evt).__name__}
+            events_payload.append(_truncate_long_strings(dumped))
+
+        trace_doc = {
+            "recording_id": session.recording_id,
+            "model": session.model,
+            "draft_path": session.draft_path,
+            "workspace_dir": session.workspace_dir,
+            "dumped_at": datetime.now().isoformat(),
+            "error": error,
+            "event_count": len(events_payload),
+            "events": events_payload,
+        }
+        Path(session.trace_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(session.trace_path).write_text(
+            json.dumps(trace_doc, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return session.trace_path
+    except Exception as exc:
+        logger.warning("Failed to dump compiler trace: %s", exc)
+        return None
 
 
 def _get_pending_question(events: Sequence[Event]) -> str | None:
@@ -775,9 +830,11 @@ def _run_conversation_thread(
 
     except Exception as exc:
         logger.error("Compiler agent thread error: %s", exc, exc_info=True)
+        dumped_trace_path = _dump_trace(session, error=str(exc))
         event_queue.put(SSEEvent("error", {
             "recording_id": session.recording_id,
             "error": str(exc),
+            "trace_path": dumped_trace_path,
         }))
 
 
@@ -876,6 +933,8 @@ async def compile_with_agent(
 
     workspace_dir = tempfile.mkdtemp(prefix="compiler_agent_")
     draft_path = str(Path(workspace_dir) / DRAFT_FILENAME)
+    trace_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    trace_path = str(TRACE_DIR / f"{recording_id}_{trace_timestamp}.json")
 
     # Create visualizer with queue for SSE streaming
     event_queue: queue.Queue = queue.Queue()
@@ -935,6 +994,7 @@ async def compile_with_agent(
         draft_path=draft_path,
         workspace_dir=workspace_dir,
         model=llm_config.model,
+        trace_path=trace_path,
     )
     _compiler_sessions[recording_id] = session
 
@@ -994,6 +1054,10 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
     """
     recording_id = session.recording_id
 
+    # Snapshot the trace to disk regardless of outcome — overwrites the
+    # per-run trace file each time so partial state is captured.
+    dumped_trace_path = _dump_trace(session)
+
     # Check if the agent is asking a question
     question = _get_pending_question(session.conversation.state.events)
     if question is not None:
@@ -1003,6 +1067,7 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
             "question": question,
             "recording_id": recording_id,
             "model": session.model,
+            "trace_path": dumped_trace_path,
         }
 
     # Agent finished — read the SOP file
@@ -1034,6 +1099,7 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
     sop["status"] = "completed"
     sop["recording_id"] = recording_id
     sop["model"] = session.model
+    sop["trace_path"] = dumped_trace_path
 
     # Cleanup session
     _compiler_sessions.pop(recording_id, None)
