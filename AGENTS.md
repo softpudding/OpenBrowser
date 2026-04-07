@@ -313,11 +313,18 @@ Configuration is saved to `localStorage` (key: `openbrowser_sisyphus_config`).
 ## COMMANDS
 
 ```bash
-# Start server
+# Start server (HTTP 8765, WebSocket 8766)
 uv run local-chrome-server serve
+uv run local-chrome-server serve --multi-process     # one worker process per conversation
 
 # Build extension
 cd extension && npm run build
+
+# Server tests (pytest, async mode auto, paths under server/tests)
+uv run pytest                                                                # all
+uv run pytest server/tests/unit/test_recording_routes.py                     # one file
+uv run pytest server/tests/unit/test_recording_routes.py::TestName::test_x   # one test
+uv run pytest -m integration                                                 # needs running server + extension
 ```
 
 ## SCREENSHOT BEHAVIOR
@@ -620,7 +627,8 @@ Criteria match tracked events using flexible pattern matching:
 
 ## NOTES
 
-- **Git dependencies:** `openhands-sdk` and `openhands-tools` from git subdirectories
+- **Vendored SDK:** `openhands-sdk` and `openhands-tools` are editable installs from `../agent-sdk/openhands-sdk` and `../agent-sdk/openhands-tools` (see `[tool.uv.sources]` in `pyproject.toml`). Modify those paths directly when adding agents or tools — there is no separate package to publish.
 - **CDP required:** Extension uses Chrome DevTools Protocol for screenshots/JS execution
 - **Preset coordinates:** Screenshots at 1280x720, mouse in 0-1280/0-720 coordinate system
 - **Config storage:** LLM config in `~/.openbrowser/llm_config.json`
+- **Compiler agent traces:** dumped on completion / asking / error to `~/.openbrowser/compiler_traces/{recording_id}_{timestamp}.json`. The path is included in the SSE `complete` / `error` payload from `POST /recordings/{id}/compile`. The compiler agent's `QueueVisualizer` intentionally does not pass a `conversation_id`, so debugging relies on these dump files rather than the sessions DB.
