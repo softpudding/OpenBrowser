@@ -173,9 +173,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         )
 
         try:
-            # Set conversation_id from action if available
-            if hasattr(action, "conversation_id") and action.conversation_id:
-                self.conversation_id = action.conversation_id
+            # NOTE: Do NOT read action.conversation_id here. It is an internal
+            # routing field that must only ever be populated by the executor
+            # itself (see __call__, which sets self.conversation_id from
+            # conversation._state.id). Trusting action.conversation_id allowed a
+            # hallucinated value from the LLM (e.g. a stray tab_id) to clobber
+            # the real conversation id and produce HTTP 400s from the Chrome
+            # extension server.
 
             # Clear pending confirmation if this action is not a confirmation action
             # (AI may have abandoned the previous pending confirmation)
