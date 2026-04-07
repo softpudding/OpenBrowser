@@ -221,6 +221,7 @@ class TraceViewerExecutor(
             text = (element.get("text") or "")[:80]
             selector = (element.get("selector") or "")[:80]
             aria = element.get("ariaLabel") or ""
+            html = element.get("html") or ""
             has_keyframe = bool(
                 isinstance(event_data.get("keyframe"), dict)
                 and event_data["keyframe"].get("imageData")
@@ -239,12 +240,25 @@ class TraceViewerExecutor(
                 parts.append(f"sel={selector}")
             if aria:
                 parts.append(f"aria={aria[:60]}")
+            if html:
+                # Show the opening tag + attributes so the agent can spot
+                # native controls (<select>, <input type=checkbox>, <a href>)
+                # without expanding to event_detail. Full HTML is available
+                # via the event_detail command.
+                html_peek = html[:140]
+                if len(html) > 140:
+                    html_peek += "…"
+                parts.append(f"html={html_peek}")
             if has_keyframe:
                 parts.append("[has keyframe]")
 
             value = element.get("value")
             if isinstance(value, str) and value:
                 parts.append(f'value="{value[:80]}"')
+
+            selected_text = element.get("selectedText")
+            if isinstance(selected_text, str) and selected_text:
+                parts.append(f'selectedText="{selected_text[:80]}"')
 
             lines.append(" | ".join(parts))
 
@@ -643,46 +657,37 @@ Markdown SOP you wrote with the file tool.
 
 The SOP file MUST have this structure:
 
-- A `# Workflow: ...` title (one sentence goal)
+- A `# Workflow: ...` title (one sentence describing the user's goal)
 - A `## Prerequisites` section with at least a Starting URL
 - One or more `## Step N: ...` sections, each with instruction text
 
-Each step is an instruction OpenBrowser can follow directly. Describe \
-target elements by visible text, label, or position — never by CSS \
-selector or element ID. Start each step with the highlight command \
-needed. For text input, instruct to click the field first, then type. \
-Include optional `**Reasoning:**` blocks when the step's purpose isn't \
-obvious. Merge low-level events into meaningful high-level steps.
+Writing principles:
 
-Example SOP:
-
-```
-# Workflow: Filter Finviz screener to show large-cap stocks
-
-## Prerequisites
-- Starting URL: https://finviz.com
-
-## Step 1: Navigate to the Screener page
-Highlight clickable elements. Find the link labeled "Screener" in the \
-top navigation bar and click it.
-
-**Reasoning:** The Screener page contains the stock filtering controls.
-
-## Step 2: Open the Market Cap filter
-Highlight clickable elements near the filter controls area. Find the \
-dropdown or button labeled "Market Cap" and click it.
-
-## Step 3: Select "Large Cap"
-Highlight clickable elements in the filter dropdown. Find the option \
-"+Large (over $10bln)" and click it.
-
-**Reasoning:** The user specifically filtered for large-cap stocks.
-
-## Step 4: Apply filters
-Highlight clickable elements near the filter area. Find any "Apply" or \
-"Submit" button and click it. If filters apply automatically after \
-selection, skip this step.
-```
+- Each step is a plain-language instruction OpenBrowser will follow at \
+runtime. Describe target elements the way a human would point them out \
+— by visible label (quote literal text when you can verify it from \
+`element.text`/`element.html`), surrounding context, or position. \
+Never paste CSS selectors, XPaths, or element IDs into a step.
+- Choose the action that matches the element's real control type, not \
+the literal trace event. The trace records what the user's mouse did; \
+your job is to translate that into what OpenBrowser should do. When \
+in doubt, use `event_detail` to read the element's HTML before \
+deciding.
+- For native `<select>` dropdowns, the runtime matches options by the \
+HTML `value` attribute, not the visible label. Recorded `change` \
+events carry both `value` (literal `option.value`) and `selectedText` \
+(human label) — instruct OpenBrowser to use the `value`, with the \
+`selectedText` shown parenthetically as a human cue (e.g. `select the \
+option \\`largeover\\` (\"+Large (over $10bln)\") from the Market Cap \
+dropdown`). Naming only the visible label will make the runtime fail.
+- Merge low-level trace events into meaningful, high-level steps. \
+One user intent (e.g. "set the date filter to last 7 days") usually \
+spans multiple raw events — collapse them into a single step.
+- Include a `**Reasoning:**` block under a step only when the purpose \
+is not obvious from the instruction itself. Don't pad every step with \
+reasoning.
+- Skip incidental events that don't change state (accidental clicks, \
+hover-only events, redundant tab switches the user immediately undid).
 
 If validation fails, fix the listed problems and resubmit.\
 """

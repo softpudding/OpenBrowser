@@ -400,7 +400,16 @@ class SelectElementCommand(BaseCommand):
     type: Literal["select_element"] = "select_element"
     element_id: str = Field(description="Element ID from highlight response")
     value: Union[str, List[str]] = Field(
-        description="Option value(s) to select. Use string for single select, list for multi-select."
+        description=(
+            "The option to select. Match order: (1) the option's `value` "
+            "attribute exactly, (2) the option's visible label exactly, "
+            "(3) case-insensitive substring of the visible label. Prefer "
+            "the `value` attribute — it is what the recorder captures from "
+            "<select> change events. If unsure, run `highlight` with "
+            "element_type=selectable first; the response shows the full "
+            "<select> outerHTML including every <option value=\"...\">. "
+            "Pass a string for single select, a list for multi-select."
+        )
     )
     tab_id: Optional[int] = Field(
         default=None,

@@ -2957,23 +2957,44 @@ export async function performElementSelect(
         const options = Array.from(el.options);
         let selectedOptions = [];
 
-        // Helper to find option by value
-        const findByValue = (v) => options.find(opt => opt.value === v);
+        // Resolve a single requested choice against the option list.
+        // Match order:
+        //   1. exact option.value (the literal HTML attribute)
+        //   2. exact option.text (the visible label, trimmed)
+        //   3. case-insensitive substring on option.text
+        // This lets the agent pass either the value attribute (preferred,
+        // because it's what the recorder captures from change events) or
+        // the visible label (fallback, friendlier when discovering by eye).
+        const resolveOption = (v) => {
+          if (typeof v !== 'string') return null;
+          const byValue = options.find(opt => opt.value === v);
+          if (byValue) return byValue;
+          const trimmed = v.trim();
+          const byTextExact = options.find(
+            opt => (opt.text || opt.textContent || '').trim() === trimmed
+          );
+          if (byTextExact) return byTextExact;
+          const lower = trimmed.toLowerCase();
+          const byTextContains = options.find(
+            opt => (opt.text || opt.textContent || '').trim().toLowerCase().includes(lower)
+          );
+          return byTextContains || null;
+        };
 
         // Select by value
         if (Array.isArray(value)) {
           // Multi-select: clear all first, then select multiple
           el.selectedIndex = -1;
           for (const v of value) {
-            const opt = findByValue(v);
+            const opt = resolveOption(v);
             if (opt) {
               opt.selected = true;
               selectedOptions.push(opt);
             }
           }
         } else {
-          // Single select by value
-          const opt = findByValue(value);
+          // Single select
+          const opt = resolveOption(value);
           if (opt) {
             el.value = opt.value;
             selectedOptions.push(opt);
@@ -2982,9 +3003,16 @@ export async function performElementSelect(
 
         // Check if any options were found
         if (selectedOptions.length === 0) {
+          // Surface the available options in the error so the agent can
+          // converge in one extra turn instead of guessing again.
+          const inventory = options.map(opt => ({
+            value: opt.value,
+            text: (opt.text || opt.textContent || '').trim(),
+          }));
           return {
             selected: false,
-            error: \`Option not found for value: \${JSON.stringify(value)}\`
+            error: \`Option not found for value: \${JSON.stringify(value)}. Available options: \${JSON.stringify(inventory)}\`,
+            availableOptions: inventory,
           };
         }
 

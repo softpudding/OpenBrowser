@@ -17,6 +17,7 @@ console.log('🖥️ OpenBrowser content script loaded', {
 let activeRecordingId: string | null = null;
 let scrollTimeoutId: number | null = null;
 const CONTAINER_TEXT_MAX_LENGTH = 280;
+const ELEMENT_HTML_MAX_LENGTH = 1500;
 
 function isOpenBrowserUiPage(): boolean {
   if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') {
@@ -53,6 +54,29 @@ function normalizeClassName(
 
 function isElement(target: EventTarget | null): target is Element {
   return target instanceof Element;
+}
+
+/**
+ * Capture an element's outerHTML for the recording trace, with whitespace
+ * collapsed and a hard length cap. The compiler agent uses this to decide
+ * which OpenBrowser action matches a given trace event (e.g. distinguishing
+ * a native `<select>` from a `<div>`-based custom dropdown). Truncation
+ * preserves the opening tag, which is the most diagnostic part.
+ */
+function captureElementHtml(element: Element): string | null {
+  try {
+    const raw = (element as HTMLElement).outerHTML;
+    if (typeof raw !== 'string' || !raw) {
+      return null;
+    }
+    const collapsed = raw.replace(/\s+/g, ' ').trim();
+    if (collapsed.length <= ELEMENT_HTML_MAX_LENGTH) {
+      return collapsed;
+    }
+    return collapsed.slice(0, ELEMENT_HTML_MAX_LENGTH) + '…';
+  } catch {
+    return null;
+  }
 }
 
 function buildSelector(element: Element): string {
@@ -335,9 +359,19 @@ function serializeElement(element: Element): Record<string, unknown> {
   const rect = element.getBoundingClientRect();
   const htmlElement = element as HTMLElement;
   const semanticContainer = findSemanticContainer(element);
+  const sensitive =
+    (element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement) &&
+    isSensitiveInputElement(element);
   const payload: Record<string, unknown> = {
     tagName: element.tagName.toLowerCase(),
     selector: buildSelector(element),
+    // outerHTML is the single most diagnostic field for the compiler agent:
+    // it lets the agent see whether a recorded "click" landed on a native
+    // <select>, an <a>, an <input type="checkbox">, or a custom <div> widget,
+    // and pick the right OpenBrowser action accordingly. Suppressed for
+    // sensitive inputs so we don't leak passwords / OTPs in the trace.
+    html: sensitive ? null : captureElementHtml(element),
     text: normalizeText(element.textContent, 160),
     parentText: getParentText(element),
     id: element.id || null,
@@ -366,7 +400,6 @@ function serializeElement(element: Element): Record<string, unknown> {
   }
 
   if (element instanceof HTMLInputElement) {
-    const sensitive = isSensitiveInputElement(element);
     payload.inputType = element.type || null;
     payload.valueLength = element.value.length;
     payload.value = sensitive ? null : normalizeText(element.value, 200);
@@ -375,7 +408,6 @@ function serializeElement(element: Element): Record<string, unknown> {
   }
 
   if (element instanceof HTMLTextAreaElement) {
-    const sensitive = isSensitiveInputElement(element);
     payload.valueLength = element.value.length;
     payload.value = sensitive ? null : normalizeText(element.value, 200);
     payload.isSensitive = sensitive;
