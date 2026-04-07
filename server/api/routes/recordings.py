@@ -15,6 +15,7 @@ from server.api.sse import create_sse_response_headers
 from server.core.compiler_agent import (
     compile_with_agent,
     continue_compilation,
+    finalize_compiler_session,
     has_compiler_session,
 )
 from server.core.llm_config import llm_config_manager
@@ -43,13 +44,15 @@ async def _wrap_compiler_stream(
     """Wrap compiler SSE stream to persist SOP metadata on completion."""
     async for payload in inner:
         yield payload
-        # Intercept the complete event to save metadata
+        # Intercept the complete event to save metadata. Persist for both
+        # "completed" (terminal) and "review" (in-progress draft) so the
+        # latest SOP draft is recoverable if the user navigates away.
         if payload.startswith("event: complete\n"):
             try:
                 data_line = payload.split("data: ", 1)[1].split("\n")[0]
                 data = json.loads(data_line)
                 result = data.get("result", {})
-                if result.get("status") == "completed":
+                if result.get("status") in ("completed", "review"):
                     recording_manager.update_metadata(
                         recording_id, {"compiler_sop": result}
                     )
@@ -371,3 +374,38 @@ async def answer_compiler_question(
         media_type="text/event-stream",
         headers=create_sse_response_headers(),
     )
+
+
+@router.post("/{recording_id}/compile/finalize")
+async def finalize_compiler_sop(recording_id: str):
+    """Approve the SOP currently in review and tear down the compiler session.
+
+    The user clicks this when the post-submit wrap-up looks correct. Returns
+    the final SOP payload (same shape as a "completed" compile result).
+    """
+    session = recording_manager.get_recording(recording_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    if not has_compiler_session(recording_id):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"No active compiler session for recording {recording_id}. "
+                f"Cannot finalize — start a new compile first."
+            ),
+        )
+
+    try:
+        sop = finalize_compiler_session(recording_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        recording_manager.update_metadata(
+            recording_id, {"compiler_sop": sop}
+        )
+    except Exception as exc:
+        logger.warning("Failed to save compiler SOP metadata: %s", exc)
+
+    return {"result": sop}

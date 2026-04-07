@@ -38,7 +38,7 @@ from openhands.sdk import (
     TextContent,
 )
 from openhands.sdk.conversation.state import ConversationExecutionStatus
-from openhands.sdk.event import ActionEvent, MessageEvent
+from openhands.sdk.event import ActionEvent, MessageEvent, ObservationEvent
 from openhands.sdk.event.base import Event
 from openhands.sdk.tool import (
     ToolAnnotations,
@@ -604,15 +604,21 @@ class SubmitWorkflowExecutor(
             "step_count": len(steps),
         }
 
-        # End the conversation
-        if conversation is not None:
-            conversation.state.execution_status = (
-                ConversationExecutionStatus.FINISHED
-            )
+        # NOTE: do NOT mark the conversation as FINISHED here. The agent should
+        # get one more turn to send a plain-language wrap-up message to the
+        # user. The conversation goes idle on its own once the LLM responds
+        # with text and no further tool calls. The user can then either
+        # finalize the SOP or send revision feedback.
 
         return SubmitWorkflowObservation(
             success=True,
-            message="Workflow SOP validated and submitted successfully.",
+            message=(
+                "Workflow SOP validated and submitted successfully. "
+                "Now send ONE short plain-language message to the user "
+                "summarizing what the SOP does, calling out any assumptions "
+                "you made, and inviting corrections. Do NOT call any more "
+                "tools — just send the message and stop."
+            ),
         )
 
 
@@ -793,6 +799,55 @@ def _get_pending_question(events: Sequence[Event]) -> str | None:
             if isinstance(question, str) and question.strip():
                 return question
     return None
+
+
+def _extract_message_text(event: MessageEvent) -> str:
+    """Pull plain text out of a MessageEvent's llm_message content."""
+    parts: list[str] = []
+    content = getattr(getattr(event, "llm_message", None), "content", None) or []
+    for chunk in content:
+        text = getattr(chunk, "text", None)
+        if isinstance(text, str) and text.strip():
+            parts.append(text)
+    return "\n".join(parts).strip()
+
+
+def _detect_review_state(
+    events: Sequence[Event],
+) -> tuple[bool, str | None]:
+    """Detect post-submit review state.
+
+    Walks events from newest to oldest. Returns:
+    - (True, summary_message) if the latest submit_workflow call succeeded
+      (summary_message is the most recent agent text after that submit, or
+      None if the agent didn't send a wrap-up).
+    - (False, None) otherwise.
+    """
+    summary_message: str | None = None
+    for event in reversed(events):
+        # Most recent agent text message (above the latest submit) is the wrap-up.
+        if (
+            summary_message is None
+            and isinstance(event, MessageEvent)
+            and event.source == "agent"
+        ):
+            text = _extract_message_text(event)
+            if text:
+                summary_message = text
+            continue
+
+        # Stop at the latest submit_workflow ObservationEvent.
+        if (
+            isinstance(event, ObservationEvent)
+            and event.tool_name == SUBMIT_WORKFLOW_TOOL_NAME
+        ):
+            obs = getattr(event, "observation", None)
+            if obs is not None and getattr(obs, "success", False):
+                return True, summary_message
+            # Last submit failed → not in review state.
+            return False, None
+
+    return False, None
 
 
 # ---------------------------------------------------------------------------
@@ -984,7 +1039,10 @@ async def compile_with_agent(
     conversation = Conversation(
         agent=agent,
         workspace=workspace_dir,
-        max_iteration_per_run=40,
+        # Bumped from 40: each user revision burns iterations on
+        # file edits + submit + wrap-up, and the user may iterate
+        # several times before approving the SOP.
+        max_iteration_per_run=80,
         visualizer=visualizer,
     )
 
@@ -1046,43 +1104,20 @@ async def continue_compilation(
         yield sse_payload
 
 
-def _collect_result(session: CompilerSession) -> dict[str, Any]:
-    """Check conversation state and return the appropriate result.
+def _read_sop_from_session(session: CompilerSession) -> dict[str, Any]:
+    """Read the SOP draft file and return goal/step_count metadata.
 
-    If the agent called ask_user → status "asking", keep session alive.
-    If the agent called submit_workflow or finished → status "completed", cleanup.
+    Falls back to the last text event if the file doesn't exist.
     """
-    recording_id = session.recording_id
-
-    # Snapshot the trace to disk regardless of outcome — overwrites the
-    # per-run trace file each time so partial state is captured.
-    dumped_trace_path = _dump_trace(session)
-
-    # Check if the agent is asking a question
-    question = _get_pending_question(session.conversation.state.events)
-    if question is not None:
-        _compiler_sessions[recording_id] = session
-        return {
-            "status": "asking",
-            "question": question,
-            "recording_id": recording_id,
-            "model": session.model,
-            "trace_path": dumped_trace_path,
-        }
-
-    # Agent finished — read the SOP file
-    sop: dict[str, Any] | None = None
     try:
         file_content = Path(session.draft_path).read_text(encoding="utf-8")
-        # Extract goal from title line
         goal = ""
-        step_count = 0
         for line in file_content.split("\n"):
             if line.strip().startswith("# Workflow:"):
                 goal = line.strip()[len("# Workflow:"):].strip()
                 break
         step_count = len(SOP_STEP_PATTERN.findall(file_content))
-        sop = {
+        return {
             "sop_markdown": file_content,
             "goal": goal,
             "step_count": step_count,
@@ -1094,14 +1129,93 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
             if isinstance(evt_content, str) and evt_content.strip():
                 last_text = evt_content.strip()
                 break
-        sop = {"sop_markdown": last_text, "goal": "", "step_count": 0}
+        return {"sop_markdown": last_text, "goal": "", "step_count": 0}
 
+
+def _collect_result(session: CompilerSession) -> dict[str, Any]:
+    """Check conversation state and return the appropriate result.
+
+    Possible outcomes:
+    - "asking"    — ask_user is pending; keep session alive
+    - "review"    — submit_workflow succeeded and the agent is waiting for
+                    the user to approve or send revision feedback; keep
+                    session alive
+    - "completed" — terminal (no submit happened, conversation just ran out
+                    of work); cleanup session
+    """
+    recording_id = session.recording_id
+
+    # Snapshot the trace to disk regardless of outcome — overwrites the
+    # per-run trace file each time so partial state is captured.
+    dumped_trace_path = _dump_trace(session)
+
+    events = session.conversation.state.events
+
+    # 1. Pending ask_user question?
+    question = _get_pending_question(events)
+    if question is not None:
+        _compiler_sessions[recording_id] = session
+        return {
+            "status": "asking",
+            "question": question,
+            "recording_id": recording_id,
+            "model": session.model,
+            "trace_path": dumped_trace_path,
+        }
+
+    # 2. Post-submit review?
+    in_review, summary_message = _detect_review_state(events)
+    if in_review:
+        sop = _read_sop_from_session(session)
+        sop.update({
+            "status": "review",
+            "recording_id": recording_id,
+            "model": session.model,
+            "trace_path": dumped_trace_path,
+            "summary_message": summary_message or "",
+        })
+        # Keep session alive — user will either finalize or send revision.
+        _compiler_sessions[recording_id] = session
+        return sop
+
+    # 3. Terminal — no submit happened, conversation just ended.
+    sop = _read_sop_from_session(session)
     sop["status"] = "completed"
     sop["recording_id"] = recording_id
     sop["model"] = session.model
     sop["trace_path"] = dumped_trace_path
 
-    # Cleanup session
+    _compiler_sessions.pop(recording_id, None)
+    try:
+        session.conversation.close()
+    except Exception:
+        pass
+
+    return sop
+
+
+def finalize_compiler_session(recording_id: str) -> dict[str, Any]:
+    """Approve the SOP currently in review and tear down the session.
+
+    Called when the user clicks "Looks right — finalize" in the UI.
+    Returns the final SOP metadata with status "completed".
+    """
+    session = _compiler_sessions.get(recording_id)
+    if session is None:
+        raise ValueError(
+            f"No active compiler session for recording {recording_id}. "
+            f"Nothing to finalize."
+        )
+
+    dumped_trace_path = _dump_trace(session)
+    sop = _read_sop_from_session(session)
+    sop.update({
+        "status": "completed",
+        "recording_id": recording_id,
+        "model": session.model,
+        "trace_path": dumped_trace_path,
+    })
+
     _compiler_sessions.pop(recording_id, None)
     try:
         session.conversation.close()
