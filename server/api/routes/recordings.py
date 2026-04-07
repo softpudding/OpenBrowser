@@ -24,6 +24,7 @@ from server.core.recording_manager import (
     RecordingStatus,
     recording_manager,
 )
+from server.core.routine_manager import routine_manager
 from server.core.workflow_compiler import compile_recording_trace
 from server.models.commands import (
     RecordingControlAction,
@@ -97,6 +98,12 @@ class CompileAnswerRequest(BaseModel):
     """Request body for answering a compiler clarification question."""
 
     answer: str
+
+
+class FinalizeCompilerRequest(BaseModel):
+    """Request body for finalizing a compiled SOP into a routine."""
+
+    name: str
 
 
 class RecordingEventRequest(BaseModel):
@@ -377,15 +384,25 @@ async def answer_compiler_question(
 
 
 @router.post("/{recording_id}/compile/finalize")
-async def finalize_compiler_sop(recording_id: str):
-    """Approve the SOP currently in review and tear down the compiler session.
+async def finalize_compiler_sop(
+    recording_id: str, request: FinalizeCompilerRequest
+):
+    """Approve the SOP currently in review and save it as a named routine.
 
-    The user clicks this when the post-submit wrap-up looks correct. Returns
-    the final SOP payload (same shape as a "completed" compile result).
+    The user clicks this when the post-submit wrap-up looks correct. They
+    must also pick a name for the routine — the routine is created
+    atomically with finalize and is the user-facing handle for replaying
+    the workflow later.
     """
     session = recording_manager.get_recording(recording_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Recording not found")
+
+    routine_name = (request.name or "").strip()
+    if not routine_name:
+        raise HTTPException(
+            status_code=400, detail="Routine name is required to finalize."
+        )
 
     if not has_compiler_session(recording_id):
         raise HTTPException(
@@ -401,11 +418,39 @@ async def finalize_compiler_sop(recording_id: str):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    sop_markdown = sop.get("sop_markdown") or ""
+    if not sop_markdown.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot finalize: compiler session has no SOP markdown.",
+        )
+
+    try:
+        routine = routine_manager.create_routine(
+            name=routine_name,
+            sop_markdown=sop_markdown,
+            goal=sop.get("goal", ""),
+            step_count=int(sop.get("step_count", 0) or 0),
+            source_recording_id=recording_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to persist routine for recording %s", recording_id)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to save routine: {exc}"
+        ) from exc
+
     try:
         recording_manager.update_metadata(
-            recording_id, {"compiler_sop": sop}
+            recording_id,
+            {
+                "compiler_sop": sop,
+                "routine_id": routine.routine_id,
+                "routine_name": routine.name,
+            },
         )
     except Exception as exc:
         logger.warning("Failed to save compiler SOP metadata: %s", exc)
 
-    return {"result": sop}
+    return {"result": sop, "routine": routine.to_dict()}

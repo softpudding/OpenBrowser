@@ -7,6 +7,7 @@ from server.api.routes.config import router as config_router
 from server.api.routes.frontend import router as frontend_router
 from server.api.routes.browsers import router as browsers_router
 from server.api.routes.recordings import router as recordings_router
+from server.api.routes.routines import router as routines_router
 
 __all__ = [
     "health_router",
@@ -16,4 +17,5 @@ __all__ = [
     "frontend_router",
     "browsers_router",
     "recordings_router",
+    "routines_router",
 ]

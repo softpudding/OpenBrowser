@@ -543,65 +543,18 @@ class SubmitWorkflowExecutor(
                 problems=[f"Cannot read file: {exc}"],
             )
 
-        problems: list[str] = []
-
-        # Check for title
-        if not any(
-            line.strip().startswith("# Workflow:")
-            for line in content.split("\n")
-        ):
-            problems.append(
-                "Missing '# Workflow: ...' title. The first heading must start with '# Workflow:'."
-            )
-
-        # Check for Prerequisites section
-        if SOP_REQUIRED_PREREQUISITES not in content:
-            problems.append(
-                "Missing '## Prerequisites' section. Include at least a Starting URL."
-            )
-
-        # Check for at least one Step section
-        steps = SOP_STEP_PATTERN.findall(content)
-        if not steps:
-            problems.append(
-                "No '## Step N: ...' sections found. The SOP must have at least one step."
-            )
-
-        # Check that steps have instruction text (not just a heading)
-        step_sections = SOP_STEP_PATTERN.split(content)
-        # step_sections[0] is everything before the first step
-        for i, section_body in enumerate(step_sections[1:], 1):
-            # Get text up to the next ## heading or end
-            next_heading = section_body.find("\n## ")
-            body = section_body[:next_heading] if next_heading >= 0 else section_body
-            stripped = body.strip()
-            # Remove **Reasoning:** lines to check for actual instructions
-            instruction_lines = [
-                line for line in stripped.split("\n")
-                if line.strip()
-                and not line.strip().startswith("**Reasoning:")
-            ]
-            if not instruction_lines:
-                problems.append(f"Step {i} has no instruction text.")
-
-        if problems:
+        problems, summary = validate_sop_markdown(content)
+        if problems or summary is None:
             return SubmitWorkflowObservation(
                 success=False,
                 message="Validation failed.",
                 problems=problems,
             )
 
-        # Extract goal from title
-        goal = ""
-        for line in content.split("\n"):
-            if line.strip().startswith("# Workflow:"):
-                goal = line.strip()[len("# Workflow:"):].strip()
-                break
-
         self.submitted_sop = {
             "sop_markdown": content,
-            "goal": goal,
-            "step_count": len(steps),
+            "goal": summary["goal"],
+            "step_count": summary["step_count"],
         }
 
         # NOTE: do NOT mark the conversation as FINISHED here. The agent should
@@ -620,6 +573,66 @@ class SubmitWorkflowExecutor(
                 "tools — just send the message and stop."
             ),
         )
+
+
+def validate_sop_markdown(content: str) -> tuple[list[str], dict[str, Any] | None]:
+    """Validate the structure of an SOP markdown document.
+
+    Returns a tuple ``(problems, summary)``:
+    - ``problems`` is a list of human-readable issues. Empty if the SOP passes.
+    - ``summary`` is a dict with ``goal`` and ``step_count`` if validation
+      passed; ``None`` otherwise.
+
+    Used by both ``SubmitWorkflowExecutor`` (compile-time validation) and the
+    routines API (validating user edits).
+    """
+    if not isinstance(content, str) or not content.strip():
+        return (["SOP markdown is empty."], None)
+
+    problems: list[str] = []
+
+    if not any(
+        line.strip().startswith("# Workflow:")
+        for line in content.split("\n")
+    ):
+        problems.append(
+            "Missing '# Workflow: ...' title. The first heading must start with '# Workflow:'."
+        )
+
+    if SOP_REQUIRED_PREREQUISITES not in content:
+        problems.append(
+            "Missing '## Prerequisites' section. Include at least a Starting URL."
+        )
+
+    steps = SOP_STEP_PATTERN.findall(content)
+    if not steps:
+        problems.append(
+            "No '## Step N: ...' sections found. The SOP must have at least one step."
+        )
+
+    step_sections = SOP_STEP_PATTERN.split(content)
+    for i, section_body in enumerate(step_sections[1:], 1):
+        next_heading = section_body.find("\n## ")
+        body = section_body[:next_heading] if next_heading >= 0 else section_body
+        stripped = body.strip()
+        instruction_lines = [
+            line for line in stripped.split("\n")
+            if line.strip()
+            and not line.strip().startswith("**Reasoning:")
+        ]
+        if not instruction_lines:
+            problems.append(f"Step {i} has no instruction text.")
+
+    if problems:
+        return (problems, None)
+
+    goal = ""
+    for line in content.split("\n"):
+        if line.strip().startswith("# Workflow:"):
+            goal = line.strip()[len("# Workflow:"):].strip()
+            break
+
+    return ([], {"goal": goal, "step_count": len(steps)})
 
 
 SUBMIT_WORKFLOW_TOOL_NAME = "submit_workflow"

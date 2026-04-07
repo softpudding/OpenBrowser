@@ -2517,6 +2517,36 @@
             margin: 0;
         }
 
+        .recording-compiler-review-name {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .recording-compiler-review-name label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .recording-compiler-review-name input {
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--panel-border);
+            background: rgba(21, 17, 13, 0.92);
+            color: var(--text-primary);
+            font: inherit;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+
+        .recording-compiler-review-name input:focus {
+            outline: none;
+            border-color: rgba(155, 231, 193, 0.45);
+        }
+
         .recording-compiler-review-actions {
             display: flex;
             gap: 8px;
@@ -3514,6 +3544,426 @@
             background: rgba(var(--accent-rgb), 0.14);
         }
 
+        .routines-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .routines-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .routines-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .routines-manage-btn {
+            background: transparent;
+            border: 1px solid var(--panel-border);
+            color: var(--text-secondary);
+            padding: 4px 12px;
+            border-radius: 999px;
+            font: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: border-color 120ms ease, color 120ms ease;
+        }
+
+        .routines-manage-btn:hover {
+            border-color: rgba(var(--accent-rgb), 0.4);
+            color: var(--text-primary);
+        }
+
+        .routines-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .routines-empty {
+            font-size: 12px;
+            color: var(--text-subtle);
+            font-style: italic;
+        }
+
+        .routine-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(var(--accent-rgb), 0.22);
+            background: rgba(var(--accent-rgb), 0.08);
+            color: var(--text-secondary);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            max-width: 280px;
+            transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+        }
+
+        .routine-chip:hover {
+            transform: translateY(-1px);
+            border-color: rgba(var(--accent-rgb), 0.4);
+            background: rgba(var(--accent-rgb), 0.16);
+            color: var(--text-primary);
+        }
+
+        .routine-chip-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .routine-chip-icon {
+            font-size: 11px;
+            opacity: 0.75;
+        }
+
+        .input-area-body {
+            position: relative;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .routine-input-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(var(--accent-rgb), 0.45);
+            background: rgba(var(--accent-rgb), 0.14);
+            color: var(--text-primary);
+        }
+
+        .routine-input-card[hidden] {
+            display: none;
+        }
+
+        .routine-input-card-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .routine-input-card-icon {
+            color: var(--accent);
+            font-size: 13px;
+        }
+
+        .routine-input-card-text {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .routine-input-card-name {
+            font-weight: 700;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .routine-input-card-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .routine-input-card-clear {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: var(--text-secondary);
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .routine-input-card-clear:hover {
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+
+        .routine-slash-menu {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(100% + 8px);
+            max-height: 240px;
+            overflow-y: auto;
+            border: 1px solid var(--panel-border-strong);
+            background: rgba(21, 17, 14, 0.98);
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            z-index: 50;
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .routine-slash-menu[hidden] {
+            display: none;
+        }
+
+        .routine-slash-item {
+            text-align: left;
+            background: transparent;
+            border: none;
+            padding: 8px 10px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .routine-slash-item:hover,
+        .routine-slash-item.is-active {
+            background: rgba(var(--accent-rgb), 0.14);
+            color: var(--text-primary);
+        }
+
+        .routine-slash-item-name {
+            font-weight: 600;
+        }
+
+        .routine-slash-item-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .routine-slash-empty {
+            padding: 10px 12px;
+            font-size: 12px;
+            color: var(--text-subtle);
+            font-style: italic;
+        }
+
+        .routines-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(8, 6, 4, 0.66);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .routines-modal-overlay[hidden] {
+            display: none;
+        }
+
+        .routines-modal {
+            background: linear-gradient(180deg, rgba(29, 24, 19, 0.98), rgba(21, 17, 14, 0.98));
+            border: 1px solid var(--panel-border-strong);
+            border-radius: 14px;
+            width: min(720px, 100%);
+            max-height: min(80vh, 720px);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+        }
+
+        .routines-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--panel-border);
+        }
+
+        .routines-modal-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+
+        .routines-modal-close {
+            background: transparent;
+            border: 1px solid var(--panel-border);
+            color: var(--text-secondary);
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .routines-modal-body {
+            padding: 16px 20px;
+            overflow-y: auto;
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .routines-modal-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--panel-border);
+            background: rgba(21, 17, 14, 0.6);
+        }
+
+        .routines-modal-row-info {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            gap: 4px;
+        }
+
+        .routines-modal-row-name {
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .routines-modal-row-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .routines-modal-row-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .routines-modal-row-actions button {
+            background: transparent;
+            border: 1px solid var(--panel-border);
+            color: var(--text-secondary);
+            padding: 5px 10px;
+            border-radius: 999px;
+            font: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .routines-modal-row-actions button:hover {
+            border-color: rgba(var(--accent-rgb), 0.4);
+            color: var(--text-primary);
+        }
+
+        .routines-modal-row-actions .danger:hover {
+            border-color: rgba(255, 120, 120, 0.55);
+            color: #ffb8b8;
+        }
+
+        .routines-modal-empty {
+            padding: 24px;
+            text-align: center;
+            color: var(--text-subtle);
+            font-style: italic;
+        }
+
+        .routines-modal-edit {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid var(--panel-border-strong);
+            background: rgba(21, 17, 14, 0.85);
+        }
+
+        .routines-modal-edit label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .routines-modal-edit input,
+        .routines-modal-edit textarea {
+            background: rgba(8, 6, 4, 0.65);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font: inherit;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+
+        .routines-modal-edit textarea {
+            min-height: 220px;
+            resize: vertical;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .routines-modal-edit-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .routines-modal-edit-actions button {
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--panel-border);
+            background: transparent;
+            color: var(--text-secondary);
+            font: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .routines-modal-edit-actions .primary {
+            border-color: rgba(var(--accent-rgb), 0.5);
+            background: rgba(var(--accent-rgb), 0.18);
+            color: var(--text-primary);
+        }
+
+        .routines-modal-edit-error {
+            color: #ffb8b8;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+
         .input-area {
             position: static;
             border: 1px solid var(--panel-border-strong);
@@ -4481,6 +4931,18 @@
                         </div>
                     </div>
 
+                    <div class="routines-section" id="routines-section">
+                        <div class="routines-header">
+                            <span class="routines-label">Saved routines</span>
+                            <button type="button" class="routines-manage-btn" onclick="openRoutinesModal()">Manage</button>
+                        </div>
+                        <div class="routines-list" id="routines-list">
+                            <div class="routines-empty" id="routines-empty">
+                                No saved routines yet — record a workflow and finalize it to save one here.
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="quick-prompts">
                         <button class="quick-prompt" onclick="setCommand('Open https://github.com/softpudding/OpenBrowser and introduce OpenBrowser in a concise way.');">Introduce OpenBrowser</button>
                         <button class="quick-prompt" onclick="setCommand('Open https://github.com/softpudding/OpenBrowser and star it.');">Star OpenBrowser</button>
@@ -4488,7 +4950,25 @@
 
                     <div class="input-area">
                         <div class="input-prompt blink">Task</div>
-                        <textarea class="command-input scrollbar" id="command-input" placeholder="Describe the result you want" rows="1" autofocus></textarea>
+                        <div class="input-area-body">
+                            <div class="routine-input-card" id="routine-input-card" hidden>
+                                <div class="routine-input-card-info">
+                                    <span class="routine-input-card-icon">▶</span>
+                                    <div class="routine-input-card-text">
+                                        <div class="routine-input-card-name" id="routine-input-card-name"></div>
+                                        <div class="routine-input-card-meta" id="routine-input-card-meta"></div>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="routine-input-card-clear"
+                                    title="Remove routine and return to typing"
+                                    onclick="clearStagedRoutine()"
+                                >×</button>
+                            </div>
+                            <textarea class="command-input scrollbar" id="command-input" placeholder="Describe the result you want — type / to insert a saved routine" rows="1" autofocus></textarea>
+                            <div class="routine-slash-menu" id="routine-slash-menu" hidden></div>
+                        </div>
                         <button class="send-button" id="send-button" onclick="sendCommand()">Run</button>
                         <button class="pause-button" id="pause-button" onclick="pauseConversation()" style="display: none;">Pause</button>
                         <button class="sisyphus-start-button" id="sisyphus-start-btn" onclick="startSisyphus()" style="display: none; background: #224422; border: 1px solid #448844; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">Start Sisyphus</button>
@@ -4699,12 +5179,22 @@
                             <div class="recording-compiler-review" id="recording-compiler-review" hidden>
                                 <span class="recording-compiler-review-label">Agent wrap-up · awaiting your approval</span>
                                 <div class="recording-compiler-review-summary" id="recording-compiler-review-summary"></div>
+                                <div class="recording-compiler-review-name">
+                                    <label for="recording-compiler-routine-name">Routine name</label>
+                                    <input
+                                        type="text"
+                                        id="recording-compiler-routine-name"
+                                        placeholder="Give this routine a short name"
+                                        autocomplete="off"
+                                        oninput="onCompilerRoutineNameInput()"
+                                    />
+                                </div>
                                 <div class="recording-compiler-review-actions">
                                     <button
                                         class="recording-compiler-review-finalize"
                                         id="recording-compiler-finalize-btn"
                                         onclick="void finalizeCompilerSop()"
-                                    >Looks right — finalize</button>
+                                    >Save as routine</button>
                                     <span class="recording-compiler-review-status" id="recording-compiler-review-status"></span>
                                 </div>
                                 <div class="recording-compiler-review-revision">
@@ -4962,7 +5452,20 @@
             </div>
         </div>
     </div>  <!-- End of main-interface -->
-    
+
+    <!-- Routines management modal -->
+    <div class="routines-modal-overlay" id="routines-modal-overlay" hidden onclick="onRoutinesModalOverlayClick(event)">
+        <div class="routines-modal" onclick="event.stopPropagation()">
+            <div class="routines-modal-header">
+                <h3>Manage routines</h3>
+                <button type="button" class="routines-modal-close" onclick="closeRoutinesModal()">×</button>
+            </div>
+            <div class="routines-modal-body" id="routines-modal-body">
+                <div class="routines-modal-empty">No routines yet.</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Configuration Page -->
     <div id="config-page" class="config-page" style="display: none;">
         <div class="config-container">
@@ -6784,6 +7287,501 @@
             input.style.overflowY = input.scrollHeight > 220 ? 'auto' : 'hidden';
         }
 
+        // ─────────────────────────────────────────────────────────────────
+        // Routines: saved, named, executable SOPs
+        // ─────────────────────────────────────────────────────────────────
+
+        let routinesCache = [];
+        let stagedRoutine = null;
+        let slashMenuActive = false;
+        let slashMenuFilter = '';
+        let slashMenuActiveIndex = 0;
+        let slashMenuMatches = [];
+        let routinesEditingId = null;
+
+        function buildRoutinePrompt(routine) {
+            // The agent receives the SOP markdown verbatim plus a one-line
+            // instruction. Keeping the SOP fully visible in the prompt is
+            // intentional: the OpenBrowser agent's tools (highlight/click/etc)
+            // are exactly the vocabulary the SOP was compiled in.
+            const goal = (routine.goal || routine.name || '').trim();
+            const goalLine = goal
+                ? `Goal: ${goal}`
+                : `Goal: run the saved routine "${routine.name}".`;
+            return [
+                `Run the saved routine "${routine.name}".`,
+                goalLine,
+                'Follow this SOP step by step:',
+                '',
+                routine.sop_markdown || '',
+            ].join('\n');
+        }
+
+        async function refreshRoutines() {
+            try {
+                const response = await fetch(apiUrl('/routines'));
+                if (!response.ok) {
+                    routinesCache = [];
+                } else {
+                    const data = await response.json();
+                    routinesCache = Array.isArray(data?.routines) ? data.routines : [];
+                }
+            } catch (error) {
+                console.warn('[routines] failed to fetch:', error);
+                routinesCache = [];
+            }
+            renderRoutinesSection();
+            // If the management modal is open, refresh it as well.
+            const overlay = document.getElementById('routines-modal-overlay');
+            if (overlay && !overlay.hidden) {
+                renderRoutinesModal();
+            }
+        }
+
+        function renderRoutinesSection() {
+            const list = document.getElementById('routines-list');
+            const empty = document.getElementById('routines-empty');
+            if (!list) return;
+
+            // Wipe non-empty children (keep the empty state node so we can
+            // toggle visibility on it).
+            Array.from(list.children).forEach((node) => {
+                if (node.id !== 'routines-empty') {
+                    node.remove();
+                }
+            });
+
+            if (!routinesCache.length) {
+                if (empty) empty.style.display = '';
+                return;
+            }
+            if (empty) empty.style.display = 'none';
+
+            // Show at most 8 chips inline; the rest live in the modal.
+            const visible = routinesCache.slice(0, 8);
+            visible.forEach((routine) => {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'routine-chip';
+                chip.title = routine.goal
+                    ? `${routine.name} — ${routine.goal}`
+                    : routine.name;
+                const icon = document.createElement('span');
+                icon.className = 'routine-chip-icon';
+                icon.textContent = '▶';
+                const name = document.createElement('span');
+                name.className = 'routine-chip-name';
+                name.textContent = routine.name;
+                chip.appendChild(icon);
+                chip.appendChild(name);
+                chip.addEventListener('click', () => stageRoutine(routine));
+                list.appendChild(chip);
+            });
+
+            if (routinesCache.length > visible.length) {
+                const more = document.createElement('button');
+                more.type = 'button';
+                more.className = 'routine-chip';
+                more.title = 'Show all saved routines';
+                more.textContent = `+${routinesCache.length - visible.length} more…`;
+                more.addEventListener('click', () => openRoutinesModal());
+                list.appendChild(more);
+            }
+        }
+
+        function stageRoutine(routine) {
+            if (!routine) return;
+            stagedRoutine = routine;
+            renderStagedRoutine();
+            // Move focus to the Run button so the user understands the next
+            // step is to ship — but don't grab focus from a textarea the user
+            // might still be typing in.
+            const runBtn = document.getElementById('send-button');
+            if (runBtn && document.activeElement?.id !== 'command-input') {
+                runBtn.focus();
+            }
+        }
+
+        function clearStagedRoutine() {
+            stagedRoutine = null;
+            renderStagedRoutine();
+        }
+
+        function renderStagedRoutine() {
+            const card = document.getElementById('routine-input-card');
+            const nameNode = document.getElementById('routine-input-card-name');
+            const metaNode = document.getElementById('routine-input-card-meta');
+            const textarea = document.getElementById('command-input');
+            if (!card || !nameNode || !metaNode || !textarea) return;
+
+            if (stagedRoutine) {
+                nameNode.textContent = stagedRoutine.name;
+                const metaParts = [];
+                if (stagedRoutine.step_count) {
+                    metaParts.push(`${stagedRoutine.step_count} step${stagedRoutine.step_count === 1 ? '' : 's'}`);
+                }
+                if (stagedRoutine.goal) {
+                    metaParts.push(stagedRoutine.goal);
+                }
+                metaNode.textContent = metaParts.join(' · ') || 'Saved routine';
+                card.hidden = false;
+                // Hide the free-typing area so the routine card is the
+                // unambiguous "what's about to ship".
+                textarea.style.display = 'none';
+            } else {
+                card.hidden = true;
+                textarea.style.display = '';
+                syncCommandInputHeight();
+            }
+        }
+
+        // ── Slash-command autocomplete in the task textarea ────────────────
+
+        function detectSlashTrigger(textarea) {
+            // Trigger when the textarea starts with "/" and the cursor is in
+            // the first token (i.e. no space yet typed). Returns the filter
+            // string after the slash, or null if not active.
+            if (!textarea) return null;
+            const value = textarea.value || '';
+            if (!value.startsWith('/')) return null;
+            const cursor = textarea.selectionStart ?? value.length;
+            const beforeCursor = value.substring(0, cursor);
+            // Cancel as soon as a space is typed — the user is now writing
+            // free-form text that just happens to start with "/".
+            if (beforeCursor.includes(' ') || beforeCursor.includes('\n')) {
+                return null;
+            }
+            return beforeCursor.substring(1).toLowerCase();
+        }
+
+        function onCommandInputKeyEvent(event) {
+            const textarea = event.target;
+            const filter = detectSlashTrigger(textarea);
+            if (filter === null) {
+                hideSlashMenu();
+                return;
+            }
+            slashMenuFilter = filter;
+            slashMenuMatches = filterRoutinesForSlash(filter);
+            if (event.type === 'input') {
+                slashMenuActiveIndex = 0;
+            }
+            showSlashMenu();
+        }
+
+        function filterRoutinesForSlash(filter) {
+            if (!filter) return routinesCache.slice(0, 8);
+            const f = filter.toLowerCase();
+            return routinesCache.filter((r) => {
+                return (r.name || '').toLowerCase().includes(f)
+                    || (r.goal || '').toLowerCase().includes(f);
+            }).slice(0, 8);
+        }
+
+        function showSlashMenu() {
+            const menu = document.getElementById('routine-slash-menu');
+            if (!menu) return;
+            menu.innerHTML = '';
+
+            if (!slashMenuMatches.length) {
+                const empty = document.createElement('div');
+                empty.className = 'routine-slash-empty';
+                empty.textContent = routinesCache.length
+                    ? 'No routines match that name.'
+                    : 'No saved routines yet.';
+                menu.appendChild(empty);
+            } else {
+                slashMenuMatches.forEach((routine, idx) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'routine-slash-item' + (idx === slashMenuActiveIndex ? ' is-active' : '');
+                    const name = document.createElement('div');
+                    name.className = 'routine-slash-item-name';
+                    name.textContent = routine.name;
+                    const meta = document.createElement('div');
+                    meta.className = 'routine-slash-item-meta';
+                    meta.textContent = routine.goal
+                        || `${routine.step_count || 0} step${routine.step_count === 1 ? '' : 's'}`;
+                    btn.appendChild(name);
+                    btn.appendChild(meta);
+                    btn.addEventListener('mousedown', (event) => {
+                        // mousedown so we beat the textarea blur event.
+                        event.preventDefault();
+                        pickSlashMenuItem(idx);
+                    });
+                    menu.appendChild(btn);
+                });
+            }
+
+            menu.hidden = false;
+            slashMenuActive = true;
+        }
+
+        function hideSlashMenu() {
+            const menu = document.getElementById('routine-slash-menu');
+            if (menu) menu.hidden = true;
+            slashMenuActive = false;
+            slashMenuMatches = [];
+            slashMenuActiveIndex = 0;
+        }
+
+        function pickSlashMenuItem(idx) {
+            const routine = slashMenuMatches[idx];
+            const textarea = document.getElementById('command-input');
+            if (!routine || !textarea) return;
+            // Wipe the "/foo" the user typed and stage the routine instead.
+            textarea.value = '';
+            syncCommandInputHeight();
+            hideSlashMenu();
+            stageRoutine(routine);
+        }
+
+        function onCommandInputKeyDown(event) {
+            if (!slashMenuActive) return;
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                if (!slashMenuMatches.length) return;
+                slashMenuActiveIndex = (slashMenuActiveIndex + 1) % slashMenuMatches.length;
+                showSlashMenu();
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                if (!slashMenuMatches.length) return;
+                slashMenuActiveIndex = (slashMenuActiveIndex - 1 + slashMenuMatches.length) % slashMenuMatches.length;
+                showSlashMenu();
+            } else if (event.key === 'Enter') {
+                if (!slashMenuMatches.length) return;
+                event.preventDefault();
+                pickSlashMenuItem(slashMenuActiveIndex);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                hideSlashMenu();
+            }
+        }
+
+        function attachRoutineSlashHandlers() {
+            const textarea = document.getElementById('command-input');
+            if (!textarea || textarea.dataset.routineSlashWired === '1') return;
+            textarea.addEventListener('input', onCommandInputKeyEvent);
+            textarea.addEventListener('keydown', onCommandInputKeyDown);
+            textarea.addEventListener('blur', () => {
+                // Delay slightly so a click on a slash item still fires.
+                setTimeout(hideSlashMenu, 120);
+            });
+            textarea.dataset.routineSlashWired = '1';
+        }
+
+        // ── Management modal ───────────────────────────────────────────────
+
+        function openRoutinesModal() {
+            const overlay = document.getElementById('routines-modal-overlay');
+            if (!overlay) return;
+            overlay.hidden = false;
+            routinesEditingId = null;
+            renderRoutinesModal();
+            // Refresh in the background so the modal reflects the latest state.
+            void refreshRoutines();
+        }
+
+        function closeRoutinesModal() {
+            const overlay = document.getElementById('routines-modal-overlay');
+            if (overlay) overlay.hidden = true;
+            routinesEditingId = null;
+        }
+
+        function onRoutinesModalOverlayClick(event) {
+            if (event.target?.id === 'routines-modal-overlay') {
+                closeRoutinesModal();
+            }
+        }
+
+        function renderRoutinesModal() {
+            const body = document.getElementById('routines-modal-body');
+            if (!body) return;
+            body.innerHTML = '';
+
+            if (routinesEditingId) {
+                const routine = routinesCache.find((r) => r.routine_id === routinesEditingId);
+                if (routine) {
+                    body.appendChild(buildRoutineEditor(routine));
+                    return;
+                }
+                routinesEditingId = null;
+            }
+
+            if (!routinesCache.length) {
+                const empty = document.createElement('div');
+                empty.className = 'routines-modal-empty';
+                empty.textContent = 'No saved routines yet. Record a workflow and finalize it to create one.';
+                body.appendChild(empty);
+                return;
+            }
+
+            routinesCache.forEach((routine) => {
+                const row = document.createElement('div');
+                row.className = 'routines-modal-row';
+
+                const info = document.createElement('div');
+                info.className = 'routines-modal-row-info';
+                const name = document.createElement('div');
+                name.className = 'routines-modal-row-name';
+                name.textContent = routine.name;
+                const meta = document.createElement('div');
+                meta.className = 'routines-modal-row-meta';
+                const metaParts = [];
+                if (routine.step_count) {
+                    metaParts.push(`${routine.step_count} step${routine.step_count === 1 ? '' : 's'}`);
+                }
+                if (routine.goal) metaParts.push(routine.goal);
+                meta.textContent = metaParts.join(' · ') || '—';
+                info.appendChild(name);
+                info.appendChild(meta);
+
+                const actions = document.createElement('div');
+                actions.className = 'routines-modal-row-actions';
+
+                const runBtn = document.createElement('button');
+                runBtn.type = 'button';
+                runBtn.textContent = 'Use';
+                runBtn.title = 'Place this routine in the input area';
+                runBtn.addEventListener('click', () => {
+                    closeRoutinesModal();
+                    stageRoutine(routine);
+                });
+
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.textContent = 'Edit';
+                editBtn.addEventListener('click', () => {
+                    routinesEditingId = routine.routine_id;
+                    renderRoutinesModal();
+                });
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'danger';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.addEventListener('click', () => {
+                    void deleteRoutine(routine);
+                });
+
+                actions.appendChild(runBtn);
+                actions.appendChild(editBtn);
+                actions.appendChild(deleteBtn);
+
+                row.appendChild(info);
+                row.appendChild(actions);
+                body.appendChild(row);
+            });
+        }
+
+        function buildRoutineEditor(routine) {
+            const wrap = document.createElement('div');
+            wrap.className = 'routines-modal-edit';
+
+            const nameLabel = document.createElement('label');
+            nameLabel.textContent = 'Name';
+            nameLabel.htmlFor = 'routines-modal-edit-name';
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.id = 'routines-modal-edit-name';
+            nameInput.value = routine.name;
+
+            const sopLabel = document.createElement('label');
+            sopLabel.textContent = 'SOP markdown';
+            sopLabel.htmlFor = 'routines-modal-edit-sop';
+            const sopInput = document.createElement('textarea');
+            sopInput.id = 'routines-modal-edit-sop';
+            sopInput.value = routine.sop_markdown || '';
+
+            const errorLine = document.createElement('div');
+            errorLine.className = 'routines-modal-edit-error';
+            errorLine.id = 'routines-modal-edit-error';
+
+            const actions = document.createElement('div');
+            actions.className = 'routines-modal-edit-actions';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.addEventListener('click', () => {
+                routinesEditingId = null;
+                renderRoutinesModal();
+            });
+            const saveBtn = document.createElement('button');
+            saveBtn.type = 'button';
+            saveBtn.className = 'primary';
+            saveBtn.textContent = 'Save changes';
+            saveBtn.addEventListener('click', () => {
+                void saveRoutineEdit(routine.routine_id, nameInput.value, sopInput.value, errorLine);
+            });
+            actions.appendChild(cancelBtn);
+            actions.appendChild(saveBtn);
+
+            wrap.appendChild(nameLabel);
+            wrap.appendChild(nameInput);
+            wrap.appendChild(sopLabel);
+            wrap.appendChild(sopInput);
+            wrap.appendChild(errorLine);
+            wrap.appendChild(actions);
+            return wrap;
+        }
+
+        async function saveRoutineEdit(routineId, name, sopMarkdown, errorNode) {
+            const trimmedName = (name || '').trim();
+            if (!trimmedName) {
+                if (errorNode) errorNode.textContent = 'Name cannot be empty.';
+                return;
+            }
+            try {
+                const response = await fetch(apiUrl(`/routines/${routineId}`), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: trimmedName, sop_markdown: sopMarkdown }),
+                });
+                if (!response.ok) {
+                    let msg = 'Failed to save changes.';
+                    try {
+                        const err = await response.json();
+                        if (err.detail) {
+                            if (typeof err.detail === 'string') {
+                                msg = err.detail;
+                            } else if (Array.isArray(err.detail.problems)) {
+                                msg = err.detail.problems.join('\n');
+                            } else {
+                                msg = JSON.stringify(err.detail);
+                            }
+                        }
+                    } catch (_) {}
+                    if (errorNode) errorNode.textContent = msg;
+                    return;
+                }
+                routinesEditingId = null;
+                await refreshRoutines();
+            } catch (error) {
+                if (errorNode) errorNode.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function deleteRoutine(routine) {
+            if (!routine) return;
+            const confirmed = window.confirm(`Delete routine "${routine.name}"? This cannot be undone.`);
+            if (!confirmed) return;
+            try {
+                const response = await fetch(apiUrl(`/routines/${routine.routine_id}`), {
+                    method: 'DELETE',
+                });
+                if (!response.ok) {
+                    console.warn('[routines] delete failed', response.status);
+                    return;
+                }
+                if (stagedRoutine?.routine_id === routine.routine_id) {
+                    clearStagedRoutine();
+                }
+                await refreshRoutines();
+            } catch (error) {
+                console.warn('[routines] delete error:', error);
+            }
+        }
+
         function setAdvancedMode(enabled) {
             document.body.classList.toggle('advanced-mode', enabled);
 
@@ -7188,6 +8186,10 @@
         // these hold the wrap-up message and the SOP currently in review.
         let compilerReviewActive = false;
         let compilerReviewSummary = '';
+        // Tracks whether the user has manually edited the routine name input
+        // for the current draft. Once true, we never overwrite their value
+        // with a fresh suggestion from the SOP goal.
+        let compilerRoutineNameTouched = false;
         let compilerModelAlias = null;
         const COMPILER_MODEL_ALIAS_STORAGE_KEY = 'openbrowser_compiler_model_alias';
 
@@ -7345,8 +8347,26 @@
                     reviewNode.hidden = true;
                 }
             }
+            const routineNameInput = document.getElementById('recording-compiler-routine-name');
+            if (routineNameInput && compilerReviewActive) {
+                // Pre-fill with a suggested name (from SOP goal) the first
+                // time we enter review for this draft, but never overwrite a
+                // value the user has already typed.
+                if (!compilerRoutineNameTouched) {
+                    const suggested = (compilerSop?.goal || '').trim();
+                    if (suggested && routineNameInput.value !== suggested) {
+                        routineNameInput.value = suggested;
+                    }
+                }
+            }
             if (finalizeBtn) {
-                finalizeBtn.disabled = compilerCompiling || !compilerReviewActive;
+                const nameValue = (routineNameInput?.value || '').trim();
+                finalizeBtn.disabled = compilerCompiling
+                    || !compilerReviewActive
+                    || !nameValue;
+                finalizeBtn.title = (!nameValue && compilerReviewActive)
+                    ? 'Enter a routine name to enable finalizing'
+                    : '';
             }
 
             if (draftNode) {
@@ -7465,6 +8485,10 @@
                 compilerSop = result;
                 compilerReviewActive = true;
                 compilerReviewSummary = result.summary_message || '';
+                // A fresh draft → re-suggest the routine name from the SOP
+                // goal. (sendCompilerRevision sets touched=false too so each
+                // revision can re-suggest if the user hasn't typed.)
+                compilerRoutineNameTouched = false;
                 if (compileStatus) {
                     compileStatus.textContent = 'SOP drafted — review the wrap-up below.';
                     setTimeout(() => { compileStatus.textContent = ''; }, 3500);
@@ -7776,12 +8800,40 @@
             }
         }
 
+        function onCompilerRoutineNameInput() {
+            // Mark that the user has started typing so updateCompilerSection
+            // stops auto-filling the value, then refresh the disabled state
+            // of the finalize button.
+            compilerRoutineNameTouched = true;
+            const finalizeBtn = document.getElementById('recording-compiler-finalize-btn');
+            const input = document.getElementById('recording-compiler-routine-name');
+            if (finalizeBtn && input) {
+                const nameValue = input.value.trim();
+                finalizeBtn.disabled = compilerCompiling
+                    || !compilerReviewActive
+                    || !nameValue;
+                finalizeBtn.title = nameValue
+                    ? ''
+                    : 'Enter a routine name to enable finalizing';
+            }
+        }
+
         async function finalizeCompilerSop() {
             const recordingId = recordingPanelSession?.recording_id;
             if (!recordingId || !compilerReviewActive || compilerCompiling) return;
 
-            const compileStatus = document.getElementById('recording-compile-status');
+            const nameInput = document.getElementById('recording-compiler-routine-name');
+            const routineName = (nameInput?.value || '').trim();
             const reviewStatus = document.getElementById('recording-compiler-review-status');
+            if (!routineName) {
+                if (reviewStatus) {
+                    reviewStatus.textContent = 'Enter a routine name first.';
+                }
+                nameInput?.focus();
+                return;
+            }
+
+            const compileStatus = document.getElementById('recording-compile-status');
             if (reviewStatus) reviewStatus.textContent = 'Finalizing...';
 
             try {
@@ -7790,7 +8842,7 @@
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({}),
+                        body: JSON.stringify({ name: routineName }),
                     },
                 );
                 if (!response.ok) {
@@ -7805,10 +8857,18 @@
                 const result = data.result || {};
                 compilerReviewActive = false;
                 compilerReviewSummary = '';
+                compilerRoutineNameTouched = false;
                 compilerSop = result;
+                if (data.routine) {
+                    // Make sure other UI surfaces (Execute panel, slash menu)
+                    // pick up the new routine immediately.
+                    void refreshRoutines();
+                }
                 if (compileStatus) {
-                    compileStatus.textContent = 'SOP finalized.';
-                    setTimeout(() => { compileStatus.textContent = ''; }, 3000);
+                    compileStatus.textContent = data.routine
+                        ? `Saved as routine "${data.routine.name}"`
+                        : 'SOP finalized.';
+                    setTimeout(() => { compileStatus.textContent = ''; }, 3500);
                 }
                 if (reviewStatus) reviewStatus.textContent = '';
             } catch (error) {
@@ -8835,6 +9895,10 @@
             // Initialize image click handlers
             setupImageClickHandlers();
             updateGuidedPanels();
+
+            // Routines: load saved routines and wire slash-command autocomplete
+            attachRoutineSlashHandlers();
+            void refreshRoutines();
         });
         
         // Update current time display
@@ -8878,6 +9942,20 @@
         // Send command to agent
         async function sendCommand() {
             const input = document.getElementById('command-input');
+            // If a routine has been staged in the input area (via card click
+            // or slash command), ship its compiled prompt instead of the
+            // textarea contents. The textarea is left untouched in case the
+            // user wants to keep typing notes — but we'll clear the routine
+            // card on success so the next Run goes back to free-typing.
+            if (stagedRoutine) {
+                const routine = stagedRoutine;
+                const prompt = buildRoutinePrompt(routine);
+                clearStagedRoutine();
+                return sendCommandText(prompt, {
+                    inputElement: input,
+                    preserveInput: true,
+                });
+            }
             return sendCommandText(input.value.trim(), { inputElement: input });
         }
 
