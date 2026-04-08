@@ -121,6 +121,7 @@ async def create_agent_conversation(
     base_url: Optional[str] = None,
     browser_id: Optional[str] = None,
     model_alias: Optional[str] = None,
+    mode: Optional[str] = None,
 ) -> str:
     """Create a new agent conversation
 
@@ -129,9 +130,10 @@ async def create_agent_conversation(
         cwd: Working directory for the conversation (default: current directory)
         model: Optional model name override (e.g., "dashscope/qwen3.5-plus")
         base_url: Optional base URL override
+        mode: Optional conversation-mode tag (e.g. ``"routine_replay"``).
     """
     return agent_manager.create_conversation(
-        conversation_id, cwd, model, base_url, browser_id, model_alias
+        conversation_id, cwd, model, base_url, browser_id, model_alias, mode=mode
     )
 
 

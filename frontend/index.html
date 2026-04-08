@@ -2405,7 +2405,7 @@
             margin: 4px 0;
         }
 
-        .recording-compiler-sop-meta {
+        .recording-compiler-routine-meta {
             font-size: 12px;
             color: var(--text-secondary);
             margin-top: 4px;
@@ -3264,6 +3264,11 @@
             min-height: 0;
         }
 
+        .recording-history-card-wrap {
+            position: relative;
+            display: flex;
+        }
+
         .recording-history-card {
             display: flex;
             flex-direction: column;
@@ -3290,6 +3295,48 @@
             border-color: rgba(198, 154, 92, 0.34);
             background: rgba(40, 30, 24, 0.92);
             box-shadow: inset 0 0 0 1px rgba(198, 154, 92, 0.12);
+        }
+
+        .recording-history-delete {
+            position: absolute;
+            top: -7px;
+            right: -7px;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border: 1px solid rgba(205, 175, 132, 0.28);
+            border-radius: 50%;
+            background: rgba(24, 18, 14, 0.96);
+            color: rgba(245, 210, 180, 0.85);
+            font: inherit;
+            font-size: 15px;
+            line-height: 1;
+            cursor: pointer;
+            opacity: 0;
+            transform: scale(0.9);
+            transition: opacity 0.15s ease, transform 0.15s ease,
+                background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+            z-index: 2;
+        }
+
+        .recording-history-card-wrap:hover .recording-history-delete,
+        .recording-history-delete:focus-visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .recording-history-delete:hover {
+            background: rgba(120, 36, 28, 0.9);
+            border-color: rgba(230, 136, 119, 0.7);
+            color: #ffe2d7;
+        }
+
+        .recording-history-delete:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
         }
 
         .recording-history-top {
@@ -5176,12 +5223,12 @@
                                     <option value="">Loading...</option>
                                 </select>
                                 <span class="recording-compiler-model-helper">
-                                    The LLM the compiler agent will use to read the trace and write the SOP. Defaults to your global model.
+                                    The LLM the compiler agent will use to read the trace and write the Routine. Defaults to your global model.
                                 </span>
                             </div>
                             <div class="recording-intent-note-actions">
                                 <button class="cta-button-primary" id="recording-compile-btn" onclick="void compileRecording()">
-                                    Compile SOP <span class="cta-arrow">→</span>
+                                    Compile Routine <span class="cta-arrow">→</span>
                                 </button>
                                 <span class="recording-intent-note-status" id="recording-compile-status"></span>
                             </div>
@@ -5214,7 +5261,7 @@
                                     <button
                                         class="recording-compiler-review-finalize"
                                         id="recording-compiler-finalize-btn"
-                                        onclick="void finalizeCompilerSop()"
+                                        onclick="void finalizeCompilerRoutine()"
                                     >Save as routine</button>
                                     <span class="recording-compiler-review-status" id="recording-compiler-review-status"></span>
                                 </div>
@@ -5228,7 +5275,7 @@
                                 </div>
                             </div>
                             <div class="recording-compiler-draft scrollbar" id="recording-compiler-draft" hidden></div>
-                            <div class="recording-compiler-sop-meta" id="recording-compiler-sop-meta" hidden></div>
+                            <div class="recording-compiler-routine-meta" id="recording-compiler-routine-meta" hidden></div>
                         </div>
 
                         <div class="recording-status-bar">
@@ -6531,36 +6578,53 @@
                 const createdAt = formatDisplayTime(recording.created_at);
                 const updatedAt = formatDisplayTime(recording.updated_at);
                 const eventCount = Number(recording.event_count) || 0;
+                const recordingIdJs = JSON.stringify(recording.recording_id);
+                const isActive = recording.status === 'active';
+                const deleteDisabled = isActive ? ' disabled' : '';
+                const deleteTitle = isActive
+                    ? 'Stop the recording before deleting it'
+                    : 'Delete recording';
 
                 return `
-                    <button
-                        class="recording-history-card${isSelected ? ' is-selected' : ''}"
-                        onclick="void openRecordingDetail('${recording.recording_id}')"
-                    >
-                        <div class="recording-history-top">
-                            <div class="recording-history-id">${escapeHtml(shortDisplay(recording.recording_id, recording.recording_id))}</div>
-                            <span class="recording-event-badge">${escapeHtml(formatRecordingStatusLabel(recording.status))}</span>
-                        </div>
-                        <div class="recording-history-meta">
-                            <div class="recording-history-stat">
-                                <span class="recording-history-stat-label">Updated</span>
-                                <span class="recording-history-stat-value">${escapeHtml(updatedAt)}</span>
+                    <div class="recording-history-card-wrap">
+                        <button
+                            type="button"
+                            class="recording-history-delete"
+                            title="${escapeHtml(deleteTitle)}"
+                            aria-label="${escapeHtml(deleteTitle)}"
+                            onclick='event.stopPropagation(); void deleteRecordingFromHistory(${recordingIdJs})'
+                            ${deleteDisabled}
+                        >×</button>
+                        <button
+                            type="button"
+                            class="recording-history-card${isSelected ? ' is-selected' : ''}"
+                            onclick='void openRecordingDetail(${recordingIdJs})'
+                        >
+                            <div class="recording-history-top">
+                                <div class="recording-history-id">${escapeHtml(shortDisplay(recording.recording_id, recording.recording_id))}</div>
+                                <span class="recording-event-badge">${escapeHtml(formatRecordingStatusLabel(recording.status))}</span>
                             </div>
-                            <div class="recording-history-stat">
-                                <span class="recording-history-stat-label">Events</span>
-                                <span class="recording-history-stat-value">${escapeHtml(String(eventCount))}</span>
+                            <div class="recording-history-meta">
+                                <div class="recording-history-stat">
+                                    <span class="recording-history-stat-label">Updated</span>
+                                    <span class="recording-history-stat-value">${escapeHtml(updatedAt)}</span>
+                                </div>
+                                <div class="recording-history-stat">
+                                    <span class="recording-history-stat-label">Events</span>
+                                    <span class="recording-history-stat-value">${escapeHtml(String(eventCount))}</span>
+                                </div>
+                                <div class="recording-history-stat">
+                                    <span class="recording-history-stat-label">Started</span>
+                                    <span class="recording-history-stat-value">${escapeHtml(createdAt)}</span>
+                                </div>
+                                <div class="recording-history-stat">
+                                    <span class="recording-history-stat-label">Mode</span>
+                                    <span class="recording-history-stat-value">${escapeHtml(launchMode)}</span>
+                                </div>
                             </div>
-                            <div class="recording-history-stat">
-                                <span class="recording-history-stat-label">Started</span>
-                                <span class="recording-history-stat-value">${escapeHtml(createdAt)}</span>
-                            </div>
-                            <div class="recording-history-stat">
-                                <span class="recording-history-stat-label">Mode</span>
-                                <span class="recording-history-stat-value">${escapeHtml(launchMode)}</span>
-                            </div>
-                        </div>
-                        <span class="recording-history-open">Open Review</span>
-                    </button>
+                            <span class="recording-history-open">Open Review</span>
+                        </button>
+                    </div>
                 `;
             }).join('');
         }
@@ -6700,6 +6764,67 @@
             }
         }
 
+        async function deleteRecordingFromHistory(recordingId) {
+            if (!recordingId) {
+                return;
+            }
+
+            const record = recordingHistory.find((r) => r.recording_id === recordingId);
+            if (record && record.status === 'active') {
+                alert('Stop the recording before deleting it.');
+                return;
+            }
+
+            const shortId = shortDisplay(recordingId, recordingId);
+            const confirmed = window.confirm(
+                `Delete recording ${shortId}? This permanently removes its trace and cannot be undone.`
+            );
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                const response = await fetch(apiUrl(`/recordings/${encodeURIComponent(recordingId)}`), {
+                    method: 'DELETE',
+                });
+                if (!response.ok) {
+                    let detail = 'Failed to delete recording';
+                    try {
+                        const data = await response.json();
+                        detail = data.detail || detail;
+                    } catch (_) {
+                        // ignore JSON parse failures
+                    }
+                    alert(detail);
+                    return;
+                }
+            } catch (error) {
+                console.warn('Failed to delete recording:', error);
+                alert('Failed to delete recording. Check your connection and try again.');
+                return;
+            }
+
+            // Drop from local cache immediately so the UI feels snappy.
+            recordingHistory = recordingHistory.filter(
+                (r) => r.recording_id !== recordingId,
+            );
+
+            // If the deleted recording is currently open in the detail panel,
+            // fall back to the history overview so we don't leave a ghost
+            // session on screen.
+            if (recordingPanelSession?.recording_id === recordingId) {
+                recordingPanelSession = null;
+                recordingEvents = [];
+                recordingPanelMode = 'history';
+                recordingPhase = 'record';
+            }
+
+            updateRecordingPanel();
+
+            // Refresh from the server to pick up any server-side fallout.
+            await refreshRecordingHistory();
+        }
+
         async function refreshRecordingHistory(browserId = currentBrowserId) {
             if (!browserId) {
                 recordingHistory = [];
@@ -6767,7 +6892,7 @@
             recordingPhase = 'review'; // Opening a saved recording → review phase
             recordingEvents = [];
             selectedRecordingEntryKey = null;
-            compilerSop = null;
+            compilerRoutine = null;
             compilerCompiling = false;
             compilerQuestion = null;
             compilerReviewActive = false;
@@ -6804,7 +6929,7 @@
                 if (isHistoryMode) {
                     titleNode.textContent = 'Browse saved recordings';
                 } else if (recordingPhase === 'compile') {
-                    titleNode.textContent = 'Compile SOP';
+                    titleNode.textContent = 'Compile Routine';
                 } else if (recordingPhase === 'review') {
                     titleNode.textContent = 'Review recorded trace';
                 } else {
@@ -6822,8 +6947,8 @@
                         panelState.textContent = 'Compiling';
                     } else if (compilerReviewActive) {
                         panelState.textContent = 'Awaiting Approval';
-                    } else if (compilerSop) {
-                        panelState.textContent = 'SOP Ready';
+                    } else if (compilerRoutine) {
+                        panelState.textContent = 'Routine Ready';
                     } else {
                         panelState.textContent = 'Compile';
                     }
@@ -6958,10 +7083,10 @@
                         body = 'Compiler agent is working — answer any questions it asks.';
                     } else if (compilerReviewActive) {
                         body = 'Agent submitted a draft. Approve it or send revision feedback.';
-                    } else if (compilerSop) {
-                        body = 'SOP ready — review the compiled workflow.';
+                    } else if (compilerRoutine) {
+                        body = 'Routine ready — review the compiled workflow.';
                     } else {
-                        body = 'Compile the recording into an executable SOP.';
+                        body = 'Compile the recording into an executable Browser Routine.';
                     }
                 }
                 microcopy.innerHTML = `<strong>${escapeHtml(label)}</strong>${escapeHtml(body)}`;
@@ -7309,7 +7434,7 @@
         }
 
         // ─────────────────────────────────────────────────────────────────
-        // Routines: saved, named, executable SOPs
+        // Routines: saved, named, executable Browser Routines
         // ─────────────────────────────────────────────────────────────────
 
         const ROUTINES_MODAL_PAGE_SIZE = 10;
@@ -7323,10 +7448,10 @@
         let routinesModalPage = 1;
 
         function buildRoutinePrompt(routine) {
-            // The agent receives the SOP markdown verbatim plus a one-line
-            // instruction. Keeping the SOP fully visible in the prompt is
+            // The agent receives the Routine markdown verbatim plus a one-line
+            // instruction. Keeping the Routine fully visible in the prompt is
             // intentional: the OpenBrowser agent's tools (highlight/click/etc)
-            // are exactly the vocabulary the SOP was compiled in.
+            // are exactly the vocabulary the Routine was compiled in.
             const goal = (routine.goal || routine.name || '').trim();
             const goalLine = goal
                 ? `Goal: ${goal}`
@@ -7334,9 +7459,9 @@
             return [
                 `Run the saved routine "${routine.name}".`,
                 goalLine,
-                'Follow this SOP step by step:',
+                'Follow this Routine step by step:',
                 '',
-                routine.sop_markdown || '',
+                routine.routine_markdown || '',
             ].join('\n');
         }
 
@@ -7729,12 +7854,12 @@
             nameInput.id = 'routines-modal-edit-name';
             nameInput.value = routine.name;
 
-            const sopLabel = document.createElement('label');
-            sopLabel.textContent = 'SOP markdown';
-            sopLabel.htmlFor = 'routines-modal-edit-sop';
-            const sopInput = document.createElement('textarea');
-            sopInput.id = 'routines-modal-edit-sop';
-            sopInput.value = routine.sop_markdown || '';
+            const routineLabel = document.createElement('label');
+            routineLabel.textContent = 'Routine markdown';
+            routineLabel.htmlFor = 'routines-modal-edit-markdown';
+            const routineInput = document.createElement('textarea');
+            routineInput.id = 'routines-modal-edit-markdown';
+            routineInput.value = routine.routine_markdown || '';
 
             const errorLine = document.createElement('div');
             errorLine.className = 'routines-modal-edit-error';
@@ -7754,21 +7879,21 @@
             saveBtn.className = 'primary';
             saveBtn.textContent = 'Save changes';
             saveBtn.addEventListener('click', () => {
-                void saveRoutineEdit(routine.routine_id, nameInput.value, sopInput.value, errorLine);
+                void saveRoutineEdit(routine.routine_id, nameInput.value, routineInput.value, errorLine);
             });
             actions.appendChild(cancelBtn);
             actions.appendChild(saveBtn);
 
             wrap.appendChild(nameLabel);
             wrap.appendChild(nameInput);
-            wrap.appendChild(sopLabel);
-            wrap.appendChild(sopInput);
+            wrap.appendChild(routineLabel);
+            wrap.appendChild(routineInput);
             wrap.appendChild(errorLine);
             wrap.appendChild(actions);
             return wrap;
         }
 
-        async function saveRoutineEdit(routineId, name, sopMarkdown, errorNode) {
+        async function saveRoutineEdit(routineId, name, routineMarkdown, errorNode) {
             const trimmedName = (name || '').trim();
             if (!trimmedName) {
                 if (errorNode) errorNode.textContent = 'Name cannot be empty.';
@@ -7778,7 +7903,7 @@
                 const response = await fetch(apiUrl(`/routines/${routineId}`), {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: trimmedName, sop_markdown: sopMarkdown }),
+                    body: JSON.stringify({ name: trimmedName, routine_markdown: routineMarkdown }),
                 });
                 if (!response.ok) {
                     let msg = 'Failed to save changes.';
@@ -8221,17 +8346,17 @@
             }
         }
 
-        let compilerSop = null;
+        let compilerRoutine = null;
         let compilerCompiling = false;
         let compilerQuestion = null;
         // When the agent has called submit_workflow successfully and is
         // waiting for the user to either approve or send revision feedback,
-        // these hold the wrap-up message and the SOP currently in review.
+        // these hold the wrap-up message and the Routine currently in review.
         let compilerReviewActive = false;
         let compilerReviewSummary = '';
         // Tracks whether the user has manually edited the routine name input
         // for the current draft. Once true, we never overwrite their value
-        // with a fresh suggestion from the SOP goal.
+        // with a fresh suggestion from the Routine goal.
         let compilerRoutineNameTouched = false;
         let compilerModelAlias = null;
         const COMPILER_MODEL_ALIAS_STORAGE_KEY = 'openbrowser_compiler_model_alias';
@@ -8352,7 +8477,7 @@
 
         function updateCompilerSection() {
             const draftNode = document.getElementById('recording-compiler-draft');
-            const metaNode = document.getElementById('recording-compiler-sop-meta');
+            const metaNode = document.getElementById('recording-compiler-routine-meta');
             const questionNode = document.getElementById('recording-compiler-question');
             const questionText = document.getElementById('recording-compiler-question-text');
             const reviewNode = document.getElementById('recording-compiler-review');
@@ -8366,7 +8491,7 @@
                     || compilerReviewActive;
                 compileBtn.textContent = compilerCompiling
                     ? 'Compiling...'
-                    : (compilerSop ? 'Recompile SOP' : 'Compile SOP');
+                    : (compilerRoutine ? 'Recompile Routine' : 'Compile Routine');
             }
 
             // Show question UI when the agent is asking
@@ -8384,7 +8509,7 @@
             if (reviewNode && reviewSummaryNode) {
                 if (compilerReviewActive) {
                     reviewSummaryNode.textContent = compilerReviewSummary
-                        || '(The agent did not send a wrap-up message — review the SOP below directly.)';
+                        || '(The agent did not send a wrap-up message — review the Routine below directly.)';
                     reviewNode.hidden = false;
                 } else {
                     reviewNode.hidden = true;
@@ -8392,11 +8517,11 @@
             }
             const routineNameInput = document.getElementById('recording-compiler-routine-name');
             if (routineNameInput && compilerReviewActive) {
-                // Pre-fill with a suggested name (from SOP goal) the first
+                // Pre-fill with a suggested name (from Routine goal) the first
                 // time we enter review for this draft, but never overwrite a
                 // value the user has already typed.
                 if (!compilerRoutineNameTouched) {
-                    const suggested = (compilerSop?.goal || '').trim();
+                    const suggested = (compilerRoutine?.goal || '').trim();
                     if (suggested && routineNameInput.value !== suggested) {
                         routineNameInput.value = suggested;
                     }
@@ -8413,8 +8538,8 @@
             }
 
             if (draftNode) {
-                if (compilerSop?.sop_markdown) {
-                    draftNode.innerHTML = renderSimpleMarkdown(compilerSop.sop_markdown);
+                if (compilerRoutine?.routine_markdown) {
+                    draftNode.innerHTML = renderSimpleMarkdown(compilerRoutine.routine_markdown);
                     draftNode.hidden = false;
                 } else {
                     draftNode.hidden = true;
@@ -8422,24 +8547,24 @@
             }
 
             if (metaNode) {
-                if (compilerSop) {
+                if (compilerRoutine) {
                     metaNode.innerHTML = '';
                     const parts = [];
-                    if (compilerSop.goal) parts.push(`Goal: ${compilerSop.goal}`);
-                    if (compilerSop.step_count) parts.push(`${compilerSop.step_count} steps`);
-                    if (compilerSop.model) parts.push(`Model: ${compilerSop.model}`);
+                    if (compilerRoutine.goal) parts.push(`Goal: ${compilerRoutine.goal}`);
+                    if (compilerRoutine.step_count) parts.push(`${compilerRoutine.step_count} steps`);
+                    if (compilerRoutine.model) parts.push(`Model: ${compilerRoutine.model}`);
                     if (parts.length) {
                         const summaryLine = document.createElement('div');
                         summaryLine.textContent = parts.join(' · ');
                         metaNode.appendChild(summaryLine);
                     }
-                    if (compilerSop.trace_path) {
+                    if (compilerRoutine.trace_path) {
                         const traceLine = document.createElement('div');
                         traceLine.className = 'recording-compiler-trace-path';
-                        traceLine.textContent = `Trace: ${compilerSop.trace_path}`;
+                        traceLine.textContent = `Trace: ${compilerRoutine.trace_path}`;
                         traceLine.title = 'Click to copy';
                         traceLine.addEventListener('click', () => {
-                            navigator.clipboard?.writeText(compilerSop.trace_path);
+                            navigator.clipboard?.writeText(compilerRoutine.trace_path);
                         });
                         metaNode.appendChild(traceLine);
                     }
@@ -8522,18 +8647,18 @@
                     compileStatus.textContent = 'Waiting for your answer...';
                 }
             } else if (result.status === 'review') {
-                // Agent submitted a SOP and is waiting for the user to
+                // Agent submitted a Routine and is waiting for the user to
                 // approve it or send revision feedback.
                 compilerQuestion = null;
-                compilerSop = result;
+                compilerRoutine = result;
                 compilerReviewActive = true;
                 compilerReviewSummary = result.summary_message || '';
-                // A fresh draft → re-suggest the routine name from the SOP
+                // A fresh draft → re-suggest the routine name from the Routine
                 // goal. (sendCompilerRevision sets touched=false too so each
                 // revision can re-suggest if the user hasn't typed.)
                 compilerRoutineNameTouched = false;
                 if (compileStatus) {
-                    compileStatus.textContent = 'SOP drafted — review the wrap-up below.';
+                    compileStatus.textContent = 'Routine drafted — review the wrap-up below.';
                     setTimeout(() => { compileStatus.textContent = ''; }, 3500);
                 }
                 // Render the review block NOW (don't wait for the outer
@@ -8544,11 +8669,11 @@
             } else {
                 // status === 'completed' (or anything else terminal)
                 compilerQuestion = null;
-                compilerSop = result;
+                compilerRoutine = result;
                 compilerReviewActive = false;
                 compilerReviewSummary = '';
                 if (compileStatus) {
-                    compileStatus.textContent = result.sop_markdown ? 'SOP ready' : 'No SOP returned';
+                    compileStatus.textContent = result.routine_markdown ? 'Routine ready' : 'No Routine returned';
                     setTimeout(() => { compileStatus.textContent = ''; }, 3000);
                 }
             }
@@ -8740,7 +8865,7 @@
             // Ensure we're in compile phase
             recordingPhase = 'compile';
             compilerCompiling = true;
-            compilerSop = null;
+            compilerRoutine = null;
             compilerQuestion = null;
             compilerReviewActive = false;
             compilerReviewSummary = '';
@@ -8861,7 +8986,7 @@
             }
         }
 
-        async function finalizeCompilerSop() {
+        async function finalizeCompilerRoutine() {
             const recordingId = recordingPanelSession?.recording_id;
             if (!recordingId || !compilerReviewActive || compilerCompiling) return;
 
@@ -8889,7 +9014,7 @@
                     },
                 );
                 if (!response.ok) {
-                    let detail = 'Failed to finalize SOP';
+                    let detail = 'Failed to finalize Routine';
                     try {
                         const err = await response.json();
                         detail = err.detail || detail;
@@ -8901,7 +9026,7 @@
                 compilerReviewActive = false;
                 compilerReviewSummary = '';
                 compilerRoutineNameTouched = false;
-                compilerSop = result;
+                compilerRoutine = result;
                 if (data.routine) {
                     // Make sure other UI surfaces (Execute panel, slash menu)
                     // pick up the new routine immediately.
@@ -8910,7 +9035,7 @@
                 if (compileStatus) {
                     compileStatus.textContent = data.routine
                         ? `Saved as routine "${data.routine.name}"`
-                        : 'SOP finalized.';
+                        : 'Routine finalized.';
                     setTimeout(() => { compileStatus.textContent = ''; }, 3500);
                 }
                 if (reviewStatus) reviewStatus.textContent = '';
@@ -9982,6 +10107,35 @@
             updateGuidedPanels();
         }
         
+        // Create a brand-new conversation pinned to routine-replay mode.
+        // Routine replays run in dedicated conversations so the server
+        // knows to render the <ROUTINE_REPLAY> system prompt block with
+        // the Routine Keywords unlock rules. The mode is a fixed server-side
+        // flag — the agent is never asked to detect "am I replaying?" on
+        // its own.
+        async function createRoutineReplayConversation(cwd) {
+            const response = await fetch(apiUrl('agent/conversations'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cwd: cwd,
+                    model_alias: getSelectedModelAlias(),
+                    mode: 'routine_replay',
+                }),
+            });
+            if (!response.ok) {
+                const detail = await response.text().catch(() => '');
+                throw new Error(
+                    `Failed to create routine-replay conversation (${response.status}): ${detail}`
+                );
+            }
+            const data = await response.json();
+            if (!data || !data.conversation_id) {
+                throw new Error('Server did not return a conversation_id');
+            }
+            return data;
+        }
+
         // Send command to agent
         async function sendCommand() {
             const input = document.getElementById('command-input');
@@ -9994,6 +10148,30 @@
                 const routine = stagedRoutine;
                 const prompt = buildRoutinePrompt(routine);
                 clearStagedRoutine();
+
+                // Routine runs ALWAYS go into a fresh conversation with
+                // mode=routine_replay. This guarantees the backend renders
+                // the routine-replay system prompt for this run, and also
+                // keeps replay runs cleanly separated from free-form work.
+                const cwd = document.getElementById('cwd-input').value || '.';
+                try {
+                    const data = await createRoutineReplayConversation(cwd);
+                    resetUsageMetrics();
+                    currentConversationId = data.conversation_id;
+                    updateConversationIdDisplay();
+                    updateSessionDisplay();
+                    if (data.cwd) {
+                        document.getElementById('cwd-input').value = data.cwd;
+                    }
+                } catch (error) {
+                    addEvent({
+                        type: 'ErrorEvent',
+                        text: `Could not start routine replay: ${error.message}`,
+                        timestamp: new Date().toISOString(),
+                    });
+                    return;
+                }
+
                 return sendCommandText(prompt, {
                     inputElement: input,
                     preserveInput: true,

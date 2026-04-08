@@ -1,8 +1,8 @@
 """
 ElementInteractionTool - Tool for visual element interactions.
 
-Click and keyboard input use a two-phase commit (2PC) confirmation flow.
-Hover, scroll, swipe, and select execute directly.
+Click, keyboard input, and select use a two-phase commit (2PC) confirmation
+flow. Hover, scroll, and swipe execute directly.
 """
 
 from collections.abc import Sequence
@@ -41,8 +41,9 @@ class ElementInteractionAction(OpenBrowserAction):
         "select",
         "confirm_click",
         "confirm_keyboard_input",
+        "confirm_select",
     ] = Field(
-        description="Element interaction action (click and keyboard_input require confirm_* follow-up; confirm_* executes the current pending confirmation; hover/scroll/swipe/select execute directly)"
+        description="Element interaction action (click, keyboard_input, and select require confirm_* follow-up; confirm_* executes the current pending confirmation; hover/scroll/swipe execute directly)"
     )
     element_id: Optional[str] = Field(
         default=None,

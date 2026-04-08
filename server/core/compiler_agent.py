@@ -1,10 +1,11 @@
-"""Compiler Agent: turn a recording trace into an executable SOP via an SDK agent.
+"""Compiler Agent: turn a recording trace into an executable Browser Routine
+via an SDK agent.
 
 Uses the openhands-sdk Agent/Conversation pattern with:
 - TraceViewerTool — lets the agent navigate through recording events
-- FileEditorTool — lets the agent write the SOP file
+- FileEditorTool — lets the agent write the Routine file
 - AskUserTool — lets the agent ask the user clarification questions
-- SubmitWorkflowTool — validates the SOP file and finishes the conversation
+- SubmitWorkflowTool — validates the Routine file and finishes the conversation
 """
 
 from __future__ import annotations
@@ -405,7 +406,7 @@ class AskUserAction(Action):
         description=(
             "The question to ask the user. Be specific about what is "
             "ambiguous in the recording trace and what you need to know "
-            "to produce an accurate SOP."
+            "to produce an accurate Browser Routine."
         )
     )
 
@@ -483,20 +484,21 @@ register_tool(ASK_USER_TOOL_NAME, AskUserTool.create)
 
 
 # ---------------------------------------------------------------------------
-#  SubmitWorkflowTool — validates the SOP file and ends the conversation
+#  SubmitWorkflowTool — validates the Routine file and ends the conversation
 # ---------------------------------------------------------------------------
 
-# SOP required sections
-SOP_REQUIRED_TITLE_PREFIX = "# Workflow:"
-SOP_REQUIRED_PREREQUISITES = "## Prerequisites"
-SOP_STEP_PATTERN = re.compile(r"^## Step \d+:", re.MULTILINE)
+# Routine required sections
+ROUTINE_REQUIRED_TITLE_PREFIX = "# Workflow:"
+ROUTINE_REQUIRED_PREREQUISITES = "## Prerequisites"
+ROUTINE_STEP_PATTERN = re.compile(r"^## Step \d+:", re.MULTILINE)
+ROUTINE_KEYWORDS_LINE_PREFIX = "**Keywords:**"
 
 
 class SubmitWorkflowAction(Action):
-    """Submit the workflow SOP file for validation."""
+    """Submit the Browser Routine file for validation."""
 
     file_path: str = Field(
-        description="Path to the workflow SOP Markdown file to validate and submit."
+        description="Path to the Browser Routine Markdown file to validate and submit."
     )
 
     @property
@@ -508,7 +510,7 @@ class SubmitWorkflowAction(Action):
 
 
 class SubmitWorkflowObservation(Observation):
-    """Result of workflow SOP validation."""
+    """Result of Browser Routine validation."""
 
     success: bool = Field(default=True)
     message: str = Field(default="")
@@ -524,7 +526,7 @@ class SubmitWorkflowObservation(Observation):
     def to_llm_content(self) -> Sequence[TextContent]:
         if self.success:
             return [TextContent(text=self.message)]
-        text = "Workflow SOP validation failed. Fix these problems and resubmit:\n\n"
+        text = "Browser Routine validation failed. Fix these problems and resubmit:\n\n"
         for i, problem in enumerate(self.problems, 1):
             text += f"{i}. {problem}\n"
         return [TextContent(text=text)]
@@ -533,10 +535,10 @@ class SubmitWorkflowObservation(Observation):
 class SubmitWorkflowExecutor(
     ToolExecutor[SubmitWorkflowAction, SubmitWorkflowObservation]
 ):
-    """Validates the SOP file has the required structure."""
+    """Validates the Routine file has the required structure."""
 
     def __init__(self) -> None:
-        self.submitted_sop: dict[str, Any] | None = None
+        self.submitted_routine: dict[str, Any] | None = None
 
     def __call__(
         self, action: SubmitWorkflowAction, conversation: Any = None
@@ -557,7 +559,7 @@ class SubmitWorkflowExecutor(
                 problems=[f"Cannot read file: {exc}"],
             )
 
-        problems, summary = validate_sop_markdown(content)
+        problems, summary = validate_routine_markdown(content)
         if problems or summary is None:
             return SubmitWorkflowObservation(
                 success=False,
@@ -565,8 +567,8 @@ class SubmitWorkflowExecutor(
                 problems=problems,
             )
 
-        self.submitted_sop = {
-            "sop_markdown": content,
+        self.submitted_routine = {
+            "routine_markdown": content,
             "goal": summary["goal"],
             "step_count": summary["step_count"],
         }
@@ -575,25 +577,26 @@ class SubmitWorkflowExecutor(
         # get one more turn to send a plain-language wrap-up message to the
         # user. The conversation goes idle on its own once the LLM responds
         # with text and no further tool calls. The user can then either
-        # finalize the SOP or send revision feedback.
+        # finalize the Routine or send revision feedback.
 
         return SubmitWorkflowObservation(
             success=True,
             message=(
-                "Workflow SOP validated and submitted successfully. "
+                "Browser Routine validated and submitted successfully. "
                 "Now send ONE short plain-language message to the user "
-                "summarizing what the SOP does, calling out any assumptions "
-                "you made, and inviting corrections. Do NOT call any more "
-                "tools — just send the message and stop."
+                "summarizing what the Routine does, calling out any "
+                "assumptions you made, and inviting corrections. Do NOT "
+                "call any more tools — just send the message and stop."
             ),
         )
 
 
-def validate_sop_markdown(content: str) -> tuple[list[str], dict[str, Any] | None]:
-    """Validate the structure of an SOP markdown document.
+def validate_routine_markdown(content: str) -> tuple[list[str], dict[str, Any] | None]:
+    """Validate the structure of a Browser Routine markdown document.
 
     Returns a tuple ``(problems, summary)``:
-    - ``problems`` is a list of human-readable issues. Empty if the SOP passes.
+    - ``problems`` is a list of human-readable issues. Empty if the Routine
+      passes.
     - ``summary`` is a dict with ``goal`` and ``step_count`` if validation
       passed; ``None`` otherwise.
 
@@ -601,7 +604,7 @@ def validate_sop_markdown(content: str) -> tuple[list[str], dict[str, Any] | Non
     routines API (validating user edits).
     """
     if not isinstance(content, str) or not content.strip():
-        return (["SOP markdown is empty."], None)
+        return (["Routine markdown is empty."], None)
 
     problems: list[str] = []
 
@@ -613,29 +616,59 @@ def validate_sop_markdown(content: str) -> tuple[list[str], dict[str, Any] | Non
             "Missing '# Workflow: ...' title. The first heading must start with '# Workflow:'."
         )
 
-    if SOP_REQUIRED_PREREQUISITES not in content:
+    if ROUTINE_REQUIRED_PREREQUISITES not in content:
         problems.append(
             "Missing '## Prerequisites' section. Include at least a Starting URL."
         )
 
-    steps = SOP_STEP_PATTERN.findall(content)
+    steps = ROUTINE_STEP_PATTERN.findall(content)
     if not steps:
         problems.append(
-            "No '## Step N: ...' sections found. The SOP must have at least one step."
+            "No '## Step N: ...' sections found. The Routine must have at least one step."
         )
 
-    step_sections = SOP_STEP_PATTERN.split(content)
+    step_sections = ROUTINE_STEP_PATTERN.split(content)
     for i, section_body in enumerate(step_sections[1:], 1):
         next_heading = section_body.find("\n## ")
         body = section_body[:next_heading] if next_heading >= 0 else section_body
         stripped = body.strip()
+        body_lines = stripped.split("\n")
         instruction_lines = [
-            line for line in stripped.split("\n")
+            line for line in body_lines
             if line.strip()
             and not line.strip().startswith("**Reasoning:")
+            and not line.strip().startswith(ROUTINE_KEYWORDS_LINE_PREFIX)
         ]
         if not instruction_lines:
             problems.append(f"Step {i} has no instruction text.")
+
+        # Optional '**Keywords:** <token>' line. Missing is always fine.
+        # When present, require exactly one per step and a single bare token
+        # (no quotes, no whitespace, no commas).
+        keywords_lines = [
+            line for line in body_lines
+            if line.strip().startswith(ROUTINE_KEYWORDS_LINE_PREFIX)
+        ]
+        if len(keywords_lines) > 1:
+            problems.append(
+                f"Step {i} has multiple '**Keywords:**' lines. "
+                "Only one bare token per step is allowed."
+            )
+        elif len(keywords_lines) == 1:
+            token = keywords_lines[0].strip()[len(ROUTINE_KEYWORDS_LINE_PREFIX):].strip()
+            if not token:
+                problems.append(
+                    f"Step {i} has an empty '**Keywords:**' line. "
+                    "Remove it or provide a single bare token."
+                )
+            elif any(ch.isspace() for ch in token) or any(
+                ch in token for ch in (",", '"', "'", "`")
+            ):
+                problems.append(
+                    f"Step {i} '**Keywords:**' value must be a single bare "
+                    "token without quotes, spaces, or commas. "
+                    f"Got: {token!r}"
+                )
 
     if problems:
         return (problems, None)
@@ -652,10 +685,10 @@ def validate_sop_markdown(content: str) -> tuple[list[str], dict[str, Any] | Non
 SUBMIT_WORKFLOW_TOOL_NAME = "submit_workflow"
 
 SUBMIT_WORKFLOW_DESCRIPTION = """\
-Validate and submit the workflow SOP file. Pass the file path of the \
-Markdown SOP you wrote with the file tool.
+Validate and submit the Browser Routine file. Pass the file path of the \
+Markdown Routine you wrote with the file tool.
 
-The SOP file MUST have this structure:
+The Routine file MUST have this structure:
 
 - A `# Workflow: ...` title (one sentence describing the user's goal)
 - A `## Prerequisites` section with at least a Starting URL
@@ -688,6 +721,20 @@ is not obvious from the instruction itself. Don't pad every step with \
 reasoning.
 - Skip incidental events that don't change state (accidental clicks, \
 hover-only events, redundant tab switches the user immediately undid).
+- **Optional `**Keywords:**` line — only for 100% fixed elements.** \
+Under any step you may add a single line `**Keywords:** <token>` where \
+`<token>` is a stable identifier copied verbatim from the recorded \
+`element.html`. Preferred sources are `data-testid` / `data-test` / \
+`data-test-id` / `data-cy` / `data-qa` attribute values; a clean \
+human-written `id`; a non-hashed class token; or a single distinctive \
+word from an `aria-label`. NEVER emit a Keywords line when the token \
+looks auto-generated (`css-x4j8b27`, `_signin_aZ91`, `sc-bdfBQB`, \
+`ember-87`, `react-aria-12345`, `Mui…`, random-suffix names), when \
+the element is part of a dynamic list whose items rotate, or when \
+the token is too generic to be unique (`btn`, `submit`, `input`, \
+`link`). Only one bare token per line — no quotes, no spaces, no \
+commas. A missing Keywords line is always safe; a bad one is \
+actively harmful because the runtime will trust it.
 
 If validation fails, fix the listed problems and resubmit.\
 """
@@ -750,6 +797,24 @@ _compiler_sessions: dict[str, CompilerSession] = {}
 def has_compiler_session(recording_id: str) -> bool:
     """Check whether an active compiler session exists for a recording."""
     return recording_id in _compiler_sessions
+
+
+def close_compiler_session(recording_id: str) -> bool:
+    """Tear down any active compiler session for this recording.
+
+    Safe to call whether or not a session exists. Returns True when a
+    session was actually popped (useful for logging), False otherwise.
+    Used by the delete-recording route so stray compiler state does not
+    outlive its recording.
+    """
+    session = _compiler_sessions.pop(recording_id, None)
+    if session is None:
+        return False
+    try:
+        session.conversation.close()
+    except Exception:
+        pass
+    return True
 
 
 def _truncate_long_strings(value: Any) -> Any:
@@ -980,7 +1045,7 @@ async def compile_with_agent(
 
     Yields SSE strings. The final event is either:
     - "complete" with result.status == "asking" (agent has a question)
-    - "complete" with result.status == "completed" (SOP is ready)
+    - "complete" with result.status == "completed" (Routine is ready)
     - "error" on failure
     """
     # Discard any previous session for this recording
@@ -1037,10 +1102,10 @@ async def compile_with_agent(
 
     # Build the initial user message
     user_msg_parts: list[str] = [
-        "Compile the recorded browser trace into an executable SOP.",
+        "Compile the recorded browser trace into an executable Browser Routine.",
         "",
-        f"Write the SOP to: {draft_path}",
-        "When the SOP is complete, call `submit_workflow` with that path.",
+        f"Write the Routine to: {draft_path}",
+        "When the Routine is complete, call `submit_workflow` with that path.",
         "If the trace is ambiguous, call `ask_user` with your question.",
     ]
     if intent_note:
@@ -1051,7 +1116,7 @@ async def compile_with_agent(
         f"\nThe trace has {len(events)} events. Start by calling "
         f"`trace_viewer` with command `summary` to get an overview, "
         f"then browse events and keyframes as needed before writing "
-        f"the SOP file."
+        f"the Routine file."
     )
 
     conversation = Conversation(
@@ -1059,7 +1124,7 @@ async def compile_with_agent(
         workspace=workspace_dir,
         # Bumped from 40: each user revision burns iterations on
         # file edits + submit + wrap-up, and the user may iterate
-        # several times before approving the SOP.
+        # several times before approving the Routine.
         max_iteration_per_run=80,
         visualizer=visualizer,
     )
@@ -1122,8 +1187,8 @@ async def continue_compilation(
         yield sse_payload
 
 
-def _read_sop_from_session(session: CompilerSession) -> dict[str, Any]:
-    """Read the SOP draft file and return goal/step_count metadata.
+def _read_routine_from_session(session: CompilerSession) -> dict[str, Any]:
+    """Read the Routine draft file and return goal/step_count metadata.
 
     Falls back to the last text event if the file doesn't exist.
     """
@@ -1134,9 +1199,9 @@ def _read_sop_from_session(session: CompilerSession) -> dict[str, Any]:
             if line.strip().startswith("# Workflow:"):
                 goal = line.strip()[len("# Workflow:"):].strip()
                 break
-        step_count = len(SOP_STEP_PATTERN.findall(file_content))
+        step_count = len(ROUTINE_STEP_PATTERN.findall(file_content))
         return {
-            "sop_markdown": file_content,
+            "routine_markdown": file_content,
             "goal": goal,
             "step_count": step_count,
         }
@@ -1147,7 +1212,7 @@ def _read_sop_from_session(session: CompilerSession) -> dict[str, Any]:
             if isinstance(evt_content, str) and evt_content.strip():
                 last_text = evt_content.strip()
                 break
-        return {"sop_markdown": last_text, "goal": "", "step_count": 0}
+        return {"routine_markdown": last_text, "goal": "", "step_count": 0}
 
 
 def _collect_result(session: CompilerSession) -> dict[str, Any]:
@@ -1184,8 +1249,8 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
     # 2. Post-submit review?
     in_review, summary_message = _detect_review_state(events)
     if in_review:
-        sop = _read_sop_from_session(session)
-        sop.update({
+        routine_doc = _read_routine_from_session(session)
+        routine_doc.update({
             "status": "review",
             "recording_id": recording_id,
             "model": session.model,
@@ -1194,14 +1259,14 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
         })
         # Keep session alive — user will either finalize or send revision.
         _compiler_sessions[recording_id] = session
-        return sop
+        return routine_doc
 
     # 3. Terminal — no submit happened, conversation just ended.
-    sop = _read_sop_from_session(session)
-    sop["status"] = "completed"
-    sop["recording_id"] = recording_id
-    sop["model"] = session.model
-    sop["trace_path"] = dumped_trace_path
+    routine_doc = _read_routine_from_session(session)
+    routine_doc["status"] = "completed"
+    routine_doc["recording_id"] = recording_id
+    routine_doc["model"] = session.model
+    routine_doc["trace_path"] = dumped_trace_path
 
     _compiler_sessions.pop(recording_id, None)
     try:
@@ -1209,14 +1274,14 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
     except Exception:
         pass
 
-    return sop
+    return routine_doc
 
 
 def finalize_compiler_session(recording_id: str) -> dict[str, Any]:
-    """Approve the SOP currently in review and tear down the session.
+    """Approve the Routine currently in review and tear down the session.
 
     Called when the user clicks "Looks right — finalize" in the UI.
-    Returns the final SOP metadata with status "completed".
+    Returns the final Routine metadata with status "completed".
     """
     session = _compiler_sessions.get(recording_id)
     if session is None:
@@ -1226,8 +1291,8 @@ def finalize_compiler_session(recording_id: str) -> dict[str, Any]:
         )
 
     dumped_trace_path = _dump_trace(session)
-    sop = _read_sop_from_session(session)
-    sop.update({
+    routine_doc = _read_routine_from_session(session)
+    routine_doc.update({
         "status": "completed",
         "recording_id": recording_id,
         "model": session.model,
@@ -1240,4 +1305,4 @@ def finalize_compiler_session(recording_id: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    return sop
+    return routine_doc

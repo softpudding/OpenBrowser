@@ -101,6 +101,9 @@ def _authorize_conversation_browser_access(
     return session, browser_id
 
 
+VALID_CONVERSATION_MODES = {"routine_replay"}
+
+
 @router.post("")
 async def create_conversation(request: Request):
     """Create a new agent conversation
@@ -111,6 +114,10 @@ async def create_conversation(request: Request):
         base_url: Optional base URL override
         model_alias: Optional configured model alias
         browser_id: Optional browser UUID capability token
+        mode: Optional conversation-mode tag. Currently only
+            ``"routine_replay"`` is recognized — it enables the
+            routine-replay system prompt block with the Routine Keywords
+            unlock. Omit for normal free-form conversations.
     """
     try:
         raw_body = await request.body()
@@ -120,6 +127,16 @@ async def create_conversation(request: Request):
         base_url = body.get("base_url")
         model_alias = body.get("model_alias")
         browser_id = body.get("browser_id")
+        mode = body.get("mode")
+
+        if mode is not None and mode not in VALID_CONVERSATION_MODES:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Unsupported conversation mode: {mode!r}. "
+                    f"Valid modes: {sorted(VALID_CONVERSATION_MODES)}"
+                ),
+            )
 
         if browser_id is not None:
             browser_id = _require_valid_browser_id(browser_id)
@@ -130,6 +147,7 @@ async def create_conversation(request: Request):
             base_url=base_url,
             browser_id=browser_id,
             model_alias=model_alias,
+            mode=mode,
         )
 
         response = {
@@ -144,6 +162,8 @@ async def create_conversation(request: Request):
 
         if browser_id is not None:
             response["browser_id"] = browser_id
+        if mode is not None:
+            response["mode"] = mode
 
         return response
     except ValueError as e:

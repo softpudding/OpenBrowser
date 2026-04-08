@@ -263,26 +263,26 @@ Recent progress on the compilation layer:
   - `trace_viewer` — lets the agent navigate events incrementally (summary,
     paginated event list, single event detail, keyframe screenshots,
     normalized steps) instead of receiving the entire trace in one message.
-  - `file` (FileEditorTool) — lets the agent write the SOP file.
-  - `submit_workflow` — validates the SOP file structure and ends the
+  - `file` (FileEditorTool) — lets the agent write the Routine file.
+  - `submit_workflow` — validates the Routine file structure and ends the
     conversation.
 - the compiler agent system prompt teaches OpenBrowser's tool vocabulary
-  (highlight, click, keyboard_input, scroll, etc.) and the SOP format, so
-  the output is an executable Standard Operating Procedure.
-- the SOP is pure text (no embedded images). Keyframes are only used by the
-  compiler agent to understand the recorded trace.
+  (highlight, click, keyboard_input, scroll, etc.) and the Browser Routine
+  format, so the output is an executable Browser Routine.
+- the Routine is pure text (no embedded images). Keyframes are only used by
+  the compiler agent to understand the recorded trace.
 - the compile endpoint is `POST /recordings/{id}/compile`. The previous
   iteration endpoint has been removed — clarification happens during
   compilation as part of the agent conversation loop.
-- the frontend has a "Compile SOP" button and displays the resulting SOP
-  markdown.
+- the frontend has a "Compile Routine" button and displays the resulting
+  Routine markdown.
 
 The next concrete work item is now:
 
 1. test the full end-to-end flow with a real recording,
 2. tune the compiler agent system prompt and tool descriptions based on
    real-world trace quality,
-3. integrate the approved SOP with the execution layer.
+3. integrate the approved Routine with the execution layer.
 
 ## Summary
 
@@ -290,7 +290,7 @@ OpenBrowser should separate facts from interpretation.
 
 - Recording captures facts.
 - The user provides intent.
-- The Compiler Agent produces the executable SOP.
-- The SOP instructs OpenBrowser what to do step by step.
+- The Compiler Agent produces the executable Browser Routine.
+- The Routine instructs OpenBrowser what to do step by step.
 
 That is the intended foundation for workflow execution.

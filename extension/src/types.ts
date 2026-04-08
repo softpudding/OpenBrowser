@@ -216,7 +216,7 @@ export interface GetElementHtmlCommand extends BaseCommand {
 export interface HighlightSingleElementCommand extends BaseCommand {
   type: 'highlight_single_element';
   element_id: string;
-  intended_action?: 'click' | 'keyboard_input';
+  intended_action?: 'click' | 'keyboard_input' | 'select';
   tab_id?: number; // Optional: uses active tab if not provided
 }
 

@@ -273,6 +273,16 @@ function getElementSearchText(el) {
       'title',
       'placeholder',
       'alt',
+      // Stable test-hook attributes — recognised so the routine-replay
+      // compiler can emit `**Keywords:** <token>` hints for elements that
+      // expose these as their only reliable identifier. Generic HTML text
+      // matching still owns the default path; these attributes just let
+      // replay-mode keyword hints land.
+      'data-testid',
+      'data-test',
+      'data-test-id',
+      'data-cy',
+      'data-qa',
     ]),
     ...getClassTokens(el),
   ];

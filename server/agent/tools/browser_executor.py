@@ -524,17 +524,48 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError("select requires element_id parameter")
             if action.value is None:
                 raise ValueError("select requires value parameter")
-            command = SelectElementCommand(
-                element_id=action.element_id,
-                value=action.value,
-                conversation_id=self.conversation_id,
-                tab_id=action.tab_id,
+            element_preview = self._get_element_full_html(action.element_id, "select")
+            full_html = element_preview[0]
+            screenshot = element_preview[1]
+            resolved_element_id = (
+                element_preview[2]
+                if len(element_preview) > 2 and element_preview[2]
+                else action.element_id
             )
-            result_dict = self._execute_element_command(command, "select option")
+            resolution_note = (
+                element_preview[3]
+                if len(element_preview) > 3 and isinstance(element_preview[3], str)
+                else None
+            )
+            self._set_pending_confirmation(
+                element_id=resolved_element_id,
+                action_type="select",
+                full_html=full_html,
+                extra_data={
+                    "value": action.value,
+                    "tab_id": action.tab_id,
+                },
+                screenshot_data_url=screenshot,
+                requested_element_id=(
+                    action.element_id
+                    if resolved_element_id != action.element_id
+                    else None
+                ),
+                element_id_resolution_note=resolution_note,
+            )
+            result_dict = {"success": True, "data": {}}
+            value_preview = self._format_select_value_preview(action.value)
+            message = (
+                f"Select action pending confirmation for element: "
+                f"{resolved_element_id}. About to choose option {value_preview}."
+            )
+            if resolution_note:
+                message = f"{message} {resolution_note}"
             return self._build_observation_from_result(
                 result_dict,
-                f"Selected option in element: {action.element_id}",
-                element_id=action.element_id,
+                message,
+                screenshot_data_url=screenshot,
+                element_id=resolved_element_id,
             )
 
         # ========== 2PC Phase 2: Confirm Operations ==========
@@ -598,8 +629,55 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 element_id=pending_element_id,
             )
 
+        elif action_type == "confirm_select":
+            pending = self._get_pending_confirmation()
+            if not pending or pending["action_type"] != "select":
+                raise ValueError(
+                    "No pending select confirmation found. Please call select first."
+                )
+            pending_element_id = pending.get("element_id")
+            pending_extra_data = pending.get("extra_data", {})
+            if not pending_element_id:
+                raise ValueError(
+                    "Pending select confirmation is missing element_id state."
+                )
+            pending_value = pending_extra_data.get("value")
+            if pending_value is None:
+                raise ValueError(
+                    "Pending select confirmation is missing value state."
+                )
+            command = SelectElementCommand(
+                element_id=pending_element_id,
+                value=pending_value,
+                conversation_id=self.conversation_id,
+                tab_id=pending_extra_data.get("tab_id"),
+            )
+            result_dict = self._execute_command_sync(command)
+            if not result_dict or not result_dict.get("success"):
+                ext_error = self._extract_result_error(result_dict)
+                raise RuntimeError(f"Failed to select option: {ext_error}")
+            value_preview = self._format_select_value_preview(pending_value)
+            message = (
+                f"Confirmed and selected option {value_preview} in element: "
+                f"{pending_element_id}"
+            )
+            self._clear_pending_confirmation()
+            return self._build_observation_from_result(
+                result_dict,
+                message,
+                element_id=pending_element_id,
+            )
+
         else:
             raise ValueError(f"Invalid element interaction action: {action_type}")
+
+    @staticmethod
+    def _format_select_value_preview(value: Any) -> str:
+        """Render a select `value` for inclusion in confirmation messages."""
+        if isinstance(value, list):
+            joined = ", ".join(f"'{v}'" for v in value)
+            return f"[{joined}]"
+        return f"'{value}'"
 
     def _execute_dialog_action(
         self, action: DialogHandleAction

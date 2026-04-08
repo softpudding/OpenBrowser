@@ -14,23 +14,24 @@ Use one `element_id` from the current interactive observation to act on the page
 
 ## Interaction Modes
 
-Only `click` and `keyboard_input` use the **YELLOW stage** and require confirmation before execution. `hover`, `scroll`, `swipe`, and `select` execute immediately and return the default `highlight` `element_type: "any"` page 1 screenshot of the new page state.
+Only `click`, `keyboard_input`, and `select` use the **YELLOW stage** and require confirmation before execution. `hover`, `scroll`, and `swipe` execute immediately and return the default `highlight` `element_type: "any"` page 1 screenshot of the new page state.
 
 ## Visual Color System - YELLOW Stage
 
-When a `click` or `keyboard_input` action enters confirmation mode, you get a **zoomed-in confirmation screenshot** with a **YELLOW box** on ONE element and a reminder banner:
+When a `click`, `keyboard_input`, or `select` action enters confirmation mode, you get a **zoomed-in confirmation screenshot** with a **YELLOW box** on ONE element and a reminder banner:
 
 - Zoomed-in screenshot centered on the target region
 - **ONE yellow box** around the target
 - Reminder text such as `Is this the element you wanted to click?`
 - Full HTML of the target element
+- For `select`, the message also echoes the chosen option `value` so you can verify it against the option list in the HTML
 
 **Your task**:
 1. **LOOK** - Is the yellow box on the EXACT element you intended?
-2. **READ** - Does the HTML match your goal?
+2. **READ** - Does the HTML match your goal? For `select`, does the echoed `value` match the option you intended (compare against the `<option>` list in the HTML)?
 3. **DECIDE** - Confirm or cancel
 
-**To CONFIRM**: Use `confirm_click` for `click` or `confirm_keyboard_input` for `keyboard_input`
+**To CONFIRM**: Use `confirm_click` for `click`, `confirm_keyboard_input` for `keyboard_input`, or `confirm_select` for `select`
 **To CANCEL**: Simply call a different action or different `element_id`
 
 ## Working Rules
@@ -124,23 +125,29 @@ Select an option from a native `<select>` dropdown element by its visual ID.
 
 ```json
 { "action": "select", "element_id": "M8P", "value": "option1", "tab_id": 123 }
-// → Executes immediately and returns the default `highlight` `element_type: "any"` page 1 screenshot
+// → Returns a YELLOW preview screenshot
+// → Review the yellow highlight, the echoed `value`, and the `<option>` list in the HTML
+// → Then confirm:
+{ "action": "confirm_select" }
 ```
 
 Use `select` only for native `<select>` elements.
 If your goal is to navigate or trigger an action, use `click` instead.
+Pages with long filter dropdowns (e.g. screeners) often have many similar option labels — verify the echoed `value` matches the exact option you intended before confirming.
 
 ## Confirm Commands
 
 - `confirm_click`
 - `confirm_keyboard_input`
+- `confirm_select`
 
 ```json
 { "action": "confirm_click" }
 { "action": "confirm_keyboard_input" }
+{ "action": "confirm_select" }
 ```
 
-These commands use the current pending confirmation. Do not repeat `element_id`, `tab_id`, or `text`.
+These commands use the current pending confirmation. Do not repeat `element_id`, `tab_id`, `text`, or `value`.
 Completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
 
 ## Decision Rules
@@ -156,8 +163,8 @@ Completed `confirm_*` actions return the default `highlight` `element_type: "any
 
 ## Screenshot Behavior
 
-- `click` and `keyboard_input` return a YELLOW preview screenshot before execution.
-- `hover`, `scroll`, `swipe`, `select`, and completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
+- `click`, `keyboard_input`, and `select` return a YELLOW preview screenshot before execution.
+- `hover`, `scroll`, `swipe`, and completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
 
 ## Error Handling
 

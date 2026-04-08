@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from server.api.sse import create_sse_response_headers
 from server.core.compiler_agent import (
+    close_compiler_session,
     compile_with_agent,
     continue_compilation,
     finalize_compiler_session,
@@ -42,12 +43,12 @@ async def _wrap_compiler_stream(
     inner: AsyncGenerator[str, None],
     recording_id: str,
 ) -> AsyncGenerator[str, None]:
-    """Wrap compiler SSE stream to persist SOP metadata on completion."""
+    """Wrap compiler SSE stream to persist Routine metadata on completion."""
     async for payload in inner:
         yield payload
         # Intercept the complete event to save metadata. Persist for both
         # "completed" (terminal) and "review" (in-progress draft) so the
-        # latest SOP draft is recoverable if the user navigates away.
+        # latest Routine draft is recoverable if the user navigates away.
         if payload.startswith("event: complete\n"):
             try:
                 data_line = payload.split("data: ", 1)[1].split("\n")[0]
@@ -55,10 +56,12 @@ async def _wrap_compiler_stream(
                 result = data.get("result", {})
                 if result.get("status") in ("completed", "review"):
                     recording_manager.update_metadata(
-                        recording_id, {"compiler_sop": result}
+                        recording_id, {"compiler_routine": result}
                     )
             except Exception as exc:
-                logger.warning("Failed to save compiler SOP metadata: %s", exc)
+                logger.warning(
+                    "Failed to save compiler Routine metadata: %s", exc
+                )
 
 
 def _require_valid_browser_id(browser_id: str) -> str:
@@ -101,7 +104,7 @@ class CompileAnswerRequest(BaseModel):
 
 
 class FinalizeCompilerRequest(BaseModel):
-    """Request body for finalizing a compiled SOP into a routine."""
+    """Request body for finalizing a compiled Routine draft."""
 
     name: str
 
@@ -186,6 +189,39 @@ async def get_recording(recording_id: str):
     if session is None:
         raise HTTPException(status_code=404, detail="Recording not found")
     return {"success": True, "recording": session.to_dict()}
+
+
+@router.delete("/{recording_id}")
+async def delete_recording(recording_id: str):
+    """Permanently delete a recording session and all its events.
+
+    Refuses to delete a still-active recording — stop it first. Clears any
+    in-memory compiler session bound to this recording before dropping the
+    row so we do not leave dangling state.
+    """
+    session = recording_manager.get_recording(recording_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    if session.status == RecordingStatus.ACTIVE:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Recording is still active. Stop the recording before "
+                "deleting it."
+            ),
+        )
+
+    close_compiler_session(recording_id)
+
+    deleted = recording_manager.delete_recording(recording_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Recording not found",
+        )
+
+    return {"success": True, "recording_id": recording_id}
 
 
 @router.get("/{recording_id}/events")
@@ -319,7 +355,7 @@ async def append_recording_event(recording_id: str, request: RecordingEventReque
 async def compile_recording_with_agent(
     recording_id: str, request: CompileRecordingRequest
 ):
-    """Compile a recording trace into a workflow SOP using the Compiler Agent.
+    """Compile a recording trace into a Browser Routine via the Compiler Agent.
 
     Returns an SSE stream. Events:
     - agent_event: compiler agent tool calls and reasoning
@@ -384,10 +420,10 @@ async def answer_compiler_question(
 
 
 @router.post("/{recording_id}/compile/finalize")
-async def finalize_compiler_sop(
+async def finalize_compiler_routine(
     recording_id: str, request: FinalizeCompilerRequest
 ):
-    """Approve the SOP currently in review and save it as a named routine.
+    """Approve the Routine currently in review and save it as a named routine.
 
     The user clicks this when the post-submit wrap-up looks correct. They
     must also pick a name for the routine — the routine is created
@@ -414,23 +450,23 @@ async def finalize_compiler_sop(
         )
 
     try:
-        sop = finalize_compiler_session(recording_id)
+        routine_doc = finalize_compiler_session(recording_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    sop_markdown = sop.get("sop_markdown") or ""
-    if not sop_markdown.strip():
+    routine_markdown = routine_doc.get("routine_markdown") or ""
+    if not routine_markdown.strip():
         raise HTTPException(
             status_code=400,
-            detail="Cannot finalize: compiler session has no SOP markdown.",
+            detail="Cannot finalize: compiler session has no Routine markdown.",
         )
 
     try:
         routine = routine_manager.create_routine(
             name=routine_name,
-            sop_markdown=sop_markdown,
-            goal=sop.get("goal", ""),
-            step_count=int(sop.get("step_count", 0) or 0),
+            routine_markdown=routine_markdown,
+            goal=routine_doc.get("goal", ""),
+            step_count=int(routine_doc.get("step_count", 0) or 0),
             source_recording_id=recording_id,
         )
     except ValueError as exc:
@@ -445,12 +481,12 @@ async def finalize_compiler_sop(
         recording_manager.update_metadata(
             recording_id,
             {
-                "compiler_sop": sop,
+                "compiler_routine": routine_doc,
                 "routine_id": routine.routine_id,
                 "routine_name": routine.name,
             },
         )
     except Exception as exc:
-        logger.warning("Failed to save compiler SOP metadata: %s", exc)
+        logger.warning("Failed to save compiler Routine metadata: %s", exc)
 
-    return {"result": sop, "routine": routine.to_dict()}
+    return {"result": routine_doc, "routine": routine.to_dict()}

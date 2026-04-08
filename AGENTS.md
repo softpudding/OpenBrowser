@@ -253,7 +253,7 @@ The visual interaction workflow is implemented across 4 focused tools:
 |------|----------|---------|
 | `tab` | `tab init`, `tab open`, `tab close`, `tab switch`, `tab list`, `tab refresh`, `tab view`, `tab back`, `tab forward` | Session and tab management |
 | `highlight` | `highlight_elements` | Element discovery with blue overlays |
-| `element_interaction` | `click_element`, `confirm_click_element`, `hover_element`, `scroll_element`, `keyboard_input`, `confirm_keyboard_input`, `select_element` | Element interaction with 2PC only for click and keyboard input |
+| `element_interaction` | `click_element`, `confirm_click_element`, `hover_element`, `scroll_element`, `keyboard_input`, `confirm_keyboard_input`, `select_element`, `confirm_select` | Element interaction with 2PC for click, keyboard input, and select |
 | `dialog` | `handle_dialog` | Dialog handling (accept/dismiss) |
 
 ## UNIQUE PATTERNS
@@ -272,9 +272,10 @@ If operation fails twice:
 ## PERFORMANCE OPTIMIZATIONS
 
 ### Selective 2PC
-- `click_element` and `keyboard_input` require an ORANGE confirmation preview followed by `confirm_click_element` or `confirm_keyboard_input`
-- `hover_element`, `scroll_element`, `swipe_element`, and `select_element` execute immediately and return the post-action screenshot
-- Starting a different action clears any pending confirmation from a previous `click_element` or `keyboard_input`
+- `click_element`, `keyboard_input`, and `select_element` require a YELLOW confirmation preview followed by `confirm_click_element`, `confirm_keyboard_input`, or `confirm_select`
+- `select` confirmation messages also echo the chosen `value` so the agent can verify option text against the rendered `<option>` list
+- `hover_element`, `scroll_element`, and `swipe_element` execute immediately and return the post-action screenshot
+- Starting a different action clears any pending confirmation from a previous `click_element`, `keyboard_input`, or `select_element`
 
 ## SISYPHUS MODE
 

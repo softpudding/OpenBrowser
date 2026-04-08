@@ -9,6 +9,7 @@ from server.agent.tools.element_interaction_tool import ElementInteractionAction
 from server.agent.tools.highlight_tool import HighlightAction
 from server.models.commands import (
     HoverElementCommand,
+    SelectElementCommand,
     SwipeElementCommand,
 )
 
@@ -517,6 +518,171 @@ def test_confirmed_click_does_not_grant_next_click_shortcut(monkeypatch) -> None
     )
     assert next_observation.pending_confirmation is not None
     assert next_observation.pending_confirmation["action_type"] == "click"
+
+
+def test_select_sets_pending_confirmation(monkeypatch) -> None:
+    executor = BrowserExecutor()
+    executor.conversation_id = "conv-select-pending"
+
+    monkeypatch.setattr(
+        executor,
+        "_get_element_full_html",
+        lambda element_id, intended_action=None: (
+            '<select><option value="usa">USA</option></select>',
+            "data:image/png;base64,select-pending",
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "_execute_command_sync",
+        lambda command: (_ for _ in ()).throw(AssertionError("should stay in 2PC")),
+    )
+
+    observation = executor._execute_action_sync(
+        ElementInteractionAction(
+            action="select",
+            element_id="sel123",
+            value="usa",
+            tab_id=987,
+            conversation_id="conv-select-pending",
+        )
+    )
+
+    assert observation.success is True
+    assert observation.message == (
+        "Select action pending confirmation for element: sel123. "
+        "About to choose option 'usa'."
+    )
+    assert observation.pending_confirmation is not None
+    assert observation.pending_confirmation["action_type"] == "select"
+    assert observation.pending_confirmation["element_id"] == "sel123"
+    assert observation.pending_confirmation["extra_data"]["value"] == "usa"
+    assert observation.pending_confirmation["extra_data"]["tab_id"] == 987
+
+
+def test_select_multi_value_pending_confirmation_renders_list(monkeypatch) -> None:
+    executor = BrowserExecutor()
+    executor.conversation_id = "conv-select-multi-pending"
+
+    monkeypatch.setattr(
+        executor,
+        "_get_element_full_html",
+        lambda element_id, intended_action=None: (
+            '<select multiple><option value="a">A</option></select>',
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "_execute_command_sync",
+        lambda command: (_ for _ in ()).throw(AssertionError("should stay in 2PC")),
+    )
+
+    observation = executor._execute_action_sync(
+        ElementInteractionAction(
+            action="select",
+            element_id="sel456",
+            value=["a", "b"],
+            conversation_id="conv-select-multi-pending",
+        )
+    )
+
+    assert observation.success is True
+    assert observation.message == (
+        "Select action pending confirmation for element: sel456. "
+        "About to choose option ['a', 'b']."
+    )
+    assert observation.pending_confirmation["extra_data"]["value"] == ["a", "b"]
+
+
+def test_confirm_select_uses_pending_confirmation_state(monkeypatch) -> None:
+    executor = BrowserExecutor()
+    executor.conversation_id = "conv-select-confirm"
+    executor._set_pending_confirmation(
+        element_id="sel123",
+        action_type="select",
+        full_html='<select><option value="usa">USA</option></select>',
+        extra_data={"value": "usa", "tab_id": 987},
+    )
+
+    captured = {}
+
+    def fake_execute(command):
+        captured["command"] = command
+        return {
+            "success": True,
+            "data": {"screenshot": "data:image/png;base64,selected"},
+        }
+
+    monkeypatch.setattr(executor, "_execute_command_sync", fake_execute)
+
+    observation = executor._execute_action_sync(
+        ElementInteractionAction(
+            action="confirm_select",
+            conversation_id="conv-select-confirm",
+        )
+    )
+
+    assert observation.success is True
+    assert observation.message == "Confirmed and selected option 'usa' in element: sel123"
+    assert isinstance(captured["command"], SelectElementCommand)
+    assert captured["command"].element_id == "sel123"
+    assert captured["command"].value == "usa"
+    assert captured["command"].tab_id == 987
+    assert executor._get_pending_confirmation() is None
+
+
+def test_confirm_select_without_pending_confirmation_raises(monkeypatch) -> None:
+    executor = BrowserExecutor()
+    executor.conversation_id = "conv-select-missing"
+
+    observation = executor._execute_action_sync(
+        ElementInteractionAction(
+            action="confirm_select",
+            conversation_id="conv-select-missing",
+        )
+    )
+
+    assert observation.success is False
+    assert "No pending select confirmation found" in observation.error
+
+
+def test_select_after_pending_click_clears_old_confirmation(monkeypatch) -> None:
+    executor = BrowserExecutor()
+    executor.conversation_id = "conv-select-supersedes-click"
+    executor._set_pending_confirmation(
+        element_id="btn99",
+        action_type="click",
+        full_html="<button>Save</button>",
+        extra_data={"tab_id": 1},
+    )
+
+    monkeypatch.setattr(
+        executor,
+        "_get_element_full_html",
+        lambda element_id, intended_action=None: (
+            '<select><option value="x">X</option></select>',
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "_execute_command_sync",
+        lambda command: (_ for _ in ()).throw(AssertionError("should stay in 2PC")),
+    )
+
+    observation = executor._execute_action_sync(
+        ElementInteractionAction(
+            action="select",
+            element_id="sel789",
+            value="x",
+            conversation_id="conv-select-supersedes-click",
+        )
+    )
+
+    assert observation.success is True
+    assert observation.pending_confirmation["action_type"] == "select"
+    assert observation.pending_confirmation["element_id"] == "sel789"
 
 
 def test_confirm_keyboard_input_reports_nested_extension_error(monkeypatch) -> None:

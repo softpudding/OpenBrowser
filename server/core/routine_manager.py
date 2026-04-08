@@ -1,8 +1,9 @@
-"""Persistent storage for finalized workflow routines.
+"""Persistent storage for finalized Browser Routines.
 
-A routine is a named, executable form of a finalized SOP markdown document.
-It's created when the user finalizes a compiled SOP and can later be replayed
-from the Execute panel without re-recording or re-typing.
+A Browser Routine is a named, executable form of a finalized routine
+markdown document. It's created when the user finalizes a compiled
+Routine and can later be replayed from the Execute panel without
+re-recording or re-typing.
 """
 
 from __future__ import annotations
@@ -22,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Routine:
-    """A saved workflow routine."""
+    """A saved Browser Routine."""
 
     routine_id: str
     name: str
-    sop_markdown: str
+    routine_markdown: str
     goal: str = ""
     step_count: int = 0
     source_recording_id: Optional[str] = None
@@ -39,7 +40,7 @@ class Routine:
         return {
             "routine_id": self.routine_id,
             "name": self.name,
-            "sop_markdown": self.sop_markdown,
+            "routine_markdown": self.routine_markdown,
             "goal": self.goal,
             "step_count": self.step_count,
             "source_recording_id": self.source_recording_id,
@@ -50,14 +51,14 @@ class Routine:
 
 
 class RoutineManager:
-    """Stores and retrieves saved workflow routines."""
+    """Stores and retrieves saved Browser Routines."""
 
     def __init__(self, db_path: Optional[str] = None) -> None:
         self.db_path = db_path or session_manager.db_path
         self._init_database()
 
     def _init_database(self) -> None:
-        """Initialize the routines table."""
+        """Initialize the routines table and migrate legacy column names."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         try:
@@ -66,7 +67,7 @@ class RoutineManager:
                 CREATE TABLE IF NOT EXISTS routines (
                     routine_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
-                    sop_markdown TEXT NOT NULL,
+                    routine_markdown TEXT NOT NULL,
                     goal TEXT NOT NULL DEFAULT '',
                     step_count INTEGER NOT NULL DEFAULT 0,
                     source_recording_id TEXT,
@@ -88,6 +89,20 @@ class RoutineManager:
                 ON routines(name)
                 """
             )
+
+            # Migrate pre-rename databases that still have the old
+            # `sop_markdown` column. Safe to run on every startup because
+            # we only rename when the old column is present.
+            cursor.execute("PRAGMA table_info(routines)")
+            columns = {row[1] for row in cursor.fetchall()}
+            if "sop_markdown" in columns and "routine_markdown" not in columns:
+                cursor.execute(
+                    "ALTER TABLE routines RENAME COLUMN sop_markdown TO routine_markdown"
+                )
+                logger.info(
+                    "Migrated routines.sop_markdown -> routines.routine_markdown"
+                )
+
             conn.commit()
         finally:
             conn.close()
@@ -95,7 +110,7 @@ class RoutineManager:
     def create_routine(
         self,
         name: str,
-        sop_markdown: str,
+        routine_markdown: str,
         goal: str = "",
         step_count: int = 0,
         source_recording_id: Optional[str] = None,
@@ -106,15 +121,15 @@ class RoutineManager:
         if not clean_name:
             raise ValueError("Routine name is required.")
 
-        clean_markdown = sop_markdown or ""
+        clean_markdown = routine_markdown or ""
         if not clean_markdown.strip():
-            raise ValueError("Routine SOP markdown is required.")
+            raise ValueError("Routine markdown is required.")
 
         now = datetime.now()
         routine = Routine(
             routine_id=str(uuid.uuid4()),
             name=clean_name,
-            sop_markdown=clean_markdown,
+            routine_markdown=clean_markdown,
             goal=goal or "",
             step_count=int(step_count or 0),
             source_recording_id=source_recording_id,
@@ -131,7 +146,7 @@ class RoutineManager:
                 INSERT INTO routines (
                     routine_id,
                     name,
-                    sop_markdown,
+                    routine_markdown,
                     goal,
                     step_count,
                     source_recording_id,
@@ -144,7 +159,7 @@ class RoutineManager:
                 (
                     routine.routine_id,
                     routine.name,
-                    routine.sop_markdown,
+                    routine.routine_markdown,
                     routine.goal,
                     routine.step_count,
                     routine.source_recording_id,
@@ -168,7 +183,7 @@ class RoutineManager:
                 SELECT
                     routine_id,
                     name,
-                    sop_markdown,
+                    routine_markdown,
                     goal,
                     step_count,
                     source_recording_id,
@@ -198,7 +213,7 @@ class RoutineManager:
                 SELECT
                     routine_id,
                     name,
-                    sop_markdown,
+                    routine_markdown,
                     goal,
                     step_count,
                     source_recording_id,
@@ -220,7 +235,7 @@ class RoutineManager:
         self,
         routine_id: str,
         name: Optional[str] = None,
-        sop_markdown: Optional[str] = None,
+        routine_markdown: Optional[str] = None,
         goal: Optional[str] = None,
         step_count: Optional[int] = None,
         metadata_updates: Optional[dict[str, Any]] = None,
@@ -235,10 +250,12 @@ class RoutineManager:
             raise ValueError("Routine name cannot be empty.")
 
         new_markdown = (
-            existing.sop_markdown if sop_markdown is None else sop_markdown
+            existing.routine_markdown
+            if routine_markdown is None
+            else routine_markdown
         )
         if not (new_markdown or "").strip():
-            raise ValueError("Routine SOP markdown cannot be empty.")
+            raise ValueError("Routine markdown cannot be empty.")
 
         new_goal = existing.goal if goal is None else (goal or "")
         new_step_count = (
@@ -257,7 +274,7 @@ class RoutineManager:
                 """
                 UPDATE routines
                 SET name = ?,
-                    sop_markdown = ?,
+                    routine_markdown = ?,
                     goal = ?,
                     step_count = ?,
                     updated_at = ?,
@@ -298,7 +315,7 @@ class RoutineManager:
         return Routine(
             routine_id=row[0],
             name=row[1],
-            sop_markdown=row[2],
+            routine_markdown=row[2],
             goal=row[3] or "",
             step_count=int(row[4] or 0),
             source_recording_id=row[5],

@@ -27,6 +27,9 @@ describe('single-highlight confirmation preview', () => {
     expect(getConfirmationPromptText('keyboard_input')).toBe(
       'Is this the element you wanted to type into?',
     );
+    expect(getConfirmationPromptText('select')).toBe(
+      'Is this the element you wanted to pick an option from?',
+    );
   });
 
   test('places the confirmation reminder above the highlight when space is available', () => {

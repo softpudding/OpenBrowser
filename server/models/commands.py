@@ -433,7 +433,7 @@ class HighlightSingleElementCommand(BaseCommand):
 
     type: Literal["highlight_single_element"] = "highlight_single_element"
     element_id: str = Field(description="Element ID from highlight response")
-    intended_action: Optional[Literal["click", "keyboard_input"]] = Field(
+    intended_action: Optional[Literal["click", "keyboard_input", "select"]] = Field(
         default=None,
         description="Optional action name to render in the confirmation reminder banner",
     )

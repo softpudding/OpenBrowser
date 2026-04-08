@@ -290,6 +290,45 @@ class TestOpenBrowserObservation:
         assert "**Element ID**: inp789" in text
         assert "**Action Type**: keyboard_input" in text
 
+    def test_pending_select_confirmation_surfaces_chosen_value(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            pending_confirmation={
+                "element_id": "sel123",
+                "action_type": "select",
+                "full_html": (
+                    '<select>'
+                    '<option value="usa">USA</option>'
+                    '<option value="can">Canada</option>'
+                    "</select>"
+                ),
+                "extra_data": {"value": "usa", "tab_id": 99},
+            },
+        )
+
+        text = _text_content(observation)
+
+        assert '{"action": "confirm_select"}' in text
+        assert "**Element ID**: sel123" in text
+        assert "**Action Type**: select" in text
+        assert "**Chosen Value**: 'usa'" in text
+        assert "Verify this `value` matches the `<option>`" in text
+
+    def test_pending_select_confirmation_renders_multi_value_list(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            pending_confirmation={
+                "element_id": "sel456",
+                "action_type": "select",
+                "full_html": "<select multiple></select>",
+                "extra_data": {"value": ["a", "b"]},
+            },
+        )
+
+        text = _text_content(observation)
+
+        assert "**Chosen Values**: ['a', 'b']" in text
+
     def test_pending_confirmation_includes_corrected_element_id_note(self) -> None:
         observation = OpenBrowserObservation(
             success=True,

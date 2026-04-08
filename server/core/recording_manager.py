@@ -493,6 +493,31 @@ class RecordingManager:
             for row in rows
         ]
 
+    def delete_recording(self, recording_id: str) -> bool:
+        """Delete a recording session and all of its captured events.
+
+        Returns True when the session row existed and was removed. Returns
+        False when there was no such recording. The two tables (events and
+        sessions) are cleared in a single transaction so we never leave
+        orphaned events behind.
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "DELETE FROM recording_events WHERE recording_id = ?",
+                (recording_id,),
+            )
+            cursor.execute(
+                "DELETE FROM recording_sessions WHERE recording_id = ?",
+                (recording_id,),
+            )
+            deleted = cursor.rowcount > 0
+            conn.commit()
+            return deleted
+        finally:
+            conn.close()
+
     def _strip_large_payloads(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Drop obviously large fields that do not belong in trace storage."""
         stripped = dict(event_data)

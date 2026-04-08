@@ -1,7 +1,7 @@
 """Routine management routes.
 
-Routines are saved, named workflow SOPs that the user can replay from the
-Execute panel without re-recording.
+Routines are saved, named Browser Routines that the user can replay from
+the Execute panel without re-recording.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from server.core.compiler_agent import validate_sop_markdown
+from server.core.compiler_agent import validate_routine_markdown
 from server.core.routine_manager import routine_manager
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class CreateRoutineRequest(BaseModel):
     """Body for creating a routine directly (not via the compile pipeline)."""
 
     name: str
-    sop_markdown: str
+    routine_markdown: str
     source_recording_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -33,18 +33,18 @@ class UpdateRoutineRequest(BaseModel):
     """Body for editing a routine. All fields optional."""
 
     name: str | None = None
-    sop_markdown: str | None = None
+    routine_markdown: str | None = None
     metadata: dict[str, Any] | None = None
 
 
 def _validate_or_raise(content: str) -> dict[str, Any]:
-    """Validate SOP markdown, raising HTTPException(400) on failure."""
-    problems, summary = validate_sop_markdown(content)
+    """Validate routine markdown, raising HTTPException(400) on failure."""
+    problems, summary = validate_routine_markdown(content)
     if problems or summary is None:
         raise HTTPException(
             status_code=400,
             detail={
-                "message": "Routine SOP markdown failed validation.",
+                "message": "Routine markdown failed validation.",
                 "problems": problems,
             },
         )
@@ -73,17 +73,17 @@ async def get_routine(routine_id: str):
 
 @router.post("")
 async def create_routine(request: CreateRoutineRequest):
-    """Create a routine from raw SOP markdown."""
+    """Create a routine from raw Routine markdown."""
     name = (request.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Routine name is required.")
 
-    summary = _validate_or_raise(request.sop_markdown)
+    summary = _validate_or_raise(request.routine_markdown)
 
     try:
         routine = routine_manager.create_routine(
             name=name,
-            sop_markdown=request.sop_markdown,
+            routine_markdown=request.routine_markdown,
             goal=summary["goal"],
             step_count=summary["step_count"],
             source_recording_id=request.source_recording_id,
@@ -97,7 +97,7 @@ async def create_routine(request: CreateRoutineRequest):
 
 @router.patch("/{routine_id}")
 async def update_routine(routine_id: str, request: UpdateRoutineRequest):
-    """Edit a routine's name or SOP markdown."""
+    """Edit a routine's name or Routine markdown."""
     existing = routine_manager.get_routine(routine_id)
     if existing is None:
         raise HTTPException(status_code=404, detail="Routine not found")
@@ -108,8 +108,8 @@ async def update_routine(routine_id: str, request: UpdateRoutineRequest):
 
     goal: str | None = None
     step_count: int | None = None
-    if request.sop_markdown is not None:
-        summary = _validate_or_raise(request.sop_markdown)
+    if request.routine_markdown is not None:
+        summary = _validate_or_raise(request.routine_markdown)
         goal = summary["goal"]
         step_count = summary["step_count"]
 
@@ -117,7 +117,7 @@ async def update_routine(routine_id: str, request: UpdateRoutineRequest):
         updated = routine_manager.update_routine(
             routine_id=routine_id,
             name=new_name,
-            sop_markdown=request.sop_markdown,
+            routine_markdown=request.routine_markdown,
             goal=goal,
             step_count=step_count,
             metadata_updates=request.metadata,

@@ -154,6 +154,20 @@ class OpenBrowserObservation(Observation):
             ]
         )
 
+        if action_type == "select":
+            extra_data = pending.get("extra_data") or {}
+            chosen_value = extra_data.get("value")
+            if chosen_value is not None:
+                if isinstance(chosen_value, list):
+                    rendered_value = ", ".join(f"'{v}'" for v in chosen_value)
+                    text_parts.append(f"**Chosen Values**: [{rendered_value}]")
+                else:
+                    text_parts.append(f"**Chosen Value**: '{chosen_value}'")
+                text_parts.append(
+                    "Verify this `value` matches the `<option>` you intended in the HTML below before confirming."
+                )
+                text_parts.append("")
+
         full_html = str(pending.get("full_html", "")).strip()
         if full_html:
             if len(full_html) > 800:

@@ -48,7 +48,7 @@ export async function highlightSingleElement(
   screenshotDataUrl: string,
   element: InteractiveElement,
   options?: {
-    intendedAction?: 'click' | 'keyboard_input';
+    intendedAction?: 'click' | 'keyboard_input' | 'select';
     scale?: number;
     viewportWidth?: number;
     viewportHeight?: number;
@@ -244,20 +244,22 @@ export async function highlightSingleElement(
 }
 
 export function formatConfirmationOperationLabel(
-  intendedAction?: 'click' | 'keyboard_input',
+  intendedAction?: 'click' | 'keyboard_input' | 'select',
 ): string {
   switch (intendedAction) {
     case 'click':
       return 'click';
     case 'keyboard_input':
       return 'type into';
+    case 'select':
+      return 'pick an option from';
     default:
       return 'interact with';
   }
 }
 
 export function getConfirmationPromptText(
-  intendedAction?: 'click' | 'keyboard_input',
+  intendedAction?: 'click' | 'keyboard_input' | 'select',
 ): string {
   return `Is this the element you wanted to ${formatConfirmationOperationLabel(intendedAction)}?`;
 }
@@ -439,7 +441,7 @@ function drawSingleBoundingBox(
 function drawConfirmationBanner(
   ctx: OffscreenCanvasRenderingContext2D,
   elementRect: DeviceRect,
-  intendedAction: 'click' | 'keyboard_input' | undefined,
+  intendedAction: 'click' | 'keyboard_input' | 'select' | undefined,
   scale: number,
 ): void {
   const message = getConfirmationPromptText(intendedAction);

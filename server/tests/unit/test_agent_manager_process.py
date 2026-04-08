@@ -154,6 +154,7 @@ class TestAgentManagerMultiProcessMode:
         assert kwargs == {
             "model_profile": "large",
             "small_model": False,
+            "routine_replay_mode": False,
         }
 
     def test_system_prompt_kwargs_follow_small_model_profile(self) -> None:
@@ -173,7 +174,27 @@ class TestAgentManagerMultiProcessMode:
         assert kwargs == {
             "model_profile": "small",
             "small_model": True,
+            "routine_replay_mode": False,
         }
+
+    def test_system_prompt_kwargs_enable_routine_replay_mode(self) -> None:
+        """When routine_replay_mode=True is passed, the flag must land in kwargs."""
+        manager = OpenBrowserAgentManager()
+
+        with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
+            mock_llm_config.reload_config.return_value = MagicMock()
+            mock_llm_config.get_llm_config.return_value = MagicMock(
+                model="dashscope/qwen3.5-plus",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+
+            kwargs = manager._get_system_prompt_kwargs(
+                "dashscope/qwen3.5-plus", routine_replay_mode=True
+            )
+
+        assert kwargs["routine_replay_mode"] is True
+        assert kwargs["small_model"] is False
 
     def test_single_process_agent_receives_tool_image_window(self) -> None:
         """Single-process conversations should pass tool_image_window to Agent."""
@@ -198,6 +219,74 @@ class TestAgentManagerMultiProcessMode:
 
         assert mock_agent.call_args is not None
         assert mock_agent.call_args.kwargs["tool_image_window"] == 2
+
+    def test_single_process_routine_replay_mode_reaches_system_prompt(self) -> None:
+        """mode='routine_replay' must flow from create_conversation through
+        to the Agent's system_prompt_kwargs as routine_replay_mode=True.
+        """
+        manager = OpenBrowserAgentManager()
+
+        with (
+            patch("server.agent.manager.Agent") as mock_agent,
+            patch("server.agent.manager.Conversation"),
+            patch("server.agent.manager.QueueVisualizer"),
+            patch("server.agent.manager.session_manager") as mock_session_manager,
+            patch("server.agent.manager.llm_config_manager") as mock_llm_config,
+            patch("server.agent.manager.get_context_image_window", return_value=2),
+            patch.object(manager, "_build_agent_context", return_value=MagicMock()),
+            patch.object(manager, "_create_llm_from_config", return_value=MagicMock()),
+            patch.object(manager, "_get_tools_for_model", return_value=[]),
+            patch("server.agent.manager.get_default_condenser", return_value=None),
+        ):
+            mock_llm_config.reload_config.return_value = MagicMock()
+            mock_llm_config.get_llm_config.return_value = MagicMock(
+                model="dashscope/qwen3.5-plus",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+
+            conv_id = manager.create_conversation(
+                cwd="/tmp/demo", mode="routine_replay"
+            )
+
+        # Session metadata must record the mode so other processes see it.
+        create_call = mock_session_manager.create_session.call_args
+        assert create_call.kwargs["metadata"]["mode"] == "routine_replay"
+
+        # Agent must be constructed with routine_replay_mode=True in its
+        # system_prompt_kwargs.
+        agent_kwargs = mock_agent.call_args.kwargs
+        assert agent_kwargs["system_prompt_kwargs"]["routine_replay_mode"] is True
+
+        # Sanity: default (no mode) should NOT set the flag.
+        mock_agent.reset_mock()
+        manager2 = OpenBrowserAgentManager()
+        with (
+            patch("server.agent.manager.Agent") as mock_agent2,
+            patch("server.agent.manager.Conversation"),
+            patch("server.agent.manager.QueueVisualizer"),
+            patch("server.agent.manager.session_manager"),
+            patch("server.agent.manager.llm_config_manager") as mock_llm_config2,
+            patch("server.agent.manager.get_context_image_window", return_value=2),
+            patch.object(manager2, "_build_agent_context", return_value=MagicMock()),
+            patch.object(
+                manager2, "_create_llm_from_config", return_value=MagicMock()
+            ),
+            patch.object(manager2, "_get_tools_for_model", return_value=[]),
+            patch("server.agent.manager.get_default_condenser", return_value=None),
+        ):
+            mock_llm_config2.reload_config.return_value = MagicMock()
+            mock_llm_config2.get_llm_config.return_value = MagicMock(
+                model="dashscope/qwen3.5-plus",
+                api_key="test-key",
+                base_url="http://test.url",
+            )
+            manager2.create_conversation(cwd="/tmp/demo")
+
+        free_form_kwargs = mock_agent2.call_args.kwargs
+        assert (
+            free_form_kwargs["system_prompt_kwargs"]["routine_replay_mode"] is False
+        )
 
     def test_single_process_agent_receives_browser_tuned_condenser(self) -> None:
         """Single-process conversations should tune condenser for browser workflows."""
@@ -370,6 +459,7 @@ class TestConversationCreationMultiProcess:
                 base_url="http://test.url",
                 browser_id="browser-123",
                 model_alias="default",
+                mode=None,
             )
 
 

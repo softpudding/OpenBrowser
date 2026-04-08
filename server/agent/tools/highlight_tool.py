@@ -56,9 +56,40 @@ class SmallModelHighlightAction(BaseHighlightAction):
     """Small-model highlight action without keyword filtering."""
 
 
+class SmallModelRoutineReplayHighlightAction(BaseHighlightAction):
+    """Small-model highlight action restricted to Routine-supplied keywords.
+
+    Routine replay is the only mode in which a small model is trusted to
+    pass `keywords`, because the value must come verbatim from the active
+    Routine step's `**Keywords:**` line — never invented by the model. The
+    system prompt's <ROUTINE_REPLAY> block enforces that rule, and this
+    action mirrors it by exposing the field only in replay sessions.
+    """
+
+    keywords: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Stable token from the active Routine step's `**Keywords:** "
+            "<token>` line. Pass verbatim as a single-element list. See "
+            "the system prompt's <ROUTINE_REPLAY> block for the full "
+            "rules."
+        ),
+    )
+
+
 def get_highlight_action_type(conv_state=None) -> type[BaseHighlightAction]:
-    """Return the model-aware highlight action schema."""
-    if get_prompt_render_context(conv_state).get("small_model"):
+    """Return the model-aware highlight action schema.
+
+    In routine-replay mode, small models may use `keywords` too — but only
+    with a token copied verbatim from the active Routine step's
+    `**Keywords:**` line. That carve-out is enforced by both the system
+    prompt's <ROUTINE_REPLAY> block and the
+    ``SmallModelRoutineReplayHighlightAction`` description.
+    """
+    context = get_prompt_render_context(conv_state)
+    if context.get("small_model"):
+        if context.get("routine_replay_mode"):
+            return SmallModelRoutineReplayHighlightAction
         return SmallModelHighlightAction
     return HighlightAction
 
