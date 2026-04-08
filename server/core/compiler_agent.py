@@ -721,20 +721,21 @@ is not obvious from the instruction itself. Don't pad every step with \
 reasoning.
 - Skip incidental events that don't change state (accidental clicks, \
 hover-only events, redundant tab switches the user immediately undid).
-- **Optional `**Keywords:**` line — only for 100% fixed elements.** \
-Under any step you may add a single line `**Keywords:** <token>` where \
-`<token>` is a stable identifier copied verbatim from the recorded \
-`element.html`. Preferred sources are `data-testid` / `data-test` / \
-`data-test-id` / `data-cy` / `data-qa` attribute values; a clean \
-human-written `id`; a non-hashed class token; or a single distinctive \
-word from an `aria-label`. NEVER emit a Keywords line when the token \
-looks auto-generated (`css-x4j8b27`, `_signin_aZ91`, `sc-bdfBQB`, \
-`ember-87`, `react-aria-12345`, `Mui…`, random-suffix names), when \
-the element is part of a dynamic list whose items rotate, or when \
-the token is too generic to be unique (`btn`, `submit`, `input`, \
-`link`). Only one bare token per line — no quotes, no spaces, no \
-commas. A missing Keywords line is always safe; a bad one is \
-actively harmful because the runtime will trust it.
+- **Add a `**Keywords:** <token>` line whenever the target's recorded \
+`element.html` exposes a clean, stable identifier** — a test-hook \
+attribute (`data-testid` / `data-test` / `data-test-id` / `data-cy` / \
+`data-qa`), a semantic `data-*` value, a human-written `id` or \
+`name`, a distinctive word from a short `aria-label`, a non-hashed \
+semantic class token, or a distinctive word from the element's own \
+visible text. One bare token per step — no quotes, no spaces, no \
+commas. Reject auto-generated tokens (`css-x4j8b27`, `sc-bdfBQB`, \
+`ember-87`, `react-aria-12345`, `Mui…`, random-suffix names) and \
+overly generic words (`btn`, `submit`, `link`, `wrapper`). Skip the \
+line only when the target is a per-row item inside a dynamic list \
+whose contents rotate. **If you cannot find a clean candidate, OMIT \
+the entire line — never emit `**Keywords:**` with no token after \
+it.** See the system prompt's **Keywords** section for the full \
+priority list.
 
 If validation fails, fix the listed problems and resubmit.\
 """
