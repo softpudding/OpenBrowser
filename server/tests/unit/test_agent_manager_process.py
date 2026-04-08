@@ -269,9 +269,7 @@ class TestAgentManagerMultiProcessMode:
             patch("server.agent.manager.llm_config_manager") as mock_llm_config2,
             patch("server.agent.manager.get_context_image_window", return_value=2),
             patch.object(manager2, "_build_agent_context", return_value=MagicMock()),
-            patch.object(
-                manager2, "_create_llm_from_config", return_value=MagicMock()
-            ),
+            patch.object(manager2, "_create_llm_from_config", return_value=MagicMock()),
             patch.object(manager2, "_get_tools_for_model", return_value=[]),
             patch("server.agent.manager.get_default_condenser", return_value=None),
         ):
@@ -284,9 +282,7 @@ class TestAgentManagerMultiProcessMode:
             manager2.create_conversation(cwd="/tmp/demo")
 
         free_form_kwargs = mock_agent2.call_args.kwargs
-        assert (
-            free_form_kwargs["system_prompt_kwargs"]["routine_replay_mode"] is False
-        )
+        assert free_form_kwargs["system_prompt_kwargs"]["routine_replay_mode"] is False
 
     def test_single_process_agent_receives_browser_tuned_condenser(self) -> None:
         """Single-process conversations should tune condenser for browser workflows."""

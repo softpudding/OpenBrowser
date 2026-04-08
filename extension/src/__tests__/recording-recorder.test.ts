@@ -24,27 +24,27 @@ describe('recording recorder cleanup', () => {
       return [];
     });
 
-    fetchMock = mock(
-      async () => new Response('{}', { status: 200 }),
-    );
+    fetchMock = mock(async () => new Response('{}', { status: 200 }));
     (globalThis as any).fetch = fetchMock;
 
     (globalThis as any).chrome = {
       storage: {
         local: {
-          get: mock(async (keys?: string | string[] | Record<string, unknown>) => {
-            if (typeof keys === 'string') {
-              return { [keys]: storageState[keys] };
-            }
+          get: mock(
+            async (keys?: string | string[] | Record<string, unknown>) => {
+              if (typeof keys === 'string') {
+                return { [keys]: storageState[keys] };
+              }
 
-            if (Array.isArray(keys)) {
-              return Object.fromEntries(
-                keys.map((key) => [key, storageState[key]]),
-              );
-            }
+              if (Array.isArray(keys)) {
+                return Object.fromEntries(
+                  keys.map((key) => [key, storageState[key]]),
+                );
+              }
 
-            return { ...storageState };
-          }),
+              return { ...storageState };
+            },
+          ),
           set: mock(async (values: Record<string, unknown>) => {
             Object.assign(storageState, values);
             return undefined;
@@ -92,10 +92,10 @@ describe('recording recorder cleanup', () => {
   });
 
   test('stopRecording closes dedicated window and removes recording tab group', async () => {
-    const { getRecordingState, startRecording, stopRecording } = await import(
-      '../recording/recorder'
-    );
-    const { debuggerSessionManager } = await import('../commands/debugger-manager');
+    const { getRecordingState, startRecording, stopRecording } =
+      await import('../recording/recorder');
+    const { debuggerSessionManager } =
+      await import('../commands/debugger-manager');
     const cleanupSession = mock(async () => undefined);
     debuggerSessionManager.cleanupSession = cleanupSession;
 
@@ -181,7 +181,9 @@ describe('recording recorder cleanup', () => {
       } as chrome.runtime.MessageSender,
     );
 
-    const clickRequest = fetchMock.mock.calls.at(-1)?.[1] as RequestInit | undefined;
+    const clickRequest = fetchMock.mock.calls.at(-1)?.[1] as
+      | RequestInit
+      | undefined;
     const clickPayload = JSON.parse(String(clickRequest?.body || '{}'));
     expect(clickPayload.event_type).toBe('click');
     expect(clickPayload.event_data.keyframe.captureTiming).toBe('pre_action');
@@ -360,7 +362,9 @@ describe('recording recorder cleanup', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 280));
 
-    const focusRequest = fetchMock.mock.calls.at(-1)?.[1] as RequestInit | undefined;
+    const focusRequest = fetchMock.mock.calls.at(-1)?.[1] as
+      | RequestInit
+      | undefined;
     const focusPayload = JSON.parse(String(focusRequest?.body || '{}'));
     expect(focusPayload.event_type).toBe('focus');
     expect(focusPayload.event_data.keyframe.captureTiming).toBe('pre_action');
@@ -452,13 +456,17 @@ describe('recording recorder cleanup', () => {
 
     const newEventPayloads = fetchMock.mock.calls
       .slice(initialCallCount)
-      .map((call) => JSON.parse(String((call[1] as RequestInit | undefined)?.body || '{}')))
+      .map((call) =>
+        JSON.parse(String((call[1] as RequestInit | undefined)?.body || '{}')),
+      )
       .filter(
         (payload) =>
           payload.event_type === 'focus' || payload.event_type === 'click',
       );
 
-    expect(newEventPayloads.map((payload) => payload.event_type)).toEqual(['click']);
+    expect(newEventPayloads.map((payload) => payload.event_type)).toEqual([
+      'click',
+    ]);
 
     await stopRecording('rec-focus-click');
   });
@@ -650,7 +658,9 @@ describe('recording recorder cleanup', () => {
           payload.event_type === 'input' || payload.event_type === 'change',
       );
 
-    expect(newEventPayloads.map((payload) => payload.event_type)).toEqual(['input']);
+    expect(newEventPayloads.map((payload) => payload.event_type)).toEqual([
+      'input',
+    ]);
     expect(newEventPayloads[0].event_data.inputAggregation).toEqual({
       sourceEventCount: 1,
       endedBy: 'change',

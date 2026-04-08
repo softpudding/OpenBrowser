@@ -285,13 +285,23 @@ class OpenBrowserAgentManager:
         # In multi-process mode, spawn a process for this conversation
         if self.multi_process_mode:
             return self._create_conversation_process(
-                conversation_id, cwd, model, base_url, browser_id, model_alias,
+                conversation_id,
+                cwd,
+                model,
+                base_url,
+                browser_id,
+                model_alias,
                 mode=mode,
             )
 
         # Single-process mode: create conversation in main process
         return self._create_conversation_in_process(
-            conversation_id, cwd, model, base_url, browser_id, model_alias,
+            conversation_id,
+            cwd,
+            model,
+            base_url,
+            browser_id,
+            model_alias,
             mode=mode,
         )
 

@@ -345,9 +345,7 @@ class TestRecordingRoutes:
             "server.api.routes.recordings.recording_manager",
             temp_recording_manager,
         ):
-            response = client.get(
-                f"/recordings/{session.recording_id}/workflow-draft"
-            )
+            response = client.get(f"/recordings/{session.recording_id}/workflow-draft")
 
         assert response.status_code == 200
         steps = response.json()["workflow"]["steps"]
@@ -412,9 +410,7 @@ class TestRecordingRoutes:
             "server.api.routes.recordings.recording_manager",
             temp_recording_manager,
         ):
-            response = client.get(
-                f"/recordings/{session.recording_id}/workflow-draft"
-            )
+            response = client.get(f"/recordings/{session.recording_id}/workflow-draft")
 
         assert response.status_code == 200
         steps = response.json()["workflow"]["steps"]

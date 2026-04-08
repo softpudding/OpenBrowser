@@ -47,17 +47,11 @@ export function calculateScreenshotOutputScale(
   let outputScale = 1;
 
   if (options?.maxOutputWidth && options.maxOutputWidth > 0) {
-    outputScale = Math.min(
-      outputScale,
-      options.maxOutputWidth / imageWidth,
-    );
+    outputScale = Math.min(outputScale, options.maxOutputWidth / imageWidth);
   }
 
   if (options?.maxOutputHeight && options.maxOutputHeight > 0) {
-    outputScale = Math.min(
-      outputScale,
-      options.maxOutputHeight / imageHeight,
-    );
+    outputScale = Math.min(outputScale, options.maxOutputHeight / imageHeight);
   }
 
   const minCaptureScale = options?.minCaptureScale ?? 0.1;

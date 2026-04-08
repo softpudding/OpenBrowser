@@ -624,7 +624,9 @@ def test_confirm_select_uses_pending_confirmation_state(monkeypatch) -> None:
     )
 
     assert observation.success is True
-    assert observation.message == "Confirmed and selected option 'usa' in element: sel123"
+    assert (
+        observation.message == "Confirmed and selected option 'usa' in element: sel123"
+    )
     assert isinstance(captured["command"], SelectElementCommand)
     assert captured["command"].element_id == "sel123"
     assert captured["command"].value == "usa"

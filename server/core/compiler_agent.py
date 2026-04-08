@@ -74,7 +74,11 @@ class TraceViewerAction(Action):
     """Navigate through recording trace events."""
 
     command: Literal[
-        "summary", "events", "event_detail", "keyframe", "normalized_steps",
+        "summary",
+        "events",
+        "event_detail",
+        "keyframe",
+        "normalized_steps",
     ] = Field(description="The trace viewer command to execute.")
     start: int = Field(
         default=0,
@@ -120,9 +124,7 @@ class TraceViewerObservation(Observation):
         return items
 
 
-class TraceViewerExecutor(
-    ToolExecutor[TraceViewerAction, TraceViewerObservation]
-):
+class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation]):
     """Executor that serves recording trace data to the compiler agent."""
 
     def __init__(
@@ -326,9 +328,7 @@ class TraceViewerExecutor(
         if annotation:
             text += f"\nAnnotation: {annotation}"
 
-        return TraceViewerObservation(
-            success=True, text_result=text, image_url=url
-        )
+        return TraceViewerObservation(success=True, text_result=text, image_url=url)
 
     def _handle_normalized_steps(self) -> TraceViewerObservation:
         lines: list[str] = []
@@ -348,15 +348,11 @@ class TraceViewerExecutor(
 TRACE_VIEWER_TOOL_NAME = "trace_viewer"
 
 
-class TraceViewerTool(
-    ToolDefinition[TraceViewerAction, TraceViewerObservation]
-):
+class TraceViewerTool(ToolDefinition[TraceViewerAction, TraceViewerObservation]):
     name = TRACE_VIEWER_TOOL_NAME
 
     @classmethod
-    def create(
-        cls, conv_state=None, **params: Any
-    ) -> Sequence["TraceViewerTool"]:
+    def create(cls, conv_state=None, **params: Any) -> Sequence["TraceViewerTool"]:
         events = params.get("events", [])
         normalized_steps = params.get("normalized_steps", [])
         intent_note = params.get("intent_note")
@@ -421,9 +417,7 @@ class AskUserAction(Action):
 class AskUserObservation(Observation):
     """Observation after an ask_user request is emitted."""
 
-    question: str = Field(
-        description="The question shown to the user."
-    )
+    question: str = Field(description="The question shown to the user.")
 
     @property
     def visualize(self) -> Text:
@@ -441,9 +435,7 @@ class AskUserExecutor(ToolExecutor[AskUserAction, AskUserObservation]):
         self, action: AskUserAction, conversation: Any = None
     ) -> AskUserObservation:
         if conversation is not None:
-            conversation.state.execution_status = (
-                ConversationExecutionStatus.FINISHED
-            )
+            conversation.state.execution_status = ConversationExecutionStatus.FINISHED
 
         return AskUserObservation(
             question=action.question,
@@ -454,9 +446,7 @@ class AskUserTool(ToolDefinition[AskUserAction, AskUserObservation]):
     name = ASK_USER_TOOL_NAME
 
     @classmethod
-    def create(
-        cls, conv_state=None, **params: Any
-    ) -> Sequence["AskUserTool"]:
+    def create(cls, conv_state=None, **params: Any) -> Sequence["AskUserTool"]:
         return [
             cls(
                 description=(
@@ -608,10 +598,7 @@ def validate_routine_markdown(content: str) -> tuple[list[str], dict[str, Any] |
 
     problems: list[str] = []
 
-    if not any(
-        line.strip().startswith("# Workflow:")
-        for line in content.split("\n")
-    ):
+    if not any(line.strip().startswith("# Workflow:") for line in content.split("\n")):
         problems.append(
             "Missing '# Workflow: ...' title. The first heading must start with '# Workflow:'."
         )
@@ -634,7 +621,8 @@ def validate_routine_markdown(content: str) -> tuple[list[str], dict[str, Any] |
         stripped = body.strip()
         body_lines = stripped.split("\n")
         instruction_lines = [
-            line for line in body_lines
+            line
+            for line in body_lines
             if line.strip()
             and not line.strip().startswith("**Reasoning:")
             and not line.strip().startswith(ROUTINE_KEYWORDS_LINE_PREFIX)
@@ -646,7 +634,8 @@ def validate_routine_markdown(content: str) -> tuple[list[str], dict[str, Any] |
         # When present, require exactly one per step and a single bare token
         # (no quotes, no whitespace, no commas).
         keywords_lines = [
-            line for line in body_lines
+            line
+            for line in body_lines
             if line.strip().startswith(ROUTINE_KEYWORDS_LINE_PREFIX)
         ]
         if len(keywords_lines) > 1:
@@ -655,7 +644,9 @@ def validate_routine_markdown(content: str) -> tuple[list[str], dict[str, Any] |
                 "Only one bare token per step is allowed."
             )
         elif len(keywords_lines) == 1:
-            token = keywords_lines[0].strip()[len(ROUTINE_KEYWORDS_LINE_PREFIX):].strip()
+            token = (
+                keywords_lines[0].strip()[len(ROUTINE_KEYWORDS_LINE_PREFIX) :].strip()
+            )
             if not token:
                 problems.append(
                     f"Step {i} has an empty '**Keywords:**' line. "
@@ -676,7 +667,7 @@ def validate_routine_markdown(content: str) -> tuple[list[str], dict[str, Any] |
     goal = ""
     for line in content.split("\n"):
         if line.strip().startswith("# Workflow:"):
-            goal = line.strip()[len("# Workflow:"):].strip()
+            goal = line.strip()[len("# Workflow:") :].strip()
             break
 
     return ([], {"goal": goal, "step_count": len(steps)})
@@ -747,9 +738,7 @@ class SubmitWorkflowTool(
     name = SUBMIT_WORKFLOW_TOOL_NAME
 
     @classmethod
-    def create(
-        cls, conv_state=None, **params: Any
-    ) -> Sequence["SubmitWorkflowTool"]:
+    def create(cls, conv_state=None, **params: Any) -> Sequence["SubmitWorkflowTool"]:
         executor = params.get("executor")
         if executor is None:
             executor = SubmitWorkflowExecutor()
@@ -962,19 +951,29 @@ def _run_conversation_thread(
 
         # Build completion payload
         result = _collect_result(session)
-        event_queue.put(SSEEvent("complete", {
-            "recording_id": session.recording_id,
-            "result": result,
-        }))
+        event_queue.put(
+            SSEEvent(
+                "complete",
+                {
+                    "recording_id": session.recording_id,
+                    "result": result,
+                },
+            )
+        )
 
     except Exception as exc:
         logger.error("Compiler agent thread error: %s", exc, exc_info=True)
         dumped_trace_path = _dump_trace(session, error=str(exc))
-        event_queue.put(SSEEvent("error", {
-            "recording_id": session.recording_id,
-            "error": str(exc),
-            "trace_path": dumped_trace_path,
-        }))
+        event_queue.put(
+            SSEEvent(
+                "error",
+                {
+                    "recording_id": session.recording_id,
+                    "error": str(exc),
+                    "trace_path": dumped_trace_path,
+                },
+            )
+        )
 
 
 async def _stream_compiler_events(
@@ -993,26 +992,35 @@ async def _stream_compiler_events(
         idle_time = time.time() - last_event_time
         if idle_time > timeout_seconds:
             logger.warning("Compiler SSE timeout for %s", recording_id)
-            yield SSEEvent("error", {
-                "recording_id": recording_id,
-                "error": "Timeout waiting for compiler agent",
-            }).to_sse_format()
+            yield SSEEvent(
+                "error",
+                {
+                    "recording_id": recording_id,
+                    "error": "Timeout waiting for compiler agent",
+                },
+            ).to_sse_format()
             break
 
         loop = asyncio.get_event_loop()
         try:
             sse_event = await loop.run_in_executor(
-                None, event_queue.get, True, 10.0,
+                None,
+                event_queue.get,
+                True,
+                10.0,
             )
             last_event_time = time.time()
         except queue.Empty:
             continue
         except Exception as exc:
             logger.error("Error reading compiler queue: %s", exc)
-            yield SSEEvent("error", {
-                "recording_id": recording_id,
-                "error": str(exc),
-            }).to_sse_format()
+            yield SSEEvent(
+                "error",
+                {
+                    "recording_id": recording_id,
+                    "error": str(exc),
+                },
+            ).to_sse_format()
             break
 
         if not isinstance(sse_event, SSEEvent):
@@ -1148,9 +1156,7 @@ async def compile_with_agent(
     )
     thread.start()
 
-    async for sse_payload in _stream_compiler_events(
-        event_queue, thread, recording_id
-    ):
+    async for sse_payload in _stream_compiler_events(event_queue, thread, recording_id):
         yield sse_payload
 
 
@@ -1171,8 +1177,8 @@ async def continue_compilation(
 
     # Re-attach a fresh event queue to the visualizer
     event_queue: queue.Queue = queue.Queue()
-    vis = getattr(session.conversation, '_visualizer', None)
-    if vis is not None and hasattr(vis, 'set_event_queue'):
+    vis = getattr(session.conversation, "_visualizer", None)
+    if vis is not None and hasattr(vis, "set_event_queue"):
         vis.set_event_queue(event_queue)
 
     thread = threading.Thread(
@@ -1182,9 +1188,7 @@ async def continue_compilation(
     )
     thread.start()
 
-    async for sse_payload in _stream_compiler_events(
-        event_queue, thread, recording_id
-    ):
+    async for sse_payload in _stream_compiler_events(event_queue, thread, recording_id):
         yield sse_payload
 
 
@@ -1198,7 +1202,7 @@ def _read_routine_from_session(session: CompilerSession) -> dict[str, Any]:
         goal = ""
         for line in file_content.split("\n"):
             if line.strip().startswith("# Workflow:"):
-                goal = line.strip()[len("# Workflow:"):].strip()
+                goal = line.strip()[len("# Workflow:") :].strip()
                 break
         step_count = len(ROUTINE_STEP_PATTERN.findall(file_content))
         return {
@@ -1251,13 +1255,15 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
     in_review, summary_message = _detect_review_state(events)
     if in_review:
         routine_doc = _read_routine_from_session(session)
-        routine_doc.update({
-            "status": "review",
-            "recording_id": recording_id,
-            "model": session.model,
-            "trace_path": dumped_trace_path,
-            "summary_message": summary_message or "",
-        })
+        routine_doc.update(
+            {
+                "status": "review",
+                "recording_id": recording_id,
+                "model": session.model,
+                "trace_path": dumped_trace_path,
+                "summary_message": summary_message or "",
+            }
+        )
         # Keep session alive — user will either finalize or send revision.
         _compiler_sessions[recording_id] = session
         return routine_doc
@@ -1293,12 +1299,14 @@ def finalize_compiler_session(recording_id: str) -> dict[str, Any]:
 
     dumped_trace_path = _dump_trace(session)
     routine_doc = _read_routine_from_session(session)
-    routine_doc.update({
-        "status": "completed",
-        "recording_id": recording_id,
-        "model": session.model,
-        "trace_path": dumped_trace_path,
-    })
+    routine_doc.update(
+        {
+            "status": "completed",
+            "recording_id": recording_id,
+            "model": session.model,
+            "trace_path": dumped_trace_path,
+        }
+    )
 
     _compiler_sessions.pop(recording_id, None)
     try:

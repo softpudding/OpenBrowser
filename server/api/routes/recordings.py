@@ -59,9 +59,7 @@ async def _wrap_compiler_stream(
                         recording_id, {"compiler_routine": result}
                     )
             except Exception as exc:
-                logger.warning(
-                    "Failed to save compiler Routine metadata: %s", exc
-                )
+                logger.warning("Failed to save compiler Routine metadata: %s", exc)
 
 
 def _require_valid_browser_id(browser_id: str) -> str:
@@ -207,8 +205,7 @@ async def delete_recording(recording_id: str):
         raise HTTPException(
             status_code=409,
             detail=(
-                "Recording is still active. Stop the recording before "
-                "deleting it."
+                "Recording is still active. Stop the recording before " "deleting it."
             ),
         )
 
@@ -390,9 +387,7 @@ async def compile_recording_with_agent(
 
 
 @router.post("/{recording_id}/compile/answer")
-async def answer_compiler_question(
-    recording_id: str, request: CompileAnswerRequest
-):
+async def answer_compiler_question(recording_id: str, request: CompileAnswerRequest):
     """Answer a clarification question from the Compiler Agent.
 
     Returns an SSE stream as the compiler agent resumes.

@@ -1353,7 +1353,7 @@ async function captureScreenshotWithCDP(
     );
     const hasOfflineOutputBounds = Boolean(
       (captureOptions.maxOutputWidth && captureOptions.maxOutputWidth > 0) ||
-        (captureOptions.maxOutputHeight && captureOptions.maxOutputHeight > 0),
+      (captureOptions.maxOutputHeight && captureOptions.maxOutputHeight > 0),
     );
     if (outputScale < 1 && hasOfflineOutputBounds) {
       const downscaledResult = await downscaleImageToFit(

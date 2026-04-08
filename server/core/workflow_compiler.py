@@ -229,7 +229,9 @@ def _build_click_step(
     }
 
 
-def _get_scroll_position(event_data: dict[str, Any]) -> tuple[float | None, float | None]:
+def _get_scroll_position(
+    event_data: dict[str, Any],
+) -> tuple[float | None, float | None]:
     scroll_x = event_data.get("scrollX")
     scroll_y = event_data.get("scrollY")
 
@@ -266,7 +268,9 @@ def _build_scroll_step(
     ]
     page_url = _get_page_url(last_event_data)
     next_event_type = _event_type(next_event) if next_event is not None else None
-    next_page_url = _get_page_url(_event_data(next_event)) if next_event is not None else None
+    next_page_url = (
+        _get_page_url(_event_data(next_event)) if next_event is not None else None
+    )
 
     cluster_size = len(cluster)
     absolute_scroll_y = abs(last_scroll_y)
@@ -275,9 +279,7 @@ def _build_scroll_step(
     )
     absolute_delta_y = abs(delta_scroll_y)
     near_bottom = bool(
-        max_scroll_y
-        and max_scroll_y > 0
-        and last_scroll_y / max_scroll_y >= 0.82
+        max_scroll_y and max_scroll_y > 0 and last_scroll_y / max_scroll_y >= 0.82
     )
     has_following_same_page_action = bool(
         next_event_type in {"click", "focus", "input", "change", "keydown", "submit"}
@@ -287,7 +289,12 @@ def _build_scroll_step(
 
     if not (
         has_following_same_page_action
-        and (cluster_size >= 2 or absolute_delta_y >= 480 or absolute_scroll_y >= 720 or near_bottom)
+        and (
+            cluster_size >= 2
+            or absolute_delta_y >= 480
+            or absolute_scroll_y >= 720
+            or near_bottom
+        )
     ):
         return None
 
@@ -484,7 +491,10 @@ def normalize_trace_events(
 
         if event_type == "scroll":
             cluster: list[dict[str, Any]] = []
-            while index < len(sorted_events) and _event_type(sorted_events[index]) == "scroll":
+            while (
+                index < len(sorted_events)
+                and _event_type(sorted_events[index]) == "scroll"
+            ):
                 cluster.append(sorted_events[index])
                 index += 1
 

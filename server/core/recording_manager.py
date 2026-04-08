@@ -67,8 +67,7 @@ class RecordingManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS recording_sessions (
                     recording_id TEXT PRIMARY KEY,
                     browser_id TEXT NOT NULL,
@@ -81,10 +80,8 @@ class RecordingManager:
                     event_count INTEGER NOT NULL DEFAULT 0,
                     metadata TEXT NOT NULL DEFAULT '{}'
                 )
-                """
-            )
-            cursor.execute(
-                """
+                """)
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS recording_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     recording_id TEXT NOT NULL,
@@ -95,26 +92,19 @@ class RecordingManager:
                     FOREIGN KEY (recording_id) REFERENCES recording_sessions(recording_id),
                     UNIQUE(recording_id, event_index)
                 )
-                """
-            )
-            cursor.execute(
-                """
+                """)
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_recording_sessions_browser_status
                 ON recording_sessions(browser_id, status)
-                """
-            )
-            cursor.execute(
-                """
+                """)
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_recording_sessions_updated_at
                 ON recording_sessions(updated_at DESC)
-                """
-            )
-            cursor.execute(
-                """
+                """)
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_recording_events_recording
                 ON recording_events(recording_id, event_index)
-                """
-            )
+                """)
             conn.commit()
         finally:
             conn.close()

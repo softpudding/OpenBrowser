@@ -68,7 +68,9 @@ describe('recording keyframe annotation', () => {
         element: { bbox: { x: 0, y: 0, width: 0, height: 20 } },
       }),
     ).toBeNull();
-    expect(resolveRecordingKeyframeAnnotationTarget('tab_ready', {})).toBeNull();
+    expect(
+      resolveRecordingKeyframeAnnotationTarget('tab_ready', {}),
+    ).toBeNull();
   });
 
   test('formats human-readable messages', () => {

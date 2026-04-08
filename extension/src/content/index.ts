@@ -20,7 +20,10 @@ const CONTAINER_TEXT_MAX_LENGTH = 280;
 const ELEMENT_HTML_MAX_LENGTH = 1500;
 
 function isOpenBrowserUiPage(): boolean {
-  if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') {
+  if (
+    window.location.protocol !== 'http:' &&
+    window.location.protocol !== 'https:'
+  ) {
     return false;
   }
 
@@ -141,7 +144,9 @@ function getElementTextCandidates(
 ): string[] {
   return Array.from(elements)
     .map((candidate) => normalizeText(candidate.textContent, maxLength))
-    .filter((text): text is string => Boolean(text && text.length >= minLength));
+    .filter((text): text is string =>
+      Boolean(text && text.length >= minLength),
+    );
 }
 
 function getBestContainerTitle(container: Element): string | null {
@@ -151,7 +156,9 @@ function getBestContainerTitle(container: Element): string | null {
     200,
   );
   if (headingCandidates.length > 0) {
-    return headingCandidates.sort((left, right) => right.length - left.length)[0];
+    return headingCandidates.sort(
+      (left, right) => right.length - left.length,
+    )[0];
   }
 
   const anchorCandidates = getElementTextCandidates(
@@ -160,15 +167,21 @@ function getBestContainerTitle(container: Element): string | null {
     200,
   );
   if (anchorCandidates.length > 0) {
-    return anchorCandidates.sort((left, right) => right.length - left.length)[0];
+    return anchorCandidates.sort(
+      (left, right) => right.length - left.length,
+    )[0];
   }
 
   return null;
 }
 
-function getBestContainerLink(container: Element, preferredTitle?: string | null): string | null {
+function getBestContainerLink(
+  container: Element,
+  preferredTitle?: string | null,
+): string | null {
   const anchors = Array.from(container.querySelectorAll('a[href]')).filter(
-    (candidate): candidate is HTMLAnchorElement => candidate instanceof HTMLAnchorElement,
+    (candidate): candidate is HTMLAnchorElement =>
+      candidate instanceof HTMLAnchorElement,
   );
 
   if (preferredTitle) {
@@ -186,9 +199,8 @@ function getBestContainerLink(container: Element, preferredTitle?: string | null
       href: anchor.href,
       text: normalizeText(anchor.textContent, 200),
     }))
-    .filter(
-      (anchor): anchor is { href: string; text: string } =>
-        Boolean(anchor.href && anchor.text && anchor.text.length >= 10),
+    .filter((anchor): anchor is { href: string; text: string } =>
+      Boolean(anchor.href && anchor.text && anchor.text.length >= 10),
     )
     .sort((left, right) => right.text.length - left.text.length)[0];
 
@@ -198,12 +210,13 @@ function getBestContainerLink(container: Element, preferredTitle?: string | null
 function classifyContainerKind(container: Element): string {
   const tagName = container.tagName.toLowerCase();
   const role = (container.getAttribute('role') || '').toLowerCase();
-  const className = normalizeClassName(
-    typeof (container as HTMLElement).className === 'string'
-      ? (container as HTMLElement).className
-      : '',
-    240,
-  )?.toLowerCase() || '';
+  const className =
+    normalizeClassName(
+      typeof (container as HTMLElement).className === 'string'
+        ? (container as HTMLElement).className
+        : '',
+      240,
+    )?.toLowerCase() || '';
 
   if (tagName === 'article' || role === 'article') {
     return 'article';
@@ -242,12 +255,13 @@ function classifyContainerKind(container: Element): string {
 function scoreSemanticContainer(container: Element, depth: number): number {
   const tagName = container.tagName.toLowerCase();
   const role = (container.getAttribute('role') || '').toLowerCase();
-  const className = normalizeClassName(
-    typeof (container as HTMLElement).className === 'string'
-      ? (container as HTMLElement).className
-      : '',
-    240,
-  )?.toLowerCase() || '';
+  const className =
+    normalizeClassName(
+      typeof (container as HTMLElement).className === 'string'
+        ? (container as HTMLElement).className
+        : '',
+      240,
+    )?.toLowerCase() || '';
   const textLength = normalizeText(container.textContent, 800)?.length || 0;
   const rect = container.getBoundingClientRect();
 
@@ -259,7 +273,13 @@ function scoreSemanticContainer(container: Element, depth: number): number {
   if (tagName === 'section' || tagName === 'li' || tagName === 'form') {
     score += 2;
   }
-  if (role === 'article' || role === 'listitem' || role === 'dialog' || role === 'form' || role === 'region') {
+  if (
+    role === 'article' ||
+    role === 'listitem' ||
+    role === 'dialog' ||
+    role === 'form' ||
+    role === 'region'
+  ) {
     score += 4;
   }
   if (
@@ -304,7 +324,9 @@ function findSemanticContainer(element: Element): Element | null {
   return bestScore >= 4 ? bestCandidate : null;
 }
 
-function serializeContainerContext(container: Element): Record<string, unknown> {
+function serializeContainerContext(
+  container: Element,
+): Record<string, unknown> {
   const rect = container.getBoundingClientRect();
   const className =
     typeof (container as HTMLElement).className === 'string'
@@ -318,7 +340,10 @@ function serializeContainerContext(container: Element): Record<string, unknown> 
     selector: buildSelector(container),
     title,
     href,
-    textSnippet: normalizeText(container.textContent, CONTAINER_TEXT_MAX_LENGTH),
+    textSnippet: normalizeText(
+      container.textContent,
+      CONTAINER_TEXT_MAX_LENGTH,
+    ),
     className: normalizeClassName(className, 200),
     role: container.getAttribute('role'),
     ariaLabel: container.getAttribute('aria-label'),
@@ -503,7 +528,9 @@ function emitPageView(reason: string): void {
 }
 
 function shouldRecordTrustedEvent(event: Event): boolean {
-  return activeRecordingId !== null && event.isTrusted && !isOpenBrowserUiPage();
+  return (
+    activeRecordingId !== null && event.isTrusted && !isOpenBrowserUiPage()
+  );
 }
 
 function findOwningForm(element: Element): HTMLFormElement | null {
@@ -669,8 +696,7 @@ function installRecordingListeners(): void {
         sendRecordingEvent('scroll', {
           scrollX: window.scrollX,
           scrollY: window.scrollY,
-          maxScrollX:
-            document.documentElement.scrollWidth - window.innerWidth,
+          maxScrollX: document.documentElement.scrollWidth - window.innerWidth,
           maxScrollY:
             document.documentElement.scrollHeight - window.innerHeight,
         });

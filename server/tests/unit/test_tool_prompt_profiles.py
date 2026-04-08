@@ -148,9 +148,7 @@ def test_large_model_highlight_action_keeps_keywords_in_any_mode() -> None:
         assert "keywords" in action_type.model_fields
 
 
-def test_small_model_highlight_prompt_never_mentions_keywords_in_either_mode() -> (
-    None
-):
+def test_small_model_highlight_prompt_never_mentions_keywords_in_either_mode() -> None:
     """Routine-replay guidance lives only in the system prompt's
     <ROUTINE_REPLAY> block. The small-model highlight tool prompt itself must
     not mention `keywords` in either mode — duplicating routine-replay rules

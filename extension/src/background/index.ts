@@ -1068,7 +1068,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({
           success: false,
           error:
-            error instanceof Error ? error.message : 'Recording pre-action error',
+            error instanceof Error
+              ? error.message
+              : 'Recording pre-action error',
         });
       });
     return true;

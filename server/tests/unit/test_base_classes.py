@@ -33,13 +33,27 @@ def _text_content(observation: OpenBrowserObservation) -> str:
 
 
 class TestOpenBrowserAction:
-    def test_model_dump_preserves_conversation_id(self) -> None:
+    def test_conversation_id_is_internal_only(self) -> None:
+        """conversation_id is an executor-injected routing field.
+
+        It must be settable from Python (the executor sets it from the active
+        conversation state) but must NOT appear in `model_dump()` or in the
+        JSON schema exposed to the LLM — otherwise the model can be tempted to
+        fill it (e.g. mistaking it for tab_id) and corrupt session routing.
+        """
         action = OpenBrowserAction(conversation_id="conv-456")
 
-        dumped = action.model_dump()
+        # Still readable as a normal attribute from Python code.
+        assert action.conversation_id == "conv-456"
 
-        assert dumped["conversation_id"] == "conv-456"
+        # Excluded from serialization so downstream consumers never see it.
+        dumped = action.model_dump()
+        assert "conversation_id" not in dumped
         assert dumped["kind"] == "OpenBrowserAction"
+
+        # Excluded from the JSON schema exposed to the LLM tool schema.
+        schema = OpenBrowserAction.model_json_schema()
+        assert "conversation_id" not in schema.get("properties", {})
 
 
 class TestOpenBrowserObservation:
@@ -297,7 +311,7 @@ class TestOpenBrowserObservation:
                 "element_id": "sel123",
                 "action_type": "select",
                 "full_html": (
-                    '<select>'
+                    "<select>"
                     '<option value="usa">USA</option>'
                     '<option value="can">Canada</option>'
                     "</select>"

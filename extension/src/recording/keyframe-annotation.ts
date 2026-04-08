@@ -57,10 +57,7 @@ function getEventTargetRecord(
   eventType: AnnotatableRecordingEventType,
   eventData: Record<string, unknown>,
 ): Record<string, unknown> | null {
-  const candidate =
-    eventType === 'submit'
-      ? eventData.form
-      : eventData.element;
+  const candidate = eventType === 'submit' ? eventData.form : eventData.element;
 
   return isObjectRecord(candidate) ? candidate : null;
 }

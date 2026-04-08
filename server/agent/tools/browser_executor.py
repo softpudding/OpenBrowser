@@ -643,9 +643,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
             pending_value = pending_extra_data.get("value")
             if pending_value is None:
-                raise ValueError(
-                    "Pending select confirmation is missing value state."
-                )
+                raise ValueError("Pending select confirmation is missing value state.")
             command = SelectElementCommand(
                 element_id=pending_element_id,
                 value=pending_value,

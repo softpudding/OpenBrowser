@@ -407,7 +407,7 @@ class SelectElementCommand(BaseCommand):
             "the `value` attribute — it is what the recorder captures from "
             "<select> change events. If unsure, run `highlight` with "
             "element_type=selectable first; the response shows the full "
-            "<select> outerHTML including every <option value=\"...\">. "
+            '<select> outerHTML including every <option value="...">. '
             "Pass a string for single select, a list for multi-select."
         )
     )

@@ -14,13 +14,14 @@ const RECORDING_KEYFRAME_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
   settleTimeoutMs: 450,
   settleQuietWindowMs: 160,
 };
-const PRE_ACTION_RECORDING_KEYFRAME_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
-  preferredFormat: 'jpeg',
-  maxOutputWidth: 960,
-  maxOutputHeight: 540,
-  warmupBeforeCapture: false,
-  settleBeforeCapture: false,
-};
+const PRE_ACTION_RECORDING_KEYFRAME_CAPTURE_OPTIONS: ScreenshotCaptureOptions =
+  {
+    preferredFormat: 'jpeg',
+    maxOutputWidth: 960,
+    maxOutputHeight: 540,
+    warmupBeforeCapture: false,
+    settleBeforeCapture: false,
+  };
 
 function normalizeComparableUrl(value: unknown): string | null {
   if (typeof value !== 'string') {

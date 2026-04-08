@@ -34,6 +34,9 @@ export default [
       'no-case-declarations': 'off',
       'no-empty': 'off',
       'no-useless-escape': 'off',
+      // TypeScript already resolves type references (e.g. `RequestInit`)
+      // that the core `no-undef` rule doesn't understand. Let tsc own this.
+      'no-undef': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
     },

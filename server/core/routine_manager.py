@@ -62,8 +62,7 @@ class RoutineManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS routines (
                     routine_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -75,20 +74,15 @@ class RoutineManager:
                     updated_at TEXT NOT NULL,
                     metadata TEXT NOT NULL DEFAULT '{}'
                 )
-                """
-            )
-            cursor.execute(
-                """
+                """)
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_routines_updated_at
                 ON routines(updated_at DESC)
-                """
-            )
-            cursor.execute(
-                """
+                """)
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_routines_name
                 ON routines(name)
-                """
-            )
+                """)
 
             # Migrate pre-rename databases that still have the old
             # `sop_markdown` column. Safe to run on every startup because
@@ -250,9 +244,7 @@ class RoutineManager:
             raise ValueError("Routine name cannot be empty.")
 
         new_markdown = (
-            existing.routine_markdown
-            if routine_markdown is None
-            else routine_markdown
+            existing.routine_markdown if routine_markdown is None else routine_markdown
         )
         if not (new_markdown or "").strip():
             raise ValueError("Routine markdown cannot be empty.")

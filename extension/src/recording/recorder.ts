@@ -243,7 +243,9 @@ function buildSerializedElementSignature(value: unknown): string | null {
   return parts.length > 0 ? parts.join('|') : null;
 }
 
-function getEventDataPageUrl(eventData: Record<string, unknown>): string | null {
+function getEventDataPageUrl(
+  eventData: Record<string, unknown>,
+): string | null {
   const page = eventData.page;
   if (page && typeof page === 'object') {
     const url = normalizeComparableString((page as { url?: unknown }).url);
@@ -279,7 +281,9 @@ function getPreActionBindingType(
   }
 
   if (eventType === 'keydown') {
-    return normalizeComparableString(eventData.key) === 'Enter' ? 'enter' : null;
+    return normalizeComparableString(eventData.key) === 'Enter'
+      ? 'enter'
+      : null;
   }
 
   if (eventType === 'submit') {
@@ -467,7 +471,7 @@ function classifyAndRecordTabNavigation(
 
   const backUrl =
     existingHistory.index > 0
-      ? existingHistory.entries[existingHistory.index - 1] ?? null
+      ? (existingHistory.entries[existingHistory.index - 1] ?? null)
       : null;
   if (backUrl === nextUrl) {
     existingHistory.index -= 1;
@@ -479,7 +483,7 @@ function classifyAndRecordTabNavigation(
 
   const forwardUrl =
     existingHistory.index < existingHistory.entries.length - 1
-      ? existingHistory.entries[existingHistory.index + 1] ?? null
+      ? (existingHistory.entries[existingHistory.index + 1] ?? null)
       : null;
   if (forwardUrl === nextUrl) {
     existingHistory.index += 1;
@@ -573,7 +577,11 @@ function bufferPendingInputEvent(
     return false;
   }
 
-  const key = getPendingInputKey(recording.recordingId, tab.id, targetSignature);
+  const key = getPendingInputKey(
+    recording.recordingId,
+    tab.id,
+    targetSignature,
+  );
   const existing = pendingInputEvents.get(key);
   if (existing) {
     clearPendingInputBoundaryTimer(existing);
@@ -676,7 +684,11 @@ function schedulePendingInputBoundaryFlush(
     return false;
   }
 
-  const key = getPendingInputKey(recording.recordingId, tab.id, targetSignature);
+  const key = getPendingInputKey(
+    recording.recordingId,
+    tab.id,
+    targetSignature,
+  );
   const pending = pendingInputEvents.get(key);
   if (!pending) {
     return false;
@@ -684,12 +696,14 @@ function schedulePendingInputBoundaryFlush(
 
   clearPendingInputBoundaryTimer(pending);
   pending.boundaryTimeoutId = globalThis.setTimeout(() => {
-    void flushPendingInputEventsForTab(recording, tab.id!, endedBy).catch((error) => {
-      console.error(
-        `❌ [Recorder] Failed to flush buffered input events for delayed ${endedBy}:`,
-        error,
-      );
-    });
+    void flushPendingInputEventsForTab(recording, tab.id!, endedBy).catch(
+      (error) => {
+        console.error(
+          `❌ [Recorder] Failed to flush buffered input events for delayed ${endedBy}:`,
+          error,
+        );
+      },
+    );
   }, delayMs);
   pendingInputEvents.set(key, pending);
   return true;
@@ -741,7 +755,8 @@ async function flushPendingInputEventsBeforeLifecycleEvent(
     const nextUrl = getEventDataPageUrl(eventData);
     const pendingForTab = Array.from(pendingInputEvents.values()).filter(
       (pending) =>
-        pending.recordingId === recording.recordingId && pending.tabId === tabId,
+        pending.recordingId === recording.recordingId &&
+        pending.tabId === tabId,
     );
     const shouldFlush = pendingForTab.some((pending) => {
       const pendingUrl = getEventDataPageUrl(pending.latestEventData);
@@ -784,7 +799,9 @@ function getGroupTitle(recordingId: string): string {
   return `${RECORDING_GROUP_TITLE_PREFIX}-${recordingId.slice(0, 8)}`;
 }
 
-function serializeRecordingScope(scope: RecordingScope): Record<string, unknown> {
+function serializeRecordingScope(
+  scope: RecordingScope,
+): Record<string, unknown> {
   return {
     launch_mode: scope.launchMode,
     window_id: scope.windowId,
@@ -815,9 +832,7 @@ function serializeActiveRecordingForStorage(
   };
 }
 
-function deserializeRecordingScope(
-  value: unknown,
-): RecordingScope | null {
+function deserializeRecordingScope(value: unknown): RecordingScope | null {
   if (!value || typeof value !== 'object') {
     return null;
   }
@@ -829,7 +844,9 @@ function deserializeRecordingScope(
     tabIds?: unknown;
   };
   const launchMode =
-    scope.launchMode === 'current_window' ? 'current_window' : 'dedicated_window';
+    scope.launchMode === 'current_window'
+      ? 'current_window'
+      : 'dedicated_window';
   const tabIds = Array.isArray(scope.tabIds)
     ? scope.tabIds.filter((tabId): tabId is number => typeof tabId === 'number')
     : [];
@@ -891,7 +908,10 @@ async function loadActiveRecordingFromStorage(): Promise<ActiveRecording | null>
     activeRecording = restored;
     return restored;
   } catch (error) {
-    console.warn('⚠️ [Recorder] Failed to restore active recording state:', error);
+    console.warn(
+      '⚠️ [Recorder] Failed to restore active recording state:',
+      error,
+    );
     activeRecording = null;
     return null;
   }
@@ -1035,15 +1055,20 @@ async function buildRecordingKeyframe(
       title: metadata.title ?? null,
     };
   } catch (error) {
-    console.warn(`⚠️ [Recorder] Failed to capture keyframe for ${trigger}:`, error);
+    console.warn(
+      `⚠️ [Recorder] Failed to capture keyframe for ${trigger}:`,
+      error,
+    );
     return null;
   } finally {
-    await debuggerSessionManager.cleanupSession(conversationId).catch((error) => {
-      console.warn(
-        `⚠️ [Recorder] Failed to cleanup debugger session for recording ${recordingId}:`,
-        error,
-      );
-    });
+    await debuggerSessionManager
+      .cleanupSession(conversationId)
+      .catch((error) => {
+        console.warn(
+          `⚠️ [Recorder] Failed to cleanup debugger session for recording ${recordingId}:`,
+          error,
+        );
+      });
   }
 }
 
@@ -1057,13 +1082,18 @@ async function attachRecordingKeyframeToEventData(
     eventType,
     eventData,
     viewportWidth:
-      typeof keyframe.viewportWidth === 'number' ? keyframe.viewportWidth : null,
+      typeof keyframe.viewportWidth === 'number'
+        ? keyframe.viewportWidth
+        : null,
     viewportHeight:
       typeof keyframe.viewportHeight === 'number'
         ? keyframe.viewportHeight
         : null,
   }).catch((error) => {
-    console.warn(`⚠️ [Recorder] Failed to annotate ${eventType} keyframe:`, error);
+    console.warn(
+      `⚠️ [Recorder] Failed to annotate ${eventType} keyframe:`,
+      error,
+    );
     return null;
   });
 
@@ -1091,7 +1121,10 @@ function matchesPendingPreActionKeyframe(
     return false;
   }
 
-  const targetSignature = getPreActionTargetSignatureForEvent(eventType, eventData);
+  const targetSignature = getPreActionTargetSignatureForEvent(
+    eventType,
+    eventData,
+  );
   const formSignature = getPreActionFormSignatureForEvent(eventData);
 
   if (eventType === 'submit') {
@@ -1182,7 +1215,10 @@ async function flushPendingFocusEvent(key: string): Promise<void> {
       ...eventData,
     });
   } catch (error) {
-    console.error('❌ [Recorder] Failed to upload buffered focus event:', error);
+    console.error(
+      '❌ [Recorder] Failed to upload buffered focus event:',
+      error,
+    );
   }
 }
 
@@ -1200,7 +1236,11 @@ function schedulePendingFocusEvent(
     return false;
   }
 
-  const key = getPendingFocusKey(recording.recordingId, tab.id, targetSignature);
+  const key = getPendingFocusKey(
+    recording.recordingId,
+    tab.id,
+    targetSignature,
+  );
   const existing = pendingFocusEvents.get(key);
   if (existing) {
     clearTimeout(existing.timeoutId);
@@ -1297,7 +1337,9 @@ async function enrichEventDataWithKeyframe(
     return eventData;
   }
 
-  if (shouldDiscardPostCaptureRecordingKeyframe(eventType, eventData, keyframe)) {
+  if (
+    shouldDiscardPostCaptureRecordingKeyframe(eventType, eventData, keyframe)
+  ) {
     console.warn(
       `⚠️ [Recorder] Discarding ${eventType} keyframe because capture drifted to another page`,
       {
@@ -1407,7 +1449,9 @@ async function createDedicatedWindowScope(
     (await chrome.tabs.query({ windowId }))[0];
 
   if (!initialTab?.id) {
-    throw new Error('Failed to create initial tab for dedicated recording window');
+    throw new Error(
+      'Failed to create initial tab for dedicated recording window',
+    );
   }
 
   let groupId: number | null = null;
@@ -1449,11 +1493,14 @@ async function createCurrentWindowScope(): Promise<RecordingScope> {
   });
 
   if (!focusedWindow.id) {
-    throw new Error('Failed to resolve the focused browser window for recording');
+    throw new Error(
+      'Failed to resolve the focused browser window for recording',
+    );
   }
 
   const tabs =
-    focusedWindow.tabs ?? (await chrome.tabs.query({ windowId: focusedWindow.id }));
+    focusedWindow.tabs ??
+    (await chrome.tabs.query({ windowId: focusedWindow.id }));
   const tabIds = new Set(
     tabs
       .map((tab) => tab.id)
@@ -1553,10 +1600,7 @@ async function cleanupRecordingTabGroup(scope: RecordingScope): Promise<void> {
 async function cleanupRecordingScope(scope: RecordingScope): Promise<void> {
   await cleanupRecordingTabGroup(scope);
 
-  if (
-    scope.launchMode !== 'dedicated_window' ||
-    scope.windowId === null
-  ) {
+  if (scope.launchMode !== 'dedicated_window' || scope.windowId === null) {
     return;
   }
 
@@ -1627,14 +1671,15 @@ export async function stopRecording(recordingId?: string): Promise<void> {
     recording_id: recording.recordingId,
   });
 
-  await flushPendingInputEventsForRecording(recording, 'recording_stopped').catch(
-    (error) => {
-      console.error(
-        '❌ [Recorder] Failed to flush buffered input events before stop:',
-        error,
-      );
-    },
-  );
+  await flushPendingInputEventsForRecording(
+    recording,
+    'recording_stopped',
+  ).catch((error) => {
+    console.error(
+      '❌ [Recorder] Failed to flush buffered input events before stop:',
+      error,
+    );
+  });
 
   await postRecordingEventFor(recording, 'recording_stopped', {
     stoppedAt: Date.now(),
@@ -1707,8 +1752,7 @@ export async function handleContentRecordingPreAction(
   const preActionData: Record<string, unknown> = {
     source: 'content',
     timestamp: message.preAction?.timestamp ?? Date.now(),
-    frameId:
-      typeof sender.frameId === 'number' ? sender.frameId : undefined,
+    frameId: typeof sender.frameId === 'number' ? sender.frameId : undefined,
     tab: serializeTab(tab),
     ...(message.preAction?.data ?? {}),
   };
@@ -1758,18 +1802,23 @@ export async function handleContentRecordingEvent(
   const eventData: Record<string, unknown> = {
     source: 'content',
     timestamp: message.event?.timestamp ?? Date.now(),
-    frameId:
-      typeof sender.frameId === 'number' ? sender.frameId : undefined,
+    frameId: typeof sender.frameId === 'number' ? sender.frameId : undefined,
     tab: serializeTab(tab),
     ...(message.event?.data ?? {}),
   };
 
-  if (eventType === 'input' && bufferPendingInputEvent(recording, tab, eventData)) {
+  if (
+    eventType === 'input' &&
+    bufferPendingInputEvent(recording, tab, eventData)
+  ) {
     return;
   }
 
   if (tab.id) {
-    if (eventType === 'change' && isTextEntryRecordingTarget(eventData.element)) {
+    if (
+      eventType === 'change' &&
+      isTextEntryRecordingTarget(eventData.element)
+    ) {
       const flushedCount = await flushPendingInputEventsForTab(
         recording,
         tab.id,
@@ -1809,7 +1858,10 @@ export async function handleContentRecordingEvent(
     }
   }
 
-  if (eventType === 'focus' && schedulePendingFocusEvent(recording, tab, eventData)) {
+  if (
+    eventType === 'focus' &&
+    schedulePendingFocusEvent(recording, tab, eventData)
+  ) {
     return;
   }
 
@@ -1848,7 +1900,10 @@ export function initializeRecordingEventListeners(): void {
         }
       })
       .catch((error) => {
-        console.warn('⚠️ [Recorder] Failed to add created tab to scope:', error);
+        console.warn(
+          '⚠️ [Recorder] Failed to add created tab to scope:',
+          error,
+        );
       });
   });
 
@@ -1898,7 +1953,10 @@ export function initializeRecordingEventListeners(): void {
         });
       })
       .catch((error) => {
-        console.warn('⚠️ [Recorder] Failed to update removed tab state:', error);
+        console.warn(
+          '⚠️ [Recorder] Failed to update removed tab state:',
+          error,
+        );
       });
   });
 
@@ -1958,7 +2016,11 @@ export const __testing__ = {
     eventType: string,
     eventData: Record<string, unknown>,
   ): Promise<void> {
-    await flushPendingInputEventsBeforeLifecycleEvent(recording, eventType, eventData);
+    await flushPendingInputEventsBeforeLifecycleEvent(
+      recording,
+      eventType,
+      eventData,
+    );
   },
   setPendingPreActionKeyframe(
     recordingId: string,
@@ -1969,7 +2031,10 @@ export const __testing__ = {
       targetSignature?: string | null;
       formSignature?: string | null;
       createdAt?: number;
-      keyframe?: Record<string, unknown> | Promise<Record<string, unknown> | null> | null;
+      keyframe?:
+        | Record<string, unknown>
+        | Promise<Record<string, unknown> | null>
+        | null;
     },
   ): void {
     pendingPreActionKeyframes.set(
