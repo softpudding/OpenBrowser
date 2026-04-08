@@ -278,20 +278,9 @@ async def process_agent_message(
             except Exception as e:
                 logger.warning(f"Failed to collect usage metrics: {e}")
 
-            logger.debug(f"DEBUG: Putting complete event into queue")
-            # Put completion event in queue
-            event_queue.put(
-                SSEEvent(
-                    "complete",
-                    build_completion_event_payload(
-                        conversation_id,
-                        conv_state.conversation.state.events,
-                    ),
-                )
-            )
-            logger.debug(f"DEBUG: Complete event put into queue")
-
-            # Put usage metrics event in queue (will be drained after complete event)
+            # Put usage metrics event in queue *before* the complete event.
+            # The SSE streamer drains and breaks immediately after yielding
+            # `complete`, so anything enqueued after it can be lost in a race.
             if usage_metrics:
                 logger.debug(f"DEBUG: Putting usage_metrics event into queue")
                 session_manager.save_event(
@@ -312,6 +301,20 @@ async def process_agent_message(
                     )
                 )
                 logger.debug(f"DEBUG: usage_metrics event put into queue")
+
+            logger.debug(f"DEBUG: Putting complete event into queue")
+            # Put completion event in queue (must be last so the streamer can
+            # drain remaining events and exit cleanly).
+            event_queue.put(
+                SSEEvent(
+                    "complete",
+                    build_completion_event_payload(
+                        conversation_id,
+                        conv_state.conversation.state.events,
+                    ),
+                )
+            )
+            logger.debug(f"DEBUG: Complete event put into queue")
 
         except Exception as e:
             logger.debug(f"DEBUG: Exception in run_conversation: {e}")

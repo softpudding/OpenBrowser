@@ -5463,7 +5463,7 @@
                             <div class="event-stats">
                                 <div class="stat-item">
                                     <span class="stat-label">Total Cost</span>
-                                    <span class="stat-value" id="usage-cost">$0.00</span>
+                                    <span class="stat-value" id="usage-cost">¥0.0000</span>
                                 </div>
                                 <div class="stat-item">
                                     <span class="stat-label">Prompt Tokens</span>
@@ -7951,6 +7951,16 @@
         }
 
         function setAdvancedMode(enabled) {
+            // Reset the main-terminal scroll BEFORE toggling overflow modes.
+            // Otherwise a leftover scrollTop sticks around when overflow flips
+            // to `hidden`, and the absolute-positioned advanced shell ends up
+            // rendered above the visible viewport — giving the appearance of
+            // a clipped/incomplete panel.
+            const mainTerminal = document.querySelector('.main-terminal');
+            if (mainTerminal) {
+                mainTerminal.scrollTop = 0;
+            }
+
             document.body.classList.toggle('advanced-mode', enabled);
 
             const toggleButton = document.getElementById('advanced-toggle-btn');
@@ -7967,6 +7977,10 @@
             if (advancedPanel) {
                 advancedPanel.style.display = enabled ? '' : 'none';
                 advancedPanel.open = enabled;
+                // Always show the advanced panel from the top when entering.
+                if (enabled) {
+                    advancedPanel.scrollTop = 0;
+                }
             }
         }
 
@@ -11469,7 +11483,7 @@
         
         // Update usage metrics display
         function resetUsageMetrics() {
-            document.getElementById('usage-cost').textContent = '$0.00';
+            document.getElementById('usage-cost').textContent = '¥0.0000';
             document.getElementById('usage-prompt-tokens').textContent = '0';
             document.getElementById('usage-completion-tokens').textContent = '0';
             document.getElementById('usage-total-tokens').textContent = '0';
@@ -11483,27 +11497,11 @@
             const metrics = data.metrics || {};
             const accumulatedCost = metrics.accumulated_cost || 0;
             const tokenUsage = metrics.accumulated_token_usage || {};
-            
-            // Get model name to determine currency - try model_name field first, then accumulated_token_usage.model
             const modelName = metrics.model_name || tokenUsage.model || '';
-            const isDashScopeModel = modelName.includes('dashscope/qwen3.5-plus') || 
-                                     modelName.includes('dashscope/qwen3.5-flash');
-            
-            // Format cost with appropriate currency symbol
-            let costFormatted;
-            if (isDashScopeModel) {
-                // For DashScope models, amount is already in RMB, show with ¥ symbol
-                costFormatted = '¥' + accumulatedCost.toFixed(4);
-            } else {
-                // Default to USD
-                costFormatted = new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 4
-                }).format(accumulatedCost);
-            }
-            document.getElementById('usage-cost').textContent = costFormatted;
-            
+
+            // This project always accounts in RMB.
+            document.getElementById('usage-cost').textContent = '¥' + accumulatedCost.toFixed(4);
+
             // Token counts
             const promptTokens = tokenUsage.prompt_tokens || 0;
             const completionTokens = tokenUsage.completion_tokens || 0;
@@ -11511,16 +11509,15 @@
             const cacheRead = tokenUsage.cache_read_tokens || 0;
             const cacheWrite = tokenUsage.cache_write_tokens || 0;
             const reasoningTokens = tokenUsage.reasoning_tokens || 0;
-            
+
             document.getElementById('usage-prompt-tokens').textContent = promptTokens.toLocaleString();
             document.getElementById('usage-completion-tokens').textContent = completionTokens.toLocaleString();
             document.getElementById('usage-total-tokens').textContent = totalTokens.toLocaleString();
             document.getElementById('usage-cache-read').textContent = cacheRead.toLocaleString();
             document.getElementById('usage-cache-write').textContent = cacheWrite.toLocaleString();
             document.getElementById('usage-reasoning').textContent = reasoningTokens.toLocaleString();
-            
-            const currencySymbol = isDashScopeModel ? '¥' : '$';
-            console.log(`[Frontend] Updated usage metrics: ${currencySymbol}${accumulatedCost}, ${totalTokens} tokens (model: ${modelName})`);
+
+            console.log(`[Frontend] Updated usage metrics: ¥${accumulatedCost}, ${totalTokens} tokens (model: ${modelName})`);
             updateGuidedPanels();
         }
         

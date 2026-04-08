@@ -421,10 +421,12 @@ class TestBrowserExecutorBundleExecuteCommand:
             mock_conversation.send_message.assert_called_once_with("hello")
             mock_conversation.run.assert_called_once_with()
 
-            complete_event = event_queue.get_nowait()
+            # usage_metrics must be emitted *before* complete so the SSE
+            # streamer doesn't race-drop it after yielding complete.
             usage_event = event_queue.get_nowait()
-            assert complete_event.event_type == "complete"
+            complete_event = event_queue.get_nowait()
             assert usage_event.event_type == "usage_metrics"
+            assert complete_event.event_type == "complete"
             assert usage_event.data["metrics"]["model_name"] == "test-model"
             mock_session_manager.save_event.assert_called_once_with(
                 conversation_id="test-conv-12b",
