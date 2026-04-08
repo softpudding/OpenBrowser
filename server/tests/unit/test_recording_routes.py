@@ -166,10 +166,17 @@ class TestRecordingRoutes:
         assert updated is not None
         assert updated.status == RecordingStatus.STOPPED
 
-    def test_stop_recording_rejects_disconnected_browser(
+    def test_stop_recording_handles_disconnected_browser_by_stopping_locally(
         self, client: TestClient, temp_recording_manager: RecordingManager
     ) -> None:
-        """Stop should fail instead of silently marking the session stopped."""
+        """Disconnect during recording must not strand the row as ACTIVE.
+
+        Leaving the row ACTIVE would lock the browser out: DELETE refuses
+        active rows, and create_recording refuses a second active row for
+        the same browser. So when the websocket is no longer valid, /stop
+        transitions the row to STOPPED locally (with a metadata note) and
+        does not attempt to dispatch a stop command to the extension.
+        """
         session = temp_recording_manager.create_recording(browser_id="browser-123")
 
         with (
@@ -181,13 +188,58 @@ class TestRecordingRoutes:
                 "server.api.routes.recordings.ws_manager.is_browser_valid",
                 return_value=False,
             ),
+            patch(
+                "server.api.routes.recordings.command_processor.execute",
+                new=AsyncMock(return_value=CommandResponse(success=True)),
+            ) as mock_execute,
         ):
             response = client.post(f"/recordings/{session.recording_id}/stop")
 
-        assert response.status_code == 409
+        assert response.status_code == 200
+        body = response.json()
+        assert body["stop_reason"] == "browser_disconnected"
+        assert body["extension_response"] is None
         updated = temp_recording_manager.get_recording(session.recording_id)
         assert updated is not None
-        assert updated.status == RecordingStatus.ACTIVE
+        assert updated.status == RecordingStatus.STOPPED
+        assert updated.metadata.get("stop_reason") == "browser_disconnected"
+        # The extension stop command must NOT be dispatched when the browser
+        # is already disconnected — it would just time out and muddy the
+        # state transition.
+        assert mock_execute.await_count == 0
+
+    def test_append_recording_event_rejects_non_active_recording(
+        self, client: TestClient, temp_recording_manager: RecordingManager
+    ) -> None:
+        """Late event uploads must not mutate a stopped/reviewed trace.
+
+        Keyframe capture in the extension is async, so an /events POST
+        started before /stop can land after /stop finished. Once the row
+        leaves ACTIVE, the trace is immutable from the user's POV and
+        further writes must be rejected.
+        """
+        session = temp_recording_manager.create_recording(browser_id="browser-123")
+        temp_recording_manager.set_recording_status(
+            session.recording_id, RecordingStatus.STOPPED
+        )
+
+        with patch(
+            "server.api.routes.recordings.recording_manager",
+            temp_recording_manager,
+        ):
+            response = client.post(
+                f"/recordings/{session.recording_id}/events",
+                json={
+                    "browser_id": "browser-123",
+                    "event_type": "click",
+                    "event_data": {"selector": "#late"},
+                },
+            )
+
+        assert response.status_code == 409
+        # Nothing should have been appended to the trace.
+        events = temp_recording_manager.get_recording_events(session.recording_id)
+        assert events == []
 
     def test_workflow_draft_compiles_normalized_steps(
         self, client: TestClient, temp_recording_manager: RecordingManager

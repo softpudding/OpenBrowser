@@ -2958,13 +2958,18 @@ export async function performElementSelect(
         let selectedOptions = [];
 
         // Resolve a single requested choice against the option list.
-        // Match order:
+        // Match order (both exact — no substring fallback):
         //   1. exact option.value (the literal HTML attribute)
         //   2. exact option.text (the visible label, trimmed)
-        //   3. case-insensitive substring on option.text
-        // This lets the agent pass either the value attribute (preferred,
-        // because it's what the recorder captures from change events) or
-        // the visible label (fallback, friendlier when discovering by eye).
+        // This matches commit b18824c's intent of teaching the compiler and
+        // runtime that <select> matches by option value. A looser
+        // substring fallback is intentionally NOT supported: on dropdowns
+        // with overlapping labels (e.g. filters/screeners with several
+        // "Large..." or "Over..." choices), a .includes()-based match
+        // silently picks the first candidate and mutates page state without
+        // surfacing the ambiguity. If an exact match is not found, return
+        // null so the error path below reports the full inventory and the
+        // caller can retry with the correct value.
         const resolveOption = (v) => {
           if (typeof v !== 'string') return null;
           const byValue = options.find(opt => opt.value === v);
@@ -2973,12 +2978,7 @@ export async function performElementSelect(
           const byTextExact = options.find(
             opt => (opt.text || opt.textContent || '').trim() === trimmed
           );
-          if (byTextExact) return byTextExact;
-          const lower = trimmed.toLowerCase();
-          const byTextContains = options.find(
-            opt => (opt.text || opt.textContent || '').trim().toLowerCase().includes(lower)
-          );
-          return byTextContains || null;
+          return byTextExact || null;
         };
 
         // Select by value

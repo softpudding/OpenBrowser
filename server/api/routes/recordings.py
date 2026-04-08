@@ -269,13 +269,33 @@ async def stop_recording(recording_id: str):
     extension_response = None
     if session.status == RecordingStatus.ACTIVE:
         if not ws_manager.is_browser_valid(session.browser_id):
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    "Browser is no longer connected, so the stop command "
-                    "cannot be delivered cleanly. Reconnect the browser and try again."
-                ),
+            # The browser is no longer connected — we can't deliver a stop
+            # command, but we also must NOT leave the row stuck in ACTIVE:
+            # that would block `DELETE /recordings/{id}` (it refuses active
+            # rows) AND block `create_recording()` (it refuses a second
+            # active recording for the same browser), locking the user out
+            # until the DB is fixed manually. Transition the row to STOPPED
+            # locally with a metadata note so the user can clean up and
+            # start a new recording.
+            recording_manager.set_recording_status(
+                recording_id,
+                RecordingStatus.STOPPED,
+                {
+                    "stop_reason": "browser_disconnected",
+                    "stop_note": (
+                        "Browser websocket was no longer valid when /stop "
+                        "was called; recording marked stopped locally "
+                        "without delivering a stop command to the extension."
+                    ),
+                },
             )
+            updated = recording_manager.get_recording(recording_id)
+            return {
+                "success": True,
+                "recording": updated.to_dict() if updated else None,
+                "extension_response": None,
+                "stop_reason": "browser_disconnected",
+            }
 
         response = await command_processor.execute(
             RecordingControlCommand(
@@ -334,6 +354,18 @@ async def append_recording_event(recording_id: str, request: RecordingEventReque
             detail=(
                 f"Recording {recording_id} is bound to browser_id "
                 f"{session.browser_id}"
+            ),
+        )
+    if session.status != RecordingStatus.ACTIVE:
+        # Keyframe captures in the recorder run async, so an in-flight POST
+        # can arrive after /stop has already flipped the row out of ACTIVE.
+        # Reject late arrivals so a trace the user has already reviewed or
+        # compiled cannot silently change underneath them.
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Recording {recording_id} is no longer active "
+                f"(status={session.status.value}); cannot append events."
             ),
         )
 

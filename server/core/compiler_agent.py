@@ -1287,7 +1287,18 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
 def finalize_compiler_session(recording_id: str) -> dict[str, Any]:
     """Approve the Routine currently in review and tear down the session.
 
-    Called when the user clicks "Looks right — finalize" in the UI.
+    Called when the user clicks "Looks right — finalize" in the UI. Refuses
+    to finalize unless the compiler session has actually reached post-submit
+    review state (i.e. ``submit_workflow`` succeeded). This is the guard that
+    prevents a client from calling finalize while the agent is still in an
+    ``asking`` state and persisting a half-formed draft.
+
+    The final markdown is re-validated through ``validate_routine_markdown``
+    before the session is torn down, so a broken draft cannot be saved as a
+    routine — and a validation failure leaves the session alive so the user
+    can send revision feedback via ``/compile/answer`` instead of being
+    stranded.
+
     Returns the final Routine metadata with status "completed".
     """
     session = _compiler_sessions.get(recording_id)
@@ -1297,14 +1308,42 @@ def finalize_compiler_session(recording_id: str) -> dict[str, Any]:
             f"Nothing to finalize."
         )
 
-    dumped_trace_path = _dump_trace(session)
+    # Guard 1: the session must be in post-submit review state. If the agent
+    # is still asking a clarifying question (or hasn't submitted at all), the
+    # draft is not a real routine yet and must not be persisted.
+    in_review, _ = _detect_review_state(session.conversation.state.events)
+    if not in_review:
+        raise ValueError(
+            f"Cannot finalize compiler session for {recording_id}: the "
+            f"agent has not reached post-submit review state yet. Answer any "
+            f"pending questions and let the agent call submit_workflow first."
+        )
+
+    # Guard 2: re-validate the draft markdown before committing. Keeps the
+    # finalize path symmetric with the /routines create/update paths, which
+    # both run validate_routine_markdown via _validate_or_raise.
     routine_doc = _read_routine_from_session(session)
+    routine_markdown = (routine_doc.get("routine_markdown") or "").strip()
+    problems, summary = validate_routine_markdown(routine_markdown)
+    if problems or summary is None:
+        joined = "; ".join(problems) if problems else "unknown validation error"
+        raise ValueError(
+            f"Cannot finalize compiler session for {recording_id}: routine "
+            f"markdown failed validation. Problems: {joined}"
+        )
+
+    # Validation passed — safe to tear the session down and return a final
+    # routine_doc. Use the validator's summary so goal/step_count are
+    # consistent with what /routines would compute for the same markdown.
+    dumped_trace_path = _dump_trace(session)
     routine_doc.update(
         {
             "status": "completed",
             "recording_id": recording_id,
             "model": session.model,
             "trace_path": dumped_trace_path,
+            "goal": summary.get("goal", routine_doc.get("goal", "")),
+            "step_count": summary.get("step_count", routine_doc.get("step_count", 0)),
         }
     )
 
