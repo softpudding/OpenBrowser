@@ -1,23 +1,86 @@
 id: replay_techforum_upvote
-name: "Replay: TechForum upvote routine"
-difficulty: medium
-description: "Replay a hand-written routine that upvotes the first post on TechForum and verify the same tracker event fires."
+name: "Replay: TechForum search + upvote AI agent posts"
+difficulty: hard
+description: "Replay a compiled routine that searches for AI, then upvotes and collects posts about AI agents."
 start_url: "http://localhost:16605/techforum/"
-# When routine_file is set, evaluate_browser_agent.py creates the
-# conversation in routine_replay mode and sends the routine markdown
-# as the initial message instead of `instruction`. The instruction
-# field is kept as a human-readable fallback for --manual mode.
-routine_file: "eval/routine_eval/routines/techforum_upvote.md"
-instruction: "Upvote the first post on the TechForum homepage."
-time_limit: 300.0
-cost_limit: 0.5
+routine_file: "eval/routine_eval/routines/techforum_search_upvote_agents.md"
+instruction: "Search for 'AI' on TechForum, then scroll through results and upvote + collect every post whose title or preview mentions agents or agentic workflows. Also open comments on the Kubernetes-to-serverless post."
+time_limit: 600.0
+cost_limit: 1.0
 
 criteria:
-  - type: upvote_action
-    description: "Upvoted the first post via routine replay"
+  # Step 1: search for "AI"
+  - type: search_for_ai
+    description: "Execute a search with query 'AI'"
+    points: 2
+    expected:
+      event_type: search
+      page: "/techforum/search.html"
+    alternative:
+      event_type: input
+      element_id: "main-search"
+      value_contains: "AI"
+      page: "/techforum/"
+
+  # Step 2: upvote agent-related posts.
+  # Post 7: "How do you evaluate browser automation agents..."
+  - type: upvote_browser_agents
+    description: "Upvote the browser automation agents post"
     points: 2
     expected:
       event_type: answer_action
       action: upvote
-      questionId: "1"
-      page: "/techforum/"
+      questionId: "7"
+      page: "/techforum/search.html"
+    alternative:
+      event_type: answer_action
+      action: upvote
+      questionId: "7"
+      page_contains: "techforum"
+
+  # Post 12: "How do you test multimodal UI agents..."
+  - type: upvote_multimodal_agents
+    description: "Upvote the multimodal UI agents post"
+    points: 2
+    expected:
+      event_type: answer_action
+      action: upvote
+      questionId: "12"
+      page: "/techforum/search.html"
+    alternative:
+      event_type: answer_action
+      action: upvote
+      questionId: "12"
+      page_contains: "techforum"
+
+  # Post 18: "What are practical ways to reduce screenshot latency in browser agents?"
+  - type: upvote_screenshot_agents
+    description: "Upvote the screenshot latency in browser agents post"
+    points: 2
+    expected:
+      event_type: answer_action
+      action: upvote
+      questionId: "18"
+      page: "/techforum/search.html"
+    alternative:
+      event_type: answer_action
+      action: upvote
+      questionId: "18"
+      page_contains: "techforum"
+
+  # Step 2 collect: at least one collect action
+  - type: collect_agent_post
+    description: "Collect at least one agent-related post"
+    points: 1
+    expected:
+      event_type: collect_click
+      page_contains: "techforum"
+
+  # Step 3: open comments on Kubernetes-to-serverless post (id=4)
+  - type: comment_kubernetes_post
+    description: "Open comments on the Kubernetes-to-serverless post"
+    points: 1
+    expected:
+      event_type: comment_button_click
+      questionId: "4"
+      page_contains: "techforum"

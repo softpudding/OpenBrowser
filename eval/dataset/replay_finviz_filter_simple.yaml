@@ -1,11 +1,10 @@
 id: replay_finviz_filter_simple
 name: "Replay: Finviz multi-filter screening routine"
 difficulty: hard
-description: "Replay a hand-written routine that sets 5 Finviz filters, sorts by Perf Month, and opens top stocks."
+description: "Replay a compiled routine that sets 5 Finviz filters, sorts by Perf Month ascending, and opens the top 3 worst-performing stocks."
 start_url: "http://localhost:16605/finviz/"
-routine_file: "eval/routine_eval/routines/finviz_filter_simple.md"
-# Human-readable instruction for --manual mode.
-instruction: "On the Finviz screener, set Market Cap to +Small (over $300mln), Dividend Yield to Over 3%, Relative Volume to Over 1, then switch to the Fundamental tab and set P/E to Under 20 and P/B to Under 2. Switch to Performance view, sort by Perf Month descending, and click the top 3 stocks."
+routine_file: "eval/routine_eval/routines/finviz_filter_sort_open.md"
+instruction: "On the Finviz screener, set Market Cap to +Small (over $300mln), Dividend Yield to Over 3%, Relative Volume to Over 1, then switch to the Fundamental tab and set P/E to Under 20 and P/B to Under 2. Switch to Performance view, sort by Perf Month ascending, and click the top 3 stocks."
 time_limit: 600.0
 cost_limit: 1.0
 
@@ -55,10 +54,29 @@ criteria:
       value: "u2"
       page: "/finviz/"
 
-  - type: verify_performance_view
-    description: "Verify page view after switching to performance view"
+  - type: click_performance_view
+    description: "Switch to Performance view"
+    points: 1
+    expected:
+      event_type: click
+      element_text: "Performance"
+      page: "/finviz/"
+
+  - type: click_perf_month_sort
+    description: "Click Perf Month column header to sort"
+    points: 1
+    expected:
+      event_type: click
+      element_text: "Perf Month"
+      page: "/finviz/"
+    alternative:
+      event_type: click
+      element_href: "perf4w"
+      page: "/finviz/"
+
+  - type: open_stock_page
+    description: "Open at least one stock quote page"
     points: 1
     expected:
       event_type: page_view
-      page: "/finviz/"
-    optional: true
+      page_contains: "/finviz/quote.html"
