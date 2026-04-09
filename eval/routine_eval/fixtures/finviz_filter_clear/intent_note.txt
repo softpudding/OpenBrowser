@@ -1,0 +1,1 @@
+Filter stocks by market cap over $10bln.

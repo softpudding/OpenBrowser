@@ -456,6 +456,49 @@ body {
     color: white;
 }
 
+.performance-sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-top: -4px;
+    margin-bottom: 8px;
+    background: linear-gradient(180deg, rgba(90, 159, 212, 0.16), rgba(90, 159, 212, 0.06));
+    border: 1px solid rgba(90, 159, 212, 0.35);
+    border-radius: 6px;
+}
+
+.performance-sort-label {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.perf-sort-chip {
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 5px 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.18s ease;
+}
+
+.perf-sort-chip:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.perf-sort-chip.active {
+    background-color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #fff;
+}
+
 /* Results Info */
 .results-info {
     display: flex;
@@ -656,7 +699,34 @@ body {
 .screener-table td[data-column="price"],
 .screener-table td[data-column="change"],
 .screener-table td[data-column="pe"],
-.screener-table td[data-column="marketcap"] {
+.screener-table td[data-column="marketcap"],
+.screener-table td[data-column="marketCap"],
+.screener-table td[data-column="forwardPe"],
+.screener-table td[data-column="peg"],
+.screener-table td[data-column="ps"],
+.screener-table td[data-column="pb"],
+.screener-table td[data-column="dividendYield"],
+.screener-table td[data-column="targetPrice"],
+.screener-table td[data-column="perf1w"],
+.screener-table td[data-column="perf4w"],
+.screener-table td[data-column="rsi"],
+.screener-table td[data-column="volatility"],
+.screener-table td[data-column="high52w"],
+.screener-table td[data-column="low52w"],
+.screener-table td[data-column="salesGrowth"],
+.screener-table td[data-column="epsGrowth"],
+.screener-table td[data-column="roe"],
+.screener-table td[data-column="roa"],
+.screener-table td[data-column="debtEquity"],
+.screener-table td[data-column="shortFloat"],
+.screener-table td[data-column="sharesOutstanding"],
+.screener-table td[data-column="floatShares"],
+.screener-table td[data-column="floatPctOutstanding"],
+.screener-table td[data-column="analystRecom"],
+.screener-table td[data-column="relVolume"],
+.screener-table td[data-column="sma20DiffPct"],
+.screener-table td[data-column="sma50DiffPct"],
+.screener-table td[data-column="sma200DiffPct"] {
     text-align: right;
 }
 
@@ -694,6 +764,10 @@ body.light-theme .view-tab.active {
     border-bottom-color: var(--bg-primary);
 }
 
+body.light-theme .performance-sort-bar {
+    background: linear-gradient(180deg, rgba(90, 159, 212, 0.14), rgba(90, 159, 212, 0.05));
+}
+
 body.light-theme .screener-table tbody tr:nth-child(even) {
     background-color: rgba(0, 0, 0, 0.02);
 }
@@ -726,6 +800,10 @@ body.light-theme .screener-table tbody tr:nth-child(even) {
     
     .search-box input {
         width: 200px;
+    }
+
+    .performance-sort-bar {
+        flex-wrap: wrap;
     }
 }
 

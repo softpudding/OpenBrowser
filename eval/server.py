@@ -249,6 +249,7 @@ URL_MAPPINGS = {
     "/dataflow/index.html": ("/dataflow/index.html", "text/html"),
     "/finviz/": ("/finviz/index.html", "text/html"),
     "/finviz/index.html": ("/finviz/index.html", "text/html"),
+    "/finviz/quote.html": ("/finviz/quote.html", "text/html"),
     "/bluebook/": ("/bluebook/index.html", "text/html"),
     "/bluebook/index.html": ("/bluebook/index.html", "text/html"),
     "/northstar/": ("/northstar/index.html", "text/html"),

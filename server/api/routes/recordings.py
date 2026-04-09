@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -115,6 +116,30 @@ class RecordingEventRequest(BaseModel):
     event_data: dict[str, Any] = Field(default_factory=dict)
 
 
+class IngestRecordingEvent(BaseModel):
+    """One pre-built recording event for the ingest endpoint."""
+
+    event_type: str
+    event_data: dict[str, Any] = Field(default_factory=dict)
+    event_index: int | None = None
+
+
+class IngestRecordingRequest(BaseModel):
+    """Request body for ingesting a pre-built recording trace.
+
+    Used by the routine-eval harness to load hand-made fixtures directly
+    into ``recording_manager`` without driving the real browser recorder.
+    The endpoint that consumes this request is gated behind the env flag
+    ``OPENBROWSER_ENABLE_TEST_ROUTES=1`` so it is not exposed in normal
+    server deployments.
+    """
+
+    name: str
+    intent_note: str | None = None
+    events: list[IngestRecordingEvent]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 @router.post("")
 async def create_recording(request: CreateRecordingRequest):
     """Create and start a new recording session."""
@@ -154,6 +179,72 @@ async def create_recording(request: CreateRecordingRequest):
         "success": True,
         "recording": session.to_dict() if session else None,
         "extension_response": response.dict(),
+    }
+
+
+@router.post("/ingest")
+async def ingest_recording(request: IngestRecordingRequest):
+    """Ingest a pre-built recording trace into a STOPPED session.
+
+    This endpoint exists for the routine-eval harness and is disabled
+    unless ``OPENBROWSER_ENABLE_TEST_ROUTES=1`` is set in the server
+    environment. It lets the harness hand the server a JSON fixture
+    containing the event list that would normally be captured by the
+    extension's recorder, so compile-eval runs do not need a real Chrome
+    session. Returns a ``recording_id`` that can be passed to the
+    existing ``/compile`` endpoint.
+    """
+    if os.getenv("OPENBROWSER_ENABLE_TEST_ROUTES") != "1":
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if not request.events:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot ingest an empty event list.",
+        )
+
+    # Use a synthetic browser_id. The ingested recording is never
+    # attached to a real extension, so no websocket validation applies.
+    browser_id = "__eval_ingest__"
+
+    metadata: dict[str, Any] = dict(request.metadata or {})
+    if request.intent_note is not None:
+        metadata["intent_note"] = request.intent_note
+    metadata.setdefault("ingest_source", "routine_eval")
+
+    try:
+        session = recording_manager.create_recording(
+            browser_id=browser_id,
+            name=request.name,
+            metadata=metadata,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    for event in request.events:
+        saved = recording_manager.save_recording_event(
+            recording_id=session.recording_id,
+            event_type=event.event_type,
+            event_data=event.event_data,
+            event_index=event.event_index,
+        )
+        if not saved:
+            recording_manager.delete_recording(session.recording_id)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to persist ingested recording event.",
+            )
+
+    recording_manager.set_recording_status(
+        session.recording_id,
+        RecordingStatus.STOPPED,
+    )
+
+    updated = recording_manager.get_recording(session.recording_id)
+    return {
+        "success": True,
+        "recording_id": session.recording_id,
+        "recording": updated.to_dict() if updated else None,
     }
 
 

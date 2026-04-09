@@ -1,0 +1,75 @@
+[
+  {
+    "event_type": "page_view",
+    "event_data": {
+      "timestamp": 1710000200000,
+      "page": {
+        "url": "http://localhost:16605/finviz/",
+        "title": "Stock Screener - Financial Visualizations"
+      },
+      "reason": "start-recording",
+      "url": "http://localhost:16605/finviz/",
+      "title": "Stock Screener - Financial Visualizations",
+      "readyState": "complete",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "devicePixelRatio": 1
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "event_index": 0
+  },
+  {
+    "event_type": "change",
+    "event_data": {
+      "timestamp": 1710000201800,
+      "page": {
+        "url": "http://localhost:16605/finviz/",
+        "title": "Stock Screener - Financial Visualizations"
+      },
+      "element": {
+        "tagName": "select",
+        "selector": "#fs_cap",
+        "html": "<select id=\"fs_cap\" class=\"fv-select screener-select\" data-filter=\"cap\"><option value=\"\">Any</option><option value=\"mega\">Mega ($200bln and more)</option><option value=\"large\">Large ($10bln to $200bln)</option><option value=\"mid\">Mid ($2bln to $10bln)</option><option value=\"small\">Small ($300mln to $2bln)</option><option value=\"micro\">Micro ($50mln to $300mln)</option><option value=\"nano\">Nano (under $50mln)</option><option value=\"largeover\">+Large (over $10bln)</option><option value=\"midover\">+Mid (over $2bln)</option><option value=\"smallover\">+Small (over $300mln)</option><option value=\"largeunder\">-Large (under $200bln)</option><option value=\"midunder\">-Mid (under $10bln)</option><option value=\"smallunder\">-Small (under $2bln)</option></select>",
+        "text": "Any Mega ($200bln and more) Large ($10bln to $200bln) Mid ($2bln to $10bln) +Large (over $10bln)",
+        "parentText": "Market Cap. Any Mega ($200bln and more) Large ($10bln to $200bln) Mid ($2bln to $10bln) +Large (over $10bln)",
+        "id": "fs_cap",
+        "className": "fv-select screener-select",
+        "role": null,
+        "ariaLabel": null,
+        "title": null,
+        "name": null,
+        "placeholder": null,
+        "bbox": {
+          "x": 495,
+          "y": 265,
+          "width": 234,
+          "height": 32
+        },
+        "container": {
+          "kind": "container",
+          "selector": "div.filter-item:nth-of-type(1)",
+          "title": "Market Cap.",
+          "href": null,
+          "textSnippet": "Market Cap. Any Mega ($200bln and more) Large ($10bln to $200bln) Mid ($2bln to $10bln) +Large (over $10bln)",
+          "className": "filter-item",
+          "role": null,
+          "ariaLabel": null,
+          "bbox": {
+            "x": 462,
+            "y": 236,
+            "width": 275,
+            "height": 72
+          }
+        },
+        "value": "largeover",
+        "selectedText": "+Large (over $10bln)"
+      }
+    },
+    "event_index": 1
+  }
+]

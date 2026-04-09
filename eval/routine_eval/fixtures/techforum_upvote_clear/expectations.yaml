@@ -1,0 +1,29 @@
+# Compiler expectations for fixture `techforum_upvote_clear`.
+#
+# This fixture is unambiguous: the user visits the TechForum homepage and
+# clicks the upvote button on the first post. There is nothing for the
+# compiler to ask about, and the upvote target has a clean stable hook
+# (data-action="upvote"), so a Keywords line is mandatory on the upvote
+# step.
+
+intent_summary: |
+  Open the TechForum homepage and upvote the first question card on the
+  home feed exactly once.
+
+expected_questions:
+  required: []         # compiler must not ask ANY questions for this fixture
+  forbidden:
+    - "Which post to upvote"
+    - "Whether to upvote the comments or the post"
+    - "Whether to unvote after voting"
+
+expected_keywords:
+  must_have_for_steps:
+    - description: "the upvote button on the first post"
+      # The compiler prompt's priority list puts data-* semantic
+      # attributes above class tokens, so `upvote` (from
+      # data-action="upvote") is the expected pick. `answer-action`,
+      # `action-btn`, and similar are not acceptable because they match
+      # every action button on the page.
+      acceptable_tokens:
+        - upvote

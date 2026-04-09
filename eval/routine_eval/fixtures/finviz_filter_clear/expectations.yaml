@@ -1,0 +1,28 @@
+# Compiler expectations for fixture `finviz_filter_clear`.
+#
+# Unambiguous native-<select> fixture. The compiled routine must (a) use
+# the `select` action with value "largeover", not a click-then-click
+# dance, and (b) carry `**Keywords:** fs_cap` (or `cap` as a second
+# acceptable choice) on the select step.
+
+intent_summary: |
+  Open the Finviz screener homepage and set the Market Cap dropdown to
+  the "largeover" option (visible label "+Large (over $10bln)").
+
+expected_questions:
+  required: []
+  forbidden:
+    - "Which market-cap threshold to use"
+    - "Whether to parameterize the market-cap value"
+    - "Whether to apply additional filters"
+
+expected_keywords:
+  must_have_for_steps:
+    - description: "the Market Cap <select> dropdown"
+      # `fs_cap` is the id-attribute pick (priority 3 in the compiler
+      # prompt). `cap` is the data-filter pick (priority 2). Either is
+      # acceptable; the judge should reject hashed or generic picks like
+      # `screener-select` or `fv-select`.
+      acceptable_tokens:
+        - fs_cap
+        - cap

@@ -15,7 +15,7 @@ replacement = new_stock_data
 
 # Use a simpler approach - find the start and end of STOCKS_DATA
 start_marker = "const STOCKS_DATA = ["
-end_marker = "];\n\n// Global state"
+end_marker = "let allStocks"
 
 start_idx = content.find(start_marker)
 end_idx = content.find(end_marker)
@@ -27,7 +27,10 @@ if start_idx == -1 or end_idx == -1:
 
 # Replace the stock data
 new_content = (
-    content[:start_idx] + new_stock_data + "\n\n" + content[end_idx + len(end_marker) :]
+    content[:start_idx]
+    + new_stock_data
+    + "\n\n"
+    + content[end_idx:]
 )
 
 # Write back

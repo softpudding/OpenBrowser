@@ -1,0 +1,27 @@
+id: replay_finviz_filter_simple
+name: "Replay: Finviz market-cap filter routine"
+difficulty: easy
+description: "Replay a hand-written routine that sets the Finviz Market Cap filter to +Large and verify the same tracker event fires."
+start_url: "http://localhost:16605/finviz/"
+routine_file: "eval/routine_eval/routines/finviz_filter_simple.md"
+instruction: "Use the Finviz screener to filter stocks by market cap over $10 billion (select '+Large (over $10bln)' from the Market Cap dropdown)."
+time_limit: 300.0
+cost_limit: 0.8
+
+criteria:
+  - type: select_market_cap_filter
+    description: "Set the Market Cap filter to largeover via routine replay"
+    points: 2
+    expected:
+      event_type: select
+      element_id: "fs_cap"
+      value: "largeover"
+      page: "/finviz/"
+
+  - type: verify_filter_applied
+    description: "Verify a page view followed the selection"
+    points: 1
+    expected:
+      event_type: page_view
+      page: "/finviz/"
+    optional: true

@@ -1,0 +1,23 @@
+id: replay_techforum_upvote
+name: "Replay: TechForum upvote routine"
+difficulty: medium
+description: "Replay a hand-written routine that upvotes the first post on TechForum and verify the same tracker event fires."
+start_url: "http://localhost:16605/techforum/"
+# When routine_file is set, evaluate_browser_agent.py creates the
+# conversation in routine_replay mode and sends the routine markdown
+# as the initial message instead of `instruction`. The instruction
+# field is kept as a human-readable fallback for --manual mode.
+routine_file: "eval/routine_eval/routines/techforum_upvote.md"
+instruction: "Upvote the first post on the TechForum homepage."
+time_limit: 300.0
+cost_limit: 0.5
+
+criteria:
+  - type: upvote_action
+    description: "Upvoted the first post via routine replay"
+    points: 2
+    expected:
+      event_type: answer_action
+      action: upvote
+      questionId: "1"
+      page: "/techforum/"

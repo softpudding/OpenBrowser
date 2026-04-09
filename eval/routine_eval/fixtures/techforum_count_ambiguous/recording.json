@@ -1,0 +1,173 @@
+[
+  {
+    "event_type": "page_view",
+    "event_data": {
+      "timestamp": 1710000100000,
+      "page": {
+        "url": "http://localhost:16605/techforum/",
+        "title": "TechForum - Where Questions Meet Answers"
+      },
+      "reason": "start-recording",
+      "url": "http://localhost:16605/techforum/",
+      "title": "TechForum - Where Questions Meet Answers",
+      "readyState": "complete",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "devicePixelRatio": 1
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "event_index": 0
+  },
+  {
+    "event_type": "click",
+    "event_data": {
+      "timestamp": 1710000101200,
+      "page": {
+        "url": "http://localhost:16605/techforum/",
+        "title": "TechForum - Where Questions Meet Answers"
+      },
+      "clientX": 798,
+      "clientY": 417,
+      "element": {
+        "tagName": "button",
+        "selector": "article.question-card[data-question-id=\"1\"] button.action-btn.upvote",
+        "html": "<button class=\"action-btn upvote\" type=\"button\" data-action=\"upvote\" aria-pressed=\"false\"><span class=\"icon\">👍</span><span class=\"count\">2,341</span></button>",
+        "text": "👍 2,341",
+        "parentText": "How do you evaluate the development trends of AI in 2025? 3,421 people following 128 answers",
+        "id": null,
+        "className": "action-btn upvote",
+        "role": null,
+        "ariaLabel": null,
+        "title": null,
+        "name": null,
+        "placeholder": null,
+        "bbox": {
+          "x": 742,
+          "y": 401,
+          "width": 112,
+          "height": 32
+        },
+        "container": {
+          "kind": "article",
+          "selector": "article.question-card[data-question-id=\"1\"]",
+          "title": "How do you evaluate the development trends of AI in 2025?",
+          "href": "http://localhost:16605/techforum/questions.html?question=1",
+          "textSnippet": "How do you evaluate the development trends of AI in 2025? 3,421 people following 128 answers AI Researcher 👍 2,341",
+          "className": "question-card",
+          "role": null,
+          "ariaLabel": null,
+          "bbox": {
+            "x": 338,
+            "y": 180,
+            "width": 610,
+            "height": 356
+          }
+        }
+      }
+    },
+    "event_index": 1
+  },
+  {
+    "event_type": "click",
+    "event_data": {
+      "timestamp": 1710000102600,
+      "page": {
+        "url": "http://localhost:16605/techforum/",
+        "title": "TechForum - Where Questions Meet Answers"
+      },
+      "clientX": 798,
+      "clientY": 789,
+      "element": {
+        "tagName": "button",
+        "selector": "article.question-card[data-question-id=\"2\"] button.action-btn.upvote",
+        "html": "<button class=\"action-btn upvote\" type=\"button\" data-action=\"upvote\" aria-pressed=\"false\"><span class=\"icon\">👍</span><span class=\"count\">4,189</span></button>",
+        "text": "👍 4,189",
+        "parentText": "Should startups build private AI copilots or rely on hosted APIs first? 12,567 people following 246 answers",
+        "id": null,
+        "className": "action-btn upvote",
+        "role": null,
+        "ariaLabel": null,
+        "title": null,
+        "name": null,
+        "placeholder": null,
+        "bbox": {
+          "x": 742,
+          "y": 773,
+          "width": 112,
+          "height": 32
+        },
+        "container": {
+          "kind": "article",
+          "selector": "article.question-card[data-question-id=\"2\"]",
+          "title": "Should startups build private AI copilots or rely on hosted APIs first?",
+          "href": "http://localhost:16605/techforum/questions.html?question=2",
+          "textSnippet": "Should startups build private AI copilots or rely on hosted APIs first? 12,567 people following 246 answers Infra Founder 👍 4,189",
+          "className": "question-card",
+          "role": null,
+          "ariaLabel": null,
+          "bbox": {
+            "x": 338,
+            "y": 552,
+            "width": 610,
+            "height": 320
+          }
+        }
+      }
+    },
+    "event_index": 2
+  },
+  {
+    "event_type": "click",
+    "event_data": {
+      "timestamp": 1710000104020,
+      "page": {
+        "url": "http://localhost:16605/techforum/",
+        "title": "TechForum - Where Questions Meet Answers"
+      },
+      "clientX": 798,
+      "clientY": 1138,
+      "element": {
+        "tagName": "button",
+        "selector": "article.question-card[data-question-id=\"3\"] button.action-btn.upvote",
+        "html": "<button class=\"action-btn upvote\" type=\"button\" data-action=\"upvote\" aria-pressed=\"false\"><span class=\"icon\">👍</span><span class=\"count\">1,874</span></button>",
+        "text": "👍 1,874",
+        "parentText": "What is the best study plan to switch from backend engineering to ML systems? 8,901 people following 96 answers",
+        "id": null,
+        "className": "action-btn upvote",
+        "role": null,
+        "ariaLabel": null,
+        "title": null,
+        "name": null,
+        "placeholder": null,
+        "bbox": {
+          "x": 742,
+          "y": 1122,
+          "width": 112,
+          "height": 32
+        },
+        "container": {
+          "kind": "article",
+          "selector": "article.question-card[data-question-id=\"3\"]",
+          "title": "What is the best study plan to switch from backend engineering to ML systems?",
+          "href": "http://localhost:16605/techforum/questions.html?question=3",
+          "textSnippet": "What is the best study plan to switch from backend engineering to ML systems? 8,901 people following 96 answers ML Systems Mentor 👍 1,874",
+          "className": "question-card",
+          "role": null,
+          "ariaLabel": null,
+          "bbox": {
+            "x": 338,
+            "y": 905,
+            "width": 610,
+            "height": 302
+          }
+        }
+      }
+    },
+    "event_index": 3
+  }
+]
