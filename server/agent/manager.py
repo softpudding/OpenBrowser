@@ -174,8 +174,15 @@ class OpenBrowserAgentManager:
         self,
         model: Optional[str] = None,
         model_alias: Optional[str] = None,
+        routine_replay_mode: bool = False,
     ) -> dict[str, object]:
-        """Build model-aware kwargs for the SDK system prompt template."""
+        """Build model-aware kwargs for the SDK system prompt template.
+
+        ``routine_replay_mode`` is a fixed mode flag set at conversation
+        creation time — not something the LLM judges from message content.
+        When True, the Jinja template renders the <ROUTINE_REPLAY> block
+        with the Routine keyword-unlock rules.
+        """
         resolved_model, _, _ = self._resolve_llm_settings(
             model=model, model_alias=model_alias
         )
@@ -184,6 +191,7 @@ class OpenBrowserAgentManager:
         return {
             "model_profile": get_model_profile(resolved_model),
             "small_model": small_model,
+            "routine_replay_mode": routine_replay_mode,
         }
 
     def _build_session_metadata(
@@ -192,8 +200,14 @@ class OpenBrowserAgentManager:
         base_url: Optional[str] = None,
         browser_id: Optional[str] = None,
         model_alias: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Build session metadata with resolved model settings."""
+        """Build session metadata with resolved model settings.
+
+        ``mode`` is an opaque conversation-mode tag stored verbatim in
+        session metadata so every process that reads the session can see
+        it. Today the only recognized value is ``"routine_replay"``.
+        """
         resolved_model, resolved_base_url, _ = self._resolve_llm_settings(
             model=model, base_url=base_url, model_alias=model_alias
         )
@@ -208,8 +222,15 @@ class OpenBrowserAgentManager:
             metadata["model_alias"] = model_alias
         if browser_id:
             metadata["browser_id"] = browser_id
+        if mode:
+            metadata["mode"] = mode
 
         return metadata
+
+    @staticmethod
+    def _is_routine_replay_mode(mode: Optional[str]) -> bool:
+        """Map the opaque mode string to the routine-replay flag."""
+        return mode == "routine_replay"
 
     def create_conversation(
         self,
@@ -219,6 +240,7 @@ class OpenBrowserAgentManager:
         base_url: Optional[str] = None,
         browser_id: Optional[str] = None,
         model_alias: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> str:
         """Create a new conversation with session management
 
@@ -227,6 +249,9 @@ class OpenBrowserAgentManager:
             cwd: Working directory for the conversation (default: current directory)
             model: Optional model name override (e.g., "dashscope/qwen3.5-plus")
             base_url: Optional base URL override
+            mode: Optional conversation-mode tag. ``"routine_replay"``
+                enables the routine-replay system prompt block and its
+                keyword-unlock rules.
 
         Returns:
             The conversation ID
@@ -248,6 +273,7 @@ class OpenBrowserAgentManager:
             base_url=base_url,
             browser_id=browser_id,
             model_alias=model_alias,
+            mode=mode,
         )
 
         session_manager.create_session(
@@ -259,12 +285,24 @@ class OpenBrowserAgentManager:
         # In multi-process mode, spawn a process for this conversation
         if self.multi_process_mode:
             return self._create_conversation_process(
-                conversation_id, cwd, model, base_url, browser_id, model_alias
+                conversation_id,
+                cwd,
+                model,
+                base_url,
+                browser_id,
+                model_alias,
+                mode=mode,
             )
 
         # Single-process mode: create conversation in main process
         return self._create_conversation_in_process(
-            conversation_id, cwd, model, base_url, browser_id, model_alias
+            conversation_id,
+            cwd,
+            model,
+            base_url,
+            browser_id,
+            model_alias,
+            mode=mode,
         )
 
     def _create_conversation_in_process(
@@ -275,12 +313,14 @@ class OpenBrowserAgentManager:
         base_url: Optional[str] = None,
         browser_id: Optional[str] = None,
         model_alias: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> str:
         """Create a conversation in the current process (single-process mode).
 
         Args:
             conversation_id: Conversation ID
             cwd: Working directory
+            mode: Conversation-mode tag (e.g. ``"routine_replay"``).
 
         Returns:
             The conversation ID
@@ -302,7 +342,9 @@ class OpenBrowserAgentManager:
             ),
             agent_context=agent_context,
             system_prompt_kwargs=self._get_system_prompt_kwargs(
-                model=model, model_alias=model_alias
+                model=model,
+                model_alias=model_alias,
+                routine_replay_mode=self._is_routine_replay_mode(mode),
             ),
             tool_image_window=tool_image_window,
         )
@@ -346,6 +388,7 @@ class OpenBrowserAgentManager:
         base_url: Optional[str] = None,
         browser_id: Optional[str] = None,
         model_alias: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> str:
         """Create a conversation in a separate process (multi-process mode).
 
@@ -355,6 +398,10 @@ class OpenBrowserAgentManager:
         Args:
             conversation_id: Conversation ID
             cwd: Working directory
+            mode: Conversation-mode tag. Worker reads it from session
+                metadata (shared SQLite) when it spins up its own
+                AgentManager, so no IPC plumbing is needed here — this
+                param is retained for signature consistency.
 
         Returns:
             The conversation ID
@@ -454,6 +501,7 @@ class OpenBrowserAgentManager:
             return self.conversations[conversation_id]
 
         browser_id: Optional[str] = None
+        mode: Optional[str] = None
 
         # Check if session exists and has model metadata
         existing_session = session_manager.get_session(conversation_id)
@@ -463,6 +511,7 @@ class OpenBrowserAgentManager:
             session_base_url = existing_session.metadata.get("base_url")
             session_model_alias = existing_session.metadata.get("model_alias")
             session_browser_id = existing_session.metadata.get("browser_id")
+            session_mode = existing_session.metadata.get("mode")
 
             # If model was not provided as parameter, use session model
             if model is None and session_model:
@@ -473,6 +522,8 @@ class OpenBrowserAgentManager:
                 model_alias = session_model_alias
             if isinstance(session_browser_id, str) and session_browser_id:
                 browser_id = session_browser_id
+            if isinstance(session_mode, str) and session_mode:
+                mode = session_mode
 
             metadata = existing_session.metadata.copy()
             resolved_metadata = self._build_session_metadata(
@@ -480,6 +531,7 @@ class OpenBrowserAgentManager:
                 base_url=base_url,
                 browser_id=browser_id,
                 model_alias=model_alias,
+                mode=mode,
             )
             for key, value in resolved_metadata.items():
                 metadata.setdefault(key, value)
@@ -490,6 +542,7 @@ class OpenBrowserAgentManager:
             model = metadata.get("model", model)
             base_url = metadata.get("base_url", base_url)
             model_alias = metadata.get("model_alias", model_alias)
+            mode = metadata.get("mode", mode)
         else:
             # Create new session with model metadata
             metadata = self._build_session_metadata(
@@ -497,6 +550,7 @@ class OpenBrowserAgentManager:
                 base_url=base_url,
                 browser_id=browser_id,
                 model_alias=model_alias,
+                mode=mode,
             )
 
             session_manager.create_session(
@@ -513,6 +567,7 @@ class OpenBrowserAgentManager:
                 base_url=base_url,
                 browser_id=browser_id,
                 model_alias=model_alias,
+                mode=mode,
             )
             return self.conversations[conversation_id]
 
@@ -534,7 +589,9 @@ class OpenBrowserAgentManager:
             ),
             agent_context=agent_context,
             system_prompt_kwargs=self._get_system_prompt_kwargs(
-                model=model, model_alias=model_alias
+                model=model,
+                model_alias=model_alias,
+                routine_replay_mode=self._is_routine_replay_mode(mode),
             ),
             tool_image_window=tool_image_window,
         )

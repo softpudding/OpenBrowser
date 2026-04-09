@@ -92,11 +92,91 @@ def test_small_model_highlight_action_schema_omits_keywords() -> None:
             "model_name": "dashscope/qwen3.5-flash",
             "model_profile": "small",
             "small_model": True,
+            "routine_replay_mode": False,
         },
     ):
         action_type = get_highlight_action_type()
 
+    assert action_type is highlight_tool_module.SmallModelHighlightAction
     assert "keywords" not in action_type.model_fields
+
+
+def test_small_model_routine_replay_highlight_action_allows_restricted_keywords() -> (
+    None
+):
+    with patch.object(
+        highlight_tool_module,
+        "get_prompt_render_context",
+        return_value={
+            "model_name": "dashscope/qwen3.5-flash",
+            "model_profile": "small",
+            "small_model": True,
+            "routine_replay_mode": True,
+        },
+    ):
+        action_type = get_highlight_action_type()
+
+    assert action_type is highlight_tool_module.SmallModelRoutineReplayHighlightAction
+    assert "keywords" in action_type.model_fields
+
+    keywords_field = action_type.model_fields["keywords"]
+    description = keywords_field.description or ""
+    # The description should anchor the small model on the Routine-supplied
+    # token and defer to the system prompt's <ROUTINE_REPLAY> block for the
+    # full rules — duplicating the rules here would re-introduce the
+    # multi-source guidance the user pushed back on.
+    assert "**Keywords:**" in description
+    assert "verbatim" in description
+    assert "<ROUTINE_REPLAY>" in description
+
+
+def test_large_model_highlight_action_keeps_keywords_in_any_mode() -> None:
+    for replay_flag in (False, True):
+        with patch.object(
+            highlight_tool_module,
+            "get_prompt_render_context",
+            return_value={
+                "model_name": "dashscope/qwen3.5-plus",
+                "model_profile": "large",
+                "small_model": False,
+                "routine_replay_mode": replay_flag,
+            },
+        ):
+            action_type = get_highlight_action_type()
+
+        assert action_type is highlight_tool_module.HighlightAction
+        assert "keywords" in action_type.model_fields
+
+
+def test_small_model_highlight_prompt_never_mentions_keywords_in_either_mode() -> None:
+    """Routine-replay guidance lives only in the system prompt's
+    <ROUTINE_REPLAY> block. The small-model highlight tool prompt itself must
+    not mention `keywords` in either mode — duplicating routine-replay rules
+    inside the tool prompt makes the overall guidance inconsistent."""
+    base_context = {
+        "model_name": "dashscope/qwen3.5-flash",
+        "model_profile": "small",
+        "small_model": True,
+    }
+
+    with patch.object(
+        highlight_tool_module,
+        "get_prompt_render_context",
+        return_value={**base_context, "routine_replay_mode": False},
+    ):
+        non_replay_description = get_highlight_tool_description()
+
+    with patch.object(
+        highlight_tool_module,
+        "get_prompt_render_context",
+        return_value={**base_context, "routine_replay_mode": True},
+    ):
+        replay_description = get_highlight_tool_description()
+
+    for description in (non_replay_description, replay_description):
+        assert "`keywords`" not in description
+        assert "Routine Replay" not in description
+        assert "Keywords:" not in description
 
 
 def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without_broad_search() -> (

@@ -253,7 +253,7 @@ The visual interaction workflow is implemented across 4 focused tools:
 |------|----------|---------|
 | `tab` | `tab init`, `tab open`, `tab close`, `tab switch`, `tab list`, `tab refresh`, `tab view`, `tab back`, `tab forward` | Session and tab management |
 | `highlight` | `highlight_elements` | Element discovery with blue overlays |
-| `element_interaction` | `click_element`, `confirm_click_element`, `hover_element`, `scroll_element`, `keyboard_input`, `confirm_keyboard_input`, `select_element` | Element interaction with 2PC only for click and keyboard input |
+| `element_interaction` | `click_element`, `confirm_click_element`, `hover_element`, `scroll_element`, `keyboard_input`, `confirm_keyboard_input`, `select_element`, `confirm_select` | Element interaction with 2PC for click, keyboard input, and select |
 | `dialog` | `handle_dialog` | Dialog handling (accept/dismiss) |
 
 ## UNIQUE PATTERNS
@@ -272,9 +272,10 @@ If operation fails twice:
 ## PERFORMANCE OPTIMIZATIONS
 
 ### Selective 2PC
-- `click_element` and `keyboard_input` require an ORANGE confirmation preview followed by `confirm_click_element` or `confirm_keyboard_input`
-- `hover_element`, `scroll_element`, `swipe_element`, and `select_element` execute immediately and return the post-action screenshot
-- Starting a different action clears any pending confirmation from a previous `click_element` or `keyboard_input`
+- `click_element`, `keyboard_input`, and `select_element` require a YELLOW confirmation preview followed by `confirm_click_element`, `confirm_keyboard_input`, or `confirm_select`
+- `select` confirmation messages also echo the chosen `value` so the agent can verify option text against the rendered `<option>` list
+- `hover_element`, `scroll_element`, and `swipe_element` execute immediately and return the post-action screenshot
+- Starting a different action clears any pending confirmation from a previous `click_element`, `keyboard_input`, or `select_element`
 
 ## SISYPHUS MODE
 
@@ -313,11 +314,18 @@ Configuration is saved to `localStorage` (key: `openbrowser_sisyphus_config`).
 ## COMMANDS
 
 ```bash
-# Start server
+# Start server (HTTP 8765, WebSocket 8766)
 uv run local-chrome-server serve
+uv run local-chrome-server serve --multi-process     # one worker process per conversation
 
 # Build extension
 cd extension && npm run build
+
+# Server tests (pytest, async mode auto, paths under server/tests)
+uv run pytest                                                                # all
+uv run pytest server/tests/unit/test_recording_routes.py                     # one file
+uv run pytest server/tests/unit/test_recording_routes.py::TestName::test_x   # one test
+uv run pytest -m integration                                                 # needs running server + extension
 ```
 
 ## SCREENSHOT BEHAVIOR
@@ -325,6 +333,20 @@ cd extension && npm run build
 OpenBrowser has explicit screenshot control for maximum flexibility:
 
 - Screenshots also serve as a practical page warmup mechanism for background tabs. They can unblock page paint and media decode work that passive DOM/readiness inspection does not reliably trigger on its own.
+- Screenshot output sizing must not rely on `Page.captureScreenshot` with `clip.scale < 1` on a live tab.
+- Reason: scaled CDP captures were reproduced to leave the visible page shrunk into the top-left corner, including during recording.
+- Preferred strategy: capture at the tab's natural device-pixel size first, then downscale/compress offline inside the extension.
+
+### Recording Keyframes
+
+- Recording keyframes must **not** be attached to `page_view` events.
+- Reason: `page_view` is emitted during content-script `resume` / `start-recording` after refresh or reload, which is earlier than a stable post-load milestone.
+- Capturing a screenshot in that early `page_view` phase was reproduced to shrink the live Chrome page into the top-left corner during recording sessions.
+- `tab_ready` should stay as a lifecycle event and must not be the sole source of recording screenshots.
+- Reason: on slow pages, users often start interacting while the tab still reports loading; waiting for `tab_ready` can miss the meaningful pre-load-complete actions entirely.
+- Prefer action-timed keyframes on `click` / `submit`, but discard them when the captured screenshot has already drifted to a different URL than the source event page. This preserves useful action context without trusting navigation-transition screenshots.
+- Recording output size limits such as `960x540` should be enforced only by offline downscale/compression after a full-size capture, never by CDP `clip.scale`.
+- Action-timed recording keyframes may include an in-image bbox/banner annotation for the acted-on element (or submitted form) so review UI can show exactly what the user just clicked or typed into.
 
 ### Commands That Return Screenshots
 
@@ -606,7 +628,8 @@ Criteria match tracked events using flexible pattern matching:
 
 ## NOTES
 
-- **Git dependencies:** `openhands-sdk` and `openhands-tools` from git subdirectories
+- **Vendored SDK:** `openhands-sdk` and `openhands-tools` are editable installs from `../agent-sdk/openhands-sdk` and `../agent-sdk/openhands-tools` (see `[tool.uv.sources]` in `pyproject.toml`). Modify those paths directly when adding agents or tools — there is no separate package to publish.
 - **CDP required:** Extension uses Chrome DevTools Protocol for screenshots/JS execution
 - **Preset coordinates:** Screenshots at 1280x720, mouse in 0-1280/0-720 coordinate system
 - **Config storage:** LLM config in `~/.openbrowser/llm_config.json`
+- **Compiler agent traces:** dumped on completion / asking / error to `~/.openbrowser/compiler_traces/{recording_id}_{timestamp}.json`. The path is included in the SSE `complete` / `error` payload from `POST /recordings/{id}/compile`. The compiler agent's `QueueVisualizer` intentionally does not pass a `conversation_id`, so debugging relies on these dump files rather than the sessions DB.

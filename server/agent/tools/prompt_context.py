@@ -21,6 +21,7 @@ def get_prompt_render_context(conv_state: Any = None) -> dict[str, Any]:
     """Build shared Jinja context for tool prompt rendering."""
     conversation_id = _get_conversation_id(conv_state)
     model_name: str | None = None
+    routine_replay_mode = False
 
     if conversation_id is not None:
         session = session_manager.get_session(conversation_id)
@@ -39,9 +40,14 @@ def get_prompt_render_context(conv_state: Any = None) -> dict[str, Any]:
                     except ValueError:
                         model_name = None
 
+            raw_mode = session.metadata.get("mode")
+            if isinstance(raw_mode, str) and raw_mode == "routine_replay":
+                routine_replay_mode = True
+
     profile = get_model_profile(model_name)
     return {
         "model_name": model_name,
         "model_profile": profile,
         "small_model": is_small_model(model_name),
+        "routine_replay_mode": routine_replay_mode,
     }

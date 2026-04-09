@@ -30,6 +30,7 @@ from server.models.commands import (
     GetElementHtmlCommand,
     HighlightSingleElementCommand,
     SelectElementCommand,
+    RecordingControlCommand,
 )
 from server.websocket.manager import ws_manager
 from server.core.config import config
@@ -248,6 +249,8 @@ class CommandProcessor:
                 return await self._execute_highlight_single_element(command)
             elif isinstance(command, SelectElementCommand):
                 return await self._execute_select_element(command)
+            elif isinstance(command, RecordingControlCommand):
+                return await self._execute_recording_control(command)
             else:
                 raise ValueError(f"Unknown command type: {command.type}")
 
@@ -428,6 +431,12 @@ class CommandProcessor:
         self, command: SelectElementCommand
     ) -> CommandResponse:
         """Select an option in a <select> element by its ID"""
+        return await self._send_prepared_command(command)
+
+    async def _execute_recording_control(
+        self, command: RecordingControlCommand
+    ) -> CommandResponse:
+        """Start or stop recording mode in the browser extension."""
         return await self._send_prepared_command(command)
 
     def set_current_tab(self, tab_id: int, conversation_id: str = None):

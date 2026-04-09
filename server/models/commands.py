@@ -207,6 +207,20 @@ class DialogAction(str, Enum):
     DISMISS = "dismiss"
 
 
+class RecordingControlAction(str, Enum):
+    """Recording control action."""
+
+    START = "start"
+    STOP = "stop"
+
+
+class RecordingLaunchMode(str, Enum):
+    """How a recording session should allocate browser workspace."""
+
+    DEDICATED_WINDOW = "dedicated_window"
+    CURRENT_WINDOW = "current_window"
+
+
 class HandleDialogCommand(BaseCommand):
     """Handle an open JavaScript dialog (confirm/prompt)"""
 
@@ -386,7 +400,16 @@ class SelectElementCommand(BaseCommand):
     type: Literal["select_element"] = "select_element"
     element_id: str = Field(description="Element ID from highlight response")
     value: Union[str, List[str]] = Field(
-        description="Option value(s) to select. Use string for single select, list for multi-select."
+        description=(
+            "The option to select. Match order: (1) the option's `value` "
+            "attribute exactly, (2) the option's visible label exactly, "
+            "(3) case-insensitive substring of the visible label. Prefer "
+            "the `value` attribute — it is what the recorder captures from "
+            "<select> change events. If unsure, run `highlight` with "
+            "element_type=selectable first; the response shows the full "
+            '<select> outerHTML including every <option value="...">. '
+            "Pass a string for single select, a list for multi-select."
+        )
     )
     tab_id: Optional[int] = Field(
         default=None,
@@ -410,13 +433,31 @@ class HighlightSingleElementCommand(BaseCommand):
 
     type: Literal["highlight_single_element"] = "highlight_single_element"
     element_id: str = Field(description="Element ID from highlight response")
-    intended_action: Optional[Literal["click", "keyboard_input"]] = Field(
+    intended_action: Optional[Literal["click", "keyboard_input", "select"]] = Field(
         default=None,
         description="Optional action name to render in the confirmation reminder banner",
     )
     tab_id: Optional[int] = Field(
         default=None,
         description="Target tab ID (optional, uses active tab if not provided)",
+    )
+
+
+class RecordingControlCommand(BaseCommand):
+    """Start or stop browser recording mode."""
+
+    type: Literal["recording_control"] = "recording_control"
+    action: RecordingControlAction = Field(
+        description="Recording action to perform: 'start' or 'stop'"
+    )
+    recording_id: str = Field(description="Recording session ID")
+    launch_mode: Optional[RecordingLaunchMode] = Field(
+        default=None,
+        description=(
+            "Optional recording workspace strategy for start actions. "
+            "'dedicated_window' opens a fresh browser window, while "
+            "'current_window' scopes recording to the focused window."
+        ),
     )
 
 
@@ -468,6 +509,7 @@ Command = Union[
     KeyboardInputCommand,
     SelectElementCommand,
     GetElementHtmlCommand | HighlightSingleElementCommand,
+    RecordingControlCommand,
 ]
 
 
@@ -501,6 +543,7 @@ def parse_command(data: dict) -> Command:
         "select_element": SelectElementCommand,
         "get_element_html": GetElementHtmlCommand,
         "highlight_single_element": HighlightSingleElementCommand,
+        "recording_control": RecordingControlCommand,
     }
 
     if cmd_type not in command_map:

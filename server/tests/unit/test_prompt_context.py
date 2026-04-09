@@ -31,6 +31,7 @@ def test_prompt_context_defaults_to_large_profile_without_conversation() -> None
         "model_name": None,
         "model_profile": "large",
         "small_model": False,
+        "routine_replay_mode": False,
     }
 
 
@@ -96,3 +97,62 @@ def test_prompt_context_prefers_explicit_model(monkeypatch) -> None:
     assert context["model_name"] == "dashscope/qwen3.5-plus"
     assert context["model_profile"] == "large"
     assert context["small_model"] is False
+    assert context["routine_replay_mode"] is False
+
+
+def test_prompt_context_detects_routine_replay_mode(monkeypatch) -> None:
+    fake_session = SimpleNamespace(
+        metadata={
+            "model": "dashscope/qwen3.5-plus",
+            "mode": "routine_replay",
+        }
+    )
+
+    monkeypatch.setattr(
+        prompt_context_module.session_manager,
+        "get_session",
+        lambda conversation_id: fake_session,
+    )
+
+    context = get_prompt_render_context(SimpleNamespace(id="conv-replay"))
+
+    assert context["routine_replay_mode"] is True
+
+
+def test_prompt_context_ignores_non_replay_modes(monkeypatch) -> None:
+    fake_session = SimpleNamespace(
+        metadata={
+            "model": "dashscope/qwen3.5-plus",
+            "mode": "browse",
+        }
+    )
+
+    monkeypatch.setattr(
+        prompt_context_module.session_manager,
+        "get_session",
+        lambda conversation_id: fake_session,
+    )
+
+    context = get_prompt_render_context(SimpleNamespace(id="conv-browse"))
+
+    assert context["routine_replay_mode"] is False
+
+
+def test_prompt_context_replay_mode_works_for_small_models(monkeypatch) -> None:
+    fake_session = SimpleNamespace(
+        metadata={
+            "model": "dashscope/qwen3.5-flash",
+            "mode": "routine_replay",
+        }
+    )
+
+    monkeypatch.setattr(
+        prompt_context_module.session_manager,
+        "get_session",
+        lambda conversation_id: fake_session,
+    )
+
+    context = get_prompt_render_context(SimpleNamespace(id="conv-small-replay"))
+
+    assert context["small_model"] is True
+    assert context["routine_replay_mode"] is True

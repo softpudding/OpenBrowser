@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from openhands.sdk import Action, ImageContent, Observation, TextContent
 from pydantic import Field
+from pydantic.json_schema import SkipJsonSchema
 
 
 class OpenBrowserAction(Action):
@@ -19,9 +20,16 @@ class OpenBrowserAction(Action):
     actions, enabling proper type hierarchy and conversation isolation.
     """
 
-    conversation_id: Optional[str] = Field(
+    # NOTE: conversation_id is an internal routing field, NOT a tool parameter.
+    # It must never be exposed to the LLM — the executor injects the real value
+    # from the active conversation state. Wrapping it in SkipJsonSchema keeps it
+    # out of the JSON schema generated for the LLM tool call so the model can't
+    # be tempted to fill it (e.g. mistaking it for tab_id and sending garbage
+    # that the Chrome extension server then rejects with HTTP 400).
+    conversation_id: SkipJsonSchema[Optional[str]] = Field(
         default=None,
-        description="Conversation ID for session isolation. Required for multi-session support.",
+        description="Internal: conversation ID for session isolation. Set by the executor, never by the LLM.",
+        exclude=True,
     )
 
 
@@ -145,6 +153,20 @@ class OpenBrowserObservation(Observation):
                 "",
             ]
         )
+
+        if action_type == "select":
+            extra_data = pending.get("extra_data") or {}
+            chosen_value = extra_data.get("value")
+            if chosen_value is not None:
+                if isinstance(chosen_value, list):
+                    rendered_value = ", ".join(f"'{v}'" for v in chosen_value)
+                    text_parts.append(f"**Chosen Values**: [{rendered_value}]")
+                else:
+                    text_parts.append(f"**Chosen Value**: '{chosen_value}'")
+                text_parts.append(
+                    "Verify this `value` matches the `<option>` you intended in the HTML below before confirming."
+                )
+                text_parts.append("")
 
         full_html = str(pending.get("full_html", "")).strip()
         if full_html:

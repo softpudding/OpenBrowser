@@ -33,13 +33,27 @@ def _text_content(observation: OpenBrowserObservation) -> str:
 
 
 class TestOpenBrowserAction:
-    def test_model_dump_preserves_conversation_id(self) -> None:
+    def test_conversation_id_is_internal_only(self) -> None:
+        """conversation_id is an executor-injected routing field.
+
+        It must be settable from Python (the executor sets it from the active
+        conversation state) but must NOT appear in `model_dump()` or in the
+        JSON schema exposed to the LLM — otherwise the model can be tempted to
+        fill it (e.g. mistaking it for tab_id) and corrupt session routing.
+        """
         action = OpenBrowserAction(conversation_id="conv-456")
 
-        dumped = action.model_dump()
+        # Still readable as a normal attribute from Python code.
+        assert action.conversation_id == "conv-456"
 
-        assert dumped["conversation_id"] == "conv-456"
+        # Excluded from serialization so downstream consumers never see it.
+        dumped = action.model_dump()
+        assert "conversation_id" not in dumped
         assert dumped["kind"] == "OpenBrowserAction"
+
+        # Excluded from the JSON schema exposed to the LLM tool schema.
+        schema = OpenBrowserAction.model_json_schema()
+        assert "conversation_id" not in schema.get("properties", {})
 
 
 class TestOpenBrowserObservation:
@@ -289,6 +303,45 @@ class TestOpenBrowserObservation:
         assert '"element_id"' not in text
         assert "**Element ID**: inp789" in text
         assert "**Action Type**: keyboard_input" in text
+
+    def test_pending_select_confirmation_surfaces_chosen_value(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            pending_confirmation={
+                "element_id": "sel123",
+                "action_type": "select",
+                "full_html": (
+                    "<select>"
+                    '<option value="usa">USA</option>'
+                    '<option value="can">Canada</option>'
+                    "</select>"
+                ),
+                "extra_data": {"value": "usa", "tab_id": 99},
+            },
+        )
+
+        text = _text_content(observation)
+
+        assert '{"action": "confirm_select"}' in text
+        assert "**Element ID**: sel123" in text
+        assert "**Action Type**: select" in text
+        assert "**Chosen Value**: 'usa'" in text
+        assert "Verify this `value` matches the `<option>`" in text
+
+    def test_pending_select_confirmation_renders_multi_value_list(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            pending_confirmation={
+                "element_id": "sel456",
+                "action_type": "select",
+                "full_html": "<select multiple></select>",
+                "extra_data": {"value": ["a", "b"]},
+            },
+        )
+
+        text = _text_content(observation)
+
+        assert "**Chosen Values**: ['a', 'b']" in text
 
     def test_pending_confirmation_includes_corrected_element_id_note(self) -> None:
         observation = OpenBrowserObservation(

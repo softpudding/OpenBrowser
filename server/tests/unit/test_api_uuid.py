@@ -179,6 +179,7 @@ class TestConversationCreationWithBrowserId:
             base_url=None,
             browser_id="valid-browser-uuid",
             model_alias="flash",
+            mode=None,
         )
 
     def test_create_conversation_with_invalid_browser_id(
@@ -221,6 +222,7 @@ class TestConversationCreationWithBrowserId:
             base_url=None,
             browser_id=None,
             model_alias=None,
+            mode=None,
         )
 
 

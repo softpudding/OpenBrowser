@@ -8,7 +8,7 @@ Use one `element_id` from the current interactive observation to act on the page
 2. If a likely target is already partly visible, clipped by the viewport edge, or crowded by sticky UI, scroll first to reposition it.
 3. If it already contains the right `element_id`, act on it directly.
 4. If not, call `highlight` to paginate or narrow by `element_type`.
-5. Only `click` and `keyboard_input` produce a YELLOW preview and require the matching `confirm_*`.
+5. `click`, `keyboard_input`, and `select` each produce a YELLOW preview and require the matching `confirm_*`.
 6. Successful direct actions and completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
 7. If you need a clean screenshot without overlays, use `tab view`.
 
@@ -51,7 +51,10 @@ If the target is `inputable`, always `click` it first and complete that confirma
 
 ```json
 { "action": "select", "element_id": "M8P", "value": "option1", "tab_id": 123 }
+{ "action": "confirm_select" }
 ```
+
+The preview message echoes the chosen `value`. Verify it matches the option you intended (compare against the `<option>` list in the HTML) before confirming.
 
 ### scroll
 
@@ -89,8 +92,9 @@ These are content directions, not hand or finger movement directions. Do not rei
 
 ## Confirmation Rules
 
-- `click` and `keyboard_input` require confirmation
-- `confirm_click` and `confirm_keyboard_input` operate on the current pending confirmation; do not repeat `element_id`
+- `click`, `keyboard_input`, and `select` require confirmation
+- `confirm_click`, `confirm_keyboard_input`, and `confirm_select` operate on the current pending confirmation; do not repeat `element_id`, `text`, or `value`
 - If the YELLOW preview appears, confirm only when the box position and reminder text or other explicit preview cues match your target
+- For `confirm_select`, also verify that the echoed `value` matches the exact option you intended
 - The YELLOW confirmation preview itself does not invalidate the chosen `element_id`
 - If the preview does not match, the page changed, or the target went stale, do not confirm; rebuild inventory and choose again

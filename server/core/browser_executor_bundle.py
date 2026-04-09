@@ -299,16 +299,9 @@ class BrowserExecutorBundle:
                     e,
                 )
 
-            event_queue.put(
-                SSEEvent(
-                    "complete",
-                    build_completion_event_payload(
-                        self.conversation_id,
-                        conv_state.conversation.state.events,
-                    ),
-                )
-            )
-
+            # Emit usage_metrics *before* complete: the SSE streamer drains
+            # and breaks right after yielding complete, so anything enqueued
+            # after it can race and be dropped.
             if usage_metrics:
                 session_manager.save_event(
                     conversation_id=self.conversation_id,
@@ -327,6 +320,16 @@ class BrowserExecutorBundle:
                         },
                     )
                 )
+
+            event_queue.put(
+                SSEEvent(
+                    "complete",
+                    build_completion_event_payload(
+                        self.conversation_id,
+                        conv_state.conversation.state.events,
+                    ),
+                )
+            )
 
             return {"success": True}
 

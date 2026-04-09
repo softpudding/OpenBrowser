@@ -236,7 +236,20 @@ class TestPromptContracts:
 
         assert '{ "action": "confirm_click" }' in description
         assert '{ "action": "confirm_keyboard_input" }' in description
+        assert '{ "action": "confirm_select" }' in description
         assert '"element_id": "A1H"' in description
+
+    def test_element_interaction_prompt_puts_select_in_yellow_stage(self) -> None:
+        description = get_element_interaction_tool_description()
+
+        assert (
+            "Only `click`, `keyboard_input`, and `select` use the **YELLOW stage**"
+            in description
+        )
+        assert "confirm_select" in description
+        # The chosen value should be surfaced in confirmation guidance so the LLM
+        # can verify option text against the rendered <option> list.
+        assert "echoed `value`" in description
 
     def test_element_interaction_action_schema_explains_swipe_semantics(self) -> None:
         description = ElementInteractionAction.model_fields["direction"].description

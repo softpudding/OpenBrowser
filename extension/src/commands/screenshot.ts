@@ -9,7 +9,7 @@ import { debuggerSessionManager } from './debugger-manager';
 import { workerManager } from '../workers/worker-manager';
 import { dialogManager, DialogType, type DialogInfo } from './dialog';
 import {
-  calculateScreenshotCaptureScale,
+  calculateScreenshotOutputScale,
   DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
   type ScreenshotCaptureOptions,
 } from '../utils/highlight-screenshot';
@@ -922,6 +922,72 @@ export async function resizeImageWithWorker(
   }
 }
 
+async function downscaleImageToFit(
+  dataUrl: string,
+  maxWidth: number,
+  maxHeight: number,
+  format: 'png' | 'jpeg',
+  quality: number,
+): Promise<{ dataUrl: string; width: number; height: number; scale: number }> {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  const imageBitmap = await createImageBitmap(blob);
+
+  try {
+    const scale = calculateScreenshotOutputScale(
+      imageBitmap.width,
+      imageBitmap.height,
+      {
+        maxOutputWidth: maxWidth,
+        maxOutputHeight: maxHeight,
+      },
+    );
+
+    if (scale >= 1) {
+      return {
+        dataUrl,
+        width: imageBitmap.width,
+        height: imageBitmap.height,
+        scale,
+      };
+    }
+
+    const targetWidth = Math.max(1, Math.round(imageBitmap.width * scale));
+    const targetHeight = Math.max(1, Math.round(imageBitmap.height * scale));
+    const canvas = new OffscreenCanvas(targetWidth, targetHeight);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('[Screenshot] Failed to create 2D canvas for downscale');
+    }
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+    ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+
+    const resizedBlob = await canvas.convertToBlob({
+      type: `image/${format}`,
+      quality: format === 'jpeg' ? quality / 100 : undefined,
+    });
+
+    const resizedDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () =>
+        reject(new Error('[Screenshot] Failed to read downscaled screenshot'));
+      reader.readAsDataURL(resizedBlob);
+    });
+
+    return {
+      dataUrl: resizedDataUrl,
+      width: targetWidth,
+      height: targetHeight,
+      scale,
+    };
+  } finally {
+    imageBitmap.close();
+  }
+}
+
 /**
  * Capture screenshot using CDP (Chrome DevTools Protocol)
  * This captures the specified tab even if it's in the background
@@ -1113,20 +1179,15 @@ async function captureScreenshotWithCDP(
     await waitForPageToSettleBeforeCapture(cdpCommander, captureOptions);
 
     // ========================================
-    // STEP 5: Capture screenshot - "所见即所得"方案
+    // STEP 5: Capture screenshot at the tab's natural device-pixel size.
+    // Output clamping happens afterward in the extension so we never ask CDP
+    // to apply clip.scale < 1 on a live page.
     // ========================================
     // CDP captureScreenshot parameters:
     // - clip.x, clip.y: starting position in CSS pixels
     // - clip.width, clip.height: dimensions in CSS pixels
-    // - clip.scale: device pixel ratio (e.g., 2 for Retina displays)
-    // The returned image will be in device pixels (width * scale, height * scale)
-
-    const clipScale = calculateScreenshotCaptureScale(
-      cssViewportWidth,
-      cssViewportHeight,
-      devicePixelRatio,
-      captureOptions,
-    );
+    // - clip.scale: 1 means capture at the current device-pixel resolution
+    const clipScale = 1;
     const expectedOutputWidth = Math.round(
       cssViewportWidth * devicePixelRatio * clipScale,
     );
@@ -1135,10 +1196,10 @@ async function captureScreenshotWithCDP(
     );
 
     console.log(
-      `🎯 [Screenshot] Capturing with clip: (${cssViewportX}, ${cssViewportY}) ${cssViewportWidth}x${cssViewportHeight} CSS pixels, scale=${clipScale} (sourceDPR=${devicePixelRatio})`,
+      `🎯 [Screenshot] Capturing with clip: (${cssViewportX}, ${cssViewportY}) ${cssViewportWidth}x${cssViewportHeight} CSS pixels at natural scale=${clipScale} (sourceDPR=${devicePixelRatio})`,
     );
     console.log(
-      `🎯 [Screenshot] Target output pixels: ${expectedOutputWidth}x${expectedOutputHeight}`,
+      `🎯 [Screenshot] Raw output pixels before offline resize: ${expectedOutputWidth}x${expectedOutputHeight}`,
     );
 
     // 最大允许的base64数据大小：10MB
@@ -1278,13 +1339,40 @@ async function captureScreenshotWithCDP(
     );
 
     // ========================================
-    // STEP 7: 验证最终图像数据并返回结果
+    // STEP 7: Optionally downscale offline, then validate the final image
     // ========================================
-    // 不再进行缩放，直接使用原始截图
-    const finalImageData = dataUrl;
+    let finalImageData = dataUrl;
     const actualDimensions = await inspectImageDimensions(finalImageData);
-    const finalImageWidth = actualDimensions.width;
-    const finalImageHeight = actualDimensions.height;
+    let finalImageWidth = actualDimensions.width;
+    let finalImageHeight = actualDimensions.height;
+
+    const outputScale = calculateScreenshotOutputScale(
+      finalImageWidth,
+      finalImageHeight,
+      captureOptions,
+    );
+    const hasOfflineOutputBounds = Boolean(
+      (captureOptions.maxOutputWidth && captureOptions.maxOutputWidth > 0) ||
+      (captureOptions.maxOutputHeight && captureOptions.maxOutputHeight > 0),
+    );
+    if (outputScale < 1 && hasOfflineOutputBounds) {
+      const downscaledResult = await downscaleImageToFit(
+        finalImageData,
+        captureOptions.maxOutputWidth ?? finalImageWidth,
+        captureOptions.maxOutputHeight ?? finalImageHeight,
+        format as 'png' | 'jpeg',
+        finalQuality,
+      );
+
+      finalImageData = downscaledResult.dataUrl;
+      finalImageWidth = downscaledResult.width;
+      finalImageHeight = downscaledResult.height;
+
+      console.log(
+        `🖼️ [Screenshot] Offline-resized screenshot to ${finalImageWidth}x${finalImageHeight} (scale=${downscaledResult.scale.toFixed(3)})`,
+      );
+    }
+
     const imageScaleX =
       cssViewportWidth > 0 ? finalImageWidth / cssViewportWidth : 1;
     const imageScaleY =
@@ -1316,7 +1404,7 @@ async function captureScreenshotWithCDP(
     const tab = await chrome.tabs.get(tabId);
 
     console.log(
-      `✅ [Screenshot] Screenshot complete: ${finalImageWidth}x${finalImageHeight}, format=${format}, quality=${finalQuality}, size=${screenshot.data.length} bytes`,
+      `✅ [Screenshot] Screenshot complete: ${finalImageWidth}x${finalImageHeight}, format=${format}, quality=${finalQuality}, size=${finalImageData.length} bytes`,
     );
 
     return {
