@@ -189,6 +189,7 @@ class FixtureRunResult:
     proxy_tokens: int = 0
     compile_duration_seconds: float = 0.0
     recording_id: Optional[str] = None
+    agent_events: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -203,6 +204,7 @@ class FixtureRunResult:
             "proxy_tokens": self.proxy_tokens,
             "compile_duration_seconds": self.compile_duration_seconds,
             "recording_id": self.recording_id,
+            "agent_events": self.agent_events,
         }
 
 
@@ -254,17 +256,96 @@ def _iter_sse(response: requests.Response) -> Iterator[tuple[str, dict[str, Any]
             data_lines.append(raw_line[len("data:") :].lstrip())
 
 
+def _format_agent_event(data: dict[str, Any], truncate: int = 500) -> Optional[str]:
+    """Format an ``agent_event`` SSE payload into a single line.
+
+    Mirrors the frontend's ``appendCompilerLogEntry()`` labels:
+    ``STEP [tool]``, ``ASK``, ``RESULT [tool]``, ``AGENT``.
+
+    All newlines in the body are collapsed to ``" | "`` so each event
+    is exactly one terminal line — easy to scan and unambiguous about
+    where one event ends and the next begins.
+
+    *truncate* caps the body length. Pass ``0`` for no limit (``--full-events``).
+
+    Returns ``None`` for events that aren't worth printing (e.g.
+    system prompts or initial user messages).
+    """
+    event_type = data.get("type", "")
+    tool = data.get("tool_name", "")
+    text = data.get("text", "")
+
+    def _oneline(s: str) -> str:
+        """Collapse newlines and compress whitespace into a single line."""
+        return " | ".join(
+            part for line in s.splitlines() if (part := line.strip())
+        )
+
+    def _prep(s: str) -> str:
+        s = _oneline(s)
+        if truncate and len(s) > truncate:
+            return s[:truncate] + "…"
+        return s
+
+    if event_type == "ActionEvent":
+        body = data.get("summary") or data.get("action") or ""
+        if tool == "ask_user":
+            return f"  ASK  {_prep(body)}" if body else "  ASK"
+        label = f"STEP [{tool}]" if tool else "STEP"
+        return f"  {label}  {_prep(body)}" if body else f"  {label}"
+
+    if event_type == "ObservationEvent":
+        label = f"RESULT [{tool}]" if tool else "RESULT"
+        # Extract result content, stripping the "Tool: ...\nResult:\n" header.
+        body = ""
+        if text:
+            if "Result:\n" in text:
+                body = text.split("Result:\n", 1)[1].strip()
+            elif "Tool:" in text:
+                lines = text.split("\n", 1)
+                body = lines[1].strip() if len(lines) > 1 else text
+            else:
+                body = text.strip()
+        if not body:
+            body = data.get("message") or data.get("error") or ""
+        return f"  {label}  {_prep(body)}" if body else f"  {label}"
+
+    if event_type == "MessageEvent":
+        role = data.get("role") or data.get("source") or ""
+        if role in ("agent", "assistant"):
+            return f"  AGENT  {_prep(text)}" if text else "  AGENT"
+        return None  # skip user/system messages
+
+    return None
+
+
 def _consume_until_terminal(
     response: requests.Response,
+    agent_events_out: Optional[list[dict[str, Any]]] = None,
+    verbose: bool = False,
+    event_truncate: int = 500,
 ) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]]]:
     """Read an SSE stream until ``complete`` or ``error`` arrives.
 
     Returns ``(complete_payload, error_payload)`` where exactly one of
     the two is set on a well-formed stream. If the stream ends without
     either, both are ``None``.
+
+    If *agent_events_out* is provided, every ``agent_event`` payload is
+    appended to it (for inclusion in the report). When *verbose* is
+    ``True``, agent events are printed to stderr in real time,
+    truncated to *event_truncate* chars (0 = no limit).
     """
     try:
         for event_type, data in _iter_sse(response):
+            if event_type == "agent_event":
+                if agent_events_out is not None:
+                    agent_events_out.append(data)
+                if verbose:
+                    line = _format_agent_event(data, truncate=event_truncate)
+                    if line:
+                        print(line, file=sys.stderr, flush=True)
+                continue
             if event_type == "complete":
                 return data, None
             if event_type == "error":
@@ -394,25 +475,39 @@ def run_one_fixture(
     compile_alias: Optional[str],
     judge_llm: Any,
     max_ask_rounds: int = DEFAULT_MAX_ASK_ROUNDS,
+    verbose: bool = False,
+    event_truncate: int = 500,
 ) -> FixtureRunResult:
     """Drive one fixture end-to-end: ingest → compile loop → judge."""
     result = FixtureRunResult(fixture_id=fixture.fixture_id)
     start_time = time.time()
     recording_id: Optional[str] = None
+    all_agent_events: list[dict[str, Any]] = []
 
     try:
+        if verbose:
+            _log(f"  ingesting fixture {fixture.fixture_id}...")
         recording_id = _ingest_fixture(base_url, fixture)
         result.recording_id = recording_id
+        if verbose:
+            _log(f"  recording_id={recording_id}, starting compile stream...")
 
         response = _stream_compile(base_url, recording_id, compile_alias)
         response.raise_for_status()
+        if verbose:
+            _log("  compile stream opened, waiting for events...")
 
         asked_history: list[dict[str, str]] = []
         final_compile_result: Optional[dict[str, Any]] = None
         ask_round = 0
 
         while True:
-            complete, error = _consume_until_terminal(response)
+            complete, error = _consume_until_terminal(
+                response,
+                agent_events_out=all_agent_events,
+                verbose=verbose,
+                event_truncate=event_truncate,
+            )
             if error is not None:
                 result.error = f"Compiler error event: {error.get('error', error)}"
                 result.compile_duration_seconds = time.time() - start_time
@@ -481,6 +576,12 @@ def run_one_fixture(
             result.error = "Compile finished but routine_markdown was empty"
             return result
 
+        if verbose:
+            _log(
+                f"  compile done (status={result.final_status}, "
+                f"{len(all_agent_events)} agent events, "
+                f"{len(asked_history)} questions). judging..."
+            )
         judgment = judge_routine(
             llm=judge_llm,
             raw_intent=fixture.raw_intention,
@@ -492,6 +593,16 @@ def run_one_fixture(
         result.proxy_cost += judgment.cost
         result.proxy_tokens += judgment.total_tokens
         result.success = True
+
+        # Print judge reasoning so the user can see why it scored that way.
+        if judgment.reasoning:
+            for axis, text in judgment.reasoning.items():
+                if text:
+                    print(
+                        f"  [judge {axis}] {text[:300]}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
 
     except requests.HTTPError as exc:
         body = ""
@@ -505,6 +616,7 @@ def run_one_fixture(
         logger.exception("Fixture %s failed with an unexpected error", fixture.fixture_id)
         result.error = f"Orchestrator error: {exc}"
     finally:
+        result.agent_events = all_agent_events
         if recording_id is not None:
             _delete_recording(base_url, recording_id)
         if result.compile_duration_seconds == 0.0:
@@ -659,19 +771,35 @@ def build_parser() -> argparse.ArgumentParser:
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable debug logging.",
+        help="Stream compiler agent events to stderr in real time.",
+    )
+    parser.add_argument(
+        "--full-events",
+        action="store_true",
+        help="With -v, print full event text without truncation.",
     )
     return parser
 
 
+def _log(msg: str) -> None:
+    """Print a timestamped message to stderr immediately (no buffering)."""
+    ts = time.strftime("%H:%M:%S")
+    print(f"[{ts}] {msg}", file=sys.stderr, flush=True)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
+    _log("parsing args...")
     parser = build_parser()
     args = parser.parse_args(argv)
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        force=True,
     )
+    # Quiet noisy third-party loggers even in verbose mode.
+    for noisy in ("LiteLLM", "litellm", "httpx", "httpcore", "urllib3"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     if args.all:
         fixture_ids = _discover_fixtures(FIXTURES_DIR)
@@ -683,18 +811,23 @@ def main(argv: Optional[list[str]] = None) -> int:
         if not fixture_ids:
             parser.error("Pass --fixture ID (one or more) or --all.")
 
+    _log(f"fixtures: {fixture_ids}")
+    _log(f"probing server at {args.base_url}...")
     try:
         _probe_server(args.base_url)
     except RuntimeError as exc:
         logger.error(str(exc))
         return 2
+    _log("server OK")
 
     judge_alias = args.judge_alias or args.compile_alias
+    _log(f"building judge LLM (alias={judge_alias})...")
     try:
         judge_llm = build_user_proxy_llm(model_alias=judge_alias)
     except Exception as exc:
         logger.error("Failed to build judge LLM: %s", exc)
         return 2
+    _log("judge LLM ready")
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     output_dir = args.output_dir or (OUTPUT_BASE_DIR / f"routine_compile_{timestamp}")
@@ -716,13 +849,15 @@ def main(argv: Optional[list[str]] = None) -> int:
             )
             continue
 
-        logger.info("▶ Running fixture: %s", fid)
+        _log(f"▶ running fixture: {fid} ({len(fixture.events)} events)")
         result = run_one_fixture(
             base_url=args.base_url,
             fixture=fixture,
             compile_alias=args.compile_alias,
             judge_llm=judge_llm,
             max_ask_rounds=args.max_ask_rounds,
+            verbose=args.verbose,
+            event_truncate=0 if args.full_events else 500,
         )
         results.append(result)
 

@@ -1,33 +1,32 @@
 # Compiler expectations for fixture `techforum_count_ambiguous`.
 #
-# The recording shows three upvote clicks on the first three home-feed
-# cards, but the user's actual intent is criterion-based ("every
-# AI-related post"). The compiler CANNOT tell the difference from the
-# trace alone and MUST ask a clarification question about the selection
-# criterion. The per-card upvote targets are inside a dynamic list, so
-# Keywords lines on them are not required (per the compiler prompt's
-# "skip Keywords for per-row items in a dynamic list" rule).
+# The recording shows the user searching "AI" on TechForum and then
+# upvoting 5 posts. The user's actual intent is criterion-based:
+# "upvote every post about AI agents". The compiler cannot determine
+# the selection criterion from the trace alone and MUST ask. The
+# collect/favorite and comment clicks are incidental browsing.
 
 intent_summary: |
-  Open TechForum and upvote every home-feed post whose title mentions AI,
-  LLMs, or machine learning.
+  Search for "AI" on TechForum, then upvote every search result whose
+  topic is specifically about AI agents.
 
 expected_questions:
   required:
-    # The compiler must ask SOMETHING about why the user upvoted three
-    # posts — e.g. was it a literal count, a topical criterion, or
-    # cherry-picked by the user's judgment. Any question that tries to
-    # resolve this selection criterion counts as a match.
+    # The compiler must ask about the selection criterion — why these
+    # 5 posts were upvoted and not others. Any question that surfaces
+    # the count-vs-criterion ambiguity counts.
     - "What is the selection criterion for which posts to upvote"
   forbidden:
-    - "Which specific post IDs to upvote"
-    - "Whether to hardcode the top N by position"
+    # The compiler should NOT ask about things already visible in the
+    # trace — the search query "AI" is plainly recorded.
+    - "What search query to use"
 
 expected_keywords:
-  # The upvote targets are per-card buttons inside a dynamic list whose
-  # contents rotate as the feed changes. Per the compiler prompt's
-  # "skip Keywords for per-row items" rule, Keywords lines on these
-  # steps are NOT required. If the compiler omits them, that's correct;
-  # if it adds them, they should at least point at a generic action
-  # hook like `upvote`, not a per-card id.
-  must_have_for_steps: []
+  # The search input has id="main-search" which is a clean keyword.
+  # The upvote targets are per-card buttons inside dynamic search
+  # results, so Keywords lines on individual upvote steps are not
+  # required (per the "skip for per-row items in a dynamic list" rule).
+  must_have_for_steps:
+    - description: "the search input field"
+      acceptable_tokens:
+        - main-search

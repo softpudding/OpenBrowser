@@ -1,31 +1,46 @@
-# Raw intention: filter Finviz by market cap over $10bln
+# Raw intention: find stocks that dropped 20% in the month
 
-I'm on the Finviz screener at `http://localhost:16605/finviz/`. The Market
-Cap dropdown is a **native `<select>`** (not a custom popup) and I picked
-the option labeled *"+Large (over $10bln)"*, which has the underlying
-`option.value="largeover"`. I did not touch any other filter before or
-after.
+I'm on the Finviz screener at `http://localhost:16605/finviz/`. My
+real goal is to find all stocks that dropped 20% in the past month.
 
-What I want the routine to do, end-to-end:
+## Filters I set (Descriptive tab)
 
-1. Open the Finviz screener homepage.
-2. Set the Market Cap dropdown to the `largeover` option (visible label:
-   "+Large (over $10bln)"), which filters the result table to stocks with
-   market cap above $10bln.
+1. **Market Cap** (`fs_cap`): set to `smallover` — "+Small (over $300mln)"
+2. **Dividend Yield** (`fs_fa_div`): set to `o3` — "Over 3%"
+3. **Relative Volume** (`fs_sh_relvol`): set to `o1` — "Over 1"
 
-That's the whole workflow. There is no ambiguity:
+## Filters I set (Fundamental tab)
 
-- The dropdown is a native HTML `<select>`, so the compiled routine must
-  use the `select` action (matched by `value`, not visible label). A
-  two-click "click dropdown then click option" routine is wrong here.
-- I do not want to additionally click "Apply" or similar — the filter
-  applies as soon as the dropdown value changes.
-- I am not parameterizing the market-cap threshold; "+Large (over $10bln)"
-  is a literal, fixed choice.
-- I do not want to clear other filters first — I just want this one
-  filter set.
+4. Click the **Fundamental** tab to reveal the fundamental filters.
+5. **P/E** (`fs_fa_pe`): set to `u20` — "Under 20"
+6. **P/B** (`fs_fa_pb`): set to `u2` — "Under 2"
 
-The compiler should therefore produce a two-step routine (navigate, then
-select) without asking any clarifying questions. The select step must
-carry a `**Keywords:**` line because the `<select>` has a clean
-developer-written `id="fs_cap"`.
+## Viewing results
+
+7. Switch to the **Performance** view by clicking the "Performance" tab
+   in the results area.
+8. Click the **Perf Month** column header to sort by monthly
+   performance. In the recording I sorted descending (top performers
+   first), but my actual goal is to find stocks that dropped ~20%.
+   The compiler should ask about the sort direction / what I'm looking
+   for, because the intent note says "look at the top performers" yet
+   finding 20%-droppers requires sorting ascending or scanning the
+   bottom.
+9. Click on three stock tickers to view their detail pages: **UISA**,
+   **SHXD**, **NRGB** — these were just the top results after sorting;
+   I want the routine to open whatever stocks match the criterion, not
+   these specific tickers.
+
+## What the routine should do
+
+The compiled routine should reproduce the screening flow: set all 5
+filters across both tabs, switch to Performance view, sort by Perf
+Month, and click the matching results. The compiler should NOT ask
+about the filter values — they are all clearly visible in the
+recording's `change` events. The compiler SHOULD ask:
+
+- Whether clicking 3 stocks means "top 3" or "these specific tickers"
+  — the answer is whichever stocks match the criterion.
+- What the user is actually looking for in the Perf Month sort,
+  because the intent note is vague and a 20%-drop goal conflicts with
+  a descending sort — the answer is stocks that dropped ~20%.

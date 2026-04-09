@@ -1,25 +1,62 @@
 id: replay_finviz_filter_simple
-name: "Replay: Finviz market-cap filter routine"
-difficulty: easy
-description: "Replay a hand-written routine that sets the Finviz Market Cap filter to +Large and verify the same tracker event fires."
+name: "Replay: Finviz multi-filter screening routine"
+difficulty: hard
+description: "Replay a hand-written routine that sets 5 Finviz filters, sorts by Perf Month, and opens top stocks."
 start_url: "http://localhost:16605/finviz/"
 routine_file: "eval/routine_eval/routines/finviz_filter_simple.md"
-instruction: "Use the Finviz screener to filter stocks by market cap over $10 billion (select '+Large (over $10bln)' from the Market Cap dropdown)."
-time_limit: 300.0
-cost_limit: 0.8
+# Human-readable instruction for --manual mode.
+instruction: "On the Finviz screener, set Market Cap to +Small (over $300mln), Dividend Yield to Over 3%, Relative Volume to Over 1, then switch to the Fundamental tab and set P/E to Under 20 and P/B to Under 2. Switch to Performance view, sort by Perf Month descending, and click the top 3 stocks."
+time_limit: 600.0
+cost_limit: 1.0
 
 criteria:
   - type: select_market_cap_filter
-    description: "Set the Market Cap filter to largeover via routine replay"
+    description: "Set the Market Cap filter to smallover"
     points: 2
     expected:
       event_type: select
       element_id: "fs_cap"
-      value: "largeover"
+      value: "smallover"
       page: "/finviz/"
 
-  - type: verify_filter_applied
-    description: "Verify a page view followed the selection"
+  - type: select_dividend_filter
+    description: "Set the Dividend Yield filter to o3"
+    points: 2
+    expected:
+      event_type: select
+      element_id: "fs_fa_div"
+      value: "o3"
+      page: "/finviz/"
+
+  - type: select_relvol_filter
+    description: "Set the Relative Volume filter to o1"
+    points: 1
+    expected:
+      event_type: select
+      element_id: "fs_sh_relvol"
+      value: "o1"
+      page: "/finviz/"
+
+  - type: select_pe_filter
+    description: "Set the P/E filter to u20"
+    points: 2
+    expected:
+      event_type: select
+      element_id: "fs_fa_pe"
+      value: "u20"
+      page: "/finviz/"
+
+  - type: select_pb_filter
+    description: "Set the P/B filter to u2"
+    points: 2
+    expected:
+      event_type: select
+      element_id: "fs_fa_pb"
+      value: "u2"
+      page: "/finviz/"
+
+  - type: verify_performance_view
+    description: "Verify page view after switching to performance view"
     points: 1
     expected:
       event_type: page_view
