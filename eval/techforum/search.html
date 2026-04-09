@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Questions - TechForum</title>
+    <title>Search - TechForum</title>
     <link rel="stylesheet" href="/techforum/css/techforum.css?v=5">
 </head>
-<body data-page-mode="detail">
+<body data-page-mode="search">
     <header class="zhihu-header">
         <div class="header-container">
             <div class="logo">
@@ -19,8 +19,8 @@
                 <button class="search-icon" id="main-search-button" type="button" aria-label="Search">🔍</button>
             </div>
             <nav class="header-nav">
-                <a href="/techforum/" class="nav-item">Home</a>
-                <a href="/techforum/questions.html" class="nav-item active">Questions</a>
+                <a href="/techforum/" class="nav-item active">Home</a>
+                <a href="/techforum/questions.html" class="nav-item">Questions</a>
                 <a href="/techforum/topics.html" class="nav-item">Topics</a>
                 <a href="/techforum/people.html" class="nav-item">Users</a>
             </nav>
@@ -36,44 +36,45 @@
             <aside class="left-sidebar">
                 <nav class="sidebar-nav">
                     <a href="/techforum/" class="sidebar-item active">
-                        <span class="icon">📋</span>
-                        <span>Back to Feed</span>
+                        <span class="icon">🏠</span>
+                        <span>Back Home</span>
                     </a>
                     <a href="#" class="sidebar-item">
-                        <span class="icon">🧭</span>
-                        <span>Browse Topics</span>
+                        <span class="icon">🔍</span>
+                        <span>Search Results</span>
                     </a>
                     <a href="#" class="sidebar-item">
-                        <span class="icon">🧪</span>
-                        <span>Agent Eval</span>
+                        <span class="icon">🗂️</span>
+                        <span>Saved Filters</span>
                     </a>
                 </nav>
             </aside>
 
             <section class="feed">
-                <div class="page-summary" id="detail-summary"></div>
-                <div id="question-detail"></div>
+                <div class="page-summary" id="feed-summary"></div>
+                <div id="feed-posts"></div>
             </section>
 
             <aside class="right-sidebar">
                 <div class="sidebar-card">
-                    <h3 class="sidebar-title">Related Threads</h3>
+                    <h3 class="sidebar-title">Search Tips</h3>
                     <ul class="topic-list">
-                        <li><a href="/techforum/search.html?q=ai" class="topic-link">Best ways to evaluate AI features before launch?</a></li>
-                        <li><a href="/techforum/search.html?q=browser" class="topic-link">How do browser automation teams reduce flakiness?</a></li>
-                        <li><a href="/techforum/search.html?q=career" class="topic-link">Career moves from backend engineering into ML?</a></li>
+                        <li><a href="/techforum/search.html?q=ai" class="topic-link">Search: ai</a></li>
+                        <li><a href="/techforum/search.html?q=browser" class="topic-link">Search: browser</a></li>
+                        <li><a href="/techforum/search.html?q=cloud" class="topic-link">Search: cloud</a></li>
+                        <li><a href="/techforum/search.html?q=career" class="topic-link">Search: career</a></li>
                     </ul>
                 </div>
                 <div class="sidebar-card">
-                    <h3 class="sidebar-title">Featured Columns</h3>
+                    <h3 class="sidebar-title">Popular Collections</h3>
                     <div class="column-list">
                         <a href="#" class="column-item">
                             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'%3E%3Crect fill='%23f0f0f0' width='60' height='40'/%3E%3C/svg%3E" alt="column" class="column-cover">
-                            <span class="column-title">Prompt Systems That Hold Up</span>
+                            <span class="column-title">AI Launch Playbooks</span>
                         </a>
                         <a href="#" class="column-item">
                             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'%3E%3Crect fill='%23f0f0f0' width='60' height='40'/%3E%3C/svg%3E" alt="column" class="column-cover">
-                            <span class="column-title">Cloud Cost Reviews</span>
+                            <span class="column-title">Automation Case Studies</span>
                         </a>
                     </div>
                 </div>
