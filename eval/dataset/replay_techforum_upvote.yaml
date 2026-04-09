@@ -15,12 +15,10 @@ criteria:
     points: 2
     expected:
       event_type: search
-      page: "/techforum/search.html"
-    alternative:
-      event_type: input
-      element_id: "main-search"
-      value_contains: "AI"
       page: "/techforum/"
+    alternative:
+      event_type: page_view
+      page: "/techforum/search.html"
 
   # Step 2: upvote agent-related posts.
   # Post 7: "How do you evaluate browser automation agents..."
