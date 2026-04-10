@@ -1,12 +1,12 @@
 # OpenBrowser Project Knowledge Base
 
-**Generated:** 2026-03-16
-**Commit:** 8836b0b (main)
+**Generated:** 2026-04-10
+**Commit:** 25b3a2e (main)
 **Stack:** Python 3.12+ (FastAPI) + TypeScript (Chrome Extension MV3)
 
 ## OVERVIEW
 
-Visual AI assistant for browser automation powered by Qwen3.5-Plus (primary) with Qwen3.5-Flash support as a cost-effective alternative. Provides AI-powered visual understanding and interaction for web automation, data extraction, and interactive workflows. Single-model automation loop: visual perception → decision making → browser interaction → verification.
+Visual AI assistant for browser automation powered by Qwen3.5-Plus (primary) with Qwen3.5-Flash support as a cost-effective alternative. Provides AI-powered visual understanding and interaction for web automation, data extraction, interactive workflows, and a record -> compile -> replay pipeline for reusable Browser Routines. Single-model automation loop: visual perception → decision making → browser interaction → verification.
 
 ## STRUCTURE
 
@@ -19,6 +19,7 @@ OpenBrowser/
 │   └── websocket/    # WebSocket server
 ├── extension/        # Chrome extension (MV3) for browser control
 ├── frontend/         # Static web UI (HTML)
+├── eval/             # Mock sites + routine compile/replay evaluation
 └── reference/        # External SDK references (read-only)
 ```
 
@@ -30,10 +31,16 @@ OpenBrowser/
 | Browser commands | `server/core/processor.py` | Command routing, multi-session |
 | Dialog handling | `server/models/commands.py` | HandleDialogCommand, DialogAction |
 | REST API routes | `server/api/routes/` | FastAPI endpoints |
+| Recording routes | `server/api/routes/recordings.py` | Recording lifecycle, workflow draft, compiler, finalize |
+| Routine routes | `server/api/routes/routines.py` | Saved Browser Routine CRUD for replay |
 | Browser UUID routing | `server/api/routes/browsers.py` | Browser UUID registration and validation |
 | WebSocket handling | `server/websocket/manager.py` | Extension communication |
 | Browser UUID registry | `server/core/uuid_manager.py` | `uuid -> websocket` capability mapping |
 | Command models | `server/models/commands.py` | Pydantic command/response types |
+| Recording persistence | `server/core/recording_manager.py` | SQLite recording sessions/events, immutability boundaries |
+| Workflow draft compiler | `server/core/workflow_compiler.py` | Normalize raw recording traces into high-level draft steps/IR |
+| Compiler Agent | `server/core/compiler_agent.py` | TraceViewer, clarify-with-user loop, Routine validation |
+| Routine persistence | `server/core/routine_manager.py` | Saved routines linked back to source recordings |
 | **Prompt templates** | `server/agent/prompts/` | **Jinja2 templates for agent prompts** |
 | Tab tool | `server/agent/tools/tab_tool.py` | TabTool for tab management |
 | Highlight tool | `server/agent/tools/highlight_tool.py` | HighlightTool for element discovery |
@@ -41,12 +48,16 @@ OpenBrowser/
 | Dialog tool | `server/agent/tools/dialog_tool.py` | DialogTool for dialog handling |
 | ToolSet aggregator | `server/agent/tools/toolset.py` | OpenBrowserToolSet aggregates all 4 tools |
 | Extension entry | `extension/src/background/index.ts` | Command handler, dialog processing |
+| Extension recorder | `extension/src/recording/recorder.ts` | Recording scope, event capture, keyframe upload |
+| Recording keyframe policy | `extension/src/recording/keyframe-policy.ts` | Which events get screenshots and when drift is discarded |
 | Dialog manager | `extension/src/commands/dialog.ts` | CDP dialog events, cascading |
 | JavaScript execution | `extension/src/commands/javascript.ts` | CDP Runtime.evaluate, dialog race |
 | Screenshot capture | `extension/src/commands/screenshot.ts` | CDP Page.captureScreenshot |
 | Tab management | `extension/src/commands/tab-manager.ts` | Session isolation, tab groups |
 | UUID page | `extension/src/uuid/uuidPage.ts` | Browser UUID display and registration status |
-| Frontend chat UI | `frontend/index.html` | Browser UUID input, conversation UI, Sisyphus |
+| Frontend recording/replay UI | `frontend/index.html` | Browser UUID input, recording panel, compile flow, saved routines, slash-menu replay |
+| Routine evaluation | `eval/routine_eval/` | Compile-track + replay-track eval harness for record/replay |
+
 ## ARCHITECTURE
 
 ```
@@ -95,6 +106,53 @@ OpenBrowser now uses the browser UUID as a capability token, not just an interna
 - Browser routing must be single-target by UUID, not broadcast to all websockets
 - Frontend flow lives in `frontend/index.html`
 - UUID registration and validation live in `server/api/routes/browsers.py`, `server/core/uuid_manager.py`, and `server/websocket/manager.py`
+
+## RECORD & REPLAY DESIGN
+
+OpenBrowser's record/replay system is deliberately not a raw event replayer. The recording trace is evidence used to understand what the human did, compile a reusable Browser Routine, and debug failures later. Replay runs that compiled Routine as a fresh agent session.
+
+### Pipeline
+```
+1. POST /recordings
+2. Extension recorder starts in `dedicated_window` (default) or `current_window`
+3. Recorder captures scoped browser events + selective keyframes
+4. POST /recordings/{id}/events persists rows while the session is ACTIVE
+5. POST /recordings/{id}/stop freezes the trace
+6. GET /recordings/{id}/workflow-draft builds normalized steps / workflow IR
+7. POST /recordings/{id}/compile runs the Compiler Agent over raw events, keyframes, normalized steps, and `intent_note`
+8. Compiler may ask clarification questions, then emits validated Routine markdown
+9. POST /recordings/{id}/compile/finalize saves a named Routine in `routines`
+10. Frontend replay starts a fresh conversation with `mode="routine_replay"` and sends the Routine markdown as the first message
+```
+
+### Core Design Rules
+- Replay is **NOT** low-level click/scroll/input playback
+- Raw recording events are a source artifact for review, compilation, and debugging
+- `workflow-draft` is intermediate IR for review/compiler context, not the final replay format
+- The executable replay artifact is the finalized Routine markdown saved in `routines`
+- Saved routines keep a back-reference to `source_recording_id`
+
+### Recording Invariants
+- Only one ACTIVE recording may exist per browser UUID
+- Default launch mode is `dedicated_window`; `current_window` is opt-in
+- The recorder owns a recording scope (window/group/tab set) and automatically absorbs new in-scope tabs
+- `recording_started` and `recording_stopped` are ambient lifecycle events; they should not compile into replay steps
+- Once a recording leaves ACTIVE, `/recordings/{id}/events` must reject late async uploads so the reviewed trace stays immutable
+- If the browser websocket is gone at stop time, the server marks the row STOPPED locally with `stop_reason=browser_disconnected` instead of leaving it stranded ACTIVE
+- `page_view` intentionally does **not** carry a keyframe; early lifecycle captures were observed to distort the live Chrome page
+- Keyframes are selective: mainly `click`, `change`, `submit`, and input-like `focus`; some click/enter flows use pre-action captures, and post-capture screenshots are discarded if the capture already drifted to a different URL
+- Input/focus noise is merged before review/compiler consumption so the trace reflects intent instead of every transient keystroke
+
+### Replay Invariants
+- Replay always starts a **fresh conversation** with metadata `mode="routine_replay"`
+- `routine_replay_mode` is a server-side flag propagated from session metadata into system prompt rendering; the model never infers replay mode from free-form text
+- The frontend replay entry points are the saved-routine launcher and the `/` slash-menu routine picker in `frontend/index.html`
+- Small-model `highlight_elements(keywords=...)` is only allowed in routine replay, and the token must be copied verbatim from the active Routine step's `**Keywords:**` line
+
+### Evaluation Hooks
+- `eval/routine_eval/` has a compile track and a replay track
+- The compile track can ingest fixture traces through `POST /recordings/ingest`, gated by `OPENBROWSER_ENABLE_TEST_ROUTES=1`
+- The replay track executes golden routines in `routine_replay` mode on the mock sites
 
 ## DIALOG HANDLING
 
