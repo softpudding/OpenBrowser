@@ -10,19 +10,16 @@
 intent_summary: |
   Set 5 Finviz screener filters (Market Cap +Small, Dividend >3%,
   RelVol >1, P/E <20, P/B <2), switch to Performance view, sort by
-  Perf Month to find stocks that dropped ~20%, and open matching rows.
+  Perf Month, and open the top rows to inspect them.
 
 expected_questions:
   required:
     # The compiler must ask about the stock-click criterion: "top 3 by
     # performance" vs "these specific tickers". This is the count-based
-    # selection ambiguity from the compiler prompt.
+    # selection ambiguity from the compiler prompt. The sort direction
+    # is observable from the trace (element class + keyframe values),
+    # so asking about it is unnecessary.
     - "Whether the 3 clicked stocks are the top 3 or specific tickers"
-    # The intent note says "look at the top performers" but the user's
-    # real goal is finding stocks that dropped 20%. The compiler should
-    # ask what the user is looking for in the sort — ascending vs
-    # descending, top performers vs biggest losers.
-    - "What the user is looking for in the Perf Month sort (top performers vs drops)"
   forbidden:
     # Filter values are plainly visible in the trace — don't ask.
     - "Which market-cap threshold to use"

@@ -20,12 +20,10 @@ real goal is to find all stocks that dropped 20% in the past month.
 7. Switch to the **Performance** view by clicking the "Performance" tab
    in the results area.
 8. Click the **Perf Month** column header to sort by monthly
-   performance. In the recording I sorted descending (top performers
-   first), but my actual goal is to find stocks that dropped ~20%.
-   The compiler should ask about the sort direction / what I'm looking
-   for, because the intent note says "look at the top performers" yet
-   finding 20%-droppers requires sorting ascending or scanning the
-   bottom.
+   performance. The column header's `is-descending` class and the
+   keyframe values (showing negative percentages at the top after
+   the click) make the sort direction observable from the trace, so
+   the compiler does not need to ask about it.
 9. Click on three stock tickers to view their detail pages: **UISA**,
    **SHXD**, **NRGB** — these were just the top results after sorting;
    I want the routine to open whatever stocks match the criterion, not
@@ -41,6 +39,3 @@ recording's `change` events. The compiler SHOULD ask:
 
 - Whether clicking 3 stocks means "top 3" or "these specific tickers"
   — the answer is whichever stocks match the criterion.
-- What the user is actually looking for in the Perf Month sort,
-  because the intent note is vague and a 20%-drop goal conflicts with
-  a descending sort — the answer is stocks that dropped ~20%.
