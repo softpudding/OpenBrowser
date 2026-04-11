@@ -1,0 +1,54 @@
+id: drive_project_reorg
+name: "Drive Project Reorg"
+difficulty: hard
+description: "Search for a specific launch brief, move it into the correct nested approval folder, rename it, and create a shortcut in a second destination."
+start_url: "http://localhost:16605/drive/?reset=1"
+instruction: "In the Drive mock, search for the file named Launch Brief v5. Move that exact file into Projects / Launch / Final / Board Approvals. Rename it to Launch Brief Board Final. Then create a shortcut to that same file inside Projects / Launch / Final / Shared Launch Handoff."
+time_limit: 660.0
+cost_limit: 1.5
+
+criteria:
+  - type: search_file
+    description: "Search Drive for the target file"
+    points: 1.0
+    expected:
+      event_type: drive_search_execute
+      page: "/drive/"
+      query: "Launch Brief v5"
+
+  - type: select_target
+    description: "Select the exact launch brief file"
+    points: 1.0
+    expected:
+      event_type: item_select
+      page: "/drive/"
+      itemId: "file-launch-brief-v5"
+
+  - type: move_target
+    description: "Move the file to the correct approval folder"
+    points: 2.0
+    expected:
+      event_type: item_move
+      page: "/drive/"
+      itemId: "file-launch-brief-v5"
+      itemIds:
+        - "file-launch-brief-v5"
+      destinationId: "folder-launch-board-approvals"
+
+  - type: rename_target
+    description: "Rename the file"
+    points: 1.5
+    expected:
+      event_type: item_rename
+      page: "/drive/"
+      itemId: "file-launch-brief-v5"
+      newName: "Launch Brief Board Final"
+
+  - type: create_shortcut
+    description: "Create the shortcut in the correct folder"
+    points: 2.0
+    expected:
+      event_type: shortcut_create
+      page: "/drive/"
+      sourceId: "file-launch-brief-v5"
+      destinationId: "folder-shared-launch-handoff"

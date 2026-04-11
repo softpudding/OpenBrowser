@@ -1,0 +1,84 @@
+id: booking_room_selection
+name: "Booking Room Selection"
+difficulty: hard
+description: "Choose the destination, date range, and guests; filter results by review score and cancellation; open the correct hotel; select the only room plan that matches breakfast and free-cancellation constraints; and continue to traveler details."
+start_url: "http://localhost:16605/booking/?reset=1"
+instruction: "In the Booking mock, choose Lisbon, Portugal. Set the stay for 2026-06-14 to 2026-06-17 for 2 adults in 1 room. Filter results to review score 8.8+ and free cancellation. Open Castelo River House, choose the Deluxe Queen Balcony plan that includes breakfast and free cancellation, then continue to traveler details."
+time_limit: 660.0
+cost_limit: 1.5
+
+criteria:
+  - type: destination
+    description: "Choose Lisbon"
+    points: 1.0
+    expected:
+      event_type: destination_select
+      page: "/booking/"
+      destinationId: "lisbon-portugal"
+
+  - type: dates
+    description: "Select the date range"
+    points: 1.0
+    expected:
+      event_type: date_range_select
+      page: "/booking/"
+      checkIn: "2026-06-14"
+      checkOut: "2026-06-17"
+
+  - type: search
+    description: "Submit the search with the correct guest count"
+    points: 1.2
+    expected:
+      event_type: search_submit
+      page: "/booking/"
+      destinationId: "lisbon-portugal"
+      adults: 2
+      children: 0
+      rooms: 1
+
+  - type: filter_review
+    description: "Apply the review filter"
+    points: 0.8
+    expected:
+      event_type: filter_apply
+      page: "/booking/"
+      filterKey: "minReview"
+      value: "8.8"
+
+  - type: filter_cancellation
+    description: "Apply the free-cancellation filter"
+    points: 0.8
+    expected:
+      event_type: filter_apply
+      page: "/booking/"
+      filterKey: "freeCancellation"
+      value: "true"
+
+  - type: open_property
+    description: "Open the correct hotel"
+    points: 1.4
+    expected:
+      event_type: property_open
+      page: "/booking/"
+      propertyId: "property-castelo-river-house"
+
+  - type: select_room
+    description: "Select the correct room plan"
+    points: 1.6
+    expected:
+      event_type: rate_plan_select
+      page: "/booking/"
+      propertyId: "property-castelo-river-house"
+      roomPlanId: "plan-castelo-deluxe-breakfast-flex"
+      roomSlot: 1
+
+  - type: continue_checkout
+    description: "Continue to traveler details"
+    points: 1.2
+    expected:
+      event_type: booking_continue
+      page: "/booking/"
+      propertyId: "property-castelo-river-house"
+      roomPlanIds:
+        - "plan-castelo-deluxe-breakfast-flex"
+      stage: "traveler_details"

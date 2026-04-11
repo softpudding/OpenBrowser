@@ -1,0 +1,64 @@
+id: github_pr_review
+name: "GitHub PR Review"
+difficulty: hard
+description: "Open the target PR, switch to Files changed, filter the correct file path, add an inline diff comment on the correct hunk, mark another file viewed, and submit Request changes."
+start_url: "http://localhost:16605/github/?reset=1"
+instruction: 'In the GitHub mock, open pull request #42. Switch to Files changed. Filter the file list to server/billing/retry_policy.py. Add this exact inline diff comment on the retry-cap-guard hunk: "This still emits a duplicate invoice after the retry cap. We should stop before emit_duplicate_invoice." Then mark web/dashboard/release_gate.ts as viewed and submit a review with the state Request changes.'
+time_limit: 720.0
+cost_limit: 1.7
+
+criteria:
+  - type: open_pr
+    description: "Open the target PR"
+    points: 1.2
+    expected:
+      event_type: pr_open
+      page: "/github/"
+      prNumber: 42
+
+  - type: switch_files_changed
+    description: "Switch to Files changed"
+    points: 0.9
+    expected:
+      event_type: pr_tab_change
+      page: "/github/"
+      prNumber: 42
+      tab: "files"
+
+  - type: filter_file
+    description: "Filter to the exact file path"
+    points: 1.1
+    expected:
+      event_type: files_changed_filter_apply
+      page: "/github/"
+      prNumber: 42
+      query: "server/billing/retry_policy.py"
+
+  - type: add_inline_comment
+    description: "Leave the exact inline diff comment"
+    points: 2.4
+    expected:
+      event_type: diff_comment_add
+      page: "/github/"
+      prNumber: 42
+      filePath: "server/billing/retry_policy.py"
+      hunkId: "retry-cap-guard"
+      commentBody: "This still emits a duplicate invoice after the retry cap. We should stop before emit_duplicate_invoice."
+
+  - type: mark_other_file_viewed
+    description: "Mark the dashboard file viewed"
+    points: 1.2
+    expected:
+      event_type: file_mark_viewed
+      page: "/github/"
+      prNumber: 42
+      filePath: "web/dashboard/release_gate.ts"
+
+  - type: submit_review
+    description: "Submit Request changes"
+    points: 2.2
+    expected:
+      event_type: review_submit
+      page: "/github/"
+      prNumber: 42
+      state: "request_changes"
