@@ -70,7 +70,9 @@ class _FinvizHtmlParser(HTMLParser):
 
 
 def _load_generator_module():
-    spec = importlib.util.spec_from_file_location("finviz_generate_stocks", FINVIZ_GENERATOR)
+    spec = importlib.util.spec_from_file_location(
+        "finviz_generate_stocks", FINVIZ_GENERATOR
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -212,8 +214,8 @@ def test_ticker_quote_page_assets_and_link_pattern_exist() -> None:
     quote_html = FINVIZ_QUOTE_HTML.read_text()
     quote_js = FINVIZ_QUOTE_JS.read_text()
 
-    assert '/finviz/quote.html?t=' in js_source
-    assert '/finviz/js/quote.js' in quote_html
-    assert '/finviz/css/quote.css' in quote_html
-    assert 'quoteFilterFields' in quote_html
-    assert 'renderFilterFields(stock);' in quote_js
+    assert "/finviz/quote.html?t=" in js_source
+    assert "/finviz/js/quote.js" in quote_html
+    assert "/finviz/css/quote.css" in quote_html
+    assert "quoteFilterFields" in quote_html
+    assert "renderFilterFields(stock);" in quote_js

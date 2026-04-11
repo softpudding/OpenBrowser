@@ -26,12 +26,7 @@ if start_idx == -1 or end_idx == -1:
     exit(1)
 
 # Replace the stock data
-new_content = (
-    content[:start_idx]
-    + new_stock_data
-    + "\n\n"
-    + content[end_idx:]
-)
+new_content = content[:start_idx] + new_stock_data + "\n\n" + content[end_idx:]
 
 # Write back
 with open("js/finviz.js", "w") as f:

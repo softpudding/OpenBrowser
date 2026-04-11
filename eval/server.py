@@ -868,7 +868,9 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
 
     def send_json_response(self, data):
         """Send JSON response"""
-        content = json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8", errors="surrogatepass")
+        content = json.dumps(data, indent=2, ensure_ascii=False).encode(
+            "utf-8", errors="surrogatepass"
+        )
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", len(content))

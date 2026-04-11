@@ -276,9 +276,7 @@ def _snapshot_metrics(llm: LLM) -> tuple[float, int, int]:
     return cost, pt, ct
 
 
-def _delta_metrics(
-    llm: LLM, before: tuple[float, int, int]
-) -> tuple[float, int]:
+def _delta_metrics(llm: LLM, before: tuple[float, int, int]) -> tuple[float, int]:
     """Compute ``(delta_cost, delta_total_tokens)`` since *before*."""
     after = _snapshot_metrics(llm)
     delta_cost = max(0.0, after[0] - before[0])
@@ -354,7 +352,11 @@ You MUST call the submit_answer tool exactly once with your answer.
     if not tool_calls:
         logger.error(
             "User proxy did not call submit_answer. Message: %s",
-            response.message.model_dump() if hasattr(response.message, "model_dump") else response.message,
+            (
+                response.message.model_dump()
+                if hasattr(response.message, "model_dump")
+                else response.message
+            ),
         )
         return ClarificationAnswer(
             answer="(user proxy did not answer — please proceed with your best guess)",
@@ -387,7 +389,9 @@ def judge_routine(
     """
     tool = SubmitJudgmentTool.create()[0]
     expectations_json = _format_expectations(expectations)
-    asked = "\n".join(f"- {q}" for q in asked_questions) if asked_questions else "(none)"
+    asked = (
+        "\n".join(f"- {q}" for q in asked_questions) if asked_questions else "(none)"
+    )
 
     prompt = f"""You are judging a compiled Browser Routine on behalf of the user \
 who recorded the original trace. You have three jobs. Score each axis \
@@ -468,7 +472,11 @@ You MUST call submit_judgment exactly once.
     if not tool_calls:
         logger.error(
             "User proxy judge did not call submit_judgment. Message: %s",
-            response.message.model_dump() if hasattr(response.message, "model_dump") else response.message,
+            (
+                response.message.model_dump()
+                if hasattr(response.message, "model_dump")
+                else response.message
+            ),
         )
         return JudgmentResult(
             intent_match=0.0,

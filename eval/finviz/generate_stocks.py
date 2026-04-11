@@ -370,7 +370,9 @@ def slugify(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower())
 
 
-def choose_weighted(rng: random.Random, weighted_values: list[tuple[float, float]]) -> float:
+def choose_weighted(
+    rng: random.Random, weighted_values: list[tuple[float, float]]
+) -> float:
     total = sum(weight for _, weight in weighted_values)
     pivot = rng.uniform(0, total)
     running = 0.0
@@ -447,7 +449,9 @@ def generate_market_cap(rng: random.Random, is_etf: bool = False) -> float:
     return rng.uniform(200000, 3500000)
 
 
-def generate_price(rng: random.Random, market_cap: float, is_etf: bool = False) -> float:
+def generate_price(
+    rng: random.Random, market_cap: float, is_etf: bool = False
+) -> float:
     if is_etf:
         return round(rng.uniform(18, 480), 2)
 
@@ -462,7 +466,9 @@ def generate_price(rng: random.Random, market_cap: float, is_etf: bool = False) 
         ((100.0, 250.0), 0.08),
         ((250.0, 800.0), 0.03),
     ]
-    lower, upper = choose_weighted(rng, [((low, high), weight) for (low, high), weight in bands])
+    lower, upper = choose_weighted(
+        rng, [((low, high), weight) for (low, high), weight in bands]
+    )
     price = rng.uniform(lower, upper)
     if market_cap > 250000 and price < 20:
         price = rng.uniform(20, 180)
@@ -488,11 +494,19 @@ def generate_pe(rng: random.Random, sector: str, is_etf: bool = False) -> float:
     return round(rng.uniform(*bounds), 1)
 
 
-def generate_dividend_yield(rng: random.Random, sector: str, is_etf: bool = False) -> float:
+def generate_dividend_yield(
+    rng: random.Random, sector: str, is_etf: bool = False
+) -> float:
     if is_etf:
         return round(rng.uniform(0.5, 6.5), 2)
 
-    if sector in {"utilities", "financial", "energy", "consumer defensive", "real estate"}:
+    if sector in {
+        "utilities",
+        "financial",
+        "energy",
+        "consumer defensive",
+        "real estate",
+    }:
         upper = 8.5
     elif sector in {"technology", "communication services"}:
         upper = 2.5
@@ -556,7 +570,9 @@ def generate_relative_volume(rng: random.Random) -> float:
     return round(choose_weighted(rng, bands), 2)
 
 
-def generate_avg_volume(rng: random.Random, market_cap: float, is_etf: bool = False) -> int:
+def generate_avg_volume(
+    rng: random.Random, market_cap: float, is_etf: bool = False
+) -> int:
     if market_cap < 50:
         bounds = (5_000, 120_000)
     elif market_cap < 300:
@@ -643,15 +659,31 @@ def infer_themes(sector: str, industry: str, rng: random.Random) -> list[str]:
         candidates.append("ev")
     if industry_slug in {"softwareinfrastructure", "internetcontentinformation"}:
         candidates.append("cloud")
-    if industry_slug in {"softwareapplication", "softwareinfrastructure", "communicationequipment"}:
+    if industry_slug in {
+        "softwareapplication",
+        "softwareinfrastructure",
+        "communicationequipment",
+    }:
         candidates.append("cybersecurity")
-    if industry_slug in {"communicationequipment", "electroniccomponents", "semiconductors"}:
+    if industry_slug in {
+        "communicationequipment",
+        "electroniccomponents",
+        "semiconductors",
+    }:
         candidates.append("iot")
     if industry_slug in {"telecomservices", "communicationequipment", "semiconductors"}:
         candidates.append("5g")
-    if industry_slug in {"financialdatastockexchanges", "softwareapplication", "capitalmarkets"}:
+    if industry_slug in {
+        "financialdatastockexchanges",
+        "softwareapplication",
+        "capitalmarkets",
+    }:
         candidates.append("blockchain")
-    if industry_slug in {"aerospacedefense", "specialtyindustrialmachinery", "semiconductors"}:
+    if industry_slug in {
+        "aerospacedefense",
+        "specialtyindustrialmachinery",
+        "semiconductors",
+    }:
         candidates.append("robotics")
 
     themes: list[str] = []
@@ -671,7 +703,11 @@ def infer_subthemes(themes: list[str], rng: random.Random) -> list[str]:
         subthemes.extend(ai_subthemes[: rng.randint(1, 2)])
     if "ev" in themes and "battery" not in subthemes:
         subthemes.append("battery")
-    if {"ev", "robotics"} & set(themes) and "autonomous" not in subthemes and rng.random() < 0.8:
+    if (
+        {"ev", "robotics"} & set(themes)
+        and "autonomous" not in subthemes
+        and rng.random() < 0.8
+    ):
         subthemes.append("autonomous")
     return subthemes[:3]
 
@@ -707,7 +743,9 @@ def build_stock(
         overrides.get("floatShares", shares_outstanding * (float_pct / 100.0))
     )
 
-    avg_volume = int(overrides.get("avgVolume", generate_avg_volume(rng, market_cap, is_etf)))
+    avg_volume = int(
+        overrides.get("avgVolume", generate_avg_volume(rng, market_cap, is_etf))
+    )
     rel_volume = float(overrides.get("relVolume", generate_relative_volume(rng)))
     volume = int(overrides.get("volume", max(1, round(avg_volume * rel_volume))))
 
@@ -729,18 +767,56 @@ def build_stock(
             ),
         )
     )
-    target_price = float(overrides.get("targetPrice", price * (1 + target_gap_pct / 100.0)))
+    target_price = float(
+        overrides.get("targetPrice", price * (1 + target_gap_pct / 100.0))
+    )
 
-    high_distance_pct = float(overrides.get("highDistancePct", choose_weighted(rng, [(0.0, 0.16), (2.0, 0.18), (4.0, 0.14), (9.0, 0.18), (16.0, 0.18), (28.0, 0.16)])))
-    low_distance_pct = float(overrides.get("lowDistancePct", choose_weighted(rng, [(0.0, 0.14), (3.0, 0.16), (6.0, 0.14), (14.0, 0.18), (25.0, 0.18), (48.0, 0.20)])))
-    high_52w = float(overrides.get("high52w", price / max(0.05, 1 - high_distance_pct / 100.0)))
-    low_52w = float(overrides.get("low52w", price / (1 + max(-0.95, low_distance_pct / 100.0))))
+    high_distance_pct = float(
+        overrides.get(
+            "highDistancePct",
+            choose_weighted(
+                rng,
+                [
+                    (0.0, 0.16),
+                    (2.0, 0.18),
+                    (4.0, 0.14),
+                    (9.0, 0.18),
+                    (16.0, 0.18),
+                    (28.0, 0.16),
+                ],
+            ),
+        )
+    )
+    low_distance_pct = float(
+        overrides.get(
+            "lowDistancePct",
+            choose_weighted(
+                rng,
+                [
+                    (0.0, 0.14),
+                    (3.0, 0.16),
+                    (6.0, 0.14),
+                    (14.0, 0.18),
+                    (25.0, 0.18),
+                    (48.0, 0.20),
+                ],
+            ),
+        )
+    )
+    high_52w = float(
+        overrides.get("high52w", price / max(0.05, 1 - high_distance_pct / 100.0))
+    )
+    low_52w = float(
+        overrides.get("low52w", price / (1 + max(-0.95, low_distance_pct / 100.0)))
+    )
     if low_52w >= high_52w:
         low_52w = round(max(0.05, price * 0.72), 2)
         high_52w = round(price * 1.28, 2)
 
     stock_themes = themes if themes is not None else infer_themes(sector, industry, rng)
-    stock_subthemes = subthemes if subthemes is not None else infer_subthemes(stock_themes, rng)
+    stock_subthemes = (
+        subthemes if subthemes is not None else infer_subthemes(stock_themes, rng)
+    )
 
     stock = {
         "ticker": ticker_symbol,
@@ -759,7 +835,9 @@ def build_stock(
             float(
                 overrides.get(
                     "forwardPe",
-                    max(1.0, generate_pe(rng, sector, is_etf) * rng.uniform(0.65, 1.05)),
+                    max(
+                        1.0, generate_pe(rng, sector, is_etf) * rng.uniform(0.65, 1.05)
+                    ),
                 )
             ),
             1,
@@ -771,10 +849,16 @@ def build_stock(
         "avgVolume": avg_volume,
         "relVolume": round(rel_volume, 2),
         "dividendYield": round(
-            float(overrides.get("dividendYield", generate_dividend_yield(rng, sector, is_etf))),
+            float(
+                overrides.get(
+                    "dividendYield", generate_dividend_yield(rng, sector, is_etf)
+                )
+            ),
             2,
         ),
-        "shortFloat": round(float(overrides.get("shortFloat", generate_short_float(rng))), 2),
+        "shortFloat": round(
+            float(overrides.get("shortFloat", generate_short_float(rng))), 2
+        ),
         "analystRecom": round(
             float(overrides.get("analystRecom", generate_analyst_recom(rng))),
             1,
@@ -786,7 +870,16 @@ def build_stock(
                 "earningsDateDaysAgo",
                 generate_date_bucket(
                     rng,
-                    [(0, 0.03), (1, 0.03), (3, 0.08), (6, 0.08), (12, 0.18), (28, 0.22), (45, 0.18), (90, 0.20)],
+                    [
+                        (0, 0.03),
+                        (1, 0.03),
+                        (3, 0.08),
+                        (6, 0.08),
+                        (12, 0.18),
+                        (28, 0.22),
+                        (45, 0.18),
+                        (90, 0.20),
+                    ],
                 ),
             )
         ),
@@ -797,7 +890,17 @@ def build_stock(
                 "ipoAgeDays",
                 generate_date_bucket(
                     rng,
-                    [(0, 0.02), (1, 0.02), (5, 0.05), (20, 0.09), (70, 0.14), (250, 0.16), (900, 0.14), (2200, 0.16), (4200, 0.22)],
+                    [
+                        (0, 0.02),
+                        (1, 0.02),
+                        (5, 0.05),
+                        (20, 0.09),
+                        (70, 0.14),
+                        (250, 0.16),
+                        (900, 0.14),
+                        (2200, 0.16),
+                        (4200, 0.22),
+                    ],
                 ),
             )
         ),
@@ -806,19 +909,33 @@ def build_stock(
         "floatPctOutstanding": round(float_pct, 2),
         "themes": stock_themes,
         "subthemes": stock_subthemes,
-        "epsGrowth": round(float(overrides.get("epsGrowth", generate_growth_metric(rng))), 1),
-        "salesGrowth": round(float(overrides.get("salesGrowth", generate_growth_metric(rng, 0.66))), 1),
+        "epsGrowth": round(
+            float(overrides.get("epsGrowth", generate_growth_metric(rng))), 1
+        ),
+        "salesGrowth": round(
+            float(overrides.get("salesGrowth", generate_growth_metric(rng, 0.66))), 1
+        ),
         "roe": round(float(overrides.get("roe", generate_roe(rng))), 1),
         "roa": round(float(overrides.get("roa", generate_roa(rng))), 1),
-        "debtEquity": round(float(overrides.get("debtEquity", generate_debt_equity(rng, sector))), 2),
-        "sma20DiffPct": round(float(overrides.get("sma20DiffPct", rng.uniform(-12.0, 12.0))), 1),
-        "sma50DiffPct": round(float(overrides.get("sma50DiffPct", rng.uniform(-16.0, 16.0))), 1),
-        "sma200DiffPct": round(float(overrides.get("sma200DiffPct", rng.uniform(-24.0, 24.0))), 1),
+        "debtEquity": round(
+            float(overrides.get("debtEquity", generate_debt_equity(rng, sector))), 2
+        ),
+        "sma20DiffPct": round(
+            float(overrides.get("sma20DiffPct", rng.uniform(-12.0, 12.0))), 1
+        ),
+        "sma50DiffPct": round(
+            float(overrides.get("sma50DiffPct", rng.uniform(-16.0, 16.0))), 1
+        ),
+        "sma200DiffPct": round(
+            float(overrides.get("sma200DiffPct", rng.uniform(-24.0, 24.0))), 1
+        ),
         "perf1w": round(float(overrides.get("perf1w", rng.uniform(-14.0, 14.0))), 2),
         "perf4w": round(float(overrides.get("perf4w", rng.uniform(-24.0, 28.0))), 2),
         "rsi": round(float(overrides.get("rsi", generate_rsi(rng))), 1),
         "beta": round(float(overrides.get("beta", generate_beta(rng))), 2),
-        "volatility": round(float(overrides.get("volatility", generate_volatility(rng))), 1),
+        "volatility": round(
+            float(overrides.get("volatility", generate_volatility(rng))), 1
+        ),
         "high52w": round(high_52w, 2),
         "low52w": round(max(0.05, low_52w), 2),
         "eliteOnly": bool(overrides.get("eliteOnly", rng.random() < 0.14)),
@@ -1073,7 +1190,9 @@ def build_coverage_stocks(
     return coverage
 
 
-def generate_random_stock(rng: random.Random, used_tickers: set[str]) -> dict[str, object]:
+def generate_random_stock(
+    rng: random.Random, used_tickers: set[str]
+) -> dict[str, object]:
     is_etf = rng.random() < 0.05
     if is_etf:
         return build_stock(
@@ -1164,7 +1283,11 @@ if __name__ == "__main__":
     print(f"Generated {len(stocks)} stocks with deterministic seed {RANDOM_SEED}")
     print(f"Wrote JavaScript data to {OUTPUT_PATH}")
     print("Sample distributions:")
-    for label, field in [("sector", "sector"), ("country", "country"), ("exchange", "exchange")]:
+    for label, field in [
+        ("sector", "sector"),
+        ("country", "country"),
+        ("exchange", "exchange"),
+    ]:
         print(f"\nBy {label}:")
         for key, count in sorted(summarize_counts(stocks, field).items()):
             print(f"  {key}: {count}")

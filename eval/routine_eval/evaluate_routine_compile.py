@@ -278,9 +278,7 @@ def _format_agent_event(data: dict[str, Any], truncate: int = 500) -> Optional[s
 
     def _oneline(s: str) -> str:
         """Collapse newlines and compress whitespace into a single line."""
-        return " | ".join(
-            part for line in s.splitlines() if (part := line.strip())
-        )
+        return " | ".join(part for line in s.splitlines() if (part := line.strip()))
 
     def _prep(s: str) -> str:
         s = _oneline(s)
@@ -562,7 +560,9 @@ def run_one_fixture(
             response.raise_for_status()
 
         result.final_status = (final_compile_result or {}).get("status", "") or ""
-        routine_markdown = ((final_compile_result or {}).get("routine_markdown") or "").strip()
+        routine_markdown = (
+            (final_compile_result or {}).get("routine_markdown") or ""
+        ).strip()
         result.routine_markdown = routine_markdown
         result.asked_questions = asked_history
         result.compile_duration_seconds = time.time() - start_time
@@ -614,7 +614,9 @@ def run_one_fixture(
                 body = ""
         result.error = f"HTTP error during compile: {exc} ({body})"
     except Exception as exc:
-        logger.exception("Fixture %s failed with an unexpected error", fixture.fixture_id)
+        logger.exception(
+            "Fixture %s failed with an unexpected error", fixture.fixture_id
+        )
         result.error = f"Orchestrator error: {exc}"
     finally:
         result.agent_events = all_agent_events
@@ -795,9 +797,11 @@ def _generate_regression_report(
                     "judged_count": summary["judged_count"],
                     "passed_count": summary["passed_count"],
                     "pass_rate": round(
-                        summary["passed_count"] / summary["fixture_count"] * 100
-                        if summary["fixture_count"]
-                        else 0,
+                        (
+                            summary["passed_count"] / summary["fixture_count"] * 100
+                            if summary["fixture_count"]
+                            else 0
+                        ),
                         2,
                     ),
                     "compile_model": compile_model,
