@@ -1,0 +1,98 @@
+id: staybnb_book
+name: "StayBnB Book — Filters, Gallery & Two-Step Booking"
+difficulty: very_hard
+description: "Open filter modal, drag price slider, check amenities, toggle instant book, find listing, view photos, reserve, and confirm."
+start_url: "http://localhost:16605/staybnb/#results"
+instruction: "On the StayBnB search results page (pre-loaded with Tokyo listings), open the \"Filters\" modal. Drag the price slider to set a range of approximately $50–$150/night (the slider has two handles — drag both). Check the \"Wifi\" and \"Kitchen\" amenity checkboxes. Toggle on \"Instant Book\". Click the \"Show N stays\" button at the bottom of the modal to apply the filters. From the filtered results, open the listing \"Shibuya Loft with Skyline View\". Click \"Show all photos\" to open the fullscreen gallery and scroll through at least 5 photos. Close the gallery, then click \"Reserve\" and complete the booking by clicking \"Confirm and pay\" on the confirmation panel."
+time_limit: 600.0
+cost_limit: 2.0
+
+criteria:
+  - type: open_filter_modal
+    description: "Open filter modal"
+    points: 0.5
+    expected:
+      event_type: filter_modal_open
+
+  - type: drag_price_min
+    description: "Drag price min handle to ~$50"
+    points: 2.0
+    expected:
+      event_type: price_slider_change
+      handle: "min"
+
+  - type: drag_price_max
+    description: "Drag price max handle to ~$150"
+    points: 2.0
+    expected:
+      event_type: price_slider_change
+      handle: "max"
+
+  - type: check_wifi
+    description: "Check 'Wifi' amenity"
+    points: 0.5
+    expected:
+      event_type: amenity_toggle
+      amenity: "wifi"
+      checked: true
+
+  - type: check_kitchen
+    description: "Check 'Kitchen' amenity"
+    points: 0.5
+    expected:
+      event_type: amenity_toggle
+      amenity: "kitchen"
+      checked: true
+
+  - type: toggle_instant_book
+    description: "Toggle 'Instant Book' on"
+    points: 0.5
+    expected:
+      event_type: instant_book_toggle
+      checked: true
+
+  - type: apply_filters
+    description: "Click 'Show N stays' to apply filters"
+    points: 0.5
+    expected:
+      event_type: filter_apply
+
+  - type: open_shibuya_loft
+    description: "Open 'Shibuya Loft' listing"
+    points: 1.0
+    expected:
+      event_type: listing_open
+      listingId: "shibuya-loft"
+
+  - type: show_all_photos
+    description: "Click 'Show all photos'"
+    points: 1.0
+    expected:
+      event_type: gallery_open
+      listingId: "shibuya-loft"
+
+  - type: scroll_gallery
+    description: "Scroll through gallery (5+ photos viewed)"
+    points: 1.5
+    expected:
+      event_type: gallery_scroll
+
+  - type: close_gallery
+    description: "Close gallery"
+    points: 0.5
+    expected:
+      event_type: gallery_close
+
+  - type: click_reserve
+    description: "Click Reserve"
+    points: 1.5
+    expected:
+      event_type: reserve_click
+      listingId: "shibuya-loft"
+
+  - type: confirm_booking
+    description: "Click Confirm and pay"
+    points: 3.0
+    expected:
+      event_type: booking_confirm
+      listingId: "shibuya-loft"

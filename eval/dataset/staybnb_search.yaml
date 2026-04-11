@@ -1,0 +1,83 @@
+id: staybnb_search
+name: "StayBnB Search — Segmented Pill, Calendar & Guest Stepper"
+difficulty: hard
+description: "Use the segmented search bar to search Tokyo, pick dates in June 2026 calendar, set guest counts, and submit search."
+start_url: "http://localhost:16605/staybnb/"
+instruction: "On the StayBnB homepage, search for stays in \"Tokyo\" using the segmented search bar. Click the \"When\" section, navigate forward to June 2026 in the calendar (the default view shows the current month), and select June 10 as check-in and June 17 as check-out. Note: some dates in the calendar are grayed out and unclickable — make sure to pick available dates. Then click the \"Who\" section and set 3 adults, 1 child, and 1 infant. Click \"Search\"."
+time_limit: 540.0
+cost_limit: 1.5
+
+criteria:
+  - type: select_tokyo
+    description: "Click 'Where' and select 'Tokyo' from autocomplete"
+    points: 1.0
+    expected:
+      event_type: autocomplete_select
+      value: "Tokyo, Japan"
+
+  - type: click_when
+    description: "Click 'When' to open date picker"
+    points: 0.5
+    expected:
+      event_type: search_section_click
+      section: "when"
+
+  - type: navigate_to_june
+    description: "Navigate calendar forward to June"
+    points: 1.0
+    expected:
+      event_type: calendar_month_nav
+      direction: "forward"
+
+  - type: select_checkin
+    description: "Select check-in June 10 (avoid disabled dates)"
+    points: 1.5
+    expected:
+      event_type: date_select
+      role: "checkin"
+      date: "2026-06-10"
+
+  - type: select_checkout
+    description: "Select check-out June 17"
+    points: 1.5
+    expected:
+      event_type: date_select
+      role: "checkout"
+      date: "2026-06-17"
+
+  - type: click_who
+    description: "Click 'Who' to open guest stepper"
+    points: 0.5
+    expected:
+      event_type: search_section_click
+      section: "who"
+
+  - type: set_adults_3
+    description: "Increment adults to 3 (click + twice)"
+    points: 1.0
+    expected:
+      event_type: guest_stepper_click
+      guestType: "adults"
+      finalCount: 3
+
+  - type: set_children_1
+    description: "Increment children to 1"
+    points: 1.0
+    expected:
+      event_type: guest_stepper_click
+      guestType: "children"
+      finalCount: 1
+
+  - type: set_infants_1
+    description: "Increment infants to 1"
+    points: 1.0
+    expected:
+      event_type: guest_stepper_click
+      guestType: "infants"
+      finalCount: 1
+
+  - type: click_search
+    description: "Click Search"
+    points: 1.5
+    expected:
+      event_type: search_submit

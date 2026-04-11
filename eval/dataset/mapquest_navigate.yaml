@@ -1,0 +1,65 @@
+id: mapquest_navigate
+name: "MapQuest Navigate — Autocomplete, Directions & Collapse"
+difficulty: hard
+description: "Search Pike Place Market via autocomplete, get walking directions from Space Needle, select shortest route, collapse the panel."
+start_url: "http://localhost:16605/mapquest/"
+instruction: "Search for \"Pike Place Market\" and select it from the autocomplete dropdown (do NOT just press Enter — wait for suggestions). From the place detail panel, click \"Directions\". Set the origin to \"Space Needle\" (again selecting from autocomplete). Switch to the walking mode (the pedestrian icon — there are no text labels, only icons). From the route results, select the shortest route. Then collapse the left panel using the arrow on its right edge."
+time_limit: 540.0
+cost_limit: 1.5
+
+criteria:
+  - type: autocomplete_select_pike
+    description: "Select 'Pike Place Market' from autocomplete (not Enter)"
+    points: 1.5
+    expected:
+      event_type: autocomplete_select
+      itemText: "Pike Place Market"
+
+  - type: click_directions
+    description: "Click Directions in place panel"
+    points: 0.5
+    expected:
+      event_type: click
+      element_id: "directions-btn"
+
+  - type: panel_directions_state
+    description: "Panel transitions to directions state"
+    points: 0.5
+    expected:
+      event_type: panel_state_change
+      state: "directions"
+
+  - type: autocomplete_origin_space_needle
+    description: "Enter and select 'Space Needle' as origin"
+    points: 1.5
+    expected:
+      event_type: autocomplete_select
+      field: "origin"
+      itemText: "Space Needle"
+
+  - type: select_walk_mode
+    description: "Select walking mode (icon-only, no text)"
+    points: 2.0
+    expected:
+      event_type: transport_mode_select
+      mode: "walk"
+
+  - type: select_shortest_route
+    description: "Select the shortest route from results"
+    points: 1.5
+    expected:
+      event_type: route_select
+      routeIndex: 0
+
+  - type: collapse_panel
+    description: "Collapse the left panel via edge arrow"
+    points: 1.5
+    expected:
+      event_type: panel_collapse
+
+  - type: map_viewport_change
+    description: "Map viewport changes after collapse"
+    points: 0.5
+    optional: true
+    expected:
+      event_type: map_viewport_change

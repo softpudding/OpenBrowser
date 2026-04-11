@@ -1,0 +1,845 @@
+/* ============================================================
+   MapQuest — Google Maps-like Mock Site
+   ============================================================ */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 14px;
+    color: #3c4043;
+    overflow: hidden;
+}
+
+/* ---------- App Layout ---------- */
+#app {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+}
+
+/* ---------- Left Panel ---------- */
+.panel {
+    position: relative;
+    width: 380px;
+    min-width: 0;
+    height: 100vh;
+    background: #fff;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.12);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease;
+    overflow: hidden;
+}
+
+.panel.collapsed {
+    width: 0;
+    min-width: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.panel.collapsed + .map-container {
+    width: 100%;
+}
+
+/* Panel Header (back arrow) */
+.panel-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e8eaed;
+    min-height: 48px;
+}
+
+.panel-header.hidden {
+    display: none;
+}
+
+.panel-back-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    color: #5f6368;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.panel-back-btn:hover {
+    background: #f1f3f4;
+}
+
+.panel-header-title {
+    margin-left: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #202124;
+}
+
+/* Panel States */
+.panel-state {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.panel-state.active {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---------- Search ---------- */
+.search-container {
+    padding: 12px 16px;
+    position: relative;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    background: #f1f3f4;
+    border-radius: 24px;
+    padding: 8px 16px;
+    transition: background 0.2s, box-shadow 0.2s;
+}
+
+.search-box:focus-within {
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.search-icon {
+    flex-shrink: 0;
+    margin-right: 10px;
+}
+
+.search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 15px;
+    color: #202124;
+    font-family: inherit;
+}
+
+.search-input::placeholder {
+    color: #9aa0a6;
+}
+
+/* ---------- Autocomplete Dropdown ---------- */
+.autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 16px;
+    right: 16px;
+    background: #fff;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.autocomplete-dropdown.hidden {
+    display: none;
+}
+
+.autocomplete-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    cursor: pointer;
+    gap: 12px;
+}
+
+.autocomplete-item:hover {
+    background: #f1f3f4;
+}
+
+.autocomplete-item-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #70757a;
+    flex-shrink: 0;
+}
+
+.autocomplete-item-text {
+    flex: 1;
+}
+
+.autocomplete-item-name {
+    font-size: 14px;
+    color: #202124;
+}
+
+.autocomplete-item-type {
+    font-size: 12px;
+    color: #70757a;
+}
+
+/* ---------- Chip Bar ---------- */
+.chip-bar-wrapper {
+    padding: 4px 0;
+    border-bottom: 1px solid #e8eaed;
+    overflow: hidden;
+}
+
+.chip-bar {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 8px 16px;
+    overflow-x: auto;
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE 10+ */
+}
+
+.chip-bar::-webkit-scrollbar {
+    display: none;                   /* Chrome/Safari */
+}
+
+.chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1px solid #dadce0;
+    border-radius: 20px;
+    background: #fff;
+    font-size: 13px;
+    color: #3c4043;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+
+.chip:hover {
+    background: #f1f3f4;
+}
+
+.chip.active {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+    color: #1a73e8;
+}
+
+.chip-icon {
+    font-size: 14px;
+}
+
+/* ---------- Search Suggestions ---------- */
+.search-suggestions {
+    padding: 8px 0;
+}
+
+.suggestion-header {
+    padding: 12px 16px 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #70757a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.suggestion-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+}
+
+.suggestion-item:hover {
+    background: #f1f3f4;
+}
+
+.suggestion-icon {
+    font-size: 16px;
+}
+
+/* ---------- Search Results ---------- */
+.results-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.result-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #e8eaed;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.result-item:hover {
+    background: #f8f9fa;
+}
+
+.result-item-icon {
+    width: 40px;
+    height: 40px;
+    background: #e8eaed;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.result-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.result-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #202124;
+    margin-bottom: 2px;
+}
+
+.result-item-meta {
+    font-size: 12px;
+    color: #70757a;
+}
+
+.result-item-rating {
+    color: #f4b400;
+    margin-right: 4px;
+}
+
+/* ---------- Place Detail ---------- */
+.place-detail-scroll {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.place-photos {
+    display: flex;
+    gap: 2px;
+    height: 200px;
+}
+
+.photo-main {
+    flex: 2;
+    background: #dadce0;
+    min-width: 0;
+}
+
+.photo-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+    min-width: 0;
+}
+
+.photo-thumb {
+    background: #e8eaed;
+}
+
+.place-info {
+    padding: 16px;
+}
+
+.place-name {
+    font-size: 22px;
+    font-weight: 400;
+    color: #202124;
+    margin-bottom: 8px;
+    line-height: 1.3;
+}
+
+.place-rating {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.rating-number {
+    font-size: 14px;
+    font-weight: 500;
+    color: #202124;
+}
+
+.rating-stars {
+    color: #f4b400;
+    font-size: 14px;
+    letter-spacing: 1px;
+}
+
+.review-count {
+    font-size: 14px;
+    color: #70757a;
+}
+
+.place-category {
+    font-size: 13px;
+    color: #70757a;
+    margin-bottom: 8px;
+}
+
+.place-hours {
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.hours-status {
+    font-weight: 500;
+}
+
+.hours-status.open {
+    color: #0d652d;
+}
+
+.hours-status.closed {
+    color: #c5221f;
+}
+
+.hours-detail {
+    color: #70757a;
+}
+
+/* Action Buttons */
+.place-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid #dadce0;
+    background: #fff;
+    font-size: 13px;
+    color: #1a73e8;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+
+.action-btn:hover {
+    background: #f8f9fa;
+}
+
+.action-primary {
+    background: #1a73e8;
+    color: #fff;
+    border-color: #1a73e8;
+}
+
+.action-primary:hover {
+    background: #1765cc;
+}
+
+.action-primary svg {
+    stroke: #fff;
+}
+
+/* Place info rows */
+.place-address,
+.place-website,
+.place-phone {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid #e8eaed;
+    font-size: 13px;
+    color: #3c4043;
+}
+
+.place-address svg,
+.place-website svg,
+.place-phone svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+/* ---------- Directions ---------- */
+.directions-form {
+    padding: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.transport-tabs {
+    display: flex;
+    border-bottom: 1px solid #e8eaed;
+    padding: 0 16px;
+}
+
+.transport-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 0;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #5f6368;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.transport-tab:hover {
+    color: #202124;
+    background: #f1f3f4;
+}
+
+.transport-tab.active {
+    color: #1a73e8;
+    border-bottom-color: #1a73e8;
+}
+
+.directions-fields {
+    padding: 16px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.directions-field-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+}
+
+.field-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.origin-dot {
+    background: #4285f4;
+    border: 2px solid #1a73e8;
+}
+
+.dest-dot {
+    background: #ea4335;
+    border: 2px solid #c5221f;
+}
+
+.field-input-wrap {
+    flex: 1;
+    position: relative;
+}
+
+.directions-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #202124;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+}
+
+.directions-input:focus {
+    border-color: #1a73e8;
+}
+
+.directions-input::placeholder {
+    color: #9aa0a6;
+}
+
+.swap-btn {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid #dadce0;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #5f6368;
+    z-index: 2;
+    transition: background 0.15s;
+}
+
+.swap-btn:hover {
+    background: #f1f3f4;
+}
+
+/* Route Results */
+.route-results {
+    padding: 0 16px 16px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.route-results.hidden {
+    display: none;
+}
+
+.route-results-header {
+    font-size: 12px;
+    font-weight: 500;
+    color: #70757a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 0 8px;
+    border-top: 1px solid #e8eaed;
+}
+
+.route-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-bottom: 4px;
+}
+
+.route-item:hover {
+    background: #f1f3f4;
+}
+
+.route-item.active {
+    background: #e8f0fe;
+}
+
+.route-time {
+    font-size: 16px;
+    font-weight: 500;
+    color: #202124;
+}
+
+.route-item.active .route-time {
+    color: #1a73e8;
+}
+
+.route-distance {
+    font-size: 13px;
+    color: #70757a;
+}
+
+.route-via {
+    font-size: 12px;
+    color: #70757a;
+}
+
+/* ---------- Panel Toggle ---------- */
+/* Lives as a sibling of .panel inside #app so it isn't clipped by the panel's
+   own overflow:hidden. Positioned at the panel's right edge via absolute
+   offsets into #app. */
+.panel-toggle {
+    position: absolute;
+    left: 380px;            /* panel width */
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 56px;
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 11;
+    color: #5f6368;
+    padding: 0;
+    transition: left 0.3s ease, background 0.15s;
+}
+
+.panel-toggle:hover {
+    background: #f1f3f4;
+}
+
+/* When the panel is collapsed, slide the toggle to x=0 and flip its chevron. */
+#app:has(.panel.collapsed) .panel-toggle {
+    left: 0;
+}
+#app:has(.panel.collapsed) .panel-toggle svg {
+    transform: rotate(180deg);
+}
+
+/* ---------- Map Container ---------- */
+.map-container {
+    flex: 1;
+    position: relative;
+    background: #e8f4f0;
+    overflow: hidden;
+    transition: width 0.3s ease;
+}
+
+.map-svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Roads */
+.road {
+    stroke: #fff;
+    stroke-width: 3;
+    stroke-linecap: round;
+}
+
+.major-road {
+    stroke: #fffde7;
+    stroke-width: 5;
+}
+
+.diagonal-road {
+    stroke-width: 3;
+}
+
+/* Pins */
+.map-pin {
+    cursor: pointer;
+    transition: transform 0.15s;
+    filter: url(#pin-shadow);
+    /* Scale around the pin's own centre, not the SVG origin. Without this,
+       hover scale drifts the pin away from the cursor and causes a rapid
+       enter/leave shake loop. */
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+.map-pin:hover {
+    transform: scale(1.2);
+}
+
+.pin-regular {
+    fill: #ea4335;
+    stroke: #b31412;
+    stroke-width: 1.5;
+}
+
+.pin-parking {
+    fill: #4285f4;
+    stroke: #1a5dc4;
+    stroke-width: 1.5;
+}
+
+.pin-coffee {
+    fill: #ea4335;
+    stroke: #b31412;
+    stroke-width: 1.5;
+}
+
+.pin-shopping {
+    fill: #ea4335;
+    stroke: #b31412;
+    stroke-width: 1.5;
+}
+
+.pin-ad {
+    fill: #f4b400;
+    stroke: #d89f00;
+    stroke-width: 1.5;
+}
+
+/* Tooltip */
+.pin-tooltip text {
+    pointer-events: none;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Route paths */
+.route-path {
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+/* ---------- Map Controls ---------- */
+.map-controls-zoom {
+    position: absolute;
+    bottom: 100px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.map-controls-compass {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.map-ctrl-btn {
+    width: 40px;
+    height: 40px;
+    background: #fff;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #5f6368;
+    transition: background 0.15s;
+    font-family: inherit;
+}
+
+.map-ctrl-btn:hover {
+    background: #f1f3f4;
+}
+
+.map-ctrl-btn + .map-ctrl-btn {
+    border-top: 1px solid #e8eaed;
+}
+
+.compass-btn {
+    padding: 8px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 700px) {
+    .panel {
+        width: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 20;
+    }
+}

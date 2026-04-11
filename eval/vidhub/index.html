@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VidHub</title>
+    <link rel="stylesheet" href="/vidhub/css/vidhub.css">
+</head>
+<body>
+
+<!-- ==================== MASTHEAD ==================== -->
+<header class="masthead">
+    <div class="masthead-left">
+        <button class="masthead-icon hamburger-btn" aria-label="Menu">
+            <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+        </button>
+        <a href="/vidhub/" class="logo" id="logo-link">
+            <span class="logo-icon">&#9654;</span> VidHub
+        </a>
+    </div>
+    <div class="masthead-center">
+        <div class="search-wrapper">
+            <input type="text" id="search-input" class="search-input" placeholder="Search">
+            <button class="search-btn" id="search-btn" aria-label="Search">
+                <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            </button>
+        </div>
+        <button class="masthead-icon voice-btn" aria-label="Voice search">
+            <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+        </button>
+    </div>
+    <div class="masthead-right">
+        <button class="masthead-icon create-btn" aria-label="Create">
+            <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M14 13h-3v3H9v-3H6v-2h3V8h2v3h3v2zm3-6H3v12h14v-6.39l4 1.83V8.56l-4 1.83V7m-1-2v2.17l4-1.83v10.32l-4-1.83V18H2V6h14z"/></svg>
+        </button>
+        <button class="masthead-icon notif-btn" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        </button>
+        <div class="avatar-circle masthead-avatar">Y</div>
+    </div>
+</header>
+
+<!-- ==================== HOME FEED VIEW ==================== -->
+<main id="home-view" class="home-view">
+    <div class="feed-grid" id="feed-grid">
+        <!-- Cards inserted by JS -->
+    </div>
+</main>
+
+<!-- ==================== SEARCH RESULTS VIEW ==================== -->
+<main id="search-view" class="search-view" style="display:none;">
+    <div class="search-filters" id="search-filters">
+        <button class="filter-chip" data-filter="today">Today</button>
+        <button class="filter-chip" data-filter="week">This week</button>
+        <button class="filter-chip" data-filter="medium">4-20 minutes</button>
+    </div>
+    <div class="search-results" id="search-results"></div>
+</main>
+
+<!-- ==================== WATCH VIEW ==================== -->
+<main id="watch-view" class="watch-view" style="display:none;">
+    <div class="watch-columns">
+
+        <!-- LEFT COLUMN -->
+        <div class="watch-left">
+            <!-- Player -->
+            <div class="player-wrapper" id="player-wrapper">
+                <div class="player-area" id="player-area">
+                    <div class="player-surface" id="player-surface"></div>
+
+                    <!-- Control Bar -->
+                    <div class="control-bar" id="control-bar">
+                        <button class="ctrl-btn play-pause-btn" id="play-pause-btn" aria-label="Play">
+                            <svg class="icon-play" viewBox="0 0 24 24" width="28" height="28"><path fill="#fff" d="M8 5v14l11-7z"/></svg>
+                            <svg class="icon-pause" viewBox="0 0 24 24" width="28" height="28" style="display:none"><path fill="#fff" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                        </button>
+                        <button class="ctrl-btn next-btn" aria-label="Next">
+                            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                        </button>
+
+                        <div class="volume-area" id="volume-area">
+                            <button class="ctrl-btn volume-btn" id="volume-btn" aria-label="Volume">
+                                <svg class="icon-vol-on" viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 8.5v7a4.47 4.47 0 002.5-3.5zM14 3.23v2.06a6.51 6.51 0 010 13.42v2.06A8.51 8.51 0 0014 3.23z"/></svg>
+                                <svg class="icon-vol-mute" viewBox="0 0 24 24" width="22" height="22" style="display:none"><path fill="#fff" d="M16.5 12A4.5 4.5 0 0014 8.5v2.09l2.44 2.44c.03-.17.06-.34.06-.53zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0021 12a9 9 0 00-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.9 8.9 0 003.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+                            </button>
+                            <div class="volume-slider-wrap" id="volume-slider-wrap">
+                                <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="80">
+                            </div>
+                        </div>
+
+                        <span class="time-display" id="time-display">0:00 / 0:00</span>
+
+                        <div class="progress-area" id="progress-area">
+                            <div class="progress-tooltip" id="progress-tooltip">0:00</div>
+                            <div class="progress-track" id="progress-track">
+                                <div class="progress-buffered"></div>
+                                <div class="progress-played" id="progress-played"></div>
+                                <div class="progress-scrubber" id="progress-scrubber"></div>
+                            </div>
+                        </div>
+
+                        <button class="ctrl-btn cc-btn" aria-label="Subtitles">CC</button>
+                        <button class="ctrl-btn settings-btn" id="settings-btn" aria-label="Settings">
+                            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" d="M19.14 12.94a7.07 7.07 0 000-1.88l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.04 7.04 0 00-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58a7.1 7.1 0 000 1.88l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.36 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"/></svg>
+                        </button>
+                        <button class="ctrl-btn theater-btn" aria-label="Theater mode">
+                            <svg viewBox="0 0 24 24" width="22" height="22"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="#fff" stroke-width="2"/></svg>
+                        </button>
+                        <button class="ctrl-btn fullscreen-btn" aria-label="Full screen">
+                            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- Settings Popup -->
+                    <div class="settings-popup" id="settings-popup" style="display:none;">
+                        <!-- populated by JS -->
+                    </div>
+                </div>
+
+                <div class="autoplay-row">
+                    <span>Autoplay</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoplay-toggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Video Info -->
+            <div class="video-info" id="video-info">
+                <h1 class="video-title" id="watch-title"></h1>
+                <div class="channel-row">
+                    <div class="channel-left">
+                        <div class="avatar-circle channel-avatar" id="watch-channel-avatar"></div>
+                        <div class="channel-meta">
+                            <span class="channel-name" id="watch-channel-name"></span>
+                            <span class="channel-subs" id="watch-channel-subs"></span>
+                        </div>
+                        <button class="subscribe-btn" id="subscribe-btn">Subscribe</button>
+                        <button class="bell-btn" id="bell-btn" aria-label="Notification bell">
+                            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                        </button>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="action-btn like-btn" id="like-btn">
+                            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M1 21h4V9H1v12zm22-11a2 2 0 00-2-2h-6.31l.95-4.57.03-.32a1.49 1.49 0 00-.44-1.06L14.17 2 7.59 8.59C7.22 8.95 7 9.45 7 10v10a2 2 0 002 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
+                            <span class="like-count" id="like-count"></span>
+                        </button>
+                        <button class="action-btn dislike-btn" id="dislike-btn">
+                            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15 3H6a2 2 0 00-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2a2 2 0 002 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 22l6.59-6.59c.36-.36.58-.86.58-1.41V5a2 2 0 00-2-2zm4 0v12h4V3h-4z"/></svg>
+                        </button>
+                        <button class="action-btn share-btn">
+                            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M14 9V3l7 7-7 7v-6c-5 0-8.5 1.5-11 5 1-5 4-10 11-11z"/></svg>
+                            <span>Share</span>
+                        </button>
+                        <button class="action-btn more-btn">&#8943;</button>
+                        <button class="action-btn save-btn">
+                            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z"/></svg>
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Description -->
+            <div class="description-box" id="description-box">
+                <div class="desc-stats" id="desc-stats"></div>
+                <div class="desc-text" id="desc-text"></div>
+                <button class="desc-toggle" id="desc-toggle">...more</button>
+            </div>
+
+            <!-- Comments -->
+            <div class="comments-section" id="comments-section">
+                <div class="comments-header">
+                    <h3 id="comments-count"></h3>
+                    <div class="sort-dropdown" id="sort-dropdown">
+                        <button class="sort-btn" id="sort-btn">
+                            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>
+                            <span id="sort-label">Top comments</span>
+                        </button>
+                        <div class="sort-menu" id="sort-menu" style="display:none;">
+                            <button class="sort-option" data-sort="top">Top comments</button>
+                            <button class="sort-option" data-sort="newest">Newest first</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="comment-input-row">
+                    <div class="avatar-circle comment-avatar">Y</div>
+                    <input type="text" class="comment-input" id="comment-input" placeholder="Add a comment...">
+                </div>
+                <div class="comments-list" id="comments-list">
+                    <!-- inserted by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT SIDEBAR -->
+        <div class="watch-right">
+            <h3 class="up-next-heading">Up next</h3>
+            <div class="up-next-list" id="up-next-list">
+                <!-- inserted by JS -->
+            </div>
+        </div>
+    </div>
+</main>
+
+<script src="/js/tracker.js"></script>
+<script src="/vidhub/js/vidhub.js"></script>
+</body>
+</html>

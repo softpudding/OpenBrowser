@@ -45,6 +45,10 @@ SITE_NAME_TO_BUCKET = {
     "booking.com": "booking",
     "github.com": "github",
     "amazon.com": "amazon",
+    "mapquest.com": "mapquest",
+    "staybnb.com": "staybnb",
+    "taskflow.app": "taskflow",
+    "vidhub.com": "vidhub",
 }
 
 
@@ -260,6 +264,14 @@ URL_MAPPINGS = {
     "/bluebook/index.html": ("/bluebook/index.html", "text/html"),
     "/northstar/": ("/northstar/index.html", "text/html"),
     "/northstar/index.html": ("/northstar/index.html", "text/html"),
+    "/mapquest/": ("/mapquest/index.html", "text/html"),
+    "/mapquest/index.html": ("/mapquest/index.html", "text/html"),
+    "/staybnb/": ("/staybnb/index.html", "text/html"),
+    "/staybnb/index.html": ("/staybnb/index.html", "text/html"),
+    "/taskflow/": ("/taskflow/index.html", "text/html"),
+    "/taskflow/index.html": ("/taskflow/index.html", "text/html"),
+    "/vidhub/": ("/vidhub/index.html", "text/html"),
+    "/vidhub/index.html": ("/vidhub/index.html", "text/html"),
 }
 
 CSS_MIMETYPE = "text/css"
@@ -376,6 +388,30 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                         "url": "/amazon/",
                         "description": "Retail workflow mock - noisy search, variants, offers, cart recovery, and checkout",
                     },
+                    {
+                        "name": "mapquest.com",
+                        "difficulty": "hard",
+                        "url": "/mapquest/",
+                        "description": "Google Maps mock - test autocomplete timing, icon-only transport buttons, spatial pin clicks, panel-state transitions",
+                    },
+                    {
+                        "name": "staybnb.com",
+                        "difficulty": "hard",
+                        "url": "/staybnb/",
+                        "description": "Airbnb mock - test date-range calendar, dual-handle price slider drag, segmented search pill, multi-step booking",
+                    },
+                    {
+                        "name": "taskflow.app",
+                        "difficulty": "hard",
+                        "url": "/taskflow/",
+                        "description": "Trello mock - test drag-and-drop cards, hover-reveal pencil, color-only label picker, inline editing",
+                    },
+                    {
+                        "name": "vidhub.com",
+                        "difficulty": "hard",
+                        "url": "/vidhub/",
+                        "description": "YouTube mock - test auto-hide control bar, timeline scrub, nested settings popup, volume hover-reveal slider",
+                    },
                 ]
             }
             self.send_json_response(sites)
@@ -402,6 +438,10 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                     "/booking/": "Booking workflow mock (hard/very hard)",
                     "/github/": "GitHub workflow mock (hard/very hard)",
                     "/amazon/": "Amazon workflow mock (hard/very hard)",
+                    "/mapquest/": "MapQuest Google Maps mock (hard)",
+                    "/staybnb/": "StayBnB Airbnb mock (hard)",
+                    "/taskflow/": "TaskFlow Trello mock (hard)",
+                    "/vidhub/": "VidHub YouTube mock (hard)",
                 },
             }
             self.send_json_response(help_text)
@@ -883,6 +923,10 @@ def print_startup_info(port):
     print(f"  - Booking (Hard+): http://localhost:{port}/booking/")
     print(f"  - GitHub (Hard+): http://localhost:{port}/github/")
     print(f"  - Amazon (Hard+): http://localhost:{port}/amazon/")
+    print(f"  - MapQuest (Hard): http://localhost:{port}/mapquest/")
+    print(f"  - StayBnB (Hard):  http://localhost:{port}/staybnb/")
+    print(f"  - TaskFlow (Hard): http://localhost:{port}/taskflow/")
+    print(f"  - VidHub (Hard):   http://localhost:{port}/vidhub/")
     print("\nAPI Endpoints:")
     print(
         f"  - GET  http://localhost:{port}/api/events       - Get tracked events (?site=gbr)"

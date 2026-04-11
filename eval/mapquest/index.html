@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapQuest — Maps, Directions, Traffic</title>
+    <link rel="stylesheet" href="/mapquest/css/mapquest.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Left Panel -->
+        <div id="left-panel" class="panel open">
+            <!-- Panel Header with Back Arrow -->
+            <div id="panel-header" class="panel-header hidden">
+                <button id="panel-back-btn" class="panel-back-btn" aria-label="Back">
+                    <svg width="20" height="20" viewBox="0 0 20 20"><path d="M13 4l-6 6 6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <span id="panel-header-title" class="panel-header-title"></span>
+            </div>
+
+            <!-- Search State -->
+            <div id="state-search" class="panel-state active">
+                <div class="search-container">
+                    <div class="search-box" id="search-box">
+                        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#70757a" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <input type="text" id="search-input" class="search-input" placeholder="Search Google Maps" autocomplete="off">
+                    </div>
+                    <div id="autocomplete-dropdown" class="autocomplete-dropdown hidden"></div>
+                </div>
+                <!-- Nearby Category Chips -->
+                <div class="chip-bar-wrapper">
+                    <div class="chip-bar">
+                        <button class="chip" data-category="restaurants">
+                            <span class="chip-icon">🍽️</span> Restaurants
+                        </button>
+                        <button class="chip" data-category="gas">
+                            <span class="chip-icon">⛽</span> Gas stations
+                        </button>
+                        <button class="chip" data-category="coffee">
+                            <span class="chip-icon">☕</span> Coffee
+                        </button>
+                        <button class="chip" data-category="hotels">
+                            <span class="chip-icon">🏨</span> Hotels
+                        </button>
+                        <button class="chip" data-category="parking">
+                            <span class="chip-icon">🅿️</span> Parking
+                        </button>
+                        <button class="chip" data-category="groceries">
+                            <span class="chip-icon">🛒</span> Groceries
+                        </button>
+                        <button class="chip" data-category="attractions">
+                            <span class="chip-icon">🎭</span> Attractions
+                        </button>
+                        <button class="chip" data-category="pharmacies">
+                            <span class="chip-icon">💊</span> Pharmacies
+                        </button>
+                    </div>
+                </div>
+                <div class="search-suggestions">
+                    <div class="suggestion-header">Explore nearby</div>
+                    <div class="suggestion-item" data-place-id="pike-place-market">
+                        <span class="suggestion-icon">📍</span>
+                        <span>Pike Place Market</span>
+                    </div>
+                    <div class="suggestion-item" data-place-id="space-needle">
+                        <span class="suggestion-icon">📍</span>
+                        <span>Space Needle</span>
+                    </div>
+                    <div class="suggestion-item" data-place-id="starbucks-roastery">
+                        <span class="suggestion-icon">☕</span>
+                        <span>Starbucks Reserve Roastery</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Results State -->
+            <div id="state-results" class="panel-state">
+                <div class="search-container">
+                    <div class="search-box" id="results-search-box">
+                        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#70757a" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <input type="text" id="results-search-input" class="search-input" placeholder="Search Google Maps" autocomplete="off">
+                    </div>
+                </div>
+                <div id="results-list" class="results-list"></div>
+            </div>
+
+            <!-- Place Detail State -->
+            <div id="state-place-detail" class="panel-state">
+                <!-- Nearby Category Chips (also visible here so users can explore after selecting a place) -->
+                <div class="chip-bar-wrapper">
+                    <div class="chip-bar">
+                        <button class="chip" data-category="restaurants">
+                            <span class="chip-icon">🍽️</span> Restaurants
+                        </button>
+                        <button class="chip" data-category="gas">
+                            <span class="chip-icon">⛽</span> Gas stations
+                        </button>
+                        <button class="chip" data-category="coffee">
+                            <span class="chip-icon">☕</span> Coffee
+                        </button>
+                        <button class="chip" data-category="hotels">
+                            <span class="chip-icon">🏨</span> Hotels
+                        </button>
+                        <button class="chip" data-category="parking">
+                            <span class="chip-icon">🅿️</span> Parking
+                        </button>
+                        <button class="chip" data-category="groceries">
+                            <span class="chip-icon">🛒</span> Groceries
+                        </button>
+                        <button class="chip" data-category="attractions">
+                            <span class="chip-icon">🎭</span> Attractions
+                        </button>
+                        <button class="chip" data-category="pharmacies">
+                            <span class="chip-icon">💊</span> Pharmacies
+                        </button>
+                    </div>
+                </div>
+                <div class="place-detail-scroll">
+                    <!-- Photo placeholders -->
+                    <div class="place-photos">
+                        <div class="photo-main"></div>
+                        <div class="photo-grid">
+                            <div class="photo-thumb"></div>
+                            <div class="photo-thumb"></div>
+                            <div class="photo-thumb"></div>
+                            <div class="photo-thumb"></div>
+                        </div>
+                    </div>
+                    <div class="place-info">
+                        <h1 id="place-name" class="place-name"></h1>
+                        <div class="place-rating">
+                            <span id="place-rating-number" class="rating-number"></span>
+                            <span id="place-stars" class="rating-stars"></span>
+                            <span id="place-review-count" class="review-count"></span>
+                        </div>
+                        <div class="place-category" id="place-category"></div>
+                        <div class="place-hours" id="place-hours">
+                            <span class="hours-status open">Open now</span>
+                            <span class="hours-detail"> · Closes 9 PM</span>
+                        </div>
+                        <div class="place-actions">
+                            <button id="directions-btn" class="action-btn action-primary">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+                                Directions
+                            </button>
+                            <button class="action-btn" id="save-btn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+                                Save
+                            </button>
+                            <button class="action-btn" id="share-btn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>
+                                Share
+                            </button>
+                        </div>
+                        <div class="place-address" id="place-address">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#70757a" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                            <span id="place-address-text"></span>
+                        </div>
+                        <div class="place-website" id="place-website">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#70757a" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                            <span id="place-website-text"></span>
+                        </div>
+                        <div class="place-phone" id="place-phone">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#70757a" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.362 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                            <span id="place-phone-text"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Directions State -->
+            <div id="state-directions" class="panel-state">
+                <div class="directions-form">
+                    <!-- Transport Mode Tabs -->
+                    <div class="transport-tabs" id="transport-tabs">
+                        <button class="transport-tab active" data-mode="drive" aria-label="Driving">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+                        </button>
+                        <button class="transport-tab" data-mode="transit" aria-label="Transit">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2l2-2h4l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-4-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/></svg>
+                        </button>
+                        <button class="transport-tab" data-mode="walk" aria-label="Walking">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/></svg>
+                        </button>
+                        <button class="transport-tab" data-mode="bike" aria-label="Cycling">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5zm5.8-10l2.4-2.4.8.8c1.3 1.3 3 2.1 5 2.1V9c-1.5 0-2.7-.6-3.6-1.5l-1.9-1.9c-.5-.4-1-.6-1.6-.6s-1.1.2-1.4.6L7.8 8.4c-.4.4-.6.9-.6 1.4 0 .6.2 1.1.6 1.4L11 14v5h2v-6.2l-2.2-2.3zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+                        </button>
+                    </div>
+                    <!-- Origin / Destination Fields -->
+                    <div class="directions-fields">
+                        <div class="directions-field-row">
+                            <span class="field-dot origin-dot"></span>
+                            <div class="field-input-wrap">
+                                <input type="text" id="directions-origin" class="directions-input" placeholder="Choose starting point, or click on the map" autocomplete="off">
+                                <div id="origin-autocomplete" class="autocomplete-dropdown hidden"></div>
+                            </div>
+                        </div>
+                        <button id="swap-btn" class="swap-btn" aria-label="Swap origin and destination">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 12l-3-3m3 3l3-3M17 8v12m0-12l3 3m-3-3l-3 3"/></svg>
+                        </button>
+                        <div class="directions-field-row">
+                            <span class="field-dot dest-dot"></span>
+                            <div class="field-input-wrap">
+                                <input type="text" id="directions-destination" class="directions-input" placeholder="Choose destination" autocomplete="off">
+                                <div id="dest-autocomplete" class="autocomplete-dropdown hidden"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Route Results -->
+                    <div id="route-results" class="route-results hidden">
+                        <div class="route-results-header">Suggested routes</div>
+                        <div id="route-list" class="route-list"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Panel Collapse Toggle (sibling of panel so it isn't clipped by panel overflow) -->
+        <button id="panel-toggle" class="panel-toggle" aria-label="Collapse panel">
+            <svg width="12" height="20" viewBox="0 0 12 20"><path d="M10 2L2 10l8 8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <!-- Map Canvas -->
+        <div id="map-container" class="map-container">
+            <svg id="map-svg" class="map-svg" viewBox="0 0 400 450" preserveAspectRatio="xMidYMid meet">
+                <!-- Water / background -->
+                <rect width="400" height="450" fill="#e8f4f8"/>
+
+                <!-- Land mass -->
+                <rect x="40" y="20" width="350" height="420" fill="#f0f0f0" rx="4"/>
+
+                <!-- Major Roads — simplified Seattle downtown grid -->
+                <!-- East-West roads -->
+                <line x1="50" y1="100" x2="380" y2="100" class="road major-road"/>
+                <line x1="50" y1="150" x2="380" y2="150" class="road"/>
+                <line x1="50" y1="200" x2="380" y2="200" class="road major-road"/>
+                <line x1="50" y1="250" x2="380" y2="250" class="road"/>
+                <line x1="50" y1="300" x2="380" y2="300" class="road major-road"/>
+                <line x1="50" y1="350" x2="380" y2="350" class="road"/>
+                <line x1="50" y1="400" x2="380" y2="400" class="road"/>
+
+                <!-- North-South roads -->
+                <line x1="100" y1="30" x2="100" y2="440" class="road"/>
+                <line x1="150" y1="30" x2="150" y2="440" class="road major-road"/>
+                <line x1="200" y1="30" x2="200" y2="440" class="road"/>
+                <line x1="250" y1="30" x2="250" y2="440" class="road major-road"/>
+                <line x1="300" y1="30" x2="300" y2="440" class="road"/>
+                <line x1="350" y1="30" x2="350" y2="440" class="road"/>
+
+                <!-- Diagonal road (like Yesler Way) -->
+                <line x1="60" y1="280" x2="300" y2="350" class="road diagonal-road"/>
+
+                <!-- Water (Elliott Bay approximation) -->
+                <path d="M40 20 Q30 200 40 440 L40 440 L40 20Z" fill="#b3d9f2" opacity="0.6"/>
+
+                <!-- Route lines (hidden by default) -->
+                <g id="route-lines" class="route-lines">
+                    <path id="route-0" class="route-path" d="" stroke="#4285f4" stroke-width="5" fill="none" opacity="0" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path id="route-1" class="route-path" d="" stroke="#9aa0a6" stroke-width="4" fill="none" opacity="0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8,6"/>
+                    <path id="route-2" class="route-path" d="" stroke="#9aa0a6" stroke-width="4" fill="none" opacity="0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,8"/>
+                </g>
+
+                <!-- Map Pins Group -->
+                <g id="map-pins"></g>
+
+                <!-- Tooltip -->
+                <g id="pin-tooltip" class="pin-tooltip" style="display:none;">
+                    <rect id="tooltip-bg" x="0" y="0" width="160" height="28" rx="4" fill="white" stroke="#dadce0" stroke-width="1" filter="url(#shadow)"/>
+                    <text id="tooltip-text" x="8" y="18" font-size="12" fill="#3c4043"></text>
+                </g>
+
+                <!-- SVG Filter for shadow -->
+                <defs>
+                    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.25"/>
+                    </filter>
+                    <filter id="pin-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/>
+                    </filter>
+                </defs>
+            </svg>
+
+            <!-- Map Controls -->
+            <div class="map-controls-zoom">
+                <button id="zoom-in" class="map-ctrl-btn" aria-label="Zoom in">+</button>
+                <button id="zoom-out" class="map-ctrl-btn" aria-label="Zoom out">−</button>
+            </div>
+            <div class="map-controls-compass">
+                <button class="map-ctrl-btn compass-btn" aria-label="Reset north">
+                    <svg width="20" height="20" viewBox="0 0 20 20"><polygon points="10,2 13,10 10,8 7,10" fill="#ea4335"/><polygon points="10,18 7,10 10,12 13,10" fill="#c5c5c5"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/mapquest/js/mapquest.js"></script>
+</body>
+</html>
