@@ -1,0 +1,73 @@
+id: amazon_offer_disambiguation
+name: "Amazon Offer Disambiguation"
+difficulty: very hard
+description: "Search and open the correct product, open the offers surface, choose the exact seller and condition, verify the delivery promise via address selection, add the correct offer to cart, and complete checkout without using Buy Now."
+start_url: "http://localhost:16605/amazon/?reset=1"
+instruction: "In the Amazon mock, search for portable monitor and open North Lake Portable Monitor 16. Open the offers surface and choose the new Harbor Tech offer. Add that exact offer to cart without using Buy Now. Then complete checkout using address Office Loft, shipping Next-day locker delivery, payment Visa ending 4242, and place the order."
+time_limit: 1020.0
+cost_limit: 2.3
+
+criteria:
+  - type: search
+    description: "Search for the product"
+    points: 1.0
+    expected:
+      event_type: amazon_search_execute
+      page: "/amazon/"
+      query: "portable monitor"
+
+  - type: open_product
+    description: "Open the correct monitor"
+    points: 1.2
+    expected:
+      event_type: product_open
+      page: "/amazon/"
+      productId: "product-north-lake-monitor-16"
+
+  - type: open_offers
+    description: "Open the offers surface"
+    points: 1.0
+    expected:
+      event_type: offer_open
+      page: "/amazon/"
+      productId: "product-north-lake-monitor-16"
+
+  - type: choose_offer
+    description: "Choose the exact seller offer"
+    points: 1.6
+    expected:
+      event_type: offer_select
+      page: "/amazon/"
+      productId: "product-north-lake-monitor-16"
+      offerId: "offer-monitor-harbor-tech-new"
+
+  - type: add_to_cart
+    description: "Add the selected offer to cart"
+    points: 1.4
+    expected:
+      event_type: cart_add
+      page: "/amazon/"
+      productId: "product-north-lake-monitor-16"
+      offerId: "offer-monitor-harbor-tech-new"
+      checkoutPath: "cart"
+
+  - type: address
+    description: "Select the Office Loft address"
+    points: 0.8
+    expected:
+      event_type: address_select
+      page: "/amazon/"
+      addressId: "address-office-loft"
+
+  - type: final_order
+    description: "Place the correct offer order through the cart path"
+    points: 3.0
+    expected:
+      event_type: place_order_click
+      page: "/amazon/"
+      productId: "product-north-lake-monitor-16"
+      offerId: "offer-monitor-harbor-tech-new"
+      addressId: "address-office-loft"
+      shippingOptionId: "shipping-locker-next-day"
+      paymentId: "payment-visa-4242"
+      checkoutPath: "cart"

@@ -1,0 +1,94 @@
+id: amazon_variant_checkout
+name: "Amazon Variant Checkout"
+difficulty: hard
+description: "Search through noisy results, open the correct PDP, select the exact color and size, add to cart, remove the auto-added accessory, and complete checkout."
+start_url: "http://localhost:16605/amazon/?reset=1"
+instruction: "In the Amazon mock, search for trail shell and open Aurora Trail Shell Jacket. Select color Canyon Red and size M. Add it to cart, remove the auto-added Rain Care Kit accessory, then complete checkout using address Office Loft, shipping Next-day locker delivery, payment Visa ending 4242, and place the order."
+time_limit: 700.0
+cost_limit: 1.6
+
+criteria:
+  - type: search
+    description: "Search for the target product"
+    points: 1.0
+    expected:
+      event_type: amazon_search_execute
+      page: "/amazon/"
+      query: "trail shell"
+
+  - type: open_product
+    description: "Open the correct PDP"
+    points: 1.2
+    expected:
+      event_type: product_open
+      page: "/amazon/"
+      productId: "product-aurora-trail-shell"
+
+  - type: select_color
+    description: "Select the Canyon Red color"
+    points: 0.8
+    expected:
+      event_type: variant_select
+      page: "/amazon/"
+      productId: "product-aurora-trail-shell"
+      variantKey: "color"
+      variantValue: "Canyon Red"
+
+  - type: select_size
+    description: "Select size M"
+    points: 0.8
+    expected:
+      event_type: variant_select
+      page: "/amazon/"
+      productId: "product-aurora-trail-shell"
+      variantKey: "size"
+      variantValue: "M"
+
+  - type: add_cart
+    description: "Add the selected variant to cart"
+    points: 1.2
+    expected:
+      event_type: cart_add
+      page: "/amazon/"
+      productId: "product-aurora-trail-shell"
+      variantId: "canyon-red__m"
+      checkoutPath: "cart"
+
+  - type: address
+    description: "Select the address"
+    points: 0.8
+    expected:
+      event_type: address_select
+      page: "/amazon/"
+      addressId: "address-office-loft"
+
+  - type: shipping
+    description: "Select the shipping option"
+    points: 0.8
+    expected:
+      event_type: shipping_option_select
+      page: "/amazon/"
+      shippingOptionId: "shipping-locker-next-day"
+
+  - type: payment
+    description: "Select the payment method"
+    points: 0.8
+    expected:
+      event_type: payment_select
+      page: "/amazon/"
+      paymentId: "payment-visa-4242"
+
+  - type: order
+    description: "Place the final order with the correct cart state"
+    points: 2.8
+    expected:
+      event_type: place_order_click
+      page: "/amazon/"
+      productId: "product-aurora-trail-shell"
+      variantId: "canyon-red__m"
+      removedAccessoryIds:
+        - "acc-rain-care-kit"
+      addressId: "address-office-loft"
+      shippingOptionId: "shipping-locker-next-day"
+      paymentId: "payment-visa-4242"
+      checkoutPath: "cart"

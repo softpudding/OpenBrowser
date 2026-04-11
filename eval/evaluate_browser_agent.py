@@ -1692,11 +1692,10 @@ class Evaluator:
             return False
 
         expected_element_href = expected.get("element_href")
-        if expected_element_href and expected_element_href not in (
-            event.get("elementHref") or ""
-        ):
-            # elementHref may not be tracked, we can check selector
-            pass
+        if expected_element_href:
+            element_href = event.get("elementHref")
+            if not element_href or expected_element_href not in element_href:
+                return False
 
         # Check parent text contains (for contextual matching)
         expected_parent_text_contains = expected.get("parent_text_contains")
@@ -1740,9 +1739,28 @@ class Evaluator:
         # Additional custom checks
         expected_check = expected.get("check")
         if expected_check == "upvote_count_changed":
-            # Placeholder for custom logic
-            # Could check if upvote count increased in subsequent events
-            pass
+            if event.get("eventType") == "upvote_toggle":
+                if event.get("voted") is not True:
+                    return False
+            else:
+                previous_count = (
+                    event.get("previousCount")
+                    or event.get("oldCount")
+                    or event.get("beforeCount")
+                )
+                new_count = (
+                    event.get("upvoteCount")
+                    or event.get("count")
+                    or event.get("newCount")
+                    or event.get("afterCount")
+                )
+                if previous_count is None or new_count is None:
+                    return False
+                try:
+                    if int(new_count) <= int(previous_count):
+                        return False
+                except (TypeError, ValueError):
+                    return False
 
         # Check all other expected fields directly against event
         for key, expected_value in expected.items():
@@ -1759,8 +1777,11 @@ class Evaluator:
 
     def _sse_event_matches_expected(self, event: Dict, expected: Dict) -> bool:
         """Check if an SSE event matches expected criteria"""
-        # Currently not using SSE events for criteria
-        return False
+        payload = event.get("data")
+        normalized_event = payload.copy() if isinstance(payload, dict) else {}
+        normalized_event["eventType"] = event.get("type")
+        normalized_event.setdefault("timestamp", event.get("timestamp"))
+        return self._event_matches_expected(normalized_event, expected)
 
     def generate_report(self):
         """Generate evaluation report"""
@@ -1900,7 +1921,8 @@ class Evaluator:
         print(
             "\nPerform this task in the browser. Events will be tracked from this moment."
         )
-        print("When you have completed the task, enter 'ok' below.")
+        print("Complete the task using the website's own controls.")
+        print("After you finish in the browser, return here and enter 'ok' below.")
 
         # Start timing when instruction is shown (same as automated test)
         start_time = time.time()
@@ -1908,14 +1930,14 @@ class Evaluator:
         # Wait for user to complete the entire task
         while True:
             response = (
-                input("\nEnter 'ok' when you have completed the task > ")
+                input("\nAfter finishing in the browser, enter 'ok' here > ")
                 .strip()
                 .lower()
             )
             if response == "ok":
                 break
             else:
-                print("Please enter 'ok' when you have completed the task.")
+                print("Please finish the browser task first, then enter 'ok' here.")
 
         end_time = time.time()
         duration = end_time - start_time

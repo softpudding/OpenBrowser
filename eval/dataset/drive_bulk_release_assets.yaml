@@ -1,0 +1,81 @@
+id: drive_bulk_release_assets
+name: "Drive Bulk Release Assets"
+difficulty: very hard
+description: "Switch to list view, multi-select several similarly named assets, move them together, upload a replacement asset, and delete one obsolete duplicate."
+start_url: "http://localhost:16605/drive/?reset=1"
+instruction: "In the Drive mock, switch to list view and work inside Release Assets / Social / Scratch. Select exactly these three files together: Launch Keyvisual Final.png, Launch Keyvisual Final@2x.png, and Launch Keyvisual Final Print.png. Move them in one action to Release Assets / Social / Release Ready Social. Upload the mock replacement asset Launch-Keyvisual-Final-retouched.png into that same Release Ready Social folder. Then delete the obsolete duplicate file Launch Keyvisual Final copy.png. Do not touch the shortcut."
+time_limit: 980.0
+cost_limit: 2.1
+
+criteria:
+  - type: switch_list_view
+    description: "Switch Drive to list view"
+    points: 1.0
+    expected:
+      event_type: view_mode_change
+      page: "/drive/"
+      viewMode: "list"
+
+  - type: select_asset_one
+    description: "Select the first asset"
+    points: 0.8
+    expected:
+      event_type: item_select
+      page: "/drive/"
+      itemId: "asset-keyvisual-final"
+
+  - type: select_asset_two
+    description: "Select the second asset"
+    points: 0.8
+    expected:
+      event_type: item_select
+      page: "/drive/"
+      itemId: "asset-keyvisual-final-2x"
+
+  - type: select_asset_three
+    description: "Select the third asset"
+    points: 0.8
+    expected:
+      event_type: item_select
+      page: "/drive/"
+      itemId: "asset-keyvisual-final-print"
+
+  - type: commit_multi_select
+    description: "Commit the exact three-item bulk selection"
+    points: 1.4
+    expected:
+      event_type: multi_select_commit
+      page: "/drive/"
+      itemIds:
+        - "asset-keyvisual-final"
+        - "asset-keyvisual-final-2x"
+        - "asset-keyvisual-final-print"
+
+  - type: move_assets
+    description: "Move the selected assets to the release-ready folder"
+    points: 2.2
+    expected:
+      event_type: item_move
+      page: "/drive/"
+      itemIds:
+        - "asset-keyvisual-final"
+        - "asset-keyvisual-final-2x"
+        - "asset-keyvisual-final-print"
+      destinationId: "folder-release-ready-social"
+
+  - type: upload_replacement
+    description: "Upload the replacement asset"
+    points: 1.4
+    expected:
+      event_type: mock_upload_complete
+      page: "/drive/"
+      itemId: "upload-launch-keyvisual-retouched"
+      destinationId: "folder-release-ready-social"
+
+  - type: delete_duplicate
+    description: "Delete the obsolete duplicate"
+    points: 1.6
+    expected:
+      event_type: item_delete
+      page: "/drive/"
+      itemId: "asset-keyvisual-final-copy"
