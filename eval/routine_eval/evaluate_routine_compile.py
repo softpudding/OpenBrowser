@@ -47,6 +47,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import shutil
 import sys
 import time
 import uuid
@@ -657,6 +658,43 @@ def aggregate(results: list[FixtureRunResult]) -> dict[str, Any]:
     return summary
 
 
+def _build_main_report(
+    *,
+    base_url: str,
+    compile_alias: Optional[str],
+    judge_alias: Optional[str],
+    fixture_ids: list[str],
+    results: list[FixtureRunResult],
+    output_dir: Path,
+    run_status: str,
+    fatal_error: Optional[str] = None,
+) -> dict[str, Any]:
+    summary = aggregate(results)
+    return {
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "base_url": base_url,
+        "compile_alias": compile_alias,
+        "judge_alias": judge_alias,
+        "fixture_ids": fixture_ids,
+        "output_dir": str(output_dir),
+        "run_status": run_status,
+        "fatal_error": fatal_error,
+        "fixtures_completed": len(results),
+        "fixtures_total": len(fixture_ids),
+        "fixtures": [r.to_dict() for r in results],
+        "summary": summary,
+    }
+
+
+def _write_json_report(report_path: Path, payload: dict[str, Any]) -> None:
+    tmp_path = report_path.with_suffix(f"{report_path.suffix}.tmp")
+    tmp_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    tmp_path.replace(report_path)
+
+
 def _print_summary(results: list[FixtureRunResult], summary: dict[str, Any]) -> None:
     print()
     print("=" * 72)
@@ -692,6 +730,107 @@ def _print_summary(results: list[FixtureRunResult], summary: dict[str, Any]) -> 
         f"({summary['total_proxy_tokens']} tokens)"
     )
     print("=" * 72)
+
+
+# ---------------------------------------------------------------------------
+#  Regression report (version-controlled baseline)
+# ---------------------------------------------------------------------------
+
+REGRESSION_REPORT_PATH = HERE / "compile_evaluation_report.json"
+
+
+def _generate_regression_report(
+    results: list[FixtureRunResult],
+    summary: dict[str, Any],
+    compile_alias: Optional[str],
+    judge_alias: Optional[str],
+    output_dir: Path,
+) -> Optional[Path]:
+    """Write a concise JSON regression report, mirroring eval/evaluation_report.json.
+
+    The report is written to *output_dir* and copied to
+    ``eval/routine_eval/compile_evaluation_report.json`` for version control.
+    Agent events are excluded to keep the file small and diffable.
+    """
+    try:
+        now = time.time()
+        human_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now))
+
+        compile_model = compile_alias or "(server default)"
+        judge_model = judge_alias or compile_model
+
+        # Per-fixture results (no agent_events — those are huge)
+        fixture_results: dict[str, Any] = {}
+        for r in results:
+            entry: dict[str, Any] = {
+                "success": r.success,
+                "final_status": r.final_status,
+                "error": r.error,
+                "asked_questions_count": len(r.asked_questions),
+                "compile_duration": round(r.compile_duration_seconds, 2),
+                "proxy_cost": round(r.proxy_cost, 6),
+                "proxy_tokens": r.proxy_tokens,
+            }
+            if r.judgment is not None:
+                j = r.judgment
+                entry.update(
+                    {
+                        "overall_pass": j.overall_pass,
+                        "intent_match": round(j.intent_match, 4),
+                        "keyword_placement": round(j.keyword_placement, 4),
+                        "asking_behavior": round(j.asking_behavior, 4),
+                        "reasoning": j.reasoning,
+                    }
+                )
+            else:
+                entry["overall_pass"] = False
+            fixture_results[r.fixture_id] = entry
+
+        report = {
+            "compile_evaluation": {
+                "timestamp": human_time,
+                "unix_timestamp": now,
+                "summary": {
+                    "fixture_count": summary["fixture_count"],
+                    "judged_count": summary["judged_count"],
+                    "passed_count": summary["passed_count"],
+                    "pass_rate": round(
+                        summary["passed_count"] / summary["fixture_count"] * 100
+                        if summary["fixture_count"]
+                        else 0,
+                        2,
+                    ),
+                    "compile_model": compile_model,
+                    "judge_model": judge_model,
+                    "mean_intent_match": summary.get("mean_intent_match"),
+                    "mean_keyword_placement": summary.get("mean_keyword_placement"),
+                    "mean_asking_behavior": summary.get("mean_asking_behavior"),
+                    "total_proxy_cost": summary["total_proxy_cost"],
+                    "total_proxy_tokens": summary["total_proxy_tokens"],
+                },
+                "fixture_results": fixture_results,
+            }
+        }
+
+        report_path = output_dir / "compile_evaluation_report.json"
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2, ensure_ascii=False)
+        logger.info("Regression report saved to: %s", report_path)
+
+        # Copy to the stable path for version control
+        try:
+            if REGRESSION_REPORT_PATH.exists():
+                REGRESSION_REPORT_PATH.unlink()
+            shutil.copy2(report_path, REGRESSION_REPORT_PATH)
+            logger.info("Regression report copied to: %s", REGRESSION_REPORT_PATH)
+        except Exception as exc:
+            logger.warning("Could not copy regression report: %s", exc)
+
+        return report_path
+
+    except Exception as exc:
+        logger.error("Failed to generate regression report: %s", exc)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -832,65 +971,152 @@ def main(argv: Optional[list[str]] = None) -> int:
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     output_dir = args.output_dir or (OUTPUT_BASE_DIR / f"routine_compile_{timestamp}")
     output_dir.mkdir(parents=True, exist_ok=True)
-    logger.info("Writing report to %s", output_dir)
+    report_path = output_dir / "routine_compile_report.json"
+    logger.info("Report directory: %s", output_dir)
 
     results: list[FixtureRunResult] = []
-    for fid in fixture_ids:
-        fixture_dir = FIXTURES_DIR / fid
-        try:
-            fixture = Fixture.load(fixture_dir)
-        except Exception as exc:
-            logger.error("Failed to load fixture %s: %s", fid, exc)
-            results.append(
-                FixtureRunResult(
-                    fixture_id=fid,
-                    error=f"fixture load error: {exc}",
-                )
-            )
-            continue
-
-        _log(f"▶ running fixture: {fid} ({len(fixture.events)} events)")
-        result = run_one_fixture(
+    _write_json_report(
+        report_path,
+        _build_main_report(
             base_url=args.base_url,
-            fixture=fixture,
             compile_alias=args.compile_alias,
-            judge_llm=judge_llm,
-            max_ask_rounds=args.max_ask_rounds,
-            verbose=args.verbose,
-            event_truncate=0 if args.full_events else 500,
-        )
-        results.append(result)
+            judge_alias=judge_alias,
+            fixture_ids=fixture_ids,
+            results=results,
+            output_dir=output_dir,
+            run_status="running",
+        ),
+    )
+    logger.info("Initialized %s", report_path)
 
-        if result.judgment is not None:
-            j = result.judgment
-            logger.info(
-                "  done  intent=%.2f  keywords=%.2f  asking=%.2f  pass=%s",
-                j.intent_match,
-                j.keyword_placement,
-                j.asking_behavior,
-                j.overall_pass,
+    try:
+        for fid in fixture_ids:
+            fixture_dir = FIXTURES_DIR / fid
+            try:
+                fixture = Fixture.load(fixture_dir)
+            except Exception as exc:
+                logger.error("Failed to load fixture %s: %s", fid, exc)
+                results.append(
+                    FixtureRunResult(
+                        fixture_id=fid,
+                        error=f"fixture load error: {exc}",
+                    )
+                )
+                _write_json_report(
+                    report_path,
+                    _build_main_report(
+                        base_url=args.base_url,
+                        compile_alias=args.compile_alias,
+                        judge_alias=judge_alias,
+                        fixture_ids=fixture_ids,
+                        results=results,
+                        output_dir=output_dir,
+                        run_status="running",
+                    ),
+                )
+                continue
+
+            _log(f"▶ running fixture: {fid} ({len(fixture.events)} events)")
+            result = run_one_fixture(
+                base_url=args.base_url,
+                fixture=fixture,
+                compile_alias=args.compile_alias,
+                judge_llm=judge_llm,
+                max_ask_rounds=args.max_ask_rounds,
+                verbose=args.verbose,
+                event_truncate=0 if args.full_events else 500,
             )
-        else:
-            logger.error("  failed: %s", result.error)
+            results.append(result)
+
+            if result.judgment is not None:
+                j = result.judgment
+                logger.info(
+                    "  done  intent=%.2f  keywords=%.2f  asking=%.2f  pass=%s",
+                    j.intent_match,
+                    j.keyword_placement,
+                    j.asking_behavior,
+                    j.overall_pass,
+                )
+            else:
+                logger.error("  failed: %s", result.error)
+
+            _write_json_report(
+                report_path,
+                _build_main_report(
+                    base_url=args.base_url,
+                    compile_alias=args.compile_alias,
+                    judge_alias=judge_alias,
+                    fixture_ids=fixture_ids,
+                    results=results,
+                    output_dir=output_dir,
+                    run_status="running",
+                ),
+            )
+
+    except KeyboardInterrupt:
+        logger.warning("Interrupted; writing partial report to %s", report_path)
+        try:
+            _write_json_report(
+                report_path,
+                _build_main_report(
+                    base_url=args.base_url,
+                    compile_alias=args.compile_alias,
+                    judge_alias=judge_alias,
+                    fixture_ids=fixture_ids,
+                    results=results,
+                    output_dir=output_dir,
+                    run_status="interrupted",
+                    fatal_error="Interrupted by user",
+                ),
+            )
+        except Exception:
+            logger.exception("Failed to write partial interrupted report")
+        raise
+    except Exception as exc:
+        logger.exception("Routine compile eval failed")
+        try:
+            _write_json_report(
+                report_path,
+                _build_main_report(
+                    base_url=args.base_url,
+                    compile_alias=args.compile_alias,
+                    judge_alias=judge_alias,
+                    fixture_ids=fixture_ids,
+                    results=results,
+                    output_dir=output_dir,
+                    run_status="failed",
+                    fatal_error=f"{type(exc).__name__}: {exc}",
+                ),
+            )
+        except Exception:
+            logger.exception("Failed to write partial failure report")
+        return 1
 
     summary = aggregate(results)
-    report = {
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "base_url": args.base_url,
-        "compile_alias": args.compile_alias,
-        "judge_alias": judge_alias,
-        "fixture_ids": fixture_ids,
-        "fixtures": [r.to_dict() for r in results],
-        "summary": summary,
-    }
-    report_path = output_dir / "routine_compile_report.json"
-    report_path.write_text(
-        json.dumps(report, indent=2, ensure_ascii=False),
-        encoding="utf-8",
+    _write_json_report(
+        report_path,
+        _build_main_report(
+            base_url=args.base_url,
+            compile_alias=args.compile_alias,
+            judge_alias=judge_alias,
+            fixture_ids=fixture_ids,
+            results=results,
+            output_dir=output_dir,
+            run_status="completed",
+        ),
     )
     logger.info("Wrote %s", report_path)
 
     _print_summary(results, summary)
+
+    # Generate the version-controlled regression report
+    _generate_regression_report(
+        results=results,
+        summary=summary,
+        compile_alias=args.compile_alias,
+        judge_alias=judge_alias,
+        output_dir=output_dir,
+    )
 
     # Exit 0 iff every fixture both completed and passed the judge.
     all_passed = bool(results) and all(
