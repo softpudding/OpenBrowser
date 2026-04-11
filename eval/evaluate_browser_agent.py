@@ -1853,7 +1853,8 @@ class Evaluator:
         print(
             "\nPerform this task in the browser. Events will be tracked from this moment."
         )
-        print("When you have completed the task, enter 'ok' below.")
+        print("Complete the task using the website's own controls.")
+        print("After you finish in the browser, return here and enter 'ok' below.")
 
         # Start timing when instruction is shown (same as automated test)
         start_time = time.time()
@@ -1861,14 +1862,14 @@ class Evaluator:
         # Wait for user to complete the entire task
         while True:
             response = (
-                input("\nEnter 'ok' when you have completed the task > ")
+                input("\nAfter finishing in the browser, enter 'ok' here > ")
                 .strip()
                 .lower()
             )
             if response == "ok":
                 break
             else:
-                print("Please enter 'ok' when you have completed the task.")
+                print("Please finish the browser task first, then enter 'ok' here.")
 
         end_time = time.time()
         duration = end_time - start_time

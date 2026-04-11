@@ -1,0 +1,47 @@
+id: drive_permission_cleanup
+name: "Drive Permission Cleanup"
+difficulty: hard
+description: "Open a shared folder, add collaborators with different roles, and downgrade an existing editor."
+start_url: "http://localhost:16605/drive/?reset=1"
+instruction: "In the Drive mock, locate the shared folder Northstar Launch Shared. Open its share dialog. Add mila.procurement@northstar.com as a commenter. Add ceo.office@northstar.com as a viewer. Then downgrade alex@northstar.com from editor to commenter."
+time_limit: 620.0
+cost_limit: 1.3
+
+criteria:
+  - type: open_share_dialog
+    description: "Open the correct share dialog"
+    points: 1.2
+    expected:
+      event_type: share_dialog_open
+      page: "/drive/"
+      itemId: "folder-shared-northstar-launch"
+
+  - type: add_first_collaborator
+    description: "Add the procurement collaborator"
+    points: 1.6
+    expected:
+      event_type: permission_add
+      page: "/drive/"
+      itemId: "folder-shared-northstar-launch"
+      email: "mila.procurement@northstar.com"
+      role: "commenter"
+
+  - type: add_second_collaborator
+    description: "Add the executive office collaborator"
+    points: 1.6
+    expected:
+      event_type: permission_add
+      page: "/drive/"
+      itemId: "folder-shared-northstar-launch"
+      email: "ceo.office@northstar.com"
+      role: "viewer"
+
+  - type: downgrade_existing_editor
+    description: "Downgrade the existing editor"
+    points: 2.2
+    expected:
+      event_type: permission_change
+      page: "/drive/"
+      itemId: "folder-shared-northstar-launch"
+      email: "alex@northstar.com"
+      role: "commenter"

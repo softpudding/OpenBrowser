@@ -1,0 +1,68 @@
+id: booking_compare_and_book
+name: "Booking Compare And Book"
+difficulty: hard
+description: "Shortlist two similar hotels, compare them, reopen the correct property, select the valid offer, fill traveler details, and confirm the reservation."
+start_url: "http://localhost:16605/booking/?reset=1"
+instruction: "In the Booking mock, search Lisbon, Portugal for 2026-06-14 to 2026-06-17 for 2 adults in 1 room. Shortlist Harborline Residence Chiado and Harborline Residences Chiado, open the compare view, then reopen Harborline Residence Chiado. Choose the Premium King with Courtyard View plan that includes breakfast and free cancellation. Enter Sofia Grant as the primary traveler, leave the second traveler blank, use sofiagrant@example.com, and confirm the reservation."
+time_limit: 720.0
+cost_limit: 1.7
+
+criteria:
+  - type: shortlist_first
+    description: "Shortlist the first Harborline hotel"
+    points: 1.0
+    expected:
+      event_type: shortlist_toggle
+      page: "/booking/"
+      propertyId: "property-harborline-residence-chiado"
+      shortlisted: true
+
+  - type: shortlist_second
+    description: "Shortlist the second Harborline hotel"
+    points: 1.0
+    expected:
+      event_type: shortlist_toggle
+      page: "/booking/"
+      propertyId: "property-harborline-residences-chiado"
+      shortlisted: true
+
+  - type: open_compare
+    description: "Open the compare view with both shortlisted hotels"
+    points: 1.0
+    expected:
+      event_type: compare_open
+      page: "/booking/"
+      propertyIds:
+        - "property-harborline-residence-chiado"
+        - "property-harborline-residences-chiado"
+
+  - type: open_target_property
+    description: "Reopen the correct Harborline hotel"
+    points: 1.4
+    expected:
+      event_type: property_open
+      page: "/booking/"
+      propertyId: "property-harborline-residence-chiado"
+
+  - type: choose_target_plan
+    description: "Choose the valid room offer"
+    points: 1.6
+    expected:
+      event_type: rate_plan_select
+      page: "/booking/"
+      propertyId: "property-harborline-residence-chiado"
+      roomPlanId: "plan-harborline-chiado-premium-flex-breakfast"
+      roomSlot: 1
+
+  - type: submit_reservation
+    description: "Confirm the reservation"
+    points: 4.0
+    expected:
+      event_type: reservation_submit
+      page: "/booking/"
+      propertyId: "property-harborline-residence-chiado"
+      roomPlanIds:
+        - "plan-harborline-chiado-premium-flex-breakfast"
+      guestNames:
+        - "Sofia Grant"
+      email: "sofiagrant@example.com"

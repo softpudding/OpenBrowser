@@ -1,0 +1,74 @@
+id: gmail_vendor_escalation
+name: "Gmail Vendor Escalation"
+difficulty: very hard
+description: "Find a buried vendor customs-hold thread, expand the conversation history, draft the escalation with exact recipients and CC, reopen it from Drafts, add the correct Drive link, and send."
+start_url: "http://localhost:16605/gmail/?reset=1"
+instruction: 'In the Gmail mock, search for the Delta Components customs-hold conversation, open the exact vendor thread, expand the collapsed history, and inspect the newest message. Forward the escalation using TO mila.ops@northstar.com and CC arun.procurement@northstar.com. Use this exact body: "Escalating the Delta Components shipment blocker. Mila and Arun are looped in for a decision today." Save it as a draft, reopen that draft from Drafts, add the Drive attachment named Vendor SLA Summary, and send it.'
+time_limit: 900.0
+cost_limit: 2.2
+
+criteria:
+  - type: search_vendor_thread
+    description: "Execute the search"
+    points: 0.8
+    expected:
+      event_type: mail_search_execute
+      page: "/gmail/"
+
+  - type: open_vendor_thread
+    description: "Open the correct vendor thread"
+    points: 1.2
+    expected:
+      event_type: thread_open
+      page: "/gmail/"
+      threadId: "thr-vendor-delta-blocker"
+
+  - type: expand_history
+    description: "Expand the collapsed conversation history"
+    points: 1.0
+    expected:
+      event_type: thread_expand
+      page: "/gmail/"
+      threadId: "thr-vendor-delta-blocker"
+
+  - type: open_forward_draft
+    description: "Open a forward compose draft for the vendor thread"
+    points: 1.0
+    expected:
+      event_type: compose_open
+      page: "/gmail/"
+      threadId: "thr-vendor-delta-blocker"
+      mode: "forward"
+
+  - type: autosave_draft
+    description: "Save or autosave the draft"
+    points: 1.0
+    expected:
+      event_type: draft_autosave
+      page: "/gmail/"
+      threadId: "thr-vendor-delta-blocker"
+
+  - type: attach_drive_link
+    description: "Attach the correct Drive link"
+    points: 1.0
+    expected:
+      event_type: attachment_add
+      page: "/gmail/"
+      attachmentId: "drive-vendor-sla-summary"
+      source: "drive"
+
+  - type: send_escalation
+    description: "Send the exact escalation to the correct recipients"
+    points: 3.0
+    expected:
+      event_type: mail_send
+      page: "/gmail/"
+      threadId: "thr-vendor-delta-blocker"
+      mode: "forward"
+      to:
+        - "mila.ops@northstar.com"
+      cc:
+        - "arun.procurement@northstar.com"
+      body: "Escalating the Delta Components shipment blocker. Mila and Arun are looped in for a decision today."
+      attachmentIds:
+        - "drive-vendor-sla-summary"

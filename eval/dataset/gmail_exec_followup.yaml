@@ -1,0 +1,62 @@
+id: gmail_exec_followup
+name: "Gmail Finance Follow-up"
+difficulty: hard
+description: "Use Gmail-style search operators to find the exact finance board-packet thread, label it correctly, reply with exact text, attach the correct PDF, and send."
+start_url: "http://localhost:16605/gmail/?reset=1"
+instruction: 'In the Gmail mock, use search operators to find the correct finance board-packet thread from Mira Lin at aldercap.com. Open that exact thread, add it to the Finance/Board-Prep label, reply with this exact sentence: "Approved for Friday board prep. Please route the signed PDF back before 4 PM." Attach the mock PDF named Board-Pack-Revision-C.pdf and send the reply.'
+time_limit: 660.0
+cost_limit: 1.4
+
+criteria:
+  - type: search_operators
+    description: "Execute a mail search with operators"
+    points: 1.0
+    expected:
+      event_type: mail_search_execute
+      page: "/gmail/"
+
+  - type: open_correct_thread
+    description: "Open the correct finance thread"
+    points: 1.5
+    expected:
+      event_type: thread_open
+      page: "/gmail/"
+      threadId: "thr-fin-board-pack"
+
+  - type: create_label
+    description: "Create the requested nested label"
+    points: 1.0
+    expected:
+      event_type: label_create
+      page: "/gmail/"
+      labelName: "Finance/Board-Prep"
+
+  - type: apply_label
+    description: "Apply the label to the correct thread"
+    points: 1.0
+    expected:
+      event_type: label_apply
+      page: "/gmail/"
+      threadId: "thr-fin-board-pack"
+      labelName: "Finance/Board-Prep"
+
+  - type: attach_pdf
+    description: "Attach the correct PDF upload"
+    points: 1.0
+    expected:
+      event_type: attachment_add
+      page: "/gmail/"
+      attachmentId: "pdf-board-pack-revision-c"
+      source: "upload"
+
+  - type: send_reply
+    description: "Send the exact reply with the correct attachment"
+    points: 2.5
+    expected:
+      event_type: mail_send
+      page: "/gmail/"
+      threadId: "thr-fin-board-pack"
+      mode: "reply"
+      body: "Approved for Friday board prep. Please route the signed PDF back before 4 PM."
+      attachmentIds:
+        - "pdf-board-pack-revision-c"

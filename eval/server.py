@@ -18,13 +18,14 @@ import http.server
 import json
 import os
 import socketserver
+import sys
 import threading
 from copy import deepcopy
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
 # Configuration
-PORT = 16605
+DEFAULT_PORT = 16605
 EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # In-memory event storage
@@ -39,6 +40,11 @@ SITE_NAME_TO_BUCKET = {
     "finviz": "finviz",
     "bluebook.life": "bluebook",
     "northstaroutfitters.com": "northstar",
+    "mail.google.com": "gmail",
+    "drive.google.com": "drive",
+    "booking.com": "booking",
+    "github.com": "github",
+    "amazon.com": "amazon",
 }
 
 
@@ -339,6 +345,36 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                         "url": "/northstar/",
                         "description": "Apparel product page - test geometry-first scrolling, sticky UI, and drawer-scoped scrolling",
                     },
+                    {
+                        "name": "mail.google.com",
+                        "difficulty": "hard",
+                        "url": "/gmail/",
+                        "description": "Inbox triage mock - search operators, labels, drafts, and multi-step reply workflows",
+                    },
+                    {
+                        "name": "drive.google.com",
+                        "difficulty": "hard",
+                        "url": "/drive/",
+                        "description": "Drive file-management mock - nested folders, move/share flows, shortcuts, and uploads",
+                    },
+                    {
+                        "name": "booking.com",
+                        "difficulty": "hard",
+                        "url": "/booking/",
+                        "description": "Travel booking mock - filters, room policy discrimination, compare, and checkout",
+                    },
+                    {
+                        "name": "github.com",
+                        "difficulty": "hard",
+                        "url": "/github/",
+                        "description": "Repository workflow mock - issue triage, files changed review, labels, and review submission",
+                    },
+                    {
+                        "name": "amazon.com",
+                        "difficulty": "hard",
+                        "url": "/amazon/",
+                        "description": "Retail workflow mock - noisy search, variants, offers, cart recovery, and checkout",
+                    },
                 ]
             }
             self.send_json_response(sites)
@@ -360,6 +396,11 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                     "/finviz/": "Finviz stock screener mock (hard)",
                     "/bluebook/": "BlueBook lifestyle feed mock (hard)",
                     "/northstar/": "Northstar Outfitters product page mock (hard)",
+                    "/gmail/": "Gmail workflow mock (hard/very hard)",
+                    "/drive/": "Drive workflow mock (hard/very hard)",
+                    "/booking/": "Booking workflow mock (hard/very hard)",
+                    "/github/": "GitHub workflow mock (hard/very hard)",
+                    "/amazon/": "Amazon workflow mock (hard/very hard)",
                 },
             }
             self.send_json_response(help_text)
@@ -391,55 +432,31 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             self.send_file(file_path, content_type)
             return
 
+        full_path = os.path.join(EVAL_DIR, path.lstrip("/"))
+
         # Check for CSS files
-        if path.startswith("/css/") and path.endswith(".css"):
+        if path.endswith(".css") and os.path.exists(full_path):
             self.send_file(path, CSS_MIMETYPE)
             return
 
-        # Check for JS files (including site-specific JS folders)
-        if path.startswith("/js/") and path.endswith(".js"):
+        # Check for JS files (including site-specific folders)
+        if path.endswith(".js") and os.path.exists(full_path):
             self.send_file(path, JS_MIMETYPE)
             return
 
-        # Check for site-specific JS files (e.g., /techforum/js/, /gbr/js/, /cloudstack/js/)
-        for site in [
-            "techforum",
-            "gbr",
-            "cloudstack",
-            "dataflow",
-            "finviz",
-            "bluebook",
-            "northstar",
-        ]:
-            if path.startswith(f"/{site}/js/") and path.endswith(".js"):
-                self.send_file(path, JS_MIMETYPE)
-                return
-
-        # Check for site-specific CSS files
-        for site in [
-            "techforum",
-            "gbr",
-            "cloudstack",
-            "dataflow",
-            "finviz",
-            "bluebook",
-            "northstar",
-        ]:
-            if path.startswith(f"/{site}/css/") and path.endswith(".css"):
-                self.send_file(path, CSS_MIMETYPE)
-                return
-
         # Check for image files
-        if path.endswith(".svg"):
+        if path.endswith(".svg") and os.path.exists(full_path):
             self.send_file(path, SVG_MIMETYPE)
             return
-        elif path.endswith(".png"):
+        elif path.endswith(".png") and os.path.exists(full_path):
             self.send_file(path, PNG_MIMETYPE)
             return
-        elif path.endswith(".jpg") or path.endswith(".jpeg"):
+        elif (path.endswith(".jpg") or path.endswith(".jpeg")) and os.path.exists(
+            full_path
+        ):
             self.send_file(path, JPG_MIMETYPE)
             return
-        elif path.endswith(".gif"):
+        elif path.endswith(".gif") and os.path.exists(full_path):
             self.send_file(path, GIF_MIMETYPE)
             return
 
@@ -834,6 +851,10 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}")
 
 
+class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+
+
 def print_startup_info(port):
     """Print startup information"""
     print("\n" + "=" * 60)
@@ -847,6 +868,11 @@ def print_startup_info(port):
     print(f"  - DataFlow (Medium):  http://localhost:{port}/dataflow/")
     print(f"  - Finviz (Hard):  http://localhost:{port}/finviz/")
     print(f"  - BlueBook (Hard): http://localhost:{port}/bluebook/")
+    print(f"  - Gmail (Hard+): http://localhost:{port}/gmail/")
+    print(f"  - Drive (Hard+): http://localhost:{port}/drive/")
+    print(f"  - Booking (Hard+): http://localhost:{port}/booking/")
+    print(f"  - GitHub (Hard+): http://localhost:{port}/github/")
+    print(f"  - Amazon (Hard+): http://localhost:{port}/amazon/")
     print("\nAPI Endpoints:")
     print(
         f"  - GET  http://localhost:{port}/api/events       - Get tracked events (?site=gbr)"
@@ -863,10 +889,13 @@ def print_startup_info(port):
 
 def main():
     """Main entry point"""
-    with socketserver.ThreadingTCPServer(("", PORT), MockWebsiteHandler) as httpd:
-        httpd.allow_reuse_address = True
+    env_port = os.environ.get("MOCK_EVAL_PORT") or os.environ.get("PORT")
+    cli_port = sys.argv[1] if len(sys.argv) > 1 else None
+    port = int(cli_port or env_port or DEFAULT_PORT)
+
+    with ReusableThreadingTCPServer(("", port), MockWebsiteHandler) as httpd:
         httpd.daemon_threads = True
-        print_startup_info(PORT)
+        print_startup_info(port)
 
         try:
             httpd.serve_forever()

@@ -1,0 +1,82 @@
+id: booking_family_trip_edgecase
+name: "Booking Family Trip Edge Case"
+difficulty: very hard
+description: "Configure a multi-room family trip, apply neighborhood and meal filters, avoid decoys, choose two exact room plans, fill traveler details, add a special request, and complete booking."
+start_url: "http://localhost:16605/booking/?reset=1"
+instruction: 'In the Booking mock, choose Lisbon, Portugal for 2026-06-14 to 2026-06-17. Set the guests to 4 adults, 2 children, and 2 rooms. Filter to the Alfama neighborhood and breakfast included. Open Miradouro Lane Hotel. Select exactly these two room plans in order: Family Loft with Terrace that includes breakfast and free cancellation, then Standard Twin City View that includes breakfast and free cancellation. In checkout, use Elena Ward for the first room lead, Marcus Ward for the second room lead, email wardfamily@example.com, add the special request "Need adjoining rooms near a quiet elevator bank.", and confirm the reservation.'
+time_limit: 1040.0
+cost_limit: 2.4
+
+criteria:
+  - type: search_family
+    description: "Submit the family search with the correct room configuration"
+    points: 1.4
+    expected:
+      event_type: search_submit
+      page: "/booking/"
+      destinationId: "lisbon-portugal"
+      adults: 4
+      children: 2
+      rooms: 2
+
+  - type: filter_neighborhood
+    description: "Apply the Alfama filter"
+    points: 0.8
+    expected:
+      event_type: filter_apply
+      page: "/booking/"
+      filterKey: "neighborhood"
+      value: "Alfama"
+
+  - type: filter_meal
+    description: "Apply the breakfast filter"
+    points: 0.8
+    expected:
+      event_type: filter_apply
+      page: "/booking/"
+      filterKey: "meal"
+      value: "breakfast"
+
+  - type: open_property
+    description: "Open the correct family hotel"
+    points: 1.2
+    expected:
+      event_type: property_open
+      page: "/booking/"
+      propertyId: "property-miradouro-lane-hotel"
+
+  - type: select_first_room
+    description: "Select the family loft first"
+    points: 1.2
+    expected:
+      event_type: rate_plan_select
+      page: "/booking/"
+      propertyId: "property-miradouro-lane-hotel"
+      roomPlanId: "plan-miradouro-family-loft-flex-breakfast"
+      roomSlot: 1
+
+  - type: select_second_room
+    description: "Select the standard twin second"
+    points: 1.2
+    expected:
+      event_type: rate_plan_select
+      page: "/booking/"
+      propertyId: "property-miradouro-lane-hotel"
+      roomPlanId: "plan-miradouro-standard-twin-flex-breakfast"
+      roomSlot: 2
+
+  - type: reservation
+    description: "Confirm the final reservation with the special request"
+    points: 4.4
+    expected:
+      event_type: reservation_submit
+      page: "/booking/"
+      propertyId: "property-miradouro-lane-hotel"
+      roomPlanIds:
+        - "plan-miradouro-family-loft-flex-breakfast"
+        - "plan-miradouro-standard-twin-flex-breakfast"
+      guestNames:
+        - "Elena Ward"
+        - "Marcus Ward"
+      email: "wardfamily@example.com"
+      specialRequest: "Need adjoining rooms near a quiet elevator bank."
