@@ -1,0 +1,73 @@
+id: taskflow_drag_and_edit
+name: "TaskFlow Drag & Edit — DnD, Checklist & Hover Quick-Edit"
+difficulty: hard
+description: "Drag a card between columns, interact with card-back modal checklists, and use hover-reveal pencil to rename a card."
+start_url: "http://localhost:16605/taskflow/"
+instruction: "On the TaskFlow board, drag the card \"Write unit tests\" from \"To Do\" and drop it into the \"In Progress\" column. Then open the card \"Design API schema\" (in \"In Progress\") by clicking it. In the card-back modal, check off the checklist item \"Define endpoints\" and add a new checklist item \"Add rate limiting\". Then close the modal. Finally, hover over the card \"Deploy staging build\" in the \"Review\" column to reveal the pencil quick-edit icon, and click it to rename the card to \"Deploy production build\"."
+time_limit: 540.0
+cost_limit: 1.5
+
+criteria:
+  - type: drag_start
+    description: "Drag 'Write unit tests'"
+    points: 1.0
+    expected:
+      event_type: card_drag_start
+      cardTitle: "Write unit tests"
+      fromColumn: "To Do"
+
+  - type: drop_in_progress
+    description: "Drop in 'In Progress'"
+    points: 2.5
+    expected:
+      event_type: card_drop
+      cardTitle: "Write unit tests"
+      toColumn: "In Progress"
+
+  - type: open_design_api
+    description: "Open 'Design API schema' card-back"
+    points: 0.5
+    expected:
+      event_type: card_modal_open
+      cardTitle: "Design API schema"
+
+  - type: check_define_endpoints
+    description: "Check 'Define endpoints'"
+    points: 1.5
+    expected:
+      event_type: checklist_check
+      itemText: "Define endpoints"
+      checked: true
+
+  - type: add_rate_limiting
+    description: "Add 'Add rate limiting' checklist item"
+    points: 1.5
+    expected:
+      event_type: checklist_add_submit
+
+  - type: close_modal
+    description: "Close card-back modal"
+    points: 0.5
+    expected:
+      event_type: card_modal_close
+
+  - type: hover_deploy_reveal
+    description: "Hover 'Deploy staging build' to reveal pencil"
+    points: 1.5
+    expected:
+      event_type: card_hover_edit_reveal
+      cardTitle: "Deploy staging build"
+
+  - type: click_pencil
+    description: "Click pencil to enter quick-edit"
+    points: 1.0
+    expected:
+      event_type: card_quick_edit_open
+      cardTitle: "Deploy staging build"
+
+  - type: rename_card
+    description: "Rename to 'Deploy production build'"
+    points: 1.5
+    expected:
+      event_type: card_quick_edit_save
+      newTitle: "Deploy production build"

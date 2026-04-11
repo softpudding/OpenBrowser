@@ -87,11 +87,17 @@
                     <option value="sector">Sector</option>
                     <option value="industry">Industry</option>
                     <option value="country">Country</option>
-                    <option value="marketcap">Market Cap.</option>
+                    <option value="marketCap">Market Cap.</option>
                     <option value="pe">Price/Earnings</option>
+                    <option value="forwardPe">Forward P/E</option>
                     <option value="price">Price</option>
                     <option value="change">Change</option>
                     <option value="volume">Volume</option>
+                    <option value="avgVolume">Average Volume</option>
+                    <option value="perf1w">Performance (Week)</option>
+                    <option value="perf4w">Performance (Month)</option>
+                    <option value="rsi">RSI</option>
+                    <option value="volatility">Volatility</option>
                 </select>
             </div>
             <div class="control-group">
@@ -770,6 +776,12 @@
             <a href="#" class="view-tab" data-view="331">Snapshot</a>
             <a href="#" class="view-tab" data-view="711">Maps</a>
             <a href="#" class="view-tab" data-view="811">Stats</a>
+        </div>
+
+        <div class="performance-sort-bar" id="performanceSortBar" style="display:none;">
+            <span class="performance-sort-label">Performance Order</span>
+            <button class="perf-sort-chip" data-sort-field="perf1w" type="button">Perf Week</button>
+            <button class="perf-sort-chip" data-sort-field="perf4w" type="button">Perf Month</button>
         </div>
 
         <!-- Results Info -->

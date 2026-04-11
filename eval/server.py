@@ -18,13 +18,14 @@ import http.server
 import json
 import os
 import socketserver
+import sys
 import threading
 from copy import deepcopy
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
 # Configuration
-PORT = 16605
+DEFAULT_PORT = 16605
 EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # In-memory event storage
@@ -39,6 +40,15 @@ SITE_NAME_TO_BUCKET = {
     "finviz": "finviz",
     "bluebook.life": "bluebook",
     "northstaroutfitters.com": "northstar",
+    "mail.google.com": "gmail",
+    "drive.google.com": "drive",
+    "booking.com": "booking",
+    "github.com": "github",
+    "amazon.com": "amazon",
+    "mapquest.com": "mapquest",
+    "staybnb.com": "staybnb",
+    "taskflow.app": "taskflow",
+    "vidhub.com": "vidhub",
 }
 
 
@@ -249,10 +259,19 @@ URL_MAPPINGS = {
     "/dataflow/index.html": ("/dataflow/index.html", "text/html"),
     "/finviz/": ("/finviz/index.html", "text/html"),
     "/finviz/index.html": ("/finviz/index.html", "text/html"),
+    "/finviz/quote.html": ("/finviz/quote.html", "text/html"),
     "/bluebook/": ("/bluebook/index.html", "text/html"),
     "/bluebook/index.html": ("/bluebook/index.html", "text/html"),
     "/northstar/": ("/northstar/index.html", "text/html"),
     "/northstar/index.html": ("/northstar/index.html", "text/html"),
+    "/mapquest/": ("/mapquest/index.html", "text/html"),
+    "/mapquest/index.html": ("/mapquest/index.html", "text/html"),
+    "/staybnb/": ("/staybnb/index.html", "text/html"),
+    "/staybnb/index.html": ("/staybnb/index.html", "text/html"),
+    "/taskflow/": ("/taskflow/index.html", "text/html"),
+    "/taskflow/index.html": ("/taskflow/index.html", "text/html"),
+    "/vidhub/": ("/vidhub/index.html", "text/html"),
+    "/vidhub/index.html": ("/vidhub/index.html", "text/html"),
 }
 
 CSS_MIMETYPE = "text/css"
@@ -339,6 +358,60 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                         "url": "/northstar/",
                         "description": "Apparel product page - test geometry-first scrolling, sticky UI, and drawer-scoped scrolling",
                     },
+                    {
+                        "name": "mail.google.com",
+                        "difficulty": "hard",
+                        "url": "/gmail/",
+                        "description": "Inbox triage mock - search operators, labels, drafts, and multi-step reply workflows",
+                    },
+                    {
+                        "name": "drive.google.com",
+                        "difficulty": "hard",
+                        "url": "/drive/",
+                        "description": "Drive file-management mock - nested folders, move/share flows, shortcuts, and uploads",
+                    },
+                    {
+                        "name": "booking.com",
+                        "difficulty": "hard",
+                        "url": "/booking/",
+                        "description": "Travel booking mock - filters, room policy discrimination, compare, and checkout",
+                    },
+                    {
+                        "name": "github.com",
+                        "difficulty": "hard",
+                        "url": "/github/",
+                        "description": "Repository workflow mock - issue triage, files changed review, labels, and review submission",
+                    },
+                    {
+                        "name": "amazon.com",
+                        "difficulty": "hard",
+                        "url": "/amazon/",
+                        "description": "Retail workflow mock - noisy search, variants, offers, cart recovery, and checkout",
+                    },
+                    {
+                        "name": "mapquest.com",
+                        "difficulty": "hard",
+                        "url": "/mapquest/",
+                        "description": "Google Maps mock - test autocomplete timing, icon-only transport buttons, spatial pin clicks, panel-state transitions",
+                    },
+                    {
+                        "name": "staybnb.com",
+                        "difficulty": "hard",
+                        "url": "/staybnb/",
+                        "description": "Airbnb mock - test date-range calendar, dual-handle price slider drag, segmented search pill, multi-step booking",
+                    },
+                    {
+                        "name": "taskflow.app",
+                        "difficulty": "hard",
+                        "url": "/taskflow/",
+                        "description": "Trello mock - test drag-and-drop cards, hover-reveal pencil, color-only label picker, inline editing",
+                    },
+                    {
+                        "name": "vidhub.com",
+                        "difficulty": "hard",
+                        "url": "/vidhub/",
+                        "description": "YouTube mock - test auto-hide control bar, timeline scrub, nested settings popup, volume hover-reveal slider",
+                    },
                 ]
             }
             self.send_json_response(sites)
@@ -360,6 +433,15 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                     "/finviz/": "Finviz stock screener mock (hard)",
                     "/bluebook/": "BlueBook lifestyle feed mock (hard)",
                     "/northstar/": "Northstar Outfitters product page mock (hard)",
+                    "/gmail/": "Gmail workflow mock (hard/very hard)",
+                    "/drive/": "Drive workflow mock (hard/very hard)",
+                    "/booking/": "Booking workflow mock (hard/very hard)",
+                    "/github/": "GitHub workflow mock (hard/very hard)",
+                    "/amazon/": "Amazon workflow mock (hard/very hard)",
+                    "/mapquest/": "MapQuest Google Maps mock (hard)",
+                    "/staybnb/": "StayBnB Airbnb mock (hard)",
+                    "/taskflow/": "TaskFlow Trello mock (hard)",
+                    "/vidhub/": "VidHub YouTube mock (hard)",
                 },
             }
             self.send_json_response(help_text)
@@ -391,55 +473,31 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             self.send_file(file_path, content_type)
             return
 
+        full_path = os.path.join(EVAL_DIR, path.lstrip("/"))
+
         # Check for CSS files
-        if path.startswith("/css/") and path.endswith(".css"):
+        if path.endswith(".css") and os.path.exists(full_path):
             self.send_file(path, CSS_MIMETYPE)
             return
 
-        # Check for JS files (including site-specific JS folders)
-        if path.startswith("/js/") and path.endswith(".js"):
+        # Check for JS files (including site-specific folders)
+        if path.endswith(".js") and os.path.exists(full_path):
             self.send_file(path, JS_MIMETYPE)
             return
 
-        # Check for site-specific JS files (e.g., /techforum/js/, /gbr/js/, /cloudstack/js/)
-        for site in [
-            "techforum",
-            "gbr",
-            "cloudstack",
-            "dataflow",
-            "finviz",
-            "bluebook",
-            "northstar",
-        ]:
-            if path.startswith(f"/{site}/js/") and path.endswith(".js"):
-                self.send_file(path, JS_MIMETYPE)
-                return
-
-        # Check for site-specific CSS files
-        for site in [
-            "techforum",
-            "gbr",
-            "cloudstack",
-            "dataflow",
-            "finviz",
-            "bluebook",
-            "northstar",
-        ]:
-            if path.startswith(f"/{site}/css/") and path.endswith(".css"):
-                self.send_file(path, CSS_MIMETYPE)
-                return
-
         # Check for image files
-        if path.endswith(".svg"):
+        if path.endswith(".svg") and os.path.exists(full_path):
             self.send_file(path, SVG_MIMETYPE)
             return
-        elif path.endswith(".png"):
+        elif path.endswith(".png") and os.path.exists(full_path):
             self.send_file(path, PNG_MIMETYPE)
             return
-        elif path.endswith(".jpg") or path.endswith(".jpeg"):
+        elif (path.endswith(".jpg") or path.endswith(".jpeg")) and os.path.exists(
+            full_path
+        ):
             self.send_file(path, JPG_MIMETYPE)
             return
-        elif path.endswith(".gif"):
+        elif path.endswith(".gif") and os.path.exists(full_path):
             self.send_file(path, GIF_MIMETYPE)
             return
 
@@ -504,7 +562,16 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
 
     def send_file(self, file_path, content_type):
         """Send a file with appropriate headers"""
-        full_path = os.path.join(EVAL_DIR, file_path.lstrip("/"))
+        eval_root = os.path.abspath(EVAL_DIR)
+        full_path = os.path.abspath(os.path.join(eval_root, file_path.lstrip("/")))
+
+        try:
+            if os.path.commonpath([eval_root, full_path]) != eval_root:
+                self.send_error_response(403, f"Forbidden path: {file_path}")
+                return
+        except ValueError:
+            self.send_error_response(403, f"Forbidden path: {file_path}")
+            return
 
         if not os.path.exists(full_path):
             self.send_error_response(404, f"File not found: {file_path}")
@@ -801,7 +868,9 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
 
     def send_json_response(self, data):
         """Send JSON response"""
-        content = json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8")
+        content = json.dumps(data, indent=2, ensure_ascii=False).encode(
+            "utf-8", errors="surrogatepass"
+        )
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", len(content))
@@ -834,6 +903,10 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}")
 
 
+class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+
+
 def print_startup_info(port):
     """Print startup information"""
     print("\n" + "=" * 60)
@@ -847,6 +920,15 @@ def print_startup_info(port):
     print(f"  - DataFlow (Medium):  http://localhost:{port}/dataflow/")
     print(f"  - Finviz (Hard):  http://localhost:{port}/finviz/")
     print(f"  - BlueBook (Hard): http://localhost:{port}/bluebook/")
+    print(f"  - Gmail (Hard+): http://localhost:{port}/gmail/")
+    print(f"  - Drive (Hard+): http://localhost:{port}/drive/")
+    print(f"  - Booking (Hard+): http://localhost:{port}/booking/")
+    print(f"  - GitHub (Hard+): http://localhost:{port}/github/")
+    print(f"  - Amazon (Hard+): http://localhost:{port}/amazon/")
+    print(f"  - MapQuest (Hard): http://localhost:{port}/mapquest/")
+    print(f"  - StayBnB (Hard):  http://localhost:{port}/staybnb/")
+    print(f"  - TaskFlow (Hard): http://localhost:{port}/taskflow/")
+    print(f"  - VidHub (Hard):   http://localhost:{port}/vidhub/")
     print("\nAPI Endpoints:")
     print(
         f"  - GET  http://localhost:{port}/api/events       - Get tracked events (?site=gbr)"
@@ -863,10 +945,13 @@ def print_startup_info(port):
 
 def main():
     """Main entry point"""
-    with socketserver.ThreadingTCPServer(("", PORT), MockWebsiteHandler) as httpd:
-        httpd.allow_reuse_address = True
+    env_port = os.environ.get("MOCK_EVAL_PORT") or os.environ.get("PORT")
+    cli_port = sys.argv[1] if len(sys.argv) > 1 else None
+    port = int(cli_port or env_port or DEFAULT_PORT)
+
+    with ReusableThreadingTCPServer(("", port), MockWebsiteHandler) as httpd:
         httpd.daemon_threads = True
-        print_startup_info(PORT)
+        print_startup_info(port)
 
         try:
             httpd.serve_forever()

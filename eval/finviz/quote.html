@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finviz Quote</title>
+    <link rel="stylesheet" href="/finviz/css/finviz.css">
+    <link rel="stylesheet" href="/finviz/css/quote.css">
+</head>
+<body class="dark-theme">
+    <header class="header">
+        <div class="header-container">
+            <div class="logo-section">
+                <a href="/finviz/" class="logo">
+                    <span class="logo-text">finviz</span>
+                    <span class="logo-subtitle">FINANCIAL VISUALIZATIONS</span>
+                </a>
+                <div class="quote-breadcrumb">
+                    <a href="/finviz/" class="quote-breadcrumb-link">Screener</a>
+                    <span>/</span>
+                    <span id="breadcrumbTicker">Quote</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="datetime" id="headerDatetime">Thu APR 09 2026 8:19 AM ET</span>
+                <button class="theme-toggle" id="themeToggle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    Theme
+                </button>
+                <a href="/finviz/" class="register-link">Back To Screener</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="banner quote-banner">
+        <span>Mock Finviz quote page for browser automation evaluation</span>
+    </div>
+
+    <main class="quote-main">
+        <section class="quote-hero" id="quoteHero">
+            <div class="quote-heading">
+                <a href="/finviz/" class="quote-back-link">← Return to screener</a>
+                <div class="quote-title-row">
+                    <h1 id="quoteTicker">Ticker</h1>
+                    <span class="quote-company" id="quoteCompany">Company</span>
+                </div>
+                <p class="quote-summary" id="quoteSummary"></p>
+                <div class="quote-tags" id="quoteTags"></div>
+            </div>
+            <div class="quote-price-panel">
+                <div class="quote-price-label">Last Close</div>
+                <div class="quote-price-value" id="quotePrice">0.00</div>
+                <div class="quote-price-change" id="quoteChange">+0.00%</div>
+                <dl class="quote-price-meta">
+                    <div>
+                        <dt>Volume</dt>
+                        <dd id="quoteVolume">0</dd>
+                    </div>
+                    <div>
+                        <dt>Market Cap</dt>
+                        <dd id="quoteMarketCap">0</dd>
+                    </div>
+                    <div>
+                        <dt>Target</dt>
+                        <dd id="quoteTarget">0</dd>
+                    </div>
+                </dl>
+            </div>
+        </section>
+
+        <section class="quote-layout">
+            <article class="quote-card quote-chart-card">
+                <div class="quote-card-header">
+                    <div>
+                        <div class="quote-card-label">Price Action</div>
+                        <h2 class="quote-card-title" id="chartTitle">Synthetic 3-Month Trend</h2>
+                    </div>
+                    <div class="quote-timescales">
+                        <span class="quote-timescale-chip">1D</span>
+                        <span class="quote-timescale-chip">1W</span>
+                        <span class="quote-timescale-chip active">3M</span>
+                        <span class="quote-timescale-chip">1Y</span>
+                    </div>
+                </div>
+                <svg id="quoteChart" class="quote-chart" viewBox="0 0 760 340" preserveAspectRatio="none" aria-label="Synthetic stock chart"></svg>
+            </article>
+
+            <aside class="quote-card quote-stats-card">
+                <div class="quote-card-header">
+                    <div>
+                        <div class="quote-card-label">Snapshot</div>
+                        <h2 class="quote-card-title">Key Stats</h2>
+                    </div>
+                </div>
+                <div class="quote-stats-grid" id="keyStats"></div>
+            </aside>
+        </section>
+
+        <section class="quote-bottom-grid">
+            <article class="quote-card">
+                <div class="quote-card-header">
+                    <div>
+                        <div class="quote-card-label">Story</div>
+                        <h2 class="quote-card-title">Automated Narrative</h2>
+                    </div>
+                </div>
+                <div class="quote-narrative" id="quoteNarrative"></div>
+            </article>
+
+            <article class="quote-card">
+                <div class="quote-card-header">
+                    <div>
+                        <div class="quote-card-label">Latest</div>
+                        <h2 class="quote-card-title">Synthetic Headlines</h2>
+                    </div>
+                </div>
+                <div class="quote-headlines" id="quoteHeadlines"></div>
+            </article>
+
+            <article class="quote-card quote-dataset-card">
+                <div class="quote-card-header">
+                    <div>
+                        <div class="quote-card-label">Dataset</div>
+                        <h2 class="quote-card-title">Screener Fields</h2>
+                    </div>
+                </div>
+                <div class="quote-dataset-grid" id="quoteFilterFields"></div>
+            </article>
+        </section>
+    </main>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/finviz/js/finviz.js"></script>
+    <script src="/finviz/js/quote.js"></script>
+</body>
+</html>

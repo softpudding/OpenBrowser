@@ -1,0 +1,52 @@
+id: gmail_inbox_cleanup
+name: "Gmail Inbox Cleanup"
+difficulty: hard
+description: "Navigate categories, bulk archive the correct campaign threads, star one urgent message, and mark another thread unread without touching a decoy."
+start_url: "http://localhost:16605/gmail/?reset=1"
+instruction: "In the Gmail mock, go through the inbox categories and clean up the mailbox. In Promotions, bulk-select and archive the two campaign threads for April Pulse relaunch. In Primary, star the urgent payroll exception thread. In Updates, mark the vendor renewal redline summary thread unread. Do not archive the analytics metrics snapshot."
+time_limit: 600.0
+cost_limit: 1.2
+
+criteria:
+  - type: select_first_campaign
+    description: "Select the first campaign thread"
+    points: 1.0
+    expected:
+      event_type: thread_select
+      page: "/gmail/"
+      threadId: "thr-campaign-april-pulse"
+
+  - type: select_second_campaign
+    description: "Select the second campaign thread"
+    points: 1.0
+    expected:
+      event_type: thread_select
+      page: "/gmail/"
+      threadId: "thr-campaign-april-pulse-followup"
+
+  - type: archive_campaign_threads
+    description: "Archive exactly the two campaign threads"
+    points: 2.0
+    expected:
+      event_type: thread_archive
+      page: "/gmail/"
+      threadIds:
+        - "thr-campaign-april-pulse"
+        - "thr-campaign-april-pulse-followup"
+
+  - type: star_urgent_thread
+    description: "Star the urgent payroll thread"
+    points: 1.5
+    expected:
+      event_type: thread_star_toggle
+      page: "/gmail/"
+      threadId: "thr-urgent-payroll"
+      starred: true
+
+  - type: mark_redline_unread
+    description: "Mark the legal redline thread unread"
+    points: 1.5
+    expected:
+      event_type: thread_mark_unread
+      page: "/gmail/"
+      threadId: "thr-renewal-redline"

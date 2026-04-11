@@ -1,0 +1,62 @@
+id: github_issue_triage_deep
+name: "GitHub Issue Triage Deep"
+difficulty: hard
+description: "Filter issues with qualifiers, open the correct issue, add the right label, assign the right owner, set the milestone, and leave an exact triage comment."
+start_url: "http://localhost:16605/github/?reset=1"
+instruction: 'In the GitHub mock, go to Issues and filter with this exact query: "is:open label:release-blocker billing webhook retry". Open issue #118, add the label triage-needs-pm, assign it to mila-ops, set the milestone to May Launch, and leave this exact comment: "Need PM sign-off before we clear the release blocker. Please confirm retry cap behavior in staging."'
+time_limit: 680.0
+cost_limit: 1.5
+
+criteria:
+  - type: filter_issues
+    description: "Apply the exact issue filter"
+    points: 1.2
+    expected:
+      event_type: issue_filter_apply
+      page: "/github/"
+      query: "is:open label:release-blocker billing webhook retry"
+
+  - type: open_issue
+    description: "Open the correct issue"
+    points: 1.2
+    expected:
+      event_type: issue_open
+      page: "/github/"
+      issueNumber: 118
+
+  - type: add_label
+    description: "Add the right issue label"
+    points: 1.2
+    expected:
+      event_type: label_add
+      page: "/github/"
+      targetType: "issue"
+      issueNumber: 118
+      labelId: "triage-needs-pm"
+
+  - type: set_assignee
+    description: "Assign the correct owner"
+    points: 1.2
+    expected:
+      event_type: assignee_set
+      page: "/github/"
+      issueNumber: 118
+      assignee: "mila-ops"
+
+  - type: set_milestone
+    description: "Set the May Launch milestone"
+    points: 1.2
+    expected:
+      event_type: milestone_set
+      page: "/github/"
+      issueNumber: 118
+      milestoneId: "May Launch"
+
+  - type: add_comment
+    description: "Leave the exact triage comment"
+    points: 2.5
+    expected:
+      event_type: issue_comment_add
+      page: "/github/"
+      issueNumber: 118
+      commentBody: "Need PM sign-off before we clear the release blocker. Please confirm retry cap behavior in staging."

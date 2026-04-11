@@ -413,6 +413,7 @@ a {
   box-shadow: 0 30px 60px rgba(8, 16, 32, 0.32);
   display: grid;
   grid-template-columns: minmax(0, 1.22fr) 420px;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .modal-close {
@@ -728,11 +729,8 @@ a {
 
 .detail-panel {
   background: #fff;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .author,
@@ -741,9 +739,11 @@ a {
   padding: 20px 24px 0;
 }
 
-.author,
 .detail-footer {
-  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  z-index: 2;
 }
 
 .author-wrapper {
@@ -790,10 +790,6 @@ a {
 }
 
 .detail-content {
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 360px;
-  overflow: auto;
   padding-bottom: 12px;
 }
 
@@ -884,13 +880,9 @@ a {
 }
 
 .detail-comments {
-  flex: 1 1 260px;
-  min-height: 0;
-  min-height: 240px;
   margin-top: 18px;
   border-top: 1px solid var(--line);
   padding: 18px 24px 0;
-  overflow: auto;
 }
 
 .comment-head {

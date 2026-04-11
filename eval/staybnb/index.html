@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StayBnB — Vacation Rentals, Homes, Experiences & Places</title>
+  <link rel="stylesheet" href="/staybnb/css/staybnb.css">
+</head>
+<body>
+
+<!-- ===== POPOVER BACKDROP ===== -->
+<div id="popover-backdrop" class="popover-backdrop"></div>
+
+<!-- ===== TOP BAR ===== -->
+<header class="topbar">
+  <div class="topbar-inner">
+
+    <!-- Logo -->
+    <div class="logo" id="logo">
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2zm0 5a3 3 0 110 6 3 3 0 010-6zm6.5 14.17c-.98 2.29-3.33 3.83-6.5 3.83s-5.52-1.54-6.5-3.83A1 1 0 0110.42 20h11.16a1 1 0 01.92 1.17z"/></svg>
+      StayBnB
+    </div>
+
+    <!-- Search Pill -->
+    <div class="search-pill-wrap">
+      <div class="search-pill">
+        <div class="search-pill-seg" data-seg="where">
+          <span class="seg-label">Where</span>
+          <span class="seg-value" id="seg-where-val">Search</span>
+        </div>
+        <div class="search-pill-seg" data-seg="when">
+          <span class="seg-label">When</span>
+          <span class="seg-value" id="seg-when-val">Add dates</span>
+        </div>
+        <div class="search-pill-seg" data-seg="who" style="border-right:none">
+          <span class="seg-label">Who</span>
+          <span class="seg-value" id="seg-who-val">1 guest</span>
+        </div>
+        <button class="search-btn" id="search-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"/>
+            <line x1="16.5" y1="16.5" x2="21" y2="21"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Popover anchor -->
+      <div class="popover-anchor">
+
+        <!-- WHERE Popover -->
+        <div class="popover popover-where">
+          <input type="text" class="where-input" id="where-input" placeholder="Search destinations">
+          <div class="autocomplete-list" id="autocomplete-list"></div>
+          <div class="region-label">I'm flexible</div>
+          <div class="region-grid">
+            <div class="region-card">Asia</div>
+            <div class="region-card">Europe</div>
+            <div class="region-card">North America</div>
+            <div class="region-card">South America</div>
+            <div class="region-card">Africa</div>
+            <div class="region-card">Oceania</div>
+          </div>
+        </div>
+
+        <!-- WHEN Popover -->
+        <div class="popover popover-when" id="when-popover">
+          <div class="when-subtabs">
+            <div class="when-subtab active">Dates</div>
+            <div class="when-subtab">Flexible</div>
+            <div class="when-subtab">Months</div>
+          </div>
+          <div class="calendar-wrap" id="calendar-wrap"></div>
+        </div>
+
+        <!-- WHO Popover -->
+        <div class="popover popover-who" id="who-popover">
+          <div id="guest-rows"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- User Area -->
+    <div class="user-area">
+      <a href="#" class="host-link">Become a Host</a>
+      <svg class="globe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>
+      <button class="user-menu-btn">
+        <span class="hamburger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></span>
+        <div class="user-avatar">U</div>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Category Tabs -->
+<div class="category-tabs" id="category-tabs">
+  <div class="cat-tab active">&#127968; Homes</div>
+  <div class="cat-tab">&#127775; Experiences</div>
+</div>
+
+<!-- ===== FILTER BAR (results only) ===== -->
+<div class="filter-bar" id="filter-bar" style="display:none">
+  <button class="filter-pill">Price</button>
+  <button class="filter-pill">Type of place</button>
+  <button class="filter-pill">Rooms and beds</button>
+  <button class="filter-pill" id="filter-btn" style="font-weight:600">&#9776; Filters</button>
+</div>
+
+<!-- ===== VIEW: HOME ===== -->
+<div id="view-home" class="view active">
+  <div class="homepage-content">
+    <h2 class="home-heading">Explore nearby</h2>
+    <div class="home-cards">
+      <div class="home-card">
+        <img class="home-card-img" src="https://picsum.photos/seed/staybnb-tokyo/480/360" alt="Tokyo" loading="lazy">
+        <div class="home-card-title">Tokyo</div>
+        <div class="home-card-sub">15 minute drive</div>
+      </div>
+      <div class="home-card">
+        <img class="home-card-img" src="https://picsum.photos/seed/staybnb-yokohama/480/360" alt="Yokohama" loading="lazy">
+        <div class="home-card-title">Yokohama</div>
+        <div class="home-card-sub">30 minute drive</div>
+      </div>
+      <div class="home-card">
+        <img class="home-card-img" src="https://picsum.photos/seed/staybnb-kamakura/480/360" alt="Kamakura" loading="lazy">
+        <div class="home-card-title">Kamakura</div>
+        <div class="home-card-sub">45 minute drive</div>
+      </div>
+      <div class="home-card">
+        <img class="home-card-img" src="https://picsum.photos/seed/staybnb-hakone/480/360" alt="Hakone" loading="lazy">
+        <div class="home-card-title">Hakone</div>
+        <div class="home-card-sub">1 hour drive</div>
+      </div>
+      <div class="home-card">
+        <img class="home-card-img" src="https://picsum.photos/seed/staybnb-nikko/480/360" alt="Nikko" loading="lazy">
+        <div class="home-card-title">Nikko</div>
+        <div class="home-card-sub">2 hour drive</div>
+      </div>
+      <div class="home-card">
+        <img class="home-card-img" src="https://picsum.photos/seed/staybnb-kawaguchiko/480/360" alt="Kawaguchiko" loading="lazy">
+        <div class="home-card-title">Kawaguchiko</div>
+        <div class="home-card-sub">1.5 hour drive</div>
+      </div>
+      <div class="home-card">
+        <img class="home-card-img" src="https://picsum.photos/seed/staybnb-chiba/480/360" alt="Chiba" loading="lazy">
+        <div class="home-card-title">Chiba</div>
+        <div class="home-card-sub">40 minute drive</div>
+      </div>
+      <div class="home-card">
+        <img class="home-card-img" src="https://picsum.photos/seed/staybnb-enoshima/480/360" alt="Enoshima" loading="lazy">
+        <div class="home-card-title">Enoshima</div>
+        <div class="home-card-sub">50 minute drive</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VIEW: RESULTS ===== -->
+<div id="view-results" class="view">
+  <div class="results-layout">
+    <!-- Listings column -->
+    <div class="listings-col">
+      <div class="listings-header" id="listings-header">20+ stays</div>
+      <div class="listings-grid" id="listings-grid"></div>
+    </div>
+    <!-- Map column -->
+    <div class="map-col">
+      <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VIEW: DETAIL ===== -->
+<div id="view-detail" class="view">
+  <div class="detail-back" id="detail-back">&#8592; Back to results</div>
+
+  <!-- Photo grid -->
+  <div class="photo-grid">
+    <div class="photo-main" style="background:#5B8FB9"></div>
+    <div class="photo-small" style="background:#FFD1DC"></div>
+    <div class="photo-small" style="background:#D4F1F4"></div>
+    <div class="photo-small" style="background:#E8D5B7"></div>
+    <div class="photo-small" style="background:#D5E8D4"></div>
+    <button class="show-all-btn" id="show-all-photos">&#9783; Show all photos</button>
+  </div>
+
+  <!-- Detail body -->
+  <div class="detail-body">
+    <div class="detail-main">
+      <h1 class="detail-title">Listing Title</h1>
+      <p class="detail-subtitle">Entire apartment · Shibuya, Tokyo</p>
+
+      <div class="detail-host">
+        <div class="detail-host-avatar">Y</div>
+        <div>
+          <div class="detail-host-name">Hosted by Yuki</div>
+          <div class="detail-host-tenure">Superhost · 4 years hosting</div>
+        </div>
+      </div>
+
+      <!-- Amenities -->
+      <div class="detail-amenities">
+        <h3>What this place offers</h3>
+        <div class="amenities-list">
+          <div class="amenity-item"><span class="amenity-icon">&#128246;</span> Wifi</div>
+          <div class="amenity-item"><span class="amenity-icon">&#127859;</span> Kitchen</div>
+          <div class="amenity-item"><span class="amenity-icon">&#128663;</span> Free parking</div>
+          <div class="amenity-item"><span class="amenity-icon">&#10052;</span> Air conditioning</div>
+          <div class="amenity-item"><span class="amenity-icon">&#128250;</span> TV</div>
+          <div class="amenity-item"><span class="amenity-icon">&#129529;</span> Washer</div>
+          <div class="amenity-item"><span class="amenity-icon">&#128187;</span> Dedicated workspace</div>
+          <div class="amenity-item"><span class="amenity-icon">&#9832;</span> Heating</div>
+        </div>
+      </div>
+
+      <!-- Reviews -->
+      <div class="detail-reviews">
+        <h3>&#9733; 4.92 · 128 reviews</h3>
+        <div class="review-card">
+          <div class="review-header">
+            <div class="review-avatar" style="background:#5B8FB9">A</div>
+            <div>
+              <div class="review-name">Alex</div>
+              <div class="review-date">March 2026</div>
+            </div>
+          </div>
+          <div class="review-text">Amazing location with a stunning view of the Tokyo skyline. The host was incredibly responsive and the apartment was spotlessly clean. Would definitely stay again!</div>
+        </div>
+        <div class="review-card">
+          <div class="review-header">
+            <div class="review-avatar" style="background:#9B72AA">S</div>
+            <div>
+              <div class="review-name">Sarah</div>
+              <div class="review-date">February 2026</div>
+            </div>
+          </div>
+          <div class="review-text">Perfect for exploring Tokyo. Walking distance to the station and so many great restaurants nearby. The apartment had everything we needed.</div>
+        </div>
+        <div class="review-card">
+          <div class="review-header">
+            <div class="review-avatar" style="background:#D4A574">M</div>
+            <div>
+              <div class="review-name">Marco</div>
+              <div class="review-date">January 2026</div>
+            </div>
+          </div>
+          <div class="review-text">Great value for the area. Modern, well-equipped, and the neighborhood is fantastic. Yuki was a wonderful host who went above and beyond.</div>
+        </div>
+        <div class="review-card">
+          <div class="review-header">
+            <div class="review-avatar" style="background:#7EC8E3">L</div>
+            <div>
+              <div class="review-name">Lisa</div>
+              <div class="review-date">December 2025</div>
+            </div>
+          </div>
+          <div class="review-text">Exactly as described. Beautiful apartment with all the amenities you need. The check-in process was seamless. Highly recommended!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Booking card -->
+    <div class="detail-sidebar">
+      <div class="booking-card">
+        <div class="booking-price">
+          <span class="booking-price-val">¥18,500</span>
+          <span class="per-night"> / night</span>
+        </div>
+        <div class="booking-dates">
+          <div class="booking-date-field">
+            <label>CHECK-IN</label>
+            <span id="booking-checkin">Add date</span>
+          </div>
+          <div class="booking-date-field">
+            <label>CHECKOUT</label>
+            <span id="booking-checkout">Add date</span>
+          </div>
+        </div>
+        <div class="booking-guests">
+          <label>GUESTS</label>
+          <span id="booking-guests-val">1 guest</span>
+        </div>
+        <button class="reserve-btn" id="reserve-btn">Reserve</button>
+        <div class="price-breakdown">
+          <div class="price-row"><span id="pb-nights">¥18,500 × 1 night</span><span id="pb-subtotal">¥18,500</span></div>
+          <div class="price-row"><span>Cleaning fee</span><span id="pb-cleaning">¥5,000</span></div>
+          <div class="price-row"><span>Service fee</span><span id="pb-service">¥2,220</span></div>
+          <div class="price-row total"><span>Total</span><span id="pb-total">¥25,720</span></div>
+        </div>
+
+        <!-- Confirmation Panel -->
+        <div class="confirm-panel">
+          <h4>Confirm your booking</h4>
+          <p style="font-size:14px;color:var(--gray-700);margin-bottom:8px">Review the details above and confirm to complete your reservation.</p>
+          <button class="confirm-btn" id="confirm-btn">Confirm and pay</button>
+          <div class="confirm-success">&#10003; Booking confirmed! See you in Tokyo.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FILTER MODAL ===== -->
+<div class="filter-modal-overlay" id="filter-modal">
+  <div class="filter-modal">
+    <div class="filter-modal-header">
+      <button class="filter-modal-close" id="filter-modal-close">&#10005;</button>
+      Filters
+    </div>
+    <div class="filter-modal-body">
+
+      <!-- Price Range -->
+      <div class="filter-section">
+        <div class="filter-section-title">Price range</div>
+        <div class="price-labels">
+          <span id="price-display-min">$10</span>
+          <span id="price-display-max">$500</span>
+        </div>
+        <div class="price-slider-wrap">
+          <div class="price-slider">
+            <div class="price-track" id="price-track"></div>
+            <div class="price-fill" id="price-fill"></div>
+            <div class="price-handle" id="price-handle-min" style="left:0%">
+              <div class="price-handle-label" id="price-label-min">$10</div>
+            </div>
+            <div class="price-handle" id="price-handle-max" style="left:100%">
+              <div class="price-handle-label" id="price-label-max">$500</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Property Type -->
+      <div class="filter-section">
+        <div class="filter-section-title">Type of place</div>
+        <div class="type-chips">
+          <button class="type-chip" data-type="Entire place">Entire place</button>
+          <button class="type-chip" data-type="Private room">Private room</button>
+          <button class="type-chip" data-type="Shared room">Shared room</button>
+        </div>
+      </div>
+
+      <!-- Amenities -->
+      <div class="filter-section">
+        <div class="filter-section-title">Amenities</div>
+        <div class="amenity-grid">
+          <label class="amenity-check"><input type="checkbox" data-amenity="Wifi"> Wifi</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Kitchen"> Kitchen</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Washer"> Washer</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Air conditioning"> Air conditioning</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Heating"> Heating</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="TV"> TV</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Iron"> Iron</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Hair dryer"> Hair dryer</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Workspace"> Workspace</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Pool"> Pool</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Hot tub"> Hot tub</label>
+          <label class="amenity-check"><input type="checkbox" data-amenity="Free parking"> Free parking</label>
+        </div>
+      </div>
+
+      <!-- Instant Book -->
+      <div class="filter-section">
+        <div class="instant-book-row">
+          <div>
+            <div style="font-size:15px;font-weight:500">Instant Book</div>
+            <div style="font-size:13px;color:var(--gray-500)">Listings you can book without waiting for host approval</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="instant-book-toggle">
+            <div class="toggle-track"></div>
+            <div class="toggle-knob"></div>
+          </label>
+        </div>
+      </div>
+
+    </div>
+    <div class="filter-modal-footer">
+      <button class="filter-clear">Clear all</button>
+      <button class="filter-apply-btn" id="filter-apply-btn">Show 22 stays</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== GALLERY OVERLAY ===== -->
+<div class="gallery-overlay" id="gallery-overlay">
+  <button class="gallery-close" id="gallery-close-btn">&#10005;</button>
+  <div class="gallery-grid"></div>
+</div>
+
+<!-- Scripts -->
+<script src="/js/tracker.js"></script>
+<script src="/staybnb/js/staybnb.js"></script>
+</body>
+</html>

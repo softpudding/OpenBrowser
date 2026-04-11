@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search - TechForum</title>
+    <link rel="stylesheet" href="/techforum/css/techforum.css?v=5">
+</head>
+<body data-page-mode="search">
+    <header class="zhihu-header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="/techforum/">
+                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgNDAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iNDAiIGZpbGw9IiM1NDcwYzYiLz48dGV4dCB4PSI2MCIgeT0iMjAiIGZvbnQtc2l6ZT0iMTYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIiBmaWxsPSJ3aGl0ZSI+VGVjaEZvcnVtPC90ZXh0Pjwvc3ZnPg==" alt="TechForum Logo" class="techforum-logo" style="height: 30px;">
+                </a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search questions, topics, or people" id="main-search">
+                <button class="search-icon" id="main-search-button" type="button" aria-label="Search">🔍</button>
+            </div>
+            <nav class="header-nav">
+                <a href="/techforum/" class="nav-item active">Home</a>
+                <a href="/techforum/questions.html" class="nav-item">Questions</a>
+                <a href="/techforum/topics.html" class="nav-item">Topics</a>
+                <a href="/techforum/people.html" class="nav-item">Users</a>
+            </nav>
+            <div class="header-actions">
+                <button class="ask-btn" id="ask-btn" type="button">Ask Question</button>
+                <button class="login-btn" type="button">Log in / Sign up</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="zhihu-main">
+        <div class="main-container">
+            <aside class="left-sidebar">
+                <nav class="sidebar-nav">
+                    <a href="/techforum/" class="sidebar-item active">
+                        <span class="icon">🏠</span>
+                        <span>Back Home</span>
+                    </a>
+                    <a href="#" class="sidebar-item">
+                        <span class="icon">🔍</span>
+                        <span>Search Results</span>
+                    </a>
+                    <a href="#" class="sidebar-item">
+                        <span class="icon">🗂️</span>
+                        <span>Saved Filters</span>
+                    </a>
+                </nav>
+            </aside>
+
+            <section class="feed">
+                <div class="page-summary" id="feed-summary"></div>
+                <div id="feed-posts"></div>
+            </section>
+
+            <aside class="right-sidebar">
+                <div class="sidebar-card">
+                    <h3 class="sidebar-title">Search Tips</h3>
+                    <ul class="topic-list">
+                        <li><a href="/techforum/search.html?q=ai" class="topic-link">Search: ai</a></li>
+                        <li><a href="/techforum/search.html?q=browser" class="topic-link">Search: browser</a></li>
+                        <li><a href="/techforum/search.html?q=cloud" class="topic-link">Search: cloud</a></li>
+                        <li><a href="/techforum/search.html?q=career" class="topic-link">Search: career</a></li>
+                    </ul>
+                </div>
+                <div class="sidebar-card">
+                    <h3 class="sidebar-title">Popular Collections</h3>
+                    <div class="column-list">
+                        <a href="#" class="column-item">
+                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'%3E%3Crect fill='%23f0f0f0' width='60' height='40'/%3E%3C/svg%3E" alt="column" class="column-cover">
+                            <span class="column-title">AI Launch Playbooks</span>
+                        </a>
+                        <a href="#" class="column-item">
+                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 40'%3E%3Crect fill='%23f0f0f0' width='60' height='40'/%3E%3C/svg%3E" alt="column" class="column-cover">
+                            <span class="column-title">Automation Case Studies</span>
+                        </a>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <div class="all-comments-modal" id="all-comments-modal" style="display:none;">
+        <div class="modal-overlay" id="all-comments-overlay"></div>
+        <div class="all-comments-content">
+            <div class="all-comments-header">
+                <h3 id="all-comments-title">All Comments</h3>
+                <button class="all-comments-close" id="all-comments-close" type="button" aria-label="Close comments">&times;</button>
+            </div>
+            <div class="all-comments-body" id="all-comments-body"></div>
+        </div>
+    </div>
+
+    <div class="feedback-toast" id="feedback-toast" aria-live="polite"></div>
+
+    <script src="/js/tracker.js"></script>
+    <script src="/techforum/js/techforum.js?v=5"></script>
+</body>
+</html>

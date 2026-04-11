@@ -1,0 +1,100 @@
+id: vidhub_comment
+name: "VidHub Comment — Description, Nested Replies & Volume Slider"
+difficulty: very_hard
+description: "Expand description, scroll to comments, sort, find specific comment, expand replies, reply with specific text, adjust volume via hover-reveal slider."
+start_url: "http://localhost:16605/vidhub/"
+instruction: "Navigate to the video \"Understanding Transformers — Visual Guide\" from the homepage feed. First, expand the video description by clicking \"...more\" below the title. Then scroll down past the description to the comments section. Change the comment sort to \"Newest first\" using the dropdown. Find the comment by \"Dr. Sarah Chen\" (you may need to scroll within the comments). Expand her reply thread by clicking \"4 replies\". Reply to her comment with a message that includes the phrase \"attention mechanism\". After submitting the reply, scroll back up and hover over the player to reveal controls, then hover over the volume icon to reveal the volume slider and adjust it to approximately 50%."
+time_limit: 600.0
+cost_limit: 2.0
+
+criteria:
+  - type: open_video
+    description: "Open target video from feed"
+    points: 0.5
+    expected:
+      event_type: video_open
+      videoId: "transformers-visual-guide"
+
+  - type: expand_description
+    description: "Expand description ('...more')"
+    points: 1.0
+    expected:
+      event_type: description_expand
+
+  - type: scroll_to_comments
+    description: "Scroll to comments section"
+    points: 0.5
+    expected:
+      event_type: comments_section_visible
+
+  - type: open_sort
+    description: "Open sort dropdown"
+    points: 0.5
+    expected:
+      event_type: comment_sort_open
+
+  - type: sort_newest
+    description: "Select 'Newest first'"
+    points: 1.0
+    expected:
+      event_type: comment_sort_change
+      sort: "newest"
+
+  - type: find_sarah_chen
+    description: "Locate Dr. Sarah Chen's comment"
+    points: 1.0
+    expected:
+      event_type: comment_visible
+      authorName: "Dr. Sarah Chen"
+
+  - type: expand_replies
+    description: "Expand '4 replies' thread"
+    points: 1.5
+    expected:
+      event_type: reply_thread_expand
+      parentCommentAuthor: "Dr. Sarah Chen"
+
+  - type: click_reply
+    description: "Click Reply on her comment"
+    points: 1.0
+    expected:
+      event_type: reply_click
+      parentCommentAuthor: "Dr. Sarah Chen"
+
+  - type: type_reply
+    description: "Type reply with 'attention mechanism'"
+    points: 1.5
+    expected:
+      event_type: reply_input
+      value_contains: "attention mechanism"
+
+  - type: submit_reply
+    description: "Submit reply"
+    points: 2.0
+    expected:
+      event_type: reply_submit
+      parentCommentAuthor: "Dr. Sarah Chen"
+
+  - type: scroll_up_to_player
+    description: "Scroll back up to player area"
+    points: 0.5
+    expected:
+      event_type: player_area_visible
+
+  - type: hover_player_controls
+    description: "Hover player to reveal controls"
+    points: 0.5
+    expected:
+      event_type: player_controls_show
+
+  - type: hover_volume_slider
+    description: "Hover volume icon to reveal slider"
+    points: 1.5
+    expected:
+      event_type: volume_slider_reveal
+
+  - type: adjust_volume
+    description: "Adjust volume to ~50%"
+    points: 2.0
+    expected:
+      event_type: volume_change

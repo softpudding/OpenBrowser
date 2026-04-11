@@ -65,6 +65,12 @@ class TestCase:
     difficulty: str = "medium"
     time_limit: float = 600.0  # default 10 minutes in seconds
     cost_limit: float = 1.0  # default 1 RMB
+    # Path to a Browser Routine markdown file relative to the repo root.
+    # When set, the test runs in routine_replay mode: the conversation is
+    # created with mode="routine_replay" and the routine markdown is sent
+    # as the message instead of `instruction`. Tracker-based scoring still
+    # applies, so the same `criteria` block grades the replayed run.
+    routine_file: Optional[str] = None
 
 
 @dataclass
@@ -222,6 +228,7 @@ class OpenBrowserClient:
         model: Optional[str] = None,
         base_url: Optional[str] = None,
         model_alias: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> Optional[str]:
         """Create a new conversation and return its ID
 
@@ -229,6 +236,8 @@ class OpenBrowserClient:
             model: Optional model name (e.g., "dashscope/qwen3.5-plus")
             base_url: Optional base URL override
             model_alias: Optional configured model alias
+            mode: Optional conversation mode tag (e.g., "routine_replay"
+                to enable the routine-replay system prompt block).
         """
         if self.chrome_uuid and not self.wait_for_browser_validity(
             timeout_seconds=30.0
@@ -242,6 +251,8 @@ class OpenBrowserClient:
             request_json["base_url"] = base_url
         if model_alias:
             request_json["model_alias"] = model_alias
+        if mode:
+            request_json["mode"] = mode
         if self.chrome_uuid:
             request_json["browser_id"] = self.chrome_uuid
 
@@ -1040,6 +1051,7 @@ class Evaluator:
                     difficulty=data.get("difficulty", "medium"),
                     time_limit=data.get("time_limit", 600.0),
                     cost_limit=data.get("cost_limit", 1.0),
+                    routine_file=data.get("routine_file"),
                 )
                 test_cases.append(test_case)
                 logger.info(f"Loaded test case: {test_case.name}")
@@ -1069,12 +1081,39 @@ class Evaluator:
 
         model_output_dir = self._ensure_model_output_dir(active_model_name)
 
+        # Resolve a routine_file path (if set) up front so we fail fast on a
+        # missing file instead of burning a conversation slot. Routine paths
+        # in test YAMLs are interpreted relative to the repo root.
+        routine_markdown: Optional[str] = None
+        if test_case.routine_file:
+            routine_path = Path(test_case.routine_file)
+            if not routine_path.is_absolute():
+                routine_path = EVAL_DIR.parent / routine_path
+            try:
+                routine_markdown = routine_path.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                return self._build_error_result(
+                    test_case,
+                    active_model_name,
+                    f"Routine file not found: {routine_path}",
+                )
+            if not routine_markdown.strip():
+                return self._build_error_result(
+                    test_case,
+                    active_model_name,
+                    f"Routine file is empty: {routine_path}",
+                )
+
         # Clear only the current mock-site event bucket.
         self.eval_server.clear_events(site=site_bucket)
 
-        # Create new conversation with current model
+        # Create new conversation with current model. When replaying a
+        # routine, tag the conversation with mode="routine_replay" so the
+        # agent picks up the replay system-prompt block and the Keywords
+        # unlock for small models.
         conversation_id = self.openbrowser.create_conversation(
             model_alias=active_target.alias if active_target else None,
+            mode="routine_replay" if routine_markdown is not None else None,
         )
         if conversation_id:
             logger.debug(f"Created conversation: {conversation_id}")
@@ -1127,11 +1166,19 @@ class Evaluator:
                     else:
                         time.sleep(min(2.0, remaining_time))  # Wait for page load
 
-            # Send the main instruction with the remaining test budget
+            # Send the main instruction with the remaining test budget. In
+            # routine-replay mode the routine markdown IS the instruction —
+            # the agent treats it as ground truth per the ROUTINE_REPLAY
+            # system-prompt block.
             if not timed_out:
+                message_text = (
+                    routine_markdown
+                    if routine_markdown is not None
+                    else test_case.instruction
+                )
                 instruction_result = self.openbrowser.send_message(
                     conversation_id,
-                    test_case.instruction,
+                    message_text,
                     timeout_seconds=max(0.0, deadline - time.time()),
                 )
                 sse_events.extend(instruction_result.events)
@@ -1645,11 +1692,10 @@ class Evaluator:
             return False
 
         expected_element_href = expected.get("element_href")
-        if expected_element_href and expected_element_href not in (
-            event.get("elementHref") or ""
-        ):
-            # elementHref may not be tracked, we can check selector
-            pass
+        if expected_element_href:
+            element_href = event.get("elementHref")
+            if not element_href or expected_element_href not in element_href:
+                return False
 
         # Check parent text contains (for contextual matching)
         expected_parent_text_contains = expected.get("parent_text_contains")
@@ -1693,9 +1739,28 @@ class Evaluator:
         # Additional custom checks
         expected_check = expected.get("check")
         if expected_check == "upvote_count_changed":
-            # Placeholder for custom logic
-            # Could check if upvote count increased in subsequent events
-            pass
+            if event.get("eventType") == "upvote_toggle":
+                if event.get("voted") is not True:
+                    return False
+            else:
+                previous_count = (
+                    event.get("previousCount")
+                    or event.get("oldCount")
+                    or event.get("beforeCount")
+                )
+                new_count = (
+                    event.get("upvoteCount")
+                    or event.get("count")
+                    or event.get("newCount")
+                    or event.get("afterCount")
+                )
+                if previous_count is None or new_count is None:
+                    return False
+                try:
+                    if int(new_count) <= int(previous_count):
+                        return False
+                except (TypeError, ValueError):
+                    return False
 
         # Check all other expected fields directly against event
         for key, expected_value in expected.items():
@@ -1712,8 +1777,11 @@ class Evaluator:
 
     def _sse_event_matches_expected(self, event: Dict, expected: Dict) -> bool:
         """Check if an SSE event matches expected criteria"""
-        # Currently not using SSE events for criteria
-        return False
+        payload = event.get("data")
+        normalized_event = payload.copy() if isinstance(payload, dict) else {}
+        normalized_event["eventType"] = event.get("type")
+        normalized_event.setdefault("timestamp", event.get("timestamp"))
+        return self._event_matches_expected(normalized_event, expected)
 
     def generate_report(self):
         """Generate evaluation report"""
@@ -1853,7 +1921,8 @@ class Evaluator:
         print(
             "\nPerform this task in the browser. Events will be tracked from this moment."
         )
-        print("When you have completed the task, enter 'ok' below.")
+        print("Complete the task using the website's own controls.")
+        print("After you finish in the browser, return here and enter 'ok' below.")
 
         # Start timing when instruction is shown (same as automated test)
         start_time = time.time()
@@ -1861,14 +1930,14 @@ class Evaluator:
         # Wait for user to complete the entire task
         while True:
             response = (
-                input("\nEnter 'ok' when you have completed the task > ")
+                input("\nAfter finishing in the browser, enter 'ok' here > ")
                 .strip()
                 .lower()
             )
             if response == "ok":
                 break
             else:
-                print("Please enter 'ok' when you have completed the task.")
+                print("Please finish the browser task first, then enter 'ok' here.")
 
         end_time = time.time()
         duration = end_time - start_time

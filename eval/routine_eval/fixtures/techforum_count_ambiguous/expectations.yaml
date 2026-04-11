@@ -1,0 +1,32 @@
+# Compiler expectations for fixture `techforum_count_ambiguous`.
+#
+# The recording shows the user searching "AI" on TechForum and then
+# upvoting 5 posts. The user's actual intent is criterion-based:
+# "upvote every post about AI agents". The compiler cannot determine
+# the selection criterion from the trace alone and MUST ask. The
+# collect/favorite and comment clicks are incidental browsing.
+
+intent_summary: |
+  Search for "AI" on TechForum, then upvote every search result whose
+  topic is specifically about AI agents.
+
+expected_questions:
+  required:
+    # The compiler must ask about the selection criterion — why these
+    # 5 posts were upvoted and not others. Any question that surfaces
+    # the count-vs-criterion ambiguity counts.
+    - "What is the selection criterion for which posts to upvote"
+  forbidden:
+    # The compiler should NOT ask about things already visible in the
+    # trace — the search query "AI" is plainly recorded.
+    - "What search query to use"
+
+expected_keywords:
+  # The search input has id="main-search" which is a clean keyword.
+  # The upvote targets are per-card buttons inside dynamic search
+  # results, so Keywords lines on individual upvote steps are not
+  # required (per the "skip for per-row items in a dynamic list" rule).
+  must_have_for_steps:
+    - description: "the search input field"
+      acceptable_tokens:
+        - main-search

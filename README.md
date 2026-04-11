@@ -11,6 +11,7 @@ It treats browser automation as a visual and interactive systems problem, not ju
 OpenBrowser is built around that view:
 
 - Operate pages visually through screenshots and direct browser actions
+- Turn manual browser demonstrations into reusable routines through record -> compile -> replay
 - Keep browser execution isolated from the control window
 - Evaluate continuously on mocked sites and real workflows
 - Treat model cost as a first-class engineering constraint
@@ -68,6 +69,17 @@ OpenBrowser is not iterated by vibe alone. The repo includes mocked websites wit
 
 Model capability matters, but so does price. We do not assume token costs stay cheap forever. OpenBrowser is developed with that constraint in mind, including separate handling for stronger and cheaper models.
 
+## Record, Compile, Replay
+
+OpenBrowser is not only a free-form browser agent. It can also turn a human demonstration into a reusable Browser Routine.
+
+1. Record. The frontend calls `/recordings` to start the extension recorder. The recorder scopes itself to a dedicated recording window by default, captures browser events, and attaches selective keyframes for meaningful actions.
+2. Review. After stopping, the UI shows the trace, folded supporting events, and captured keyframes. You can also save a short intent note that explains what the workflow was trying to accomplish.
+3. Compile. `/recordings/{id}/compile` runs a Compiler Agent over the raw trace, normalized high-level steps, and keyframes. If the trace is ambiguous, it asks clarification questions before producing validated Routine markdown.
+4. Replay. Finalizing the compile stores a named Browser Routine under `/routines`. Running that routine starts a fresh conversation in `routine_replay` mode and executes the high-level Routine, not the raw event stream.
+
+Important design rule: replay is not literal event playback. The recording trace is evidence used to compile and debug the workflow; the saved Routine is the executable artifact.
+
 ## Evaluation
 
 The primary evaluation signal in this repo is the latest checked-in report:
@@ -100,6 +112,11 @@ Older side-by-side comparisons with OpenClaw are kept only as archived context:
 - [`eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md`](eval/archived/2026-03-16/browser_agent_evaluation_2026-03-16_openclaw_vs_openbrowser.md)
 
 Those archived results are still useful for historical tradeoff discussion, but they are not the main metric we optimize against now.
+
+For the record/replay pipeline, the repo also includes a dedicated routine evaluation harness under [`eval/routine_eval/`](eval/routine_eval/README.md):
+
+- Compile track: does a recording become the right Routine, with good clarification behavior?
+- Replay track: does a saved Routine execute end-to-end in `routine_replay` mode?
 
 ### Run Your Own Evaluation
 
@@ -235,6 +252,18 @@ The permission flow is:
 
 This means browser control is authorized by possession of the UUID capability token.
 
+#### 8. Record and Replay a Workflow
+
+Once the frontend and extension are connected:
+
+1. Click `Record` -> `Start recording`
+2. Perform the workflow manually in the recording browser window, then stop the recording
+3. Review the captured trace and keyframes, and add an intent note if the goal needs extra context
+4. Click `Compile Routine`, answer any clarification questions, and finalize the result with a name
+5. Run the saved routine from the routine launcher or by typing `/` in the command box to insert it
+
+Routine runs always start a fresh conversation in `routine_replay` mode so replay stays separate from free-form chat sessions.
+
 ---
 
 ### Try OpenBrowser with SKILL - install to your local agents
@@ -291,6 +320,7 @@ Browser agents are only useful if they remain practical to run. OpenBrowser ther
 
 - **Visual AI Automation**: See and interact with web pages using AI-powered visual recognition
 - **Browser Control**: Click, type, scroll, and navigate through visual understanding and JavaScript execution
+- **Record -> Compile -> Replay**: Capture a manual browser workflow, compile it into validated Routine markdown, and rerun it as a reusable task
 - **Tab Management**: Open, close, switch, and manage browser tabs with session isolation
 - **Data Extraction**: Scrape and collect data from websites with AI understanding of page structure
 - **Form Filling & Submission**: Automatically fill forms, submit data, and handle multi-step workflows

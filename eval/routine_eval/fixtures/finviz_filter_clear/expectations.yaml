@@ -1,0 +1,63 @@
+# Compiler expectations for fixture `finviz_filter_clear`.
+#
+# Complex multi-filter Finviz screening: 5 native-<select> dropdowns
+# across 2 filter tabs, a view switch, a column sort, and clicking 3
+# result rows. All filter values are clearly visible in the trace's
+# change events, so the compiler should NOT ask about them. The only
+# genuine ambiguity is whether clicking 3 stocks means "the top 3" or
+# "these specific tickers".
+
+intent_summary: |
+  Set 5 Finviz screener filters (Market Cap +Small, Dividend >3%,
+  RelVol >1, P/E <20, P/B <2), switch to Performance view, sort by
+  Perf Month, and open the top rows to inspect them.
+
+expected_questions:
+  required:
+    # The compiler must ask about the stock-click criterion: "top 3 by
+    # performance" vs "these specific tickers". This is the count-based
+    # selection ambiguity from the compiler prompt. The sort direction
+    # is observable from the trace (element class + keyframe values),
+    # so asking about it is unnecessary.
+    - "Whether the 3 clicked stocks are the top 3 or specific tickers"
+  forbidden:
+    # Filter values are plainly visible in the trace — don't ask.
+    - "Which market-cap threshold to use"
+    - "Which dividend yield to select"
+    - "Which P/E ratio to use"
+
+expected_keywords:
+  must_have_for_steps:
+    # Each native <select> has a clean developer-written id. The
+    # compiler should produce Keywords lines for all of them.
+    - description: "Market Cap dropdown"
+      acceptable_tokens:
+        - fs_cap
+        - cap
+    - description: "Dividend Yield dropdown"
+      acceptable_tokens:
+        - fs_fa_div
+        - fa_div
+    - description: "Relative Volume dropdown"
+      acceptable_tokens:
+        - fs_sh_relvol
+        - sh_relvol
+    - description: "P/E dropdown"
+      acceptable_tokens:
+        - fs_fa_pe
+        - fa_pe
+    - description: "P/B dropdown"
+      acceptable_tokens:
+        - fs_fa_pb
+        - fa_pb
+    - description: "Fundamental filter tab"
+      acceptable_tokens:
+        - filter-tab
+        - fundamental
+    - description: "Performance view tab"
+      acceptable_tokens:
+        - view-tab
+    - description: "Perf Month column header"
+      acceptable_tokens:
+        - perf4w
+        - table-header

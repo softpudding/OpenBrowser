@@ -1,0 +1,57 @@
+{
+  "compile_evaluation": {
+    "timestamp": "2026-04-10 21:09:11",
+    "unix_timestamp": 1775826551.724169,
+    "summary": {
+      "fixture_count": 2,
+      "judged_count": 2,
+      "passed_count": 2,
+      "pass_rate": 100.0,
+      "compile_model": "(server default)",
+      "judge_model": "(server default)",
+      "mean_intent_match": 1.0,
+      "mean_keyword_placement": 0.9375,
+      "mean_asking_behavior": 1.0,
+      "total_proxy_cost": 0.05916,
+      "total_proxy_tokens": 11145
+    },
+    "fixture_results": {
+      "finviz_filter_clear": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 1,
+        "compile_duration": 432.26,
+        "proxy_cost": 0.033764,
+        "proxy_tokens": 6192,
+        "overall_pass": true,
+        "intent_match": 1.0,
+        "keyword_placement": 0.875,
+        "asking_behavior": 1.0,
+        "reasoning": {
+          "intent_match": "The routine faithfully reproduces the user's entire workflow: all 5 filters are set correctly across both tabs (Market Cap: smallover, Dividend Yield: o3, Relative Volume: o1, P/E: u20, P/B: u2), the view switches to Performance, results are sorted by Perf Month descending, and the top 3 stocks by position are opened (not specific tickers). The \"Return to screener\" steps between clicks are necessary navigation to continue the workflow, not unrelated extra actions. The routine accomplishes the goal end-to-end.",
+          "keyword_placement": "The fixture requires Keywords lines for 8 steps. The routine includes valid Keywords lines for 7 of them (fs_cap, fs_fa_div, fs_sh_relvol, fundamental, fs_fa_pe, fs_fa_pb, perf4w). However, Step 7 (Switch to Performance view) is missing a Keywords line entirely—the fixture expects \"view-tab\" as an acceptable token for the Performance view tab. This one omission out of 8 required placements yields a score of 0.875.",
+          "asking_behavior": "The compiler asked exactly one question: whether the 3 clicked stocks should be treated as specific tickers (UISA, SHXD, NRGB) or as the top 3 positions after sorting. This directly covers the required topic \"Whether the 3 clicked stocks are the top 3 or specific tickers.\" The compiler asked zero forbidden questions about filter values (market-cap threshold, dividend yield, P/E ratio), all of which were clearly visible in the recording's change events."
+        }
+      },
+      "techforum_count_ambiguous": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 1,
+        "compile_duration": 327.46,
+        "proxy_cost": 0.025396,
+        "proxy_tokens": 4953,
+        "overall_pass": true,
+        "intent_match": 1.0,
+        "keyword_placement": 1.0,
+        "asking_behavior": 1.0,
+        "reasoning": {
+          "intent_match": "The compiled routine faithfully executes the user's raw intention. Step 1 correctly searches for \"AI\" on TechForum. Step 2 accurately captures the user's actual intent: upvote posts specifically about AI agents based on topic relevance (looking for mentions of \"agents\" or \"agentic\"), while skipping general AI posts. The routine correctly omits the incidental collect/favorite and comment-icon clicks that the user indicated were secondary. The reasoning section explicitly documents the correct interpretation of the selection criterion.",
+          "keyword_placement": "The fixture requires a Keywords line for the search input field with the acceptable token \"main-search\". Step 1 correctly includes `**Keywords:** main-search`, satisfying this requirement. Step 2 also includes a Keywords line (`upvote`), which is valid though not required. All required Keywords lines are present with correct tokens.",
+          "asking_behavior": "The compiler asked about the \"Selection strategy\" for which posts to upvote (position-based vs identity-based), which covers the required topic of \"What is the selection criterion for which posts to upvote.\" This question appropriately surfaces the ambiguity in the trace and allows the user to clarify their actual topic-based criterion. The compiler did NOT ask about the search query, which is in the forbidden list. Both requirements are satisfied."
+        }
+      }
+    }
+  }
+}

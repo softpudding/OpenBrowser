@@ -1,0 +1,72 @@
+id: vidhub_player
+name: "VidHub Player — Search, Auto-Hide Controls & Nested Settings"
+difficulty: hard
+description: "Search for a video, use auto-hide player controls, seek timeline, navigate nested settings to change speed, like and subscribe."
+start_url: "http://localhost:16605/vidhub/"
+instruction: "On the VidHub homepage, search for \"machine learning tutorial\" and open the first result. On the video page, hover over the player area to reveal the control bar (it auto-hides after 3 seconds), then click play. Seek to approximately the 75% mark on the timeline by clicking the progress bar. Then open the Settings menu (gear icon) and navigate into the \"Playback speed\" submenu to select \"1.5x\". Finally, like the video and subscribe to the channel."
+time_limit: 540.0
+cost_limit: 1.5
+
+criteria:
+  - type: search_submit
+    description: "Search and submit query"
+    points: 0.5
+    expected:
+      event_type: search_submit
+
+  - type: open_first_result
+    description: "Open first result"
+    points: 0.5
+    expected:
+      event_type: video_open
+      videoId: "ml-tutorial"
+
+  - type: hover_reveal_controls
+    description: "Hover player to reveal controls"
+    points: 1.0
+    expected:
+      event_type: player_controls_show
+
+  - type: click_play
+    description: "Click play (icon-only)"
+    points: 1.0
+    expected:
+      event_type: player_play
+
+  - type: seek_75
+    description: "Seek to ~75% on thin progress bar"
+    points: 2.0
+    expected:
+      event_type: player_seek
+
+  - type: open_settings
+    description: "Open Settings (gear icon, icon-only)"
+    points: 1.0
+    expected:
+      event_type: settings_open
+
+  - type: open_speed_submenu
+    description: "Navigate to Playback speed submenu"
+    points: 1.5
+    expected:
+      event_type: settings_submenu_open
+      submenu: "playback-speed"
+
+  - type: select_1_5x
+    description: "Select 1.5x speed"
+    points: 1.5
+    expected:
+      event_type: playback_speed_change
+      speed: 1.5
+
+  - type: like_video
+    description: "Like the video (icon-only)"
+    points: 1.5
+    expected:
+      event_type: video_like
+
+  - type: subscribe_channel
+    description: "Subscribe to channel"
+    points: 1.5
+    expected:
+      event_type: channel_subscribe

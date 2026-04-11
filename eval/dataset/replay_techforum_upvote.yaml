@@ -1,0 +1,84 @@
+id: replay_techforum_upvote
+name: "Replay: TechForum search + upvote AI agent posts"
+difficulty: hard
+description: "Replay a compiled routine that searches for AI, then upvotes and collects posts about AI agents."
+start_url: "http://localhost:16605/techforum/"
+routine_file: "eval/routine_eval/routines/techforum_search_upvote_agents.md"
+instruction: "Search for 'AI' on TechForum, then scroll through results and upvote + collect every post whose title or preview mentions agents or agentic workflows. Also open comments on the Kubernetes-to-serverless post."
+time_limit: 600.0
+cost_limit: 1.0
+
+criteria:
+  # Step 1: search for "AI"
+  - type: search_for_ai
+    description: "Execute a search with query 'AI'"
+    points: 2
+    expected:
+      event_type: search
+      page: "/techforum/"
+    alternative:
+      event_type: page_view
+      page: "/techforum/search.html"
+
+  # Step 2: upvote agent-related posts.
+  # Post 7: "How do you evaluate browser automation agents..."
+  - type: upvote_browser_agents
+    description: "Upvote the browser automation agents post"
+    points: 2
+    expected:
+      event_type: answer_action
+      action: upvote
+      questionId: "7"
+      page: "/techforum/search.html"
+    alternative:
+      event_type: answer_action
+      action: upvote
+      questionId: "7"
+      page_contains: "techforum"
+
+  # Post 12: "How do you test multimodal UI agents..."
+  - type: upvote_multimodal_agents
+    description: "Upvote the multimodal UI agents post"
+    points: 2
+    expected:
+      event_type: answer_action
+      action: upvote
+      questionId: "12"
+      page: "/techforum/search.html"
+    alternative:
+      event_type: answer_action
+      action: upvote
+      questionId: "12"
+      page_contains: "techforum"
+
+  # Post 18: "What are practical ways to reduce screenshot latency in browser agents?"
+  - type: upvote_screenshot_agents
+    description: "Upvote the screenshot latency in browser agents post"
+    points: 2
+    expected:
+      event_type: answer_action
+      action: upvote
+      questionId: "18"
+      page: "/techforum/search.html"
+    alternative:
+      event_type: answer_action
+      action: upvote
+      questionId: "18"
+      page_contains: "techforum"
+
+  # Step 2 collect: at least one collect action
+  - type: collect_agent_post
+    description: "Collect at least one agent-related post"
+    points: 1
+    expected:
+      event_type: collect_click
+      page_contains: "techforum"
+
+  # Step 3: open comments on Kubernetes-to-serverless post (id=4)
+  - type: comment_kubernetes_post
+    description: "Open comments on the Kubernetes-to-serverless post"
+    points: 1
+    expected:
+      event_type: comment_button_click
+      questionId: "4"
+      page_contains: "techforum"

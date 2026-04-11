@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - Sprint Board</title>
+    <link rel="stylesheet" href="/taskflow/css/taskflow.css">
+</head>
+<body>
+
+    <!-- ===== Global Header ===== -->
+    <header class="global-header">
+        <div class="header-left">
+            <div class="app-logo">
+                <svg class="logo-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                </svg>
+                <span class="logo-text">TaskFlow</span>
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="search-box">
+                <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input type="text" class="search-input" placeholder="Search cards, boards...">
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="header-btn create-btn" id="create-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Create
+            </button>
+            <button class="header-btn icon-btn" id="notifications-btn" aria-label="Notifications">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="notification-badge">3</span>
+            </button>
+            <div class="user-avatar" id="user-avatar" title="Alex Morgan">AM</div>
+        </div>
+    </header>
+
+    <!-- ===== Board Header ===== -->
+    <div class="board-header">
+        <div class="board-header-left">
+            <h1 class="board-name" id="board-name">Sprint Board</h1>
+            <button class="star-toggle" id="star-toggle" aria-label="Star board">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+            </button>
+            <span class="visibility-badge">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                Team Visible
+            </span>
+        </div>
+        <div class="board-header-right">
+            <div class="board-members">
+                <div class="member-avatar" style="background-color:#e74c3c;" title="Sarah Chen">SC</div>
+                <div class="member-avatar" style="background-color:#3498db;" title="James Wilson">JW</div>
+                <div class="member-avatar" style="background-color:#2ecc71;" title="Maria Garcia">MG</div>
+                <div class="member-avatar" style="background-color:#9b59b6;" title="David Kim">DK</div>
+            </div>
+            <button class="board-action-btn" id="filter-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                </svg>
+                Filter
+            </button>
+            <button class="board-action-btn" id="board-menu-btn" aria-label="Board menu">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== Board Container ===== -->
+    <div class="board-wrapper" id="board-wrapper">
+        <div class="board" id="board">
+            <!-- Columns will be rendered by JS -->
+        </div>
+
+        <!-- ===== Board Menu Side Panel ===== -->
+        <div class="board-menu-panel" id="board-menu-panel">
+            <div class="panel-header">
+                <h3>Menu</h3>
+                <button class="panel-close-btn" id="panel-close-btn" aria-label="Close menu">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="panel-body">
+                <div class="panel-section">
+                    <h4>About this board</h4>
+                    <p class="panel-desc">Sprint Board for Q2 2026 development cycle. Tracks all current sprint tasks and their progress.</p>
+                </div>
+                <div class="panel-section">
+                    <h4>Background</h4>
+                    <div class="bg-swatches">
+                        <button class="bg-swatch" style="background:#0079bf;" aria-label="Blue background"></button>
+                        <button class="bg-swatch" style="background:#519839;" aria-label="Green background"></button>
+                        <button class="bg-swatch" style="background:#b04632;" aria-label="Red background"></button>
+                        <button class="bg-swatch" style="background:#89609e;" aria-label="Purple background"></button>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <h4>Filter by Label</h4>
+                    <div class="filter-labels" id="filter-labels">
+                        <button class="filter-label-btn" data-color="green" style="background:#61bd4f;" aria-label="Green label"></button>
+                        <button class="filter-label-btn" data-color="yellow" style="background:#f2d600;" aria-label="Yellow label"></button>
+                        <button class="filter-label-btn" data-color="orange" style="background:#ff9f1a;" aria-label="Orange label"></button>
+                        <button class="filter-label-btn" data-color="red" style="background:#eb5a46;" aria-label="Red label"></button>
+                        <button class="filter-label-btn" data-color="purple" style="background:#c377e0;" aria-label="Purple label"></button>
+                        <button class="filter-label-btn" data-color="blue" style="background:#0079bf;" aria-label="Blue label"></button>
+                    </div>
+                    <button class="clear-filter-btn" id="clear-filter-btn">Clear filter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Card Modal ===== -->
+    <div class="modal-overlay" id="card-modal-overlay">
+        <div class="card-modal" id="card-modal">
+            <button class="modal-close-btn" id="modal-close-btn" aria-label="Close">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+
+            <div class="modal-main">
+                <!-- Labels row -->
+                <div class="modal-labels" id="modal-labels"></div>
+
+                <!-- Title -->
+                <div class="modal-title-section">
+                    <svg class="modal-section-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="3" y1="9" x2="21" y2="9"/>
+                        <line x1="9" y1="21" x2="9" y2="9"/>
+                    </svg>
+                    <h2 class="modal-title" id="modal-title"></h2>
+                    <input type="text" class="modal-title-input" id="modal-title-input" style="display:none;">
+                </div>
+
+                <p class="modal-column-info" id="modal-column-info">in list <span id="modal-column-name"></span></p>
+
+                <!-- Description -->
+                <div class="modal-section">
+                    <div class="modal-section-header">
+                        <svg class="modal-section-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/>
+                        </svg>
+                        <h3>Description</h3>
+                    </div>
+                    <div class="modal-description" id="modal-description">
+                        <p class="description-placeholder" id="description-placeholder">Add a more detailed description...</p>
+                        <textarea class="description-textarea" id="description-textarea" style="display:none;" placeholder="Add a more detailed description..."></textarea>
+                        <div class="description-actions" id="description-actions" style="display:none;">
+                            <button class="btn-primary" id="desc-save-btn">Save</button>
+                            <button class="btn-cancel" id="desc-cancel-btn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Checklist -->
+                <div class="modal-section" id="checklist-section" style="display:none;">
+                    <div class="modal-section-header">
+                        <svg class="modal-section-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                        </svg>
+                        <h3>Checklist</h3>
+                        <span class="checklist-progress" id="checklist-progress"></span>
+                    </div>
+                    <div class="checklist-progress-bar-wrapper">
+                        <div class="checklist-progress-bar" id="checklist-progress-bar"></div>
+                    </div>
+                    <div class="checklist-items" id="checklist-items"></div>
+                    <div class="checklist-add">
+                        <input type="text" class="checklist-add-input" id="checklist-add-input" placeholder="Add an item...">
+                        <button class="btn-primary btn-small" id="checklist-add-btn">Add</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right sidebar -->
+            <div class="modal-sidebar">
+                <h4 class="sidebar-heading">Add to card</h4>
+                <button class="sidebar-btn" id="sidebar-labels-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
+                    </svg>
+                    Labels
+                </button>
+                <button class="sidebar-btn" id="sidebar-members-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    Members
+                </button>
+                <button class="sidebar-btn" id="sidebar-checklist-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    Checklist
+                </button>
+                <button class="sidebar-btn" id="sidebar-dates-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    Dates
+                </button>
+                <h4 class="sidebar-heading" style="margin-top:16px;">Actions</h4>
+                <button class="sidebar-btn" id="sidebar-archive-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>
+                    </svg>
+                    Archive
+                </button>
+            </div>
+
+            <!-- Label Picker Popover -->
+            <div class="label-picker-popover" id="label-picker-popover" style="display:none;">
+                <div class="popover-header">
+                    <h4>Labels</h4>
+                    <button class="popover-close-btn" id="label-picker-close">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="label-swatches" id="label-swatches">
+                    <button class="label-swatch" data-color="green" style="background:#61bd4f;" aria-label="Green">
+                        <svg class="swatch-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <button class="label-swatch" data-color="yellow" style="background:#f2d600;" aria-label="Yellow">
+                        <svg class="swatch-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <button class="label-swatch" data-color="orange" style="background:#ff9f1a;" aria-label="Orange">
+                        <svg class="swatch-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <button class="label-swatch" data-color="red" style="background:#eb5a46;" aria-label="Red">
+                        <svg class="swatch-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <button class="label-swatch" data-color="purple" style="background:#c377e0;" aria-label="Purple">
+                        <svg class="swatch-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <button class="label-swatch" data-color="blue" style="background:#0079bf;" aria-label="Blue">
+                        <svg class="swatch-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tracker MUST load before site JS -->
+    <script src="/js/tracker.js"></script>
+    <script src="/taskflow/js/taskflow.js"></script>
+</body>
+</html>
