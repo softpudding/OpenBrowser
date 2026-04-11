@@ -39,6 +39,10 @@ SITE_NAME_TO_BUCKET = {
     "finviz": "finviz",
     "bluebook.life": "bluebook",
     "northstaroutfitters.com": "northstar",
+    "mapquest.com": "mapquest",
+    "staybnb.com": "staybnb",
+    "taskflow.app": "taskflow",
+    "vidhub.com": "vidhub",
 }
 
 
@@ -253,6 +257,14 @@ URL_MAPPINGS = {
     "/bluebook/index.html": ("/bluebook/index.html", "text/html"),
     "/northstar/": ("/northstar/index.html", "text/html"),
     "/northstar/index.html": ("/northstar/index.html", "text/html"),
+    "/mapquest/": ("/mapquest/index.html", "text/html"),
+    "/mapquest/index.html": ("/mapquest/index.html", "text/html"),
+    "/staybnb/": ("/staybnb/index.html", "text/html"),
+    "/staybnb/index.html": ("/staybnb/index.html", "text/html"),
+    "/taskflow/": ("/taskflow/index.html", "text/html"),
+    "/taskflow/index.html": ("/taskflow/index.html", "text/html"),
+    "/vidhub/": ("/vidhub/index.html", "text/html"),
+    "/vidhub/index.html": ("/vidhub/index.html", "text/html"),
 }
 
 CSS_MIMETYPE = "text/css"
@@ -339,6 +351,30 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                         "url": "/northstar/",
                         "description": "Apparel product page - test geometry-first scrolling, sticky UI, and drawer-scoped scrolling",
                     },
+                    {
+                        "name": "mapquest.com",
+                        "difficulty": "hard",
+                        "url": "/mapquest/",
+                        "description": "Google Maps mock - test autocomplete timing, icon-only transport buttons, spatial pin clicks, panel-state transitions",
+                    },
+                    {
+                        "name": "staybnb.com",
+                        "difficulty": "hard",
+                        "url": "/staybnb/",
+                        "description": "Airbnb mock - test date-range calendar, dual-handle price slider drag, segmented search pill, multi-step booking",
+                    },
+                    {
+                        "name": "taskflow.app",
+                        "difficulty": "hard",
+                        "url": "/taskflow/",
+                        "description": "Trello mock - test drag-and-drop cards, hover-reveal pencil, color-only label picker, inline editing",
+                    },
+                    {
+                        "name": "vidhub.com",
+                        "difficulty": "hard",
+                        "url": "/vidhub/",
+                        "description": "YouTube mock - test auto-hide control bar, timeline scrub, nested settings popup, volume hover-reveal slider",
+                    },
                 ]
             }
             self.send_json_response(sites)
@@ -360,6 +396,10 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
                     "/finviz/": "Finviz stock screener mock (hard)",
                     "/bluebook/": "BlueBook lifestyle feed mock (hard)",
                     "/northstar/": "Northstar Outfitters product page mock (hard)",
+                    "/mapquest/": "MapQuest Google Maps mock (hard)",
+                    "/staybnb/": "StayBnB Airbnb mock (hard)",
+                    "/taskflow/": "TaskFlow Trello mock (hard)",
+                    "/vidhub/": "VidHub YouTube mock (hard)",
                 },
             }
             self.send_json_response(help_text)
@@ -410,6 +450,10 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             "finviz",
             "bluebook",
             "northstar",
+            "mapquest",
+            "staybnb",
+            "taskflow",
+            "vidhub",
         ]:
             if path.startswith(f"/{site}/js/") and path.endswith(".js"):
                 self.send_file(path, JS_MIMETYPE)
@@ -424,6 +468,10 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
             "finviz",
             "bluebook",
             "northstar",
+            "mapquest",
+            "staybnb",
+            "taskflow",
+            "vidhub",
         ]:
             if path.startswith(f"/{site}/css/") and path.endswith(".css"):
                 self.send_file(path, CSS_MIMETYPE)
@@ -847,6 +895,10 @@ def print_startup_info(port):
     print(f"  - DataFlow (Medium):  http://localhost:{port}/dataflow/")
     print(f"  - Finviz (Hard):  http://localhost:{port}/finviz/")
     print(f"  - BlueBook (Hard): http://localhost:{port}/bluebook/")
+    print(f"  - MapQuest (Hard): http://localhost:{port}/mapquest/")
+    print(f"  - StayBnB (Hard):  http://localhost:{port}/staybnb/")
+    print(f"  - TaskFlow (Hard): http://localhost:{port}/taskflow/")
+    print(f"  - VidHub (Hard):   http://localhost:{port}/vidhub/")
     print("\nAPI Endpoints:")
     print(
         f"  - GET  http://localhost:{port}/api/events       - Get tracked events (?site=gbr)"

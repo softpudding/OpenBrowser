@@ -1,0 +1,74 @@
+id: mapquest_nearby_pins
+name: "MapQuest Nearby Pins — Scroll Chips, Ambiguous Pins & Directions"
+difficulty: very_hard
+description: "Search Pike Place Market, scroll chip bar to find Parking, click correct pin among close neighbors, get driving directions."
+start_url: "http://localhost:16605/mapquest/"
+instruction: "Search for \"Pike Place Market\" and select it from the autocomplete dropdown. Then scroll the Nearby category bar to the right until you find the \"Parking\" chip (it is off-screen initially) and click it. Multiple parking pins will appear on the map. Two pins are very close together — click specifically on \"Pike Place Market Parking Garage\" (NOT \"Pacific Place Parking\" which is the adjacent pin). Once the correct detail panel opens, click \"Directions\" and set the origin to \"Pike Place Market\" (already searched). Choose the driving mode."
+time_limit: 600.0
+cost_limit: 2.0
+
+criteria:
+  - type: autocomplete_select_pike
+    description: "Select 'Pike Place Market' from autocomplete"
+    points: 1.0
+    expected:
+      event_type: autocomplete_select
+      itemText: "Pike Place Market"
+
+  - type: scroll_chip_bar
+    description: "Scroll the Nearby chip bar to reveal 'Parking'"
+    points: 1.5
+    expected:
+      event_type: chip_bar_scroll
+      direction: "right"
+
+  - type: click_parking_chip
+    description: "Click the 'Parking' chip"
+    points: 1.0
+    expected:
+      event_type: nearby_chip_select
+      category: "parking"
+
+  - type: click_correct_pin
+    description: "Click the correct parking pin (not the distractor)"
+    points: 3.0
+    expected:
+      event_type: pin_click
+      pinId: "pike-place-parking-garage"
+
+  - type: verify_panel_content
+    description: "Verify correct panel content"
+    points: 1.0
+    expected:
+      event_type: panel_state_change
+      state: "place-detail"
+      placeId: "pike-place-parking-garage"
+
+  - type: click_directions_parking
+    description: "Click Directions from parking detail"
+    points: 0.5
+    expected:
+      event_type: click
+      element_id: "directions-btn"
+
+  - type: set_origin_pike
+    description: "Set origin to Pike Place Market"
+    points: 1.5
+    expected:
+      event_type: autocomplete_select
+      field: "origin"
+      itemText: "Pike Place Market"
+
+  - type: choose_drive_mode
+    description: "Choose driving mode (car icon)"
+    points: 1.5
+    expected:
+      event_type: transport_mode_select
+      mode: "drive"
+
+  - type: route_results_display
+    description: "Route results display"
+    points: 1.0
+    optional: true
+    expected:
+      event_type: route_results_render

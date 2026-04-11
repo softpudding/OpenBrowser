@@ -1,0 +1,107 @@
+id: taskflow_full_workflow
+name: "TaskFlow Full Workflow — Create, Label, Drag & Filter"
+difficulty: very_hard
+description: "Create a card, assign color-only label, manage checklist, drag card, open board menu, and filter by label color."
+start_url: "http://localhost:16605/taskflow/"
+instruction: "Create a new card in the \"Review\" column titled \"Security audit\". Open the card-back, assign the red label (fourth color swatch from left — there are no text names, only colors), add a new checklist item \"Run OWASP scan\" and check it off. Close the card-back. Then drag \"Security audit\" from \"Review\" to \"Done\". After dropping it, open the board menu (the \"...\" button in the board header) — note that this slides in a panel from the right that shrinks the board. Use the filter in the board menu to filter by the red label, confirming that only red-labeled cards remain fully visible (others should be dimmed)."
+time_limit: 600.0
+cost_limit: 2.0
+
+criteria:
+  - type: click_add_card
+    description: "Click 'Add a card' in Review"
+    points: 0.5
+    expected:
+      event_type: add_card_click
+      column: "Review"
+
+  - type: create_card
+    description: "Type and submit 'Security audit'"
+    points: 1.0
+    expected:
+      event_type: card_create_submit
+      cardTitle: "Security audit"
+      column: "Review"
+
+  - type: open_card_back
+    description: "Open card-back"
+    points: 0.5
+    expected:
+      event_type: card_modal_open
+      cardTitle: "Security audit"
+
+  - type: open_label_picker
+    description: "Open label picker"
+    points: 0.5
+    expected:
+      event_type: label_picker_open
+
+  - type: assign_red_label
+    description: "Assign red label (4th swatch, color-only)"
+    points: 1.5
+    expected:
+      event_type: label_assign
+      color: "red"
+
+  - type: add_owasp_item
+    description: "Add checklist item 'Run OWASP scan'"
+    points: 1.0
+    expected:
+      event_type: checklist_add_submit
+
+  - type: check_owasp_item
+    description: "Check off the item"
+    points: 1.0
+    expected:
+      event_type: checklist_check
+      checked: true
+
+  - type: close_card_back
+    description: "Close card-back"
+    points: 0.5
+    expected:
+      event_type: card_modal_close
+
+  - type: drag_security_audit
+    description: "Drag 'Security audit' from Review"
+    points: 1.0
+    expected:
+      event_type: card_drag_start
+      cardTitle: "Security audit"
+      fromColumn: "Review"
+
+  - type: drop_in_done
+    description: "Drop in Done"
+    points: 2.0
+    expected:
+      event_type: card_drop
+      cardTitle: "Security audit"
+      toColumn: "Done"
+
+  - type: open_board_menu
+    description: "Open board menu ('...')"
+    points: 0.5
+    expected:
+      event_type: board_menu_open
+
+  - type: board_layout_shift
+    description: "Board menu steals horizontal space"
+    points: 0.5
+    optional: true
+    expected:
+      event_type: board_layout_shift
+
+  - type: filter_by_red
+    description: "Apply filter by red label"
+    points: 2.0
+    expected:
+      event_type: board_filter_apply
+      filterType: "label"
+      color: "red"
+
+  - type: filter_active
+    description: "Non-matching cards are dimmed"
+    points: 0.5
+    optional: true
+    expected:
+      event_type: board_filter_active
