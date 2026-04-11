@@ -521,7 +521,16 @@ class MockWebsiteHandler(http.server.SimpleHTTPRequestHandler):
 
     def send_file(self, file_path, content_type):
         """Send a file with appropriate headers"""
-        full_path = os.path.join(EVAL_DIR, file_path.lstrip("/"))
+        eval_root = os.path.abspath(EVAL_DIR)
+        full_path = os.path.abspath(os.path.join(eval_root, file_path.lstrip("/")))
+
+        try:
+            if os.path.commonpath([eval_root, full_path]) != eval_root:
+                self.send_error_response(403, f"Forbidden path: {file_path}")
+                return
+        except ValueError:
+            self.send_error_response(403, f"Forbidden path: {file_path}")
+            return
 
         if not os.path.exists(full_path):
             self.send_error_response(404, f"File not found: {file_path}")

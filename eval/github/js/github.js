@@ -762,7 +762,7 @@ window.tracker = new AgentTracker("github.com", "hard");
     const issue = getIssue(state, state.ui.selectedIssueNumber);
     const select = document.getElementById("issue-label-select");
     const label = select ? select.value : "";
-    if (!issue || !label) {
+    if (!issue || !label || issue.labels.includes(label)) {
       return;
     }
     store.update((draft) => {
@@ -784,7 +784,7 @@ window.tracker = new AgentTracker("github.com", "hard");
     const issue = getIssue(state, state.ui.selectedIssueNumber);
     const select = document.getElementById("issue-assignee-select");
     const assignee = select ? select.value : "";
-    if (!issue) {
+    if (!issue || issue.assignee === assignee) {
       return;
     }
     store.update((draft) => {
@@ -805,7 +805,7 @@ window.tracker = new AgentTracker("github.com", "hard");
     const issue = getIssue(state, state.ui.selectedIssueNumber);
     const select = document.getElementById("issue-milestone-select");
     const milestone = select ? select.value : "";
-    if (!issue) {
+    if (!issue || issue.milestone === milestone) {
       return;
     }
     store.update((draft) => {
@@ -946,7 +946,7 @@ window.tracker = new AgentTracker("github.com", "hard");
     const pr = getPr(state, state.ui.selectedPrNumber);
     const select = document.getElementById("pr-label-select");
     const label = select ? select.value : "";
-    if (!pr || !label) {
+    if (!pr || !label || pr.labels.includes(label)) {
       return;
     }
     store.update((draft) => {

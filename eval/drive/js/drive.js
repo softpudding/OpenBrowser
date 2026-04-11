@@ -683,13 +683,21 @@ window.tracker = new AgentTracker("drive.google.com", "hard");
       return;
     }
 
+    const selectedIds = uniqueSorted(state.ui.selectedIds);
+
     store.update((draft) => {
       draft.ui.modal = {
         type,
-        itemIds: uniqueSorted(draft.ui.selectedIds),
+        itemIds: selectedIds,
         destinationId: draft.ui.currentFolderId,
       };
     });
+
+    if (type === "move" && selectedIds.length > 1) {
+      tracker.track("multi_select_commit", {
+        itemIds: selectedIds,
+      });
+    }
     render();
   }
 
@@ -712,11 +720,6 @@ window.tracker = new AgentTracker("drive.google.com", "hard");
       draft.ui.detailItemId = modal.destinationId;
     });
 
-    if (itemIds.length > 1) {
-      tracker.track("multi_select_commit", {
-        itemIds,
-      });
-    }
     tracker.track("item_move", {
       itemIds,
       itemId: itemIds[0],

@@ -74,6 +74,7 @@ class AgentTracker {
                 elementId: target.id || null,
                 elementClass: target.className || null,
                 elementText: target.textContent?.trim().substring(0, 100) || null,
+                elementHref: this.getElementHref(target),
                 parentText: parentWithText || null,
                 selector: this.getSelector(target),
                 x: e.clientX,
@@ -149,6 +150,7 @@ class AgentTracker {
                     element: e.target.tagName,
                     elementId: e.target.id || null,
                     elementClass: e.target.className || null,
+                    elementHref: this.getElementHref(e.target),
                     selector: this.getSelector(e.target)
                 });
             }, 500);
@@ -185,6 +187,14 @@ class AgentTracker {
             return element.tagName.toLowerCase() + '.' + element.className.split(' ').join('.');
         }
         return element.tagName.toLowerCase();
+    }
+
+    getElementHref(element) {
+        if (!element || typeof element.closest !== 'function') {
+            return null;
+        }
+        const link = element.closest('a[href]');
+        return link ? (link.getAttribute('href') || null) : null;
     }
     
     getEvents() {

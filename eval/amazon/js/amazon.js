@@ -400,17 +400,21 @@ window.tracker = new AgentTracker("amazon.com", "hard");
   }
 
   function renderCart(state) {
+    const primaryItems = state.cart.items.filter((item) => !item.accessory);
+    const accessoryItems = state.cart.items.filter((item) => item.accessory);
+
     return `
       <section class="amazon-cart mock-card">
         <div class="amazon-actions" style="justify-content: space-between; margin-bottom: 14px;">
           <div>
             <p class="mock-kicker">Cart</p>
-            <h2 class="mock-title">${state.cart.items.length} active item(s)</h2>
+            <h2 class="mock-title">${primaryItems.length} active item(s)</h2>
           </div>
           <button class="mock-btn-secondary" data-action="go-home">Keep shopping</button>
         </div>
         <div class="amazon-cart-list">
-          ${state.cart.items
+          ${primaryItems.length
+            ? primaryItems
             .map(
               (item) => `
                 <article class="amazon-cart-card">
@@ -425,8 +429,8 @@ window.tracker = new AgentTracker("amazon.com", "hard");
                 </article>
               `,
             )
-            .join("")}
-          ${state.cart.items.filter((item) => item.accessory).map((item) => "").join("")}
+            .join("")
+            : '<div class="mock-subtle">Your main cart is empty.</div>'}
         </div>
         <div style="margin-top: 18px;">
           <p class="mock-kicker">Saved for later</p>
@@ -450,8 +454,7 @@ window.tracker = new AgentTracker("amazon.com", "hard");
         <div style="margin-top: 18px;">
           <p class="mock-kicker">Accessories</p>
           <div class="amazon-saved-list">
-            ${state.cart.items
-              .filter((item) => item.accessory)
+            ${accessoryItems
               .map(
                 (item) => `
                   <article class="amazon-cart-card">
@@ -648,7 +651,15 @@ window.tracker = new AgentTracker("amazon.com", "hard");
     const offerId = state.selectedOfferId || product.offers[0]?.id || "";
     const itemId = `cart-${product.id}`;
     store.update((draft) => {
-      draft.cart.items = draft.cart.items.filter((item) => item.itemId !== itemId && item.productId !== product.id);
+      draft.cart.items = draft.cart.items.filter((item) => {
+        if (item.itemId === itemId || item.productId === product.id) {
+          return false;
+        }
+        if (product.autoAccessoryId && item.accessoryId === product.autoAccessoryId) {
+          return false;
+        }
+        return true;
+      });
       draft.cart.items.push({
         itemId,
         productId: product.id,
@@ -657,7 +668,10 @@ window.tracker = new AgentTracker("amazon.com", "hard");
         offerId,
         quantity: 1,
       });
-      if (product.autoAccessoryId) {
+      if (
+        product.autoAccessoryId &&
+        !draft.cart.removedAccessoryIds.includes(product.autoAccessoryId)
+      ) {
         draft.cart.items.push({
           itemId: `accessory-${product.autoAccessoryId}`,
           accessory: true,

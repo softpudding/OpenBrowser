@@ -1100,6 +1100,7 @@ window.tracker = new AgentTracker("mail.google.com", "hard");
     const draftRecord = {
       id: modal.id,
       threadId: modal.threadId,
+      mode: modal.mode,
       subject: modal.subject,
       to: modal.to || [],
       cc: modal.cc || [],
@@ -1331,7 +1332,7 @@ window.tracker = new AgentTracker("mail.google.com", "hard");
     if (action === "open-draft" && draftId) {
       const draft = getDraftById(store.getState(), draftId);
       if (draft) {
-        createComposeModal(draft.threadId ? "forward" : "draft", draft.threadId || null, draft);
+        createComposeModal(draft.mode || (draft.threadId ? "forward" : "draft"), draft.threadId || null, draft);
       }
       return;
     }
