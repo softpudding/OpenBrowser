@@ -40,6 +40,8 @@ import {
   performElementSetSlider,
   performKeyboardInput,
   performElementSelect,
+  replayHoverState,
+  clearHoverState,
 } from '../commands/element-actions';
 import {
   LABEL_FONT_SIZE,
@@ -651,6 +653,7 @@ async function captureDefaultHighlightedPageState(options: {
 
 function cleanupTabState(conversationId: string, tabId: number): void {
   elementCache.invalidate(conversationId, tabId);
+  clearHoverState(conversationId, tabId);
   dialogManager.disableForTab(tabId);
   clearScreenshotCache(tabId);
 }
@@ -1496,6 +1499,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         // Clear any conversation-scoped cache entries that may remain after
         // tabs are closed or the session has already partially cleaned up.
         elementCache.invalidate(cleanupConversationId);
+        clearHoverState(cleanupConversationId);
 
         // 清理 tab manager 会话
         await tabManager.cleanupSession(cleanupConversationId);
@@ -2445,6 +2449,12 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             bboxError,
           );
         }
+
+        // Re-fire hover events so hover-dependent UI stays visible for
+        // the confirmation screenshot (e.g. video player controls).
+        await replayHoverState(conversationId, activeTabId);
+        // Brief pause for CSS transitions triggered by hover event handlers
+        await new Promise((r) => setTimeout(r, 150));
 
         // Capture screenshot
         const screenshotResult = await captureScreenshot(

@@ -141,7 +141,11 @@ Use this for kanban cards, file list reordering, sortable lists, and any drag-an
 
 ### set_slider
 
-Set the value of a **native** `<input type=range>` directly, without dragging. The call writes the value and dispatches `input`/`change` events so React/Vue listeners fire.
+Set a slider to a target value. Works on three kinds of slider:
+
+1. **Native** `<input type=range>` — writes the value directly.
+2. **ARIA sliders** — elements with `role="slider"` + `aria-valuemin`/`aria-valuemax`. Clicks at the computed position.
+3. **Custom progress bars** — any other element with the `slidable` hint (e.g. video seek bars). Clicks at the percentage position. **Use percentage values** (`"30%"`) for these since they have no explicit min/max.
 
 ```json
 { "action": "set_slider", "element_id": "V3K", "value": "75%", "tab_id": 123 }
@@ -149,9 +153,9 @@ Set the value of a **native** `<input type=range>` directly, without dragging. T
 // → Executes immediately and returns the default `highlight` `element_type: "any"` page 1 screenshot
 ```
 
-`value` is either a number inside the slider's `[min, max]` range, or a percentage string like `"50%"` interpreted between min and max.
+`value` is either a number inside the slider's `[min, max]` range, or a percentage string like `"50%"`. For custom progress bars without explicit min/max, always use percentage strings.
 
-Use `set_slider` only for native `<input type=range>` controls (single-handle).
+Use `set_slider` for any element marked with the `slidable` interaction hint — do not try to click or drag the thumb manually.
 
 ### select
 
@@ -193,7 +197,7 @@ Completed `confirm_*` actions return the default `highlight` `element_type: "any
 - For buttons and links, use `click`
 - For text boxes, always `click` first, then use `keyboard_input`
 - For native `<select>`, use `select`
-- For native `<input type=range>` sliders (volume, brightness, price), use `set_slider` — do not try to click or drag the thumb.
+- For sliders (volume, brightness, price, video progress bars) — any element with the `slidable` hint — use `set_slider`. Do not click or drag the thumb manually.
 - For drag-and-drop cards, reorderable lists, or sortable items, use `drag_and_drop`.
 - For hidden menus or tooltips, use `hover`
 - For scrollable pages or regions, use `scroll`

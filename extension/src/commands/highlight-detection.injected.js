@@ -134,6 +134,17 @@ function isElementVisibleForDetection(el) {
     return false;
   }
 
+  // CSS opacity creates a compositing group: a child with opacity:1 inside
+  // a parent with opacity:0 is invisible, but getComputedStyle(child).opacity
+  // still returns '1'. Walk up ancestors to catch hover-revealed containers
+  // (e.g. video player control bars that use opacity:0 → opacity:1 on hover).
+  let ancestor = el.parentElement;
+  for (let i = 0; i < 5 && ancestor; i++) {
+    if (ancestor === document.body || ancestor === document.documentElement) break;
+    if (window.getComputedStyle(ancestor).opacity === '0') return false;
+    ancestor = ancestor.parentElement;
+  }
+
   const rect = el.getBoundingClientRect();
   return rect.width > 0 && rect.height > 0;
 }
@@ -598,8 +609,16 @@ function isMeaningfulPointerCandidate(el) {
   const viewportArea = window.innerWidth * window.innerHeight;
   const elementArea = getElementArea(rect);
 
-  if (elementArea <= 0 || elementArea > viewportArea * 0.35) {
+  if (elementArea <= 0) {
     return false;
+  }
+
+  if (elementArea > viewportArea * 0.35) {
+    // Large elements are usually layout wrappers, not interaction targets.
+    // Exception: cursor:pointer + user-select:none together indicate a
+    // deliberate interactive region (video player, canvas app, game area).
+    if (elementArea > viewportArea * 0.7) return false;
+    return window.getComputedStyle(el).userSelect === 'none';
   }
 
   const searchText = getElementSearchText(el);
@@ -1113,7 +1132,13 @@ function _isDraggableCandidateCore(el) {
   }
 
   // Tier 3 — CSS / structural heuristics
-  // Note: <input type=range> is handled by set_slider, not drag_and_drop
+  // Exclude sliders — they should use set_slider, not drag_and_drop
+  if (el instanceof HTMLInputElement && el.type === 'range') {
+    return false;
+  }
+  if (el.getAttribute && el.getAttribute('role') === 'slider') {
+    return false;
+  }
   if (el instanceof HTMLElement) {
     const computedCursor = window.getComputedStyle(el).cursor;
     const hasGrabCursor = computedCursor === 'grab' || computedCursor === 'move';
@@ -1207,6 +1232,53 @@ function isDroppableCandidate(el) {
     }
   }
 
+  return false;
+}
+
+/**
+ * Detect slider-like elements that should be interacted with via set_slider.
+ * Matches:
+ *   Tier 1 — Explicit markers:
+ *     - Native <input type="range">
+ *     - Elements with role="slider" (custom ARIA sliders)
+ *   Tier 2 — Structural heuristic for custom progress bars:
+ *     - cursor: pointer AND class/id contains slider-related tokens
+ *       AND has a child whose class suggests a track/fill/thumb structure
+ */
+const SLIDER_TOKEN_REGEX = /\b(progress|slider|seek|scrub|range|timeline|playback)\b/i;
+const SLIDER_CHILD_TOKEN_REGEX = /\b(track|played|filled|fill|thumb|scrubber|bar|handle|knob|indicator)\b/i;
+
+function isSlidableCandidate(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+  // Tier 1: Native range input
+  if (el instanceof HTMLInputElement && el.type === 'range') {
+    return true;
+  }
+  // Tier 1: ARIA slider
+  if (el.getAttribute('role') === 'slider') {
+    return true;
+  }
+
+  // Tier 2: Custom progress bar heuristic
+  // Requires ALL of: slider-related class/id token + pointer cursor + structural child
+  const idAndClass = (el.id || '') + ' ' + Array.from(el.classList).join(' ');
+  if (!SLIDER_TOKEN_REGEX.test(idAndClass)) {
+    return false;
+  }
+  const cursor = window.getComputedStyle(el).cursor;
+  if (cursor !== 'pointer' && cursor !== 'grab' && cursor !== 'move') {
+    return false;
+  }
+  // Check for at least one child with track/fill/thumb-like class
+  const children = el.querySelectorAll('*');
+  for (let i = 0; i < children.length && i < 30; i++) {
+    const childClasses = Array.from(children[i].classList).join(' ');
+    if (SLIDER_CHILD_TOKEN_REGEX.test(childClasses)) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -1441,6 +1513,38 @@ function getInteractionHints(el) {
 
   if (isDroppableCandidate(el)) {
     hints.push('droppable');
+  }
+
+  // Check element, its children, AND its ancestors for slidable signal.
+  // - Children: resolveClickableCandidate may have lifted a child slider to a parent
+  // - Ancestors: a leaf element inside a slider container (e.g. progress-buffered
+  //   inside progress-area) needs the hint propagated from its container
+  if (isSlidableCandidate(el)) {
+    hints.push('slidable');
+  } else {
+    let foundSlidable = false;
+    // Check direct children
+    const sliderChildren = el.children;
+    for (let i = 0; i < sliderChildren.length && i < 20; i++) {
+      if (isSlidableCandidate(sliderChildren[i])) {
+        foundSlidable = true;
+        break;
+      }
+    }
+    // Check ancestors (up to 3 levels) — handles leaf elements inside slider containers
+    if (!foundSlidable) {
+      let ancestor = el.parentElement;
+      for (let depth = 0; ancestor && depth < 3; depth++, ancestor = ancestor.parentElement) {
+        if (ancestor === document.body || ancestor === document.documentElement) break;
+        if (isSlidableCandidate(ancestor)) {
+          foundSlidable = true;
+          break;
+        }
+      }
+    }
+    if (foundSlidable) {
+      hints.push('slidable');
+    }
   }
 
   return hints;

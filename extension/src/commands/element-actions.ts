@@ -19,6 +19,142 @@ function escapeForDoubleQuotedJavaScriptString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+// ============================================================
+// Hover State Store — remembers the last hovered element per
+// conversation+tab so hover-revealed UI can be re-activated
+// before confirmation screenshots.
+// ============================================================
+interface HoverState {
+  selector: string;
+  documentId: string;
+}
+
+const hoverStateStore = new Map<string, HoverState>();
+
+function hoverKey(conversationId: string, tabId: number): string {
+  return `${conversationId}:${tabId}`;
+}
+
+/**
+ * Re-fire hover events on the last-hovered element for a given
+ * conversation + tab. This restores hover-dependent UI (e.g. video
+ * player controls) that would otherwise disappear between the hover
+ * action and a subsequent click confirmation screenshot.
+ *
+ * Silently no-ops if there is no stored hover state or the element
+ * is gone/stale.
+ */
+export async function replayHoverState(
+  conversationId: string,
+  tabId: number,
+  timeout: number = 3000,
+): Promise<void> {
+  const key = hoverKey(conversationId, tabId);
+  const state = hoverStateStore.get(key);
+  if (!state) return;
+
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(state.selector);
+  const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+    state.documentId,
+  );
+
+  const script = `
+    (function() {
+      // Quick document-identity check
+      const currentDocId = \`\${Math.trunc(performance.timeOrigin)}|\${location.href}\`;
+      if ("${escapedDocumentId}" && currentDocId !== "${escapedDocumentId}") {
+        return { replayed: false, reason: "document changed" };
+      }
+
+      const el = document.querySelector("${escapedSelector}");
+      if (!el) {
+        return { replayed: false, reason: "element gone" };
+      }
+
+      // Walk up to the element and re-fire the full hover event sequence
+      // on both the element and its ancestors, to trigger CSS :hover
+      // and framework listeners (React onMouseEnter, etc.)
+      const targets = [el];
+      let parent = el.parentElement;
+      while (parent && parent !== document.documentElement) {
+        targets.push(parent);
+        parent = parent.parentElement;
+      }
+
+      // Fire from outermost to innermost (mimics real mouse entry path)
+      for (let i = targets.length - 1; i >= 0; i--) {
+        const target = targets[i];
+        target.dispatchEvent(new PointerEvent('pointerenter', {
+          bubbles: false, cancelable: false, view: window,
+          pointerType: 'mouse', isPrimary: true,
+        }));
+        target.dispatchEvent(new MouseEvent('mouseenter', {
+          bubbles: false, cancelable: false, view: window,
+        }));
+      }
+
+      // pointerover / mouseover bubble, so fire on the leaf only
+      el.dispatchEvent(new PointerEvent('pointerover', {
+        bubbles: true, cancelable: true, view: window,
+        pointerType: 'mouse', isPrimary: true,
+      }));
+      el.dispatchEvent(new MouseEvent('mouseover', {
+        bubbles: true, cancelable: true, view: window,
+      }));
+
+      return { replayed: true };
+    })();
+  `;
+
+  try {
+    const result = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      false,
+      timeout,
+    );
+    const value = result.result?.value as
+      | { replayed: boolean; reason?: string }
+      | undefined;
+    if (value?.replayed) {
+      console.log(
+        `🔄 [HoverReplay] Re-fired hover events on "${state.selector}"`,
+      );
+    } else {
+      console.log(
+        `🔄 [HoverReplay] Skipped: ${value?.reason || 'unknown'}`,
+      );
+      // Clear stale hover state
+      if (value?.reason === 'document changed' || value?.reason === 'element gone') {
+        hoverStateStore.delete(key);
+      }
+    }
+  } catch (err) {
+    console.warn(`⚠️ [HoverReplay] Failed to replay hover:`, err);
+  }
+}
+
+/**
+ * Clear hover state for a conversation (optionally limited to a specific tab).
+ */
+export function clearHoverState(
+  conversationId: string,
+  tabId?: number,
+): void {
+  if (tabId !== undefined) {
+    hoverStateStore.delete(hoverKey(conversationId, tabId));
+  } else {
+    // Clear all tabs for this conversation
+    for (const key of hoverStateStore.keys()) {
+      if (key.startsWith(`${conversationId}:`)) {
+        hoverStateStore.delete(key);
+      }
+    }
+  }
+}
+
 function buildResolvedElementResultFields(
   requestedElementId: string,
   resolvedElementId: string,
@@ -908,6 +1044,12 @@ export async function performElementHover(
   }
 
   console.log(`✅ [ElementHover] Hover executed successfully`);
+
+  // Store hover state so it can be replayed before confirmation screenshots
+  hoverStateStore.set(hoverKey(conversationId, tabId), {
+    selector: element.selector,
+    documentId: cachedElement.documentId,
+  });
 
   // If dialog opened during hover, propagate dialog info
   const result: HoverResult = {
@@ -2945,9 +3087,14 @@ export interface SetSliderResult extends ElementActionResult {
 }
 
 /**
- * Write a target value into a native <input type=range> and dispatch
- * `input` + `change` events so frameworks observe the update. Non-range
- * inputs are rejected with a clear error directing the caller to drag_and_drop.
+ * Set a slider to a target value. Supports two kinds of slider:
+ *
+ * 1. **Native** `<input type=range>` — writes the value property and
+ *    dispatches `input` + `change` events.
+ * 2. **ARIA custom sliders** — elements with `role="slider"` and
+ *    `aria-valuemin` / `aria-valuemax`. Computes the target click
+ *    coordinate on the track and dispatches pointer/mouse/click events
+ *    at that position so the site's JS updates the slider.
  */
 export async function performElementSetSlider(
   conversationId: string,
@@ -3016,22 +3163,35 @@ export async function performElementSetSlider(
           stale: snapshotValidation.stale,
         };
       }
-      if (!(el instanceof HTMLInputElement) || el.type !== 'range') {
-        return {
-          sliderSet: false,
-          error:
-            "set_slider only supports native <input type=range>. For custom sliders use drag_and_drop with offset_x/offset_y on the slider handle.",
-          stale: false,
-        };
-      }
 
-      const min = Number(el.min === '' ? 0 : el.min);
-      const max = Number(el.max === '' ? 100 : el.max);
+      // ---- Determine slider type ----
+      const isNativeRange = (el instanceof HTMLInputElement) && el.type === 'range';
+      const ariaRole = (el.getAttribute('role') || '').toLowerCase();
+      const isAriaSlider = ariaRole === 'slider';
+      // Generic: any other element (custom progress bar detected by slidable hint)
+      const isGeneric = !isNativeRange && !isAriaSlider;
+
+      // ---- Parse min / max / step ----
+      let min, max, step;
+      if (isNativeRange) {
+        min = Number(el.min === '' ? 0 : el.min);
+        max = Number(el.max === '' ? 100 : el.max);
+        step = Number(el.step === '' || el.step === 'any' ? 0 : el.step);
+      } else if (isAriaSlider) {
+        min = Number(el.getAttribute('aria-valuemin') ?? 0);
+        max = Number(el.getAttribute('aria-valuemax') ?? 100);
+        step = 0;
+      } else {
+        // Generic: treat as 0–100 percentage range
+        min = 0;
+        max = 100;
+        step = 0;
+      }
       if (!isFinite(min) || !isFinite(max) || max <= min) {
         return { sliderSet: false, error: "Slider min/max are not a valid numeric range", stale: false };
       }
-      const step = Number(el.step === '' || el.step === 'any' ? 0 : el.step);
 
+      // ---- Resolve target value ----
       let numeric;
       const trimmed = requestedValue.trim();
       if (trimmed.endsWith('%')) {
@@ -3046,7 +3206,6 @@ export async function performElementSetSlider(
           return { sliderSet: false, error: "Value is not numeric", stale: false };
         }
       }
-
       if (numeric < min) numeric = min;
       if (numeric > max) numeric = max;
       if (step > 0) {
@@ -3054,25 +3213,117 @@ export async function performElementSetSlider(
         numeric = Math.max(min, Math.min(max, quantized));
       }
 
-      const previousValue = el.value;
-      const descriptor = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        'value',
-      );
-      const setter = descriptor && descriptor.set;
-      if (setter) {
-        setter.call(el, String(numeric));
-      } else {
-        el.value = String(numeric);
+      // ============================================================
+      // NATIVE RANGE PATH: write value + dispatch events
+      // ============================================================
+      if (isNativeRange) {
+        const previousValue = el.value;
+        const descriptor = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value',
+        );
+        const setter = descriptor && descriptor.set;
+        if (setter) {
+          setter.call(el, String(numeric));
+        } else {
+          el.value = String(numeric);
+        }
+        el.dispatchEvent(new Event('input', { bubbles: true, cancelable: false }));
+        el.dispatchEvent(new Event('change', { bubbles: true, cancelable: false }));
+
+        return {
+          sliderSet: true,
+          previousValue,
+          newValue: el.value,
+          min,
+          max,
+        };
       }
 
-      el.dispatchEvent(new Event('input', { bubbles: true, cancelable: false }));
-      el.dispatchEvent(new Event('change', { bubbles: true, cancelable: false }));
+      // ============================================================
+      // POSITION-CLICK PATH: ARIA slider + generic custom sliders
+      // Compute target (x,y) on the element and dispatch click events.
+      //
+      // For generic sliders, the cached element may be a leaf inside the
+      // slider container (e.g. progress-buffered inside progress-area).
+      // Walk up to find the full-width container for position calculation,
+      // but dispatch events on the original element so they bubble to the
+      // container's click handler.
+      // ============================================================
+      const previousValue = isAriaSlider
+        ? (el.getAttribute('aria-valuenow') || '')
+        : '';
 
+      // Find the slider track/container for position calculation
+      let trackEl = el;
+      if (isGeneric) {
+        // Walk up to find a parent whose width represents the full slider range.
+        // The container is typically the widest ancestor with a slider-related class.
+        const SLIDER_RE = /\\b(progress|slider|seek|scrub|range|timeline|playback)\\b/i;
+        let ancestor = el.parentElement;
+        for (let d = 0; ancestor && d < 4; d++, ancestor = ancestor.parentElement) {
+          if (ancestor === document.body || ancestor === document.documentElement) break;
+          const ancIdClass = (ancestor.id || '') + ' ' + Array.from(ancestor.classList).join(' ');
+          if (SLIDER_RE.test(ancIdClass)) {
+            const ancRect = ancestor.getBoundingClientRect();
+            if (ancRect.width > trackEl.getBoundingClientRect().width) {
+              trackEl = ancestor;
+            }
+          }
+        }
+      }
+
+      const rect = trackEl.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        return { sliderSet: false, error: "Slider element has zero size", stale: false };
+      }
+
+      // Determine orientation
+      const orientation = trackEl.getAttribute('aria-orientation');
+      const isVertical = orientation === 'vertical' || (!orientation && rect.height > rect.width * 2);
+      const fraction = (numeric - min) / (max - min);
+
+      let clickX, clickY;
+      if (isVertical) {
+        clickX = rect.left + rect.width / 2;
+        clickY = rect.bottom - fraction * rect.height;
+      } else {
+        clickX = rect.left + fraction * rect.width;
+        clickY = rect.top + rect.height / 2;
+      }
+
+      // Dispatch full pointer → mouse → click sequence at the computed position
+      const eventInit = {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: clickX,
+        clientY: clickY,
+        button: 0,
+        buttons: 1,
+      };
+
+      // Dispatch on trackEl (the slider container) so the click handler fires
+      // directly, rather than relying on bubbling from a leaf child.
+      const dispatchTarget = isGeneric ? trackEl : el;
+      dispatchTarget.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerType: 'mouse', isPrimary: true }));
+      dispatchTarget.dispatchEvent(new MouseEvent('mousedown', eventInit));
+      dispatchTarget.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerType: 'mouse', isPrimary: true, buttons: 0 }));
+      dispatchTarget.dispatchEvent(new MouseEvent('mouseup', { ...eventInit, buttons: 0 }));
+      dispatchTarget.dispatchEvent(new MouseEvent('click', { ...eventInit, buttons: 0 }));
+
+      dispatchTarget.dispatchEvent(new Event('input', { bubbles: true }));
+      dispatchTarget.dispatchEvent(new Event('change', { bubbles: true }));
+
+      await new Promise(r => setTimeout(r, 100));
+
+      const newValue = isAriaSlider
+        ? (el.getAttribute('aria-valuenow') || '')
+        : String(numeric);
       return {
         sliderSet: true,
         previousValue,
-        newValue: el.value,
+        newValue,
         min,
         max,
       };

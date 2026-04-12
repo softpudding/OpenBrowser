@@ -96,14 +96,14 @@ Use this for drag-and-drop cards, reorderable lists, or sortable items. Returns 
 { "action": "set_slider", "element_id": "V3K", "value": 50, "tab_id": 123 }
 ```
 
-Use this only for native `<input type=range>` (single-handle volume, brightness, price). `value` is a number in `[min, max]` or a percentage string.
+Use this for any element with the `slidable` hint — native `<input type=range>`, ARIA `role="slider"`, or custom progress bars. `value` is a number in `[min, max]` or a percentage string. For custom progress bars, always use percentage strings (e.g. `"30%"`). Do not click or drag the thumb manually.
 
 ## Decision Rules
 
 - For buttons and links, use `click`
 - For text boxes, always `click` first, then use `keyboard_input`
 - For native `<select>`, use `select`
-- For native `<input type=range>`, use `set_slider`
+- For sliders (any element with `slidable` hint, including video progress bars), use `set_slider`
 - For kanban cards, reorderable lists, or sortable items, use `drag_and_drop`
 - For hidden menus or tooltips, use `hover`
 - If the page or target region is scrollable and your goal is to reveal more content, use `scroll`
