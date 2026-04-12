@@ -2916,6 +2916,11 @@ tabManager.addTabClosedListener((conversationId: string, tabId: number) => {
   cleanupTabState(conversationId, tabId);
 });
 
+// In dev builds, connect to Vite reload server for automatic extension reloading
+if (__DEV__) {
+  import('./dev-reload').then(({ initDevReload }) => initDevReload());
+}
+
 console.log('✅ OpenBrowser extension loaded (Strict Mode)');
 
 // Export constants and functions for testing

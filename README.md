@@ -354,13 +354,15 @@ Browser agents are only useful if they remain practical to run. OpenBrowser ther
 ### Build Commands
 
 ```bash
-# Extension development build with watch
+# Extension development build with watch + auto-reload
 cd extension
 npm run dev
 
 # TypeScript type checking
 npm run typecheck
 ```
+
+`npm run dev` watches for file changes, rebuilds, and **automatically reloads the extension in Chrome** — no manual reload on `chrome://extensions` needed after the first install. Production builds (`npm run build`) strip all dev-reload code.
 
 ### Project Structure
 
