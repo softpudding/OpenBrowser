@@ -29,6 +29,12 @@ from urllib.parse import urlparse
 
 import requests
 import yaml
+from requests.exceptions import (
+    ChunkedEncodingError,
+    ConnectionError as RequestsConnectionError,
+    ReadTimeout,
+)
+from urllib3.exceptions import ProtocolError
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +44,15 @@ OPENBROWSER_WS_URL = "ws://localhost:8766"
 EVAL_SERVER_URL = "http://localhost:16605"
 EVAL_SERVER_PORT = 16605
 OPENBROWSER_PORT = 8765
+
+# SSE streaming timeouts for the agent channel at :8765.
+# (connect_timeout, read_timeout) in seconds.
+# The read timeout applies per-chunk: we need it longer than the slowest LLM
+# turn so a slow turn doesn't abort mid-stream. The test-level wall-clock is
+# still enforced by the outer thread-join in send_message.
+# Override with OPENBROWSER_SSE_READ_TIMEOUT (seconds).
+SSE_CONNECT_TIMEOUT = 30
+SSE_READ_TIMEOUT = int(os.environ.get("OPENBROWSER_SSE_READ_TIMEOUT", "600"))
 
 # Paths
 EVAL_DIR = Path(__file__).parent
@@ -314,23 +329,44 @@ class OpenBrowserClient:
         timed_out = False
         response_holder: Dict[str, Any] = {"response": None, "aborted": False}
 
+        def _open_stream(sess: requests.Session) -> requests.Response:
+            return sess.post(
+                f"{self.base_url}/agent/conversations/{conversation_id}/messages",
+                json={
+                    "text": message,
+                    "cwd": cwd,
+                    "browser_id": self.chrome_uuid,
+                },
+                stream=True,
+                headers={"Accept": "text/event-stream"},
+                # (connect, read). Read timeout gates individual chunks; must be
+                # larger than the slowest LLM turn. Outer wall-clock is enforced
+                # via thread-join below.
+                timeout=(SSE_CONNECT_TIMEOUT, SSE_READ_TIMEOUT),
+            )
+
         def _collect_events() -> None:
             nonlocal error
             response = None
             local_session = requests.Session()
             local_session.trust_env = False
             try:
-                response = local_session.post(
-                    f"{self.base_url}/agent/conversations/{conversation_id}/messages",
-                    json={
-                        "text": message,
-                        "cwd": cwd,
-                        "browser_id": self.chrome_uuid,
-                    },
-                    stream=True,
-                    headers={"Accept": "text/event-stream"},
-                    timeout=90,  # Per-read timeout; test-level timeout is handled outside.
-                )
+                try:
+                    response = _open_stream(local_session)
+                except (RequestsConnectionError, ReadTimeout) as connect_err:
+                    # Pre-stream failure (agent server not accepting or slow to
+                    # start): one backoff retry before we declare the run dead.
+                    logger.warning(
+                        "SSE open failed (%s); retrying once after 2s backoff",
+                        connect_err,
+                    )
+                    if response_holder["aborted"]:
+                        return
+                    time.sleep(2.0)
+                    # Outer wall-clock may have fired while we were sleeping.
+                    if response_holder["aborted"]:
+                        return
+                    response = _open_stream(local_session)
                 response_holder["response"] = response
                 response.raise_for_status()
 
@@ -412,6 +448,22 @@ class OpenBrowserClient:
                         "Conversation completed but no usage_metrics event received"
                     )
 
+            except (
+                RequestsConnectionError,
+                ReadTimeout,
+                ChunkedEncodingError,
+                ProtocolError,
+            ) as e:
+                if response_holder["aborted"]:
+                    logger.info(
+                        "Stopped SSE collection after hitting the test time limit"
+                    )
+                else:
+                    error = (
+                        f"SSE transport error on :{OPENBROWSER_PORT} after "
+                        f"read_timeout={SSE_READ_TIMEOUT}s: {e}"
+                    )
+                    logger.error(error)
             except Exception as e:
                 if response_holder["aborted"]:
                     logger.info(

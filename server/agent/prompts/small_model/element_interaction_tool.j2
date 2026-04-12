@@ -8,7 +8,7 @@ Use one `element_id` from the current interactive observation to act on the page
 2. If a likely target is already partly visible, clipped by the viewport edge, or crowded by sticky UI, scroll first to reposition it.
 3. If it already contains the right `element_id`, act on it directly.
 4. If not, call `highlight` to paginate or narrow by `element_type`.
-5. `click`, `keyboard_input`, and `select` each produce a YELLOW preview and require the matching `confirm_*`.
+5. `click`, `keyboard_input`, `select`, and `drag_and_drop` each produce a preview and require the matching `confirm_*`.
 6. Successful direct actions and completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
 7. If you need a clean screenshot without overlays, use `tab view`.
 
@@ -79,22 +79,45 @@ The preview message echoes the chosen `value`. Verify it matches the option you 
 `direction: "prev"` means show the previous picture or previous carousel item.
 These are content directions, not hand or finger movement directions. Do not reinterpret swipe as `left` or `right`.
 
+### drag_and_drop
+
+```json
+{ "action": "drag_and_drop", "element_id": "A1H", "target_element_id": "B2K", "tab_id": 123 }
+{ "action": "confirm_drag_and_drop" }
+{ "action": "confirm_drag_and_drop", "relative_to": "C3F", "position": "before" }
+```
+
+Use this for drag-and-drop cards, reorderable lists, or sortable items. Returns a zoomed preview of the container with inner elements; use `confirm_drag_and_drop` to drop at end or with `relative_to`/`position` for precise placement.
+
+### set_slider
+
+```json
+{ "action": "set_slider", "element_id": "V3K", "value": "75%", "tab_id": 123 }
+{ "action": "set_slider", "element_id": "V3K", "value": 50, "tab_id": 123 }
+```
+
+Use this only for native `<input type=range>` (single-handle volume, brightness, price). `value` is a number in `[min, max]` or a percentage string.
+
 ## Decision Rules
 
 - For buttons and links, use `click`
 - For text boxes, always `click` first, then use `keyboard_input`
 - For native `<select>`, use `select`
+- For native `<input type=range>`, use `set_slider`
+- For kanban cards, reorderable lists, or sortable items, use `drag_and_drop`
 - For hidden menus or tooltips, use `hover`
 - If the page or target region is scrollable and your goal is to reveal more content, use `scroll`
 - If the likely target is already visible but poorly positioned, use `scroll` before more highlight pagination or before clicking.
 - For carousel / gallery / swiper regions marked `swipable`, use `swipe`
+- If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`. To find valid drop targets, use `highlight element_type: "droppable"`.
 - If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or guessed controls first
 
 ## Confirmation Rules
 
-- `click`, `keyboard_input`, and `select` require confirmation
-- `confirm_click`, `confirm_keyboard_input`, and `confirm_select` operate on the current pending confirmation; do not repeat `element_id`, `text`, or `value`
+- `click`, `keyboard_input`, `select`, and `drag_and_drop` require confirmation
+- `confirm_click`, `confirm_keyboard_input`, `confirm_select`, and `confirm_drag_and_drop` operate on the current pending confirmation; do not repeat `element_id`, `text`, or `value`
 - If the YELLOW preview appears, confirm only when the box position and reminder text or other explicit preview cues match your target
 - For `confirm_select`, also verify that the echoed `value` matches the exact option you intended
-- The YELLOW confirmation preview itself does not invalidate the chosen `element_id`
+- For `confirm_drag_and_drop`, review the inner elements in the container preview; use `relative_to` and `position` for precise placement, or omit to drop at end
+- The confirmation preview itself does not invalidate the chosen `element_id`
 - If the preview does not match, the page changed, or the target went stale, do not confirm; rebuild inventory and choose again

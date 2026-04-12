@@ -31,6 +31,9 @@ from server.models.commands import (
     HighlightSingleElementCommand,
     SelectElementCommand,
     RecordingControlCommand,
+    DragAndDropElementCommand,
+    SetSliderValueCommand,
+    HighlightDropPreviewCommand,
 )
 from server.websocket.manager import ws_manager
 from server.core.config import config
@@ -241,6 +244,10 @@ class CommandProcessor:
                 return await self._execute_scroll_element(command)
             elif isinstance(command, SwipeElementCommand):
                 return await self._execute_swipe_element(command)
+            elif isinstance(command, DragAndDropElementCommand):
+                return await self._execute_drag_and_drop_element(command)
+            elif isinstance(command, SetSliderValueCommand):
+                return await self._execute_set_slider_value(command)
             elif isinstance(command, KeyboardInputCommand):
                 return await self._execute_keyboard_input(command)
             elif isinstance(command, GetElementHtmlCommand):
@@ -251,6 +258,8 @@ class CommandProcessor:
                 return await self._execute_select_element(command)
             elif isinstance(command, RecordingControlCommand):
                 return await self._execute_recording_control(command)
+            elif isinstance(command, HighlightDropPreviewCommand):
+                return await self._execute_highlight_drop_preview(command)
             else:
                 raise ValueError(f"Unknown command type: {command.type}")
 
@@ -409,6 +418,18 @@ class CommandProcessor:
         """Swipe a highlighted element in a direction"""
         return await self._send_prepared_command(command)
 
+    async def _execute_drag_and_drop_element(
+        self, command: DragAndDropElementCommand
+    ) -> CommandResponse:
+        """Drag a source element to a target element or pixel offset"""
+        return await self._send_prepared_command(command)
+
+    async def _execute_set_slider_value(
+        self, command: SetSliderValueCommand
+    ) -> CommandResponse:
+        """Set a native range slider's value directly"""
+        return await self._send_prepared_command(command)
+
     async def _execute_keyboard_input(
         self, command: KeyboardInputCommand
     ) -> CommandResponse:
@@ -425,6 +446,12 @@ class CommandProcessor:
         self, command: HighlightSingleElementCommand
     ) -> CommandResponse:
         """Highlight a single element for visual confirmation"""
+        return await self._send_prepared_command(command)
+
+    async def _execute_highlight_drop_preview(
+        self, command: HighlightDropPreviewCommand
+    ) -> CommandResponse:
+        """Highlight inner elements of a drop container for drag-and-drop 2PC"""
         return await self._send_prepared_command(command)
 
     async def _execute_select_element(

@@ -4,6 +4,8 @@ const HIGHLIGHT_TYPE_PRIORITY = {
   selectable: 2,
   scrollable: 3,
   hoverable: 4,
+  draggable: 5,
+  droppable: 6,
 };
 
 const HIGHLIGHT_SIGNAL_SCORE = {
@@ -1050,6 +1052,164 @@ function isHoverableCandidate(el) {
   return true;
 }
 
+// ──────────────────────────────────────────────────────────────
+// Drag-and-drop detection predicates
+// ──────────────────────────────────────────────────────────────
+
+/** Per-scan cache so Tier 4 droppable inference doesn't re-evaluate. */
+const _draggableCache = new WeakMap();
+
+const DROP_TOKEN_REGEX = /\b(drop|zone|target|column|lane|bucket|list|board)\b/i;
+
+function isDraggableCandidate(el) {
+  if (_draggableCache.has(el)) {
+    return _draggableCache.get(el);
+  }
+  const result = _isDraggableCandidateCore(el);
+  _draggableCache.set(el, result);
+  return result;
+}
+
+function _isDraggableCandidateCore(el) {
+  if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) {
+    return false;
+  }
+  const tag = el.tagName;
+  if (tag === 'BODY' || tag === 'HTML') {
+    return false;
+  }
+  if (el instanceof HTMLElement && el.hasAttribute('disabled')) {
+    return false;
+  }
+
+  // Tier 1 — Explicit markers
+  if (el.draggable === true || el.getAttribute('draggable') === 'true') {
+    return true;
+  }
+  if (
+    el.hasAttribute('data-rbd-draggable-handle') ||
+    el.hasAttribute('data-rbd-drag-handle-draggable-id') ||
+    el.hasAttribute('data-dnd-draggable') ||
+    el.hasAttribute('aria-grabbed')
+  ) {
+    return true;
+  }
+
+  // Tier 2 — Library container children
+  let parent = el.parentElement;
+  for (let depth = 0; parent && depth < 2; depth += 1, parent = parent.parentElement) {
+    if (parent instanceof HTMLElement) {
+      const parentClasses = Array.from(parent.classList).join(' ');
+      if (/\bsortable\b/i.test(parentClasses) && parent.contains(el)) {
+        return true;
+      }
+      if (
+        parent.hasAttribute('data-rbd-droppable-id') &&
+        el.hasAttribute('data-rbd-draggable-context-id')
+      ) {
+        return true;
+      }
+    }
+  }
+
+  // Tier 3 — CSS / structural heuristics
+  // Note: <input type=range> is handled by set_slider, not drag_and_drop
+  if (el instanceof HTMLElement) {
+    const computedCursor = window.getComputedStyle(el).cursor;
+    const hasGrabCursor = computedCursor === 'grab' || computedCursor === 'move';
+    if (hasGrabCursor) {
+      return true;
+    }
+  }
+
+  // Tier 4 — Direct child of structural drop zone (covers custom mousedown DnD)
+  // If the element has user-select:none and its IMMEDIATE parent's class tokens
+  // match the drop-zone regex, and that parent has 2+ visible children of the
+  // same tag, the element is likely a drag source.
+  // Only class names are checked — data attributes like data-column-id are
+  // references, not structural markers. Only the immediate parent is checked
+  // because user-select:none is inherited.
+  if (el instanceof HTMLElement) {
+    const userSelect = window.getComputedStyle(el).userSelect;
+    if (userSelect === 'none') {
+      const ancestor = el.parentElement;
+      if (ancestor instanceof HTMLElement) {
+        const cls = Array.from(ancestor.classList).join(' ');
+        if (DROP_TOKEN_REGEX.test(cls.toLowerCase())) {
+          const elTag = el.tagName;
+          const sameTagSiblings = Array.from(ancestor.children).filter(
+            (c) =>
+              c instanceof HTMLElement &&
+              c.tagName === elTag &&
+              c.offsetParent !== null,
+          );
+          if (sameTagSiblings.length >= 2) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function isDroppableCandidate(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+  const tag = el.tagName;
+  if (tag === 'BODY' || tag === 'HTML') {
+    return false;
+  }
+  const rect = el.getBoundingClientRect();
+  if (rect.width < 40 || rect.height < 40) {
+    return false;
+  }
+
+  // Tier 1 — Explicit markers
+  const dropEffect = el.getAttribute('aria-dropeffect');
+  if (dropEffect && dropEffect !== 'none') {
+    return true;
+  }
+  if (
+    el.hasAttribute('data-rbd-droppable-id') ||
+    el.hasAttribute('data-dnd-droppable') ||
+    el.hasAttribute('dropzone')
+  ) {
+    return true;
+  }
+
+  // Tier 2 — Library container patterns
+  const classes = Array.from(el.classList).join(' ');
+  if (/\bsortable\b/i.test(classes)) {
+    const visibleChildren = Array.from(el.children).filter(
+      (child) => child instanceof HTMLElement && child.offsetParent !== null,
+    );
+    if (visibleChildren.length >= 2) {
+      return true;
+    }
+  }
+
+  // Tier 3 — Parent-of-draggable inference (uses cached isDraggableCandidate)
+  const directChildren = Array.from(el.children).filter(
+    (child) => child instanceof HTMLElement && child.offsetParent !== null,
+  );
+  if (directChildren.length >= 2) {
+    let draggableCount = 0;
+    for (const child of directChildren) {
+      if (isDraggableCandidate(child)) {
+        draggableCount += 1;
+        if (draggableCount >= 2) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 function hasSwipeApi(el) {
   const candidates = [
     el.swiper,
@@ -1264,6 +1424,25 @@ function getInteractionHints(el) {
     hints.push('swipable');
   }
 
+  // Check the element itself and also walk its direct children (up to 20)
+  // because resolveClickableCandidate may have lifted a child handle to a
+  // parent wrapper, losing descendant-only drag signals.
+  if (isDraggableCandidate(el)) {
+    hints.push('draggable');
+  } else {
+    const children = el.children;
+    for (let i = 0; i < children.length && i < 20; i++) {
+      if (isDraggableCandidate(children[i])) {
+        hints.push('draggable');
+        break;
+      }
+    }
+  }
+
+  if (isDroppableCandidate(el)) {
+    hints.push('droppable');
+  }
+
   return hints;
 }
 
@@ -1428,6 +1607,18 @@ function resolveElementCandidate(el, requestedType) {
   if (requestedType === 'hoverable') {
     return isHoverableCandidate(el)
       ? buildResolvedCandidate(el, 'hoverable', 'hoverable')
+      : null;
+  }
+
+  if (requestedType === 'draggable') {
+    return isDraggableCandidate(el)
+      ? buildResolvedCandidate(el, 'draggable', 'draggable')
+      : null;
+  }
+
+  if (requestedType === 'droppable') {
+    return isDroppableCandidate(el)
+      ? buildResolvedCandidate(el, 'droppable', 'droppable')
       : null;
   }
 
@@ -2106,6 +2297,8 @@ function collectHighlightCandidates(config, trace, layoutStability) {
     inputable: 0,
     hoverable: 0,
     selectable: 0,
+    draggable: 0,
+    droppable: 0,
   };
 
   const elements = prunedCandidates.map((candidate) => {

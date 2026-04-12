@@ -75,6 +75,13 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
         in description
     )
     assert "If highlight shows `swipable`, use `swipe`." in description
+    assert (
+        "If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`."
+        in description
+    )
+    assert '`element_type: "droppable"`' in description
+    assert '{ "element_type": "draggable" }' in description
+    assert '{ "element_type": "droppable" }' in description
     assert "cached element is stale" in description
     assert "before `keyboard_input`" in description
     assert "`keywords`" not in description
@@ -221,6 +228,12 @@ def test_large_model_highlight_prompt_keeps_detailed_pagination_guidance_without
         in description
     )
     assert '{ "keywords": ["Continue with Email"] }' in description
+    assert '{ "element_type": "draggable" }' in description
+    assert '{ "element_type": "droppable" }' in description
+    assert (
+        "If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`."
+        in description
+    )
     assert "`star`, `favorite`, or `bookmark`" in description
     assert "`clickable`" not in description
     assert "Phase 2: Broad Search" not in description
@@ -261,6 +274,12 @@ def test_small_model_element_interaction_requires_click_before_keyboard_input() 
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description
     assert "not hand or finger movement directions" in description
+    assert (
+        "If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`."
+        in description
+    )
+    assert "confirm_drag_and_drop" in description
+    assert "relative_to" in description
     assert "cached element is stale" in description
     assert "HTML all match" not in description
 
@@ -296,4 +315,11 @@ def test_large_model_element_interaction_requires_click_before_keyboard_input() 
     assert '`direction: "next"` means show the next picture' in description
     assert '`direction: "prev"` means show the previous picture' in description
     assert "not finger or gesture directions" in description
+    assert (
+        "If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`."
+        in description
+    )
+    assert "confirm_drag_and_drop" in description
+    assert "relative_to" in description
+    assert "Target mode (2PC)" in description or "target_element_id" in description
     assert "cached element is stale" in description

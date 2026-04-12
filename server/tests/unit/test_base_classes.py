@@ -267,6 +267,32 @@ class TestOpenBrowserObservation:
 
         assert "swp123(scrollable, swipable):" in text
 
+    def test_highlighted_elements_include_draggable_and_droppable_hints(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="any",
+            highlighted_elements=[
+                {
+                    "id": "drg456",
+                    "type": "clickable",
+                    "interactionHints": ["draggable"],
+                    "html": '<div class="card">Task 1</div>',
+                },
+                {
+                    "id": "drp789",
+                    "type": "clickable",
+                    "interactionHints": ["droppable"],
+                    "html": '<div class="column">Done</div>',
+                },
+            ],
+            total_elements=2,
+        )
+
+        text = _text_content(observation)
+
+        assert "drg456(clickable, draggable):" in text
+        assert "drp789(clickable, droppable):" in text
+
     def test_pending_confirmation_includes_follow_up_command(self) -> None:
         observation = OpenBrowserObservation(
             success=True,
@@ -407,3 +433,44 @@ class TestOpenBrowserObservation:
         assert '1. **ALERT**: "Saved successfully"' in text
         assert "URL: https://example.com/settings" in text
         assert "Alert dialogs are auto-accepted by the system." in text
+
+    def test_pending_drag_and_drop_shows_inner_elements_and_confirm_options(
+        self,
+    ) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            pending_confirmation={
+                "element_id": "A1H",
+                "action_type": "drag_and_drop",
+                "full_html": "",
+                "extra_data": {
+                    "target_element_id": "B2K",
+                    "inner_elements": [
+                        {
+                            "id": "C3F",
+                            "type": "draggable",
+                            "html": '<div class="card">Task 1</div>',
+                            "tagName": "div",
+                        },
+                        {
+                            "id": "D4G",
+                            "type": "draggable",
+                            "html": '<div class="card">Task 2</div>',
+                            "tagName": "div",
+                        },
+                    ],
+                },
+            },
+        )
+
+        text = _text_content(observation)
+
+        assert "## Pending Confirmation" in text
+        assert "**Source**: A1H" in text
+        assert "**Target Container**: B2K" in text
+        assert "**Inner Elements** (2):" in text
+        assert "C3F(draggable):" in text
+        assert "D4G(draggable):" in text
+        assert '"action": "confirm_drag_and_drop"' in text
+        assert '"relative_to": "<inner_element_id>"' in text
+        assert '"position": "before"' in text

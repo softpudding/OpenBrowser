@@ -23,6 +23,7 @@ import { clearScreenshotCache } from '../commands/computer';
 
 import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
+import { highlightDropPreview } from '../commands/drop-preview-highlight';
 import { elementCache } from '../commands/element-cache';
 import { assignHashedElementIds } from '../commands/element-id';
 import { buildElementCacheMissMessage } from '../commands/element-cache';
@@ -35,6 +36,8 @@ import {
   performElementHover,
   performElementScroll,
   performElementSwipe,
+  performElementDragAndDrop,
+  performElementSetSlider,
   performKeyboardInput,
   performElementSelect,
 } from '../commands/element-actions';
@@ -680,12 +683,15 @@ function isHeavyBrowserCommand(data: any): boolean {
   switch (data?.type) {
     case 'highlight_elements':
     case 'highlight_single_element':
+    case 'highlight_drop_preview':
     case 'screenshot':
     case 'javascript_execute':
     case 'click_element':
     case 'hover_element':
     case 'scroll_element':
     case 'swipe_element':
+    case 'drag_and_drop_element':
+    case 'set_slider_value':
     case 'keyboard_input':
     case 'select_element':
     case 'handle_dialog':
@@ -1995,6 +2001,73 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         };
       }
 
+      case 'drag_and_drop_element': {
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
+        const dragTabId = command.tab_id;
+        if (dragTabId === undefined || dragTabId === null)
+          throw new Error('tab_id is required');
+
+        const dragResult = await performElementDragAndDrop(
+          command.conversation_id,
+          command.element_id,
+          dragTabId,
+          {
+            targetElementId: command.target_element_id,
+            position: command.position,
+            offsetX: command.offset_x,
+            offsetY: command.offset_y,
+            steps: command.steps || 10,
+          },
+        );
+        const dragPageState = await captureDefaultHighlightedPageState({
+          tabId: dragTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'DragAndDropElement',
+          preconditionWaitForRender: 600,
+        });
+
+        return {
+          success: dragResult.success,
+          data: {
+            ...dragResult,
+            ...dragPageState,
+          },
+          error: dragResult.error,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'set_slider_value': {
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
+        const sliderTabId = command.tab_id;
+        if (sliderTabId === undefined || sliderTabId === null)
+          throw new Error('tab_id is required');
+
+        const sliderResult = await performElementSetSlider(
+          command.conversation_id,
+          command.element_id,
+          command.value,
+          sliderTabId,
+        );
+        const sliderPageState = await captureDefaultHighlightedPageState({
+          tabId: sliderTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'SetSliderValue',
+        });
+
+        return {
+          success: sliderResult.success,
+          data: {
+            ...sliderResult,
+            ...sliderPageState,
+          },
+          error: sliderResult.error,
+          timestamp: Date.now(),
+        };
+      }
+
       case 'keyboard_input': {
         if (!command.conversation_id)
           throw new Error('conversation_id required');
@@ -2467,6 +2540,279 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                     screenshotResult.dialog_auto_accepted_list,
                 }
               : {}),
+          },
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'highlight_drop_preview': {
+        if (!command.conversation_id) {
+          throw new Error(
+            'conversation_id is required for highlight_drop_preview command',
+          );
+        }
+        const dropConvId = command.conversation_id;
+        const dropActiveTabId =
+          (command as any).tab_id ?? tabManager.getCurrentActiveTabId(dropConvId);
+        if (!dropActiveTabId) {
+          throw new Error(`No active tab for conversation ${dropConvId}`);
+        }
+
+        // Look up source and target elements from cache
+        const sourceEl = elementCache.getElementById(
+          dropConvId,
+          dropActiveTabId,
+          (command as any).source_element_id,
+        );
+        if (!sourceEl) {
+          return {
+            success: false,
+            error: buildElementCacheMissMessage({
+              conversationId: dropConvId,
+              tabId: dropActiveTabId,
+              elementId: (command as any).source_element_id,
+            }),
+            timestamp: Date.now(),
+          };
+        }
+        const targetEl = elementCache.getElementById(
+          dropConvId,
+          dropActiveTabId,
+          (command as any).target_element_id,
+        );
+        if (!targetEl) {
+          return {
+            success: false,
+            error: buildElementCacheMissMessage({
+              conversationId: dropConvId,
+              tabId: dropActiveTabId,
+              elementId: (command as any).target_element_id,
+            }),
+            timestamp: Date.now(),
+          };
+        }
+
+        // Fetch fresh bbox for target container + discover inner draggable children
+        const targetSelector = targetEl.element.selector
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"');
+        const dropDetectionScript = `
+          (function() {
+            const container = document.querySelector("${targetSelector}");
+            if (!container) {
+              return { ok: false, error: "Drop target container not found in DOM" };
+            }
+            const containerRect = container.getBoundingClientRect();
+
+            // Helper: check if an element is visible
+            function isVisible(el) {
+              if (!(el instanceof HTMLElement)) return false;
+              if (el.offsetParent === null && window.getComputedStyle(el).position !== 'fixed') return false;
+              const r = el.getBoundingClientRect();
+              return r.width >= 5 && r.height >= 5;
+            }
+
+            // Helper: find homogeneous children in a parent
+            function findHomogeneousChildren(parent) {
+              const tagCounts = {};
+              for (const child of parent.children) {
+                if (!isVisible(child)) continue;
+                tagCounts[child.tagName] = (tagCounts[child.tagName] || 0) + 1;
+              }
+              const itemTags = new Set(Object.keys(tagCounts).filter(t => tagCounts[t] >= 2));
+              if (itemTags.size === 0) return null;
+              const items = [];
+              for (const child of parent.children) {
+                if (!isVisible(child)) continue;
+                if (!itemTags.has(child.tagName)) continue;
+                items.push(child);
+              }
+              return items.length >= 2 ? { parent: parent, items: items } : null;
+            }
+
+            // Try direct children first, then recurse one level into each child
+            let result = findHomogeneousChildren(container);
+            let itemsParent = container;
+            if (!result) {
+              for (const child of container.children) {
+                if (!isVisible(child)) continue;
+                result = findHomogeneousChildren(child);
+                if (result) {
+                  itemsParent = result.parent;
+                  break;
+                }
+              }
+            }
+
+            const innerElements = [];
+            if (result) {
+              // Build a selector prefix for the items parent
+              let parentPrefix = "${targetSelector}";
+              if (itemsParent !== container) {
+                let pSel = itemsParent.tagName.toLowerCase();
+                if (itemsParent.id) {
+                  pSel += '#' + CSS.escape(itemsParent.id);
+                } else if (itemsParent.className && typeof itemsParent.className === 'string') {
+                  const cls = itemsParent.className.trim().split(/\\s+/).slice(0, 3);
+                  pSel += cls.map(c => '.' + CSS.escape(c)).join('');
+                }
+                parentPrefix = "${targetSelector}" + ' > ' + pSel;
+              }
+
+              for (const child of result.items) {
+                let selector = child.tagName.toLowerCase();
+                if (child.id) {
+                  selector += '#' + CSS.escape(child.id);
+                } else if (child.className && typeof child.className === 'string') {
+                  const classes = child.className.trim().split(/\\s+/).slice(0, 3);
+                  selector += classes.map(c => '.' + CSS.escape(c)).join('');
+                }
+                selector = parentPrefix + ' > ' + selector;
+                const matchCount = itemsParent.querySelectorAll(':scope > ' + child.tagName.toLowerCase()).length;
+                if (matchCount > 1) {
+                  const idx = Array.from(itemsParent.children).indexOf(child) + 1;
+                  selector += ':nth-child(' + idx + ')';
+                }
+                const rect = child.getBoundingClientRect();
+                innerElements.push({
+                  tagName: child.tagName,
+                  text: (child.textContent || '').trim().slice(0, 200),
+                  html: child.outerHTML.slice(0, 2000),
+                  selector: selector,
+                  bbox: {
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height,
+                  },
+                });
+              }
+            }
+
+            return {
+              ok: true,
+              containerBbox: {
+                x: containerRect.x,
+                y: containerRect.y,
+                width: containerRect.width,
+                height: containerRect.height,
+              },
+              innerElements: innerElements,
+            };
+          })();
+        `;
+
+        const dropDetResult = await javascript.executeJavaScript(
+          dropActiveTabId,
+          dropConvId,
+          dropDetectionScript,
+          true,
+          false,
+          5000,
+        );
+
+        if (
+          !dropDetResult.success ||
+          !dropDetResult.result?.value?.ok
+        ) {
+          const dropErr =
+            dropDetResult.result?.value?.error ||
+            dropDetResult.error ||
+            'Failed to detect inner elements';
+          return {
+            success: false,
+            error: dropErr,
+            timestamp: Date.now(),
+          };
+        }
+
+        const containerBbox = dropDetResult.result.value.containerBbox;
+        const rawInnerElements = dropDetResult.result.value.innerElements || [];
+
+        // Build InteractiveElement objects for inner elements
+        const innerInteractiveElements: InteractiveElement[] = rawInnerElements.map(
+          (raw: any, _idx: number) => ({
+            id: '', // Will be assigned by assignHashedElementIds
+            type: 'draggable' as const,
+            tagName: raw.tagName,
+            selector: raw.selector,
+            html: raw.html,
+            text: raw.text,
+            bbox: raw.bbox,
+            isVisible: true,
+            isInViewport: true,
+          }),
+        );
+
+        // Assign stable IDs
+        const idAssignedInnerElements = assignHashedElementIds(
+          innerInteractiveElements,
+        );
+
+        // Take a screenshot
+        const dropScreenshot = await captureScreenshot(
+          dropActiveTabId,
+          dropConvId,
+          true,
+          90,
+        );
+        if (!dropScreenshot?.success || !dropScreenshot?.imageData) {
+          throw new Error('Failed to capture screenshot for drop preview');
+        }
+
+        const dropScale =
+          dropScreenshot.metadata?.imageScale ||
+          dropScreenshot.metadata?.devicePixelRatio ||
+          1;
+        const dropVpWidth = dropScreenshot.metadata?.viewportWidth || 0;
+        const dropVpHeight = dropScreenshot.metadata?.viewportHeight || 0;
+
+        // Build a container element with fresh bbox for the crop calculation
+        const containerForCrop: InteractiveElement = {
+          ...targetEl.element,
+          bbox: containerBbox,
+        };
+
+        // Draw the drop preview
+        const dropPreviewImage = await highlightDropPreview(
+          dropScreenshot.imageData,
+          containerForCrop,
+          idAssignedInnerElements,
+          {
+            scale: dropScale,
+            viewportWidth: dropVpWidth,
+            viewportHeight: dropVpHeight,
+          },
+        );
+
+        // Store inner elements in cache so confirm_drag_and_drop can reference them
+        // Use the stored result's elements (IDs may be adjusted on collision)
+        const storedDropPage = elementCache.storeHighlightResult({
+          conversationId: dropConvId,
+          tabId: dropActiveTabId,
+          documentId: targetEl.documentId,
+          elementType: 'draggable',
+          keywords: [],
+          totalElements: idAssignedInnerElements.length,
+          totalPages: 1,
+          pages: [idAssignedInnerElements],
+          page: 1,
+        });
+        const storedInnerElements = storedDropPage.elements;
+
+        const compressedDropPreview = await compressIfNeeded(
+          dropPreviewImage,
+          getCompressionThreshold(),
+        );
+
+        return {
+          success: true,
+          data: {
+            screenshot: compressedDropPreview,
+            elements: storedInnerElements,
+            containerElementId: targetEl.resolvedElementId,
+            sourceElementId: sourceEl.resolvedElementId,
+            totalElements: storedInnerElements.length,
           },
           timestamp: Date.now(),
         };

@@ -2509,6 +2509,645 @@ export async function performElementSwipe(
 }
 
 /**
+ * Result type for drag_and_drop operation
+ */
+export interface DragAndDropResult extends ElementActionResult {
+  dragged: boolean;
+  staleElement?: boolean;
+  error?: string;
+}
+
+export interface DragAndDropOptions {
+  targetElementId?: string;
+  position?: 'before' | 'after';
+  offsetX?: number;
+  offsetY?: number;
+  steps?: number;
+}
+
+/**
+ * Perform a drag-and-drop gesture from a cached source element to either
+ * another cached target element or a pixel offset from the source center.
+ *
+ * Fires both the low-level pointer/mouse sequence (so native browser hit
+ * tests react) and HTML5 drag events (so `draggable="true"` sources work).
+ */
+export async function performElementDragAndDrop(
+  conversationId: string,
+  sourceElementId: string,
+  tabId: number,
+  options: DragAndDropOptions,
+  timeout: number = 30000,
+): Promise<DragAndDropResult> {
+  console.log(
+    `🫳 [DragAndDrop] source=${sourceElementId} target=${options.targetElementId ?? ''} offset=(${options.offsetX ?? 0},${options.offsetY ?? 0}) tab=${tabId}`,
+  );
+
+  const hasTarget = Boolean(options.targetElementId);
+  const hasOffset =
+    typeof options.offsetX === 'number' && typeof options.offsetY === 'number';
+  if (hasTarget === hasOffset) {
+    return {
+      success: false,
+      ...buildResolvedElementResultFields(sourceElementId, sourceElementId),
+      dragged: false,
+      error:
+        'drag_and_drop requires exactly one of target_element_id or (offset_x, offset_y).',
+    };
+  }
+
+  const cachedSource = elementCache.getElementById(
+    conversationId,
+    tabId,
+    sourceElementId,
+  );
+  if (!cachedSource) {
+    return {
+      success: false,
+      ...buildResolvedElementResultFields(sourceElementId, sourceElementId),
+      dragged: false,
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId: sourceElementId,
+      }),
+    };
+  }
+  const sourceElement = cachedSource.element;
+  const resolvedSourceFields = buildResolvedElementResultFields(
+    cachedSource.requestedElementId,
+    cachedSource.resolvedElementId,
+  );
+
+  let cachedTarget: ReturnType<typeof elementCache.getElementById> | null = null;
+  if (hasTarget) {
+    cachedTarget = elementCache.getElementById(
+      conversationId,
+      tabId,
+      options.targetElementId as string,
+    );
+    if (!cachedTarget) {
+      return {
+        success: false,
+        ...resolvedSourceFields,
+        dragged: false,
+        error: buildElementCacheMissMessage({
+          conversationId,
+          tabId,
+          elementId: options.targetElementId as string,
+        }),
+      };
+    }
+  }
+
+  const escapedSourceSelector = escapeForDoubleQuotedJavaScriptString(
+    sourceElement.selector,
+  );
+  const escapedSourceDocumentId = escapeForDoubleQuotedJavaScriptString(
+    cachedSource.documentId,
+  );
+  const escapedSourceFingerprint = escapeForDoubleQuotedJavaScriptString(
+    sourceElement.fingerprint || '',
+  );
+  const escapedTargetSelector = cachedTarget
+    ? escapeForDoubleQuotedJavaScriptString(cachedTarget.element.selector)
+    : '';
+  const escapedTargetDocumentId = cachedTarget
+    ? escapeForDoubleQuotedJavaScriptString(cachedTarget.documentId)
+    : '';
+  const escapedTargetFingerprint = cachedTarget
+    ? escapeForDoubleQuotedJavaScriptString(cachedTarget.element.fingerprint || '')
+    : '';
+
+  const steps = Math.max(2, Math.min(40, options.steps ?? 10));
+  const offsetX = options.offsetX ?? 0;
+  const offsetY = options.offsetY ?? 0;
+  const hasTargetLiteral = hasTarget ? 'true' : 'false';
+  const positionLiteral = options.position || 'before';
+
+  const script = `
+    (async function() {
+      const sourceSelector = "${escapedSourceSelector}";
+      const sourceDocumentId = "${escapedSourceDocumentId}";
+      const sourceFingerprint = "${escapedSourceFingerprint}";
+      const targetSelector = "${escapedTargetSelector}";
+      const targetDocumentId = "${escapedTargetDocumentId}";
+      const targetFingerprint = "${escapedTargetFingerprint}";
+      const hasTarget = ${hasTargetLiteral};
+      const offsetX = ${offsetX};
+      const offsetY = ${offsetY};
+      const steps = ${steps};
+      const dropPosition = "${positionLiteral}";
+      ${buildCachedElementIdentityHelpersScript()}
+
+      const sourceEl = document.querySelector(sourceSelector);
+      if (!sourceEl) {
+        return { dragged: false, error: "Source element not found in DOM", stale: true };
+      }
+      const sourceValidation = validateCachedElement(
+        sourceDocumentId,
+        sourceFingerprint,
+        sourceEl,
+      );
+      if (!sourceValidation.ok) {
+        return { dragged: false, error: sourceValidation.error, stale: sourceValidation.stale };
+      }
+
+      let targetEl = null;
+      if (hasTarget) {
+        targetEl = document.querySelector(targetSelector);
+        if (!targetEl) {
+          return { dragged: false, error: "Target element not found in DOM", stale: true };
+        }
+        const targetValidation = validateCachedElement(
+          targetDocumentId,
+          targetFingerprint,
+          targetEl,
+        );
+        if (!targetValidation.ok) {
+          return { dragged: false, error: targetValidation.error, stale: targetValidation.stale };
+        }
+      }
+
+      function centerOf(el) {
+        const rect = el.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      }
+
+      const sourceRect = sourceEl.getBoundingClientRect();
+      const sourceStyle = window.getComputedStyle(sourceEl);
+      if (
+        sourceStyle.display === 'none' ||
+        sourceStyle.visibility === 'hidden' ||
+        sourceStyle.opacity === '0'
+      ) {
+        return { dragged: false, error: "Source element is not visible", stale: false };
+      }
+      if (sourceRect.width === 0 || sourceRect.height === 0) {
+        return { dragged: false, error: "Source element has zero size", stale: false };
+      }
+
+      if (
+        sourceRect.top < 0 ||
+        sourceRect.bottom > window.innerHeight ||
+        sourceRect.left < 0 ||
+        sourceRect.right > window.innerWidth
+      ) {
+        sourceEl.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+      }
+
+      const start = centerOf(sourceEl);
+      let end;
+      if (hasTarget && targetEl) {
+        const targetStyle = window.getComputedStyle(targetEl);
+        if (
+          targetStyle.display === 'none' ||
+          targetStyle.visibility === 'hidden' ||
+          targetStyle.opacity === '0'
+        ) {
+          return { dragged: false, error: "Target element is not visible", stale: false };
+        }
+        let targetRect = targetEl.getBoundingClientRect();
+        if (
+          targetRect.top < 0 ||
+          targetRect.bottom > window.innerHeight ||
+          targetRect.left < 0 ||
+          targetRect.right > window.innerWidth
+        ) {
+          targetEl.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+          // Source rect may shift after the scroll; recompute start too.
+          const refreshedSourceRect = sourceEl.getBoundingClientRect();
+          start.x = refreshedSourceRect.left + refreshedSourceRect.width / 2;
+          start.y = refreshedSourceRect.top + refreshedSourceRect.height / 2;
+          targetRect = targetEl.getBoundingClientRect();
+        }
+        if (
+          targetRect.bottom <= 0 ||
+          targetRect.top >= window.innerHeight ||
+          targetRect.right <= 0 ||
+          targetRect.left >= window.innerWidth
+        ) {
+          return {
+            dragged: false,
+            error: "Target element is off-screen after scroll-into-view",
+            stale: false,
+          };
+        }
+        // Position the drop point relative to the target.
+        // "before" = above the target's midpoint (so DnD libraries insert before)
+        // "after"  = below the target's midpoint (so DnD libraries insert after)
+        // Default is "before" — "drag X to Y" naturally means "place X where Y is".
+        const pos = dropPosition;
+        const midX = targetRect.left + targetRect.width / 2;
+        const midY = targetRect.top + targetRect.height / 2;
+        // Nudge 25% of height above or below the midpoint
+        const nudge = targetRect.height * 0.25;
+        end = {
+          x: midX,
+          y: pos === 'before' ? midY - nudge : midY + nudge,
+        };
+      } else {
+        end = { x: start.x + offsetX, y: start.y + offsetY };
+        // Clamp to viewport so elementFromPoint doesn't return null
+        end.x = Math.max(0, Math.min(end.x, window.innerWidth - 1));
+        end.y = Math.max(0, Math.min(end.y, window.innerHeight - 1));
+      }
+
+      function makeDataTransfer() {
+        try {
+          return new DataTransfer();
+        } catch (e) {
+          return null;
+        }
+      }
+      const dataTransfer = makeDataTransfer();
+
+      function fire(el, type, x, y, extra) {
+        if (!el) return;
+        const init = {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          view: window,
+          clientX: x,
+          clientY: y,
+          screenX: x,
+          screenY: y,
+          button: 0,
+          buttons: type === 'mouseup' || type === 'pointerup' ? 0 : 1,
+          ...(extra || {}),
+        };
+        let event;
+        if (type.startsWith('pointer')) {
+          event = new PointerEvent(type, {
+            ...init,
+            pointerType: 'mouse',
+            pointerId: 1,
+            isPrimary: true,
+          });
+        } else if (type.startsWith('drag') || type === 'drop') {
+          event = new DragEvent(type, {
+            ...init,
+            dataTransfer: dataTransfer,
+          });
+        } else {
+          event = new MouseEvent(type, init);
+        }
+        el.dispatchEvent(event);
+      }
+
+      function topElementAt(x, y) {
+        const el = document.elementFromPoint(x, y);
+        return el || document.body;
+      }
+
+      async function waitFrame() {
+        await new Promise((resolve) => {
+          // requestAnimationFrame doesn't fire when the tab is hidden;
+          // race it against a short setTimeout to avoid hanging.
+          let done = false;
+          requestAnimationFrame(() => { if (!done) { done = true; resolve(null); } });
+          setTimeout(() => { if (!done) { done = true; resolve(null); } }, 32);
+        });
+      }
+
+      try {
+        fire(sourceEl, 'pointerover', start.x, start.y);
+        fire(sourceEl, 'pointerenter', start.x, start.y);
+        fire(sourceEl, 'mouseover', start.x, start.y);
+        fire(sourceEl, 'mouseenter', start.x, start.y);
+        fire(sourceEl, 'pointermove', start.x, start.y);
+        fire(sourceEl, 'mousemove', start.x, start.y);
+
+        fire(sourceEl, 'pointerdown', start.x, start.y);
+        fire(sourceEl, 'mousedown', start.x, start.y);
+
+        const draggable = sourceEl instanceof HTMLElement && sourceEl.draggable;
+        if (draggable) {
+          fire(sourceEl, 'dragstart', start.x, start.y);
+        }
+
+        let lastUnderPointer = sourceEl;
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const x = start.x + (end.x - start.x) * t;
+          const y = start.y + (end.y - start.y) * t;
+          const underPointer = topElementAt(x, y);
+          fire(underPointer, 'pointermove', x, y);
+          fire(underPointer, 'mousemove', x, y);
+          if (draggable) {
+            if (underPointer !== lastUnderPointer) {
+              // Emit pairing dragleave on the previous element before
+              // dragenter on the new one — HTML5 DnD zones rely on this
+              // to clean up hover state.
+              fire(lastUnderPointer, 'dragleave', x, y);
+              fire(underPointer, 'dragenter', x, y);
+            }
+            fire(underPointer, 'dragover', x, y);
+          }
+          lastUnderPointer = underPointer;
+          await waitFrame();
+        }
+
+        // Fire drop/mouseup on whatever element is under the cursor.
+        // The DOM may have been rearranged during the drag (DnD libraries
+        // respond to mousemove in real-time), so we don't check occlusion
+        // here — the pre-drag visibility checks already ensured the target
+        // was reachable before the drag started.
+        const dropEl = topElementAt(end.x, end.y);
+        if (draggable) {
+          fire(dropEl, 'drop', end.x, end.y);
+          fire(sourceEl, 'dragend', end.x, end.y);
+        }
+        fire(dropEl, 'pointerup', end.x, end.y);
+        fire(dropEl, 'mouseup', end.x, end.y);
+
+        return {
+          dragged: true,
+          start: { x: start.x, y: start.y },
+          end: { x: end.x, y: end.y },
+          steps,
+          viaDragEvents: draggable,
+        };
+      } catch (e) {
+        return { dragged: false, error: e && e.message ? e.message : String(e), stale: false };
+      }
+    })();
+  `;
+
+  let jsResult: JavaScriptResult;
+  try {
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      true,
+      timeout,
+    );
+  } catch (error) {
+    return {
+      success: false,
+      ...resolvedSourceFields,
+      dragged: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (!jsResult.success) {
+    return {
+      success: false,
+      ...resolvedSourceFields,
+      dragged: false,
+      error: jsResult.error || 'Drag JavaScript execution failed',
+    };
+  }
+
+  const inner = jsResult.result?.value as
+    | { dragged: boolean; error?: string; stale?: boolean }
+    | undefined;
+  if (!inner || typeof inner !== 'object') {
+    return {
+      success: false,
+      ...resolvedSourceFields,
+      dragged: false,
+      error: 'Drag JavaScript returned an invalid result structure',
+    };
+  }
+  if (!inner.dragged) {
+    return {
+      success: false,
+      ...resolvedSourceFields,
+      dragged: false,
+      staleElement: inner.stale === true,
+      error: inner.error,
+    };
+  }
+
+  return {
+    success: true,
+    ...resolvedSourceFields,
+    dragged: true,
+  };
+}
+
+/**
+ * Result type for set_slider operation
+ */
+export interface SetSliderResult extends ElementActionResult {
+  sliderSet: boolean;
+  previousValue?: string;
+  newValue?: string;
+  min?: number;
+  max?: number;
+  staleElement?: boolean;
+  error?: string;
+}
+
+/**
+ * Write a target value into a native <input type=range> and dispatch
+ * `input` + `change` events so frameworks observe the update. Non-range
+ * inputs are rejected with a clear error directing the caller to drag_and_drop.
+ */
+export async function performElementSetSlider(
+  conversationId: string,
+  elementId: string,
+  value: number | string,
+  tabId: number,
+  timeout: number = 30000,
+): Promise<SetSliderResult> {
+  console.log(
+    `🎚️  [SetSlider] Setting slider ${elementId} to ${value} on tab ${tabId}`,
+  );
+
+  const cachedElement = elementCache.getElementById(
+    conversationId,
+    tabId,
+    elementId,
+  );
+  if (!cachedElement) {
+    return {
+      success: false,
+      ...buildResolvedElementResultFields(elementId, elementId),
+      sliderSet: false,
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId,
+      }),
+    };
+  }
+  const element = cachedElement.element;
+  const resolvedFields = buildResolvedElementResultFields(
+    cachedElement.requestedElementId,
+    cachedElement.resolvedElementId,
+  );
+
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+    cachedElement.documentId,
+  );
+  const escapedFingerprint = escapeForDoubleQuotedJavaScriptString(
+    element.fingerprint || '',
+  );
+  const escapedValue = escapeForDoubleQuotedJavaScriptString(String(value));
+
+  const script = `
+    (async function() {
+      const selector = "${escapedSelector}";
+      const expectedDocumentId = "${escapedDocumentId}";
+      const expectedFingerprint = "${escapedFingerprint}";
+      const requestedValue = "${escapedValue}";
+      ${buildCachedElementIdentityHelpersScript()}
+
+      const el = document.querySelector(selector);
+      if (!el) {
+        return { sliderSet: false, error: "Element not found in DOM", stale: true };
+      }
+      const snapshotValidation = validateCachedElement(
+        expectedDocumentId,
+        expectedFingerprint,
+        el,
+      );
+      if (!snapshotValidation.ok) {
+        return {
+          sliderSet: false,
+          error: snapshotValidation.error,
+          stale: snapshotValidation.stale,
+        };
+      }
+      if (!(el instanceof HTMLInputElement) || el.type !== 'range') {
+        return {
+          sliderSet: false,
+          error:
+            "set_slider only supports native <input type=range>. For custom sliders use drag_and_drop with offset_x/offset_y on the slider handle.",
+          stale: false,
+        };
+      }
+
+      const min = Number(el.min === '' ? 0 : el.min);
+      const max = Number(el.max === '' ? 100 : el.max);
+      if (!isFinite(min) || !isFinite(max) || max <= min) {
+        return { sliderSet: false, error: "Slider min/max are not a valid numeric range", stale: false };
+      }
+      const step = Number(el.step === '' || el.step === 'any' ? 0 : el.step);
+
+      let numeric;
+      const trimmed = requestedValue.trim();
+      if (trimmed.endsWith('%')) {
+        const pct = Number(trimmed.slice(0, -1));
+        if (!isFinite(pct)) {
+          return { sliderSet: false, error: "Percentage value is not numeric", stale: false };
+        }
+        numeric = min + ((max - min) * pct) / 100;
+      } else {
+        numeric = Number(trimmed);
+        if (!isFinite(numeric)) {
+          return { sliderSet: false, error: "Value is not numeric", stale: false };
+        }
+      }
+
+      if (numeric < min) numeric = min;
+      if (numeric > max) numeric = max;
+      if (step > 0) {
+        const quantized = min + Math.round((numeric - min) / step) * step;
+        numeric = Math.max(min, Math.min(max, quantized));
+      }
+
+      const previousValue = el.value;
+      const descriptor = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      );
+      const setter = descriptor && descriptor.set;
+      if (setter) {
+        setter.call(el, String(numeric));
+      } else {
+        el.value = String(numeric);
+      }
+
+      el.dispatchEvent(new Event('input', { bubbles: true, cancelable: false }));
+      el.dispatchEvent(new Event('change', { bubbles: true, cancelable: false }));
+
+      return {
+        sliderSet: true,
+        previousValue,
+        newValue: el.value,
+        min,
+        max,
+      };
+    })();
+  `;
+
+  let jsResult: JavaScriptResult;
+  try {
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      true,
+      timeout,
+    );
+  } catch (error) {
+    return {
+      success: false,
+      ...resolvedFields,
+      sliderSet: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (!jsResult.success) {
+    return {
+      success: false,
+      ...resolvedFields,
+      sliderSet: false,
+      error: jsResult.error || 'set_slider JavaScript execution failed',
+    };
+  }
+
+  const inner = jsResult.result?.value as
+    | {
+        sliderSet: boolean;
+        error?: string;
+        stale?: boolean;
+        previousValue?: string;
+        newValue?: string;
+        min?: number;
+        max?: number;
+      }
+    | undefined;
+  if (!inner || typeof inner !== 'object') {
+    return {
+      success: false,
+      ...resolvedFields,
+      sliderSet: false,
+      error: 'set_slider JavaScript returned an invalid result structure',
+    };
+  }
+  if (!inner.sliderSet) {
+    return {
+      success: false,
+      ...resolvedFields,
+      sliderSet: false,
+      staleElement: inner.stale === true,
+      error: inner.error,
+    };
+  }
+
+  return {
+    success: true,
+    ...resolvedFields,
+    sliderSet: true,
+    previousValue: inner.previousValue,
+    newValue: inner.newValue,
+    min: inner.min,
+    max: inner.max,
+  };
+}
+
+/**
  * Result type for keyboard input operation
  */
 export interface InputResult extends ElementActionResult {
