@@ -123,11 +123,12 @@ export async function replayHoverState(
         `🔄 [HoverReplay] Re-fired hover events on "${state.selector}"`,
       );
     } else {
-      console.log(
-        `🔄 [HoverReplay] Skipped: ${value?.reason || 'unknown'}`,
-      );
+      console.log(`🔄 [HoverReplay] Skipped: ${value?.reason || 'unknown'}`);
       // Clear stale hover state
-      if (value?.reason === 'document changed' || value?.reason === 'element gone') {
+      if (
+        value?.reason === 'document changed' ||
+        value?.reason === 'element gone'
+      ) {
         hoverStateStore.delete(key);
       }
     }
@@ -139,10 +140,7 @@ export async function replayHoverState(
 /**
  * Clear hover state for a conversation (optionally limited to a specific tab).
  */
-export function clearHoverState(
-  conversationId: string,
-  tabId?: number,
-): void {
+export function clearHoverState(conversationId: string, tabId?: number): void {
   if (tabId !== undefined) {
     hoverStateStore.delete(hoverKey(conversationId, tabId));
   } else {
@@ -2721,7 +2719,8 @@ export async function performElementDragAndDrop(
     cachedSource.resolvedElementId,
   );
 
-  let cachedTarget: ReturnType<typeof elementCache.getElementById> | null = null;
+  let cachedTarget: ReturnType<typeof elementCache.getElementById> | null =
+    null;
   if (hasTarget) {
     cachedTarget = elementCache.getElementById(
       conversationId,
@@ -2758,7 +2757,9 @@ export async function performElementDragAndDrop(
     ? escapeForDoubleQuotedJavaScriptString(cachedTarget.documentId)
     : '';
   const escapedTargetFingerprint = cachedTarget
-    ? escapeForDoubleQuotedJavaScriptString(cachedTarget.element.fingerprint || '')
+    ? escapeForDoubleQuotedJavaScriptString(
+        cachedTarget.element.fingerprint || '',
+      )
     : '';
 
   const steps = Math.max(2, Math.min(40, options.steps ?? 10));
@@ -3130,7 +3131,9 @@ export async function performElementSetSlider(
     cachedElement.resolvedElementId,
   );
 
-  const escapedSelector = escapeForDoubleQuotedJavaScriptString(element.selector);
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
     cachedElement.documentId,
   );

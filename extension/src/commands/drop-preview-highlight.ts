@@ -8,9 +8,7 @@
  */
 
 import type { InteractiveElement } from '../types';
-import {
-  calculateConfirmationPreviewLayout,
-} from './single-highlight';
+import { calculateConfirmationPreviewLayout } from './single-highlight';
 import { LABEL_PADDING, LABEL_FONT_SIZE } from './label-constants';
 import { getLabelDimensions, getLabelFont } from '../utils/label-geometry';
 
@@ -161,8 +159,10 @@ export async function highlightDropPreview(
       let labelX = bx;
       let labelY = by - dims.height;
       // Clamp to canvas bounds
-      if (labelY < 0) labelY = by + Math.round(el.bbox.height * scale) + boxPadding * 2;
-      if (labelX + dims.width > canvas.width) labelX = canvas.width - dims.width;
+      if (labelY < 0)
+        labelY = by + Math.round(el.bbox.height * scale) + boxPadding * 2;
+      if (labelX + dims.width > canvas.width)
+        labelX = canvas.width - dims.width;
       if (labelX < 0) labelX = 0;
 
       ctx.fillStyle = INNER_ELEMENT_BG;

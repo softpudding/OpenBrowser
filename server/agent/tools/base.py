@@ -162,16 +162,12 @@ class OpenBrowserObservation(Observation):
             text_parts.append(f"**Target Container**: {target_id}")
             text_parts.append("")
             if inner_elements:
-                text_parts.append(
-                    f"**Inner Elements** ({len(inner_elements)}):"
-                )
+                text_parts.append(f"**Inner Elements** ({len(inner_elements)}):")
                 text_parts.append("")
                 for el in inner_elements:
                     el_id = el.get("id", "unknown")
                     raw_hints = (
-                        el.get("interactionHints")
-                        or el.get("interaction_hints")
-                        or []
+                        el.get("interactionHints") or el.get("interaction_hints") or []
                     )
                     el_type = el.get("type", "")
                     hints = [
@@ -179,9 +175,7 @@ class OpenBrowserObservation(Observation):
                         for h in raw_hints
                         if isinstance(h, str) and h and h != el_type
                     ]
-                    suffix = (
-                        f"({', '.join([el_type] + hints)})" if el_type else ""
-                    )
+                    suffix = f"({', '.join([el_type] + hints)})" if el_type else ""
                     display_id = f"{el_id}{suffix}"
                     html = (el.get("html") or "").strip()
                     if len(html) > 200:

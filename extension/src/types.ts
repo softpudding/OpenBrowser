@@ -358,7 +358,11 @@ export type ElementType =
   | 'droppable'
   | 'any';
 
-export type InteractionHint = 'swipable' | 'draggable' | 'droppable' | 'slidable';
+export type InteractionHint =
+  | 'swipable'
+  | 'draggable'
+  | 'droppable'
+  | 'slidable';
 
 export interface InteractiveElement {
   id: string; // Element ID: short opaque visual-safe string for the current highlighted document (e.g. "A1H", "Q7M", "X4Y")

@@ -66,33 +66,50 @@ const devReloadPlugin = () => {
       if (!isDev) return;
       if (wss) return;
 
-      import('ws').then(({ WebSocketServer }) => {
-        wss = new WebSocketServer({ port: 8767 });
-        wss.on('connection', (socket) => {
-          clients.add(socket);
-          socket.on('close', () => clients.delete(socket));
+      import('ws')
+        .then(({ WebSocketServer }) => {
+          wss = new WebSocketServer({ port: 8767 });
+          wss.on('connection', (socket) => {
+            clients.add(socket);
+            socket.on('close', () => clients.delete(socket));
+          });
+          wss.on('error', (err: NodeJS.ErrnoException) => {
+            if (err.code === 'EADDRINUSE') {
+              console.warn(
+                '🔄 [DevReload] Port 8767 already in use — reload server skipped',
+              );
+            } else {
+              console.warn(
+                '🔄 [DevReload] WebSocket server error:',
+                err.message,
+              );
+            }
+            wss = null;
+          });
+          console.log(
+            '🔄 [DevReload] WebSocket reload server listening on ws://127.0.0.1:8767',
+          );
+        })
+        .catch(() => {
+          console.warn(
+            '🔄 [DevReload] "ws" package not installed — skipping. Run: npm i -D ws @types/ws',
+          );
         });
-        wss.on('error', (err: NodeJS.ErrnoException) => {
-          if (err.code === 'EADDRINUSE') {
-            console.warn('🔄 [DevReload] Port 8767 already in use — reload server skipped');
-          } else {
-            console.warn('🔄 [DevReload] WebSocket server error:', err.message);
-          }
-          wss = null;
-        });
-        console.log('🔄 [DevReload] WebSocket reload server listening on ws://127.0.0.1:8767');
-      }).catch(() => {
-        console.warn('🔄 [DevReload] "ws" package not installed — skipping. Run: npm i -D ws @types/ws');
-      });
     },
     closeBundle() {
       if (!isDev) return;
 
       const sendReloadAndExit = () => {
         if (clients.size > 0) {
-          console.log(`🔄 [DevReload] Sending reload to ${clients.size} client(s)...`);
+          console.log(
+            `🔄 [DevReload] Sending reload to ${clients.size} client(s)...`,
+          );
           for (const client of clients) {
-            try { client.send('reload'); } catch { /* client gone */ }
+            try {
+              client.send('reload');
+            } catch {
+              /* client gone */
+            }
           }
           // Give the message time to flush, then exit
           setTimeout(() => process.exit(0), 300);
@@ -106,9 +123,13 @@ const devReloadPlugin = () => {
       }
 
       // Otherwise wait for the extension to connect (up to 10s)
-      console.log('🔄 [DevReload] Build complete — waiting for extension to connect...');
+      console.log(
+        '🔄 [DevReload] Build complete — waiting for extension to connect...',
+      );
       const timeout = setTimeout(() => {
-        console.warn('🔄 [DevReload] No extension connected within 10s. Reload the extension manually once, then future `npm run dev` runs will auto-reload.');
+        console.warn(
+          '🔄 [DevReload] No extension connected within 10s. Reload the extension manually once, then future `npm run dev` runs will auto-reload.',
+        );
         process.exit(0);
       }, 10_000);
 

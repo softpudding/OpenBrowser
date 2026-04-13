@@ -2563,7 +2563,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         }
         const dropConvId = command.conversation_id;
         const dropActiveTabId =
-          (command as any).tab_id ?? tabManager.getCurrentActiveTabId(dropConvId);
+          (command as any).tab_id ??
+          tabManager.getCurrentActiveTabId(dropConvId);
         if (!dropActiveTabId) {
           throw new Error(`No active tab for conversation ${dropConvId}`);
         }
@@ -2721,10 +2722,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           5000,
         );
 
-        if (
-          !dropDetResult.success ||
-          !dropDetResult.result?.value?.ok
-        ) {
+        if (!dropDetResult.success || !dropDetResult.result?.value?.ok) {
           const dropErr =
             dropDetResult.result?.value?.error ||
             dropDetResult.error ||
@@ -2740,8 +2738,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         const rawInnerElements = dropDetResult.result.value.innerElements || [];
 
         // Build InteractiveElement objects for inner elements
-        const innerInteractiveElements: InteractiveElement[] = rawInnerElements.map(
-          (raw: any, _idx: number) => ({
+        const innerInteractiveElements: InteractiveElement[] =
+          rawInnerElements.map((raw: any, _idx: number) => ({
             id: '', // Will be assigned by assignHashedElementIds
             type: 'draggable' as const,
             tagName: raw.tagName,
@@ -2751,8 +2749,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             bbox: raw.bbox,
             isVisible: true,
             isInViewport: true,
-          }),
-        );
+          }));
 
         // Assign stable IDs
         const idAssignedInnerElements = assignHashedElementIds(

@@ -798,8 +798,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
             else:
                 message = (
-                    f"Confirmed drag: {pending_source_id} → "
-                    f"end of {target_id}"
+                    f"Confirmed drag: {pending_source_id} → " f"end of {target_id}"
                 )
             self._clear_pending_confirmation()
             return self._build_observation_from_result(

@@ -92,9 +92,7 @@ class ElementInteractionAction(OpenBrowserAction):
     )
     target_element_id: Optional[str] = Field(
         default=None,
-        description=(
-            "Drop target container element ID for `drag_and_drop`. Required."
-        ),
+        description=("Drop target container element ID for `drag_and_drop`. Required."),
     )
     relative_to: Optional[str] = Field(
         default=None,
