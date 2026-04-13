@@ -109,7 +109,7 @@ class OpenBrowserObservation(Observation):
     )
     element_type: Optional[str] = Field(
         default=None,
-        description="Type of elements highlighted (clickable/scrollable/inputable/hoverable/selectable)",
+        description="Type of elements highlighted (clickable/scrollable/inputable/hoverable/selectable/draggable/droppable)",
     )
     small_model: Optional[bool] = Field(
         default=None,
@@ -153,6 +153,48 @@ class OpenBrowserObservation(Observation):
                 "",
             ]
         )
+
+        if action_type == "drag_and_drop":
+            extra_data = pending.get("extra_data") or {}
+            target_id = extra_data.get("target_element_id", "unknown")
+            inner_elements = extra_data.get("inner_elements") or []
+            text_parts.append(f"**Source**: {element_id}")
+            text_parts.append(f"**Target Container**: {target_id}")
+            text_parts.append("")
+            if inner_elements:
+                text_parts.append(f"**Inner Elements** ({len(inner_elements)}):")
+                text_parts.append("")
+                for el in inner_elements:
+                    el_id = el.get("id", "unknown")
+                    raw_hints = (
+                        el.get("interactionHints") or el.get("interaction_hints") or []
+                    )
+                    el_type = el.get("type", "")
+                    hints = [
+                        h
+                        for h in raw_hints
+                        if isinstance(h, str) and h and h != el_type
+                    ]
+                    suffix = f"({', '.join([el_type] + hints)})" if el_type else ""
+                    display_id = f"{el_id}{suffix}"
+                    html = (el.get("html") or "").strip()
+                    if len(html) > 200:
+                        html = html[:190] + "...(Truncated)"
+                    if html:
+                        text_parts.append(f"{display_id}: {html}")
+                    else:
+                        tag = el.get("tagName", "").upper()
+                        text_parts.append(f"{display_id} ({tag})")
+                text_parts.append("")
+            text_parts.append("**Drop at end of container:**")
+            text_parts.append('```json\n{"action": "confirm_drag_and_drop"}\n```')
+            text_parts.append("")
+            text_parts.append("**Drop at a precise position:**")
+            text_parts.append(
+                '```json\n{"action": "confirm_drag_and_drop", "relative_to": "<inner_element_id>", "position": "before"}\n```'
+            )
+            content_items.append(TextContent(text="\n".join(text_parts)))
+            return content_items
 
         if action_type == "select":
             extra_data = pending.get("extra_data") or {}
@@ -414,7 +456,7 @@ class OpenBrowserObservation(Observation):
                 interaction_hints = [
                     hint
                     for hint in raw_hints
-                    if isinstance(hint, str) and len(hint) > 0
+                    if isinstance(hint, str) and len(hint) > 0 and hint != el_type
                 ]
                 suffix_parts = []
                 if isinstance(el_type, str) and el_type:

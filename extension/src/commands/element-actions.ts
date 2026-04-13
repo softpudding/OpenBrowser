@@ -19,6 +19,140 @@ function escapeForDoubleQuotedJavaScriptString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+// ============================================================
+// Hover State Store — remembers the last hovered element per
+// conversation+tab so hover-revealed UI can be re-activated
+// before confirmation screenshots.
+// ============================================================
+interface HoverState {
+  selector: string;
+  documentId: string;
+}
+
+const hoverStateStore = new Map<string, HoverState>();
+
+function hoverKey(conversationId: string, tabId: number): string {
+  return `${conversationId}:${tabId}`;
+}
+
+/**
+ * Re-fire hover events on the last-hovered element for a given
+ * conversation + tab. This restores hover-dependent UI (e.g. video
+ * player controls) that would otherwise disappear between the hover
+ * action and a subsequent click confirmation screenshot.
+ *
+ * Silently no-ops if there is no stored hover state or the element
+ * is gone/stale.
+ */
+export async function replayHoverState(
+  conversationId: string,
+  tabId: number,
+  timeout: number = 3000,
+): Promise<void> {
+  const key = hoverKey(conversationId, tabId);
+  const state = hoverStateStore.get(key);
+  if (!state) return;
+
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(state.selector);
+  const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+    state.documentId,
+  );
+
+  const script = `
+    (function() {
+      // Quick document-identity check
+      const currentDocId = \`\${Math.trunc(performance.timeOrigin)}|\${location.href}\`;
+      if ("${escapedDocumentId}" && currentDocId !== "${escapedDocumentId}") {
+        return { replayed: false, reason: "document changed" };
+      }
+
+      const el = document.querySelector("${escapedSelector}");
+      if (!el) {
+        return { replayed: false, reason: "element gone" };
+      }
+
+      // Walk up to the element and re-fire the full hover event sequence
+      // on both the element and its ancestors, to trigger CSS :hover
+      // and framework listeners (React onMouseEnter, etc.)
+      const targets = [el];
+      let parent = el.parentElement;
+      while (parent && parent !== document.documentElement) {
+        targets.push(parent);
+        parent = parent.parentElement;
+      }
+
+      // Fire from outermost to innermost (mimics real mouse entry path)
+      for (let i = targets.length - 1; i >= 0; i--) {
+        const target = targets[i];
+        target.dispatchEvent(new PointerEvent('pointerenter', {
+          bubbles: false, cancelable: false, view: window,
+          pointerType: 'mouse', isPrimary: true,
+        }));
+        target.dispatchEvent(new MouseEvent('mouseenter', {
+          bubbles: false, cancelable: false, view: window,
+        }));
+      }
+
+      // pointerover / mouseover bubble, so fire on the leaf only
+      el.dispatchEvent(new PointerEvent('pointerover', {
+        bubbles: true, cancelable: true, view: window,
+        pointerType: 'mouse', isPrimary: true,
+      }));
+      el.dispatchEvent(new MouseEvent('mouseover', {
+        bubbles: true, cancelable: true, view: window,
+      }));
+
+      return { replayed: true };
+    })();
+  `;
+
+  try {
+    const result = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      false,
+      timeout,
+    );
+    const value = result.result?.value as
+      | { replayed: boolean; reason?: string }
+      | undefined;
+    if (value?.replayed) {
+      console.log(
+        `🔄 [HoverReplay] Re-fired hover events on "${state.selector}"`,
+      );
+    } else {
+      console.log(`🔄 [HoverReplay] Skipped: ${value?.reason || 'unknown'}`);
+      // Clear stale hover state
+      if (
+        value?.reason === 'document changed' ||
+        value?.reason === 'element gone'
+      ) {
+        hoverStateStore.delete(key);
+      }
+    }
+  } catch (err) {
+    console.warn(`⚠️ [HoverReplay] Failed to replay hover:`, err);
+  }
+}
+
+/**
+ * Clear hover state for a conversation (optionally limited to a specific tab).
+ */
+export function clearHoverState(conversationId: string, tabId?: number): void {
+  if (tabId !== undefined) {
+    hoverStateStore.delete(hoverKey(conversationId, tabId));
+  } else {
+    // Clear all tabs for this conversation
+    for (const key of hoverStateStore.keys()) {
+      if (key.startsWith(`${conversationId}:`)) {
+        hoverStateStore.delete(key);
+      }
+    }
+  }
+}
+
 function buildResolvedElementResultFields(
   requestedElementId: string,
   resolvedElementId: string,
@@ -908,6 +1042,12 @@ export async function performElementHover(
   }
 
   console.log(`✅ [ElementHover] Hover executed successfully`);
+
+  // Store hover state so it can be replayed before confirmation screenshots
+  hoverStateStore.set(hoverKey(conversationId, tabId), {
+    selector: element.selector,
+    documentId: cachedElement.documentId,
+  });
 
   // If dialog opened during hover, propagate dialog info
   const result: HoverResult = {
@@ -2505,6 +2645,759 @@ export async function performElementSwipe(
     swipeEffective,
     ...(warning ? { warning } : {}),
     ...(swipeResult.method ? { method: swipeResult.method } : {}),
+  };
+}
+
+/**
+ * Result type for drag_and_drop operation
+ */
+export interface DragAndDropResult extends ElementActionResult {
+  dragged: boolean;
+  staleElement?: boolean;
+  error?: string;
+}
+
+export interface DragAndDropOptions {
+  targetElementId?: string;
+  position?: 'before' | 'after';
+  offsetX?: number;
+  offsetY?: number;
+  steps?: number;
+}
+
+/**
+ * Perform a drag-and-drop gesture from a cached source element to either
+ * another cached target element or a pixel offset from the source center.
+ *
+ * Fires both the low-level pointer/mouse sequence (so native browser hit
+ * tests react) and HTML5 drag events (so `draggable="true"` sources work).
+ */
+export async function performElementDragAndDrop(
+  conversationId: string,
+  sourceElementId: string,
+  tabId: number,
+  options: DragAndDropOptions,
+  timeout: number = 30000,
+): Promise<DragAndDropResult> {
+  console.log(
+    `🫳 [DragAndDrop] source=${sourceElementId} target=${options.targetElementId ?? ''} offset=(${options.offsetX ?? 0},${options.offsetY ?? 0}) tab=${tabId}`,
+  );
+
+  const hasTarget = Boolean(options.targetElementId);
+  const hasOffset =
+    typeof options.offsetX === 'number' && typeof options.offsetY === 'number';
+  if (hasTarget === hasOffset) {
+    return {
+      success: false,
+      ...buildResolvedElementResultFields(sourceElementId, sourceElementId),
+      dragged: false,
+      error:
+        'drag_and_drop requires exactly one of target_element_id or (offset_x, offset_y).',
+    };
+  }
+
+  const cachedSource = elementCache.getElementById(
+    conversationId,
+    tabId,
+    sourceElementId,
+  );
+  if (!cachedSource) {
+    return {
+      success: false,
+      ...buildResolvedElementResultFields(sourceElementId, sourceElementId),
+      dragged: false,
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId: sourceElementId,
+      }),
+    };
+  }
+  const sourceElement = cachedSource.element;
+  const resolvedSourceFields = buildResolvedElementResultFields(
+    cachedSource.requestedElementId,
+    cachedSource.resolvedElementId,
+  );
+
+  let cachedTarget: ReturnType<typeof elementCache.getElementById> | null =
+    null;
+  if (hasTarget) {
+    cachedTarget = elementCache.getElementById(
+      conversationId,
+      tabId,
+      options.targetElementId as string,
+    );
+    if (!cachedTarget) {
+      return {
+        success: false,
+        ...resolvedSourceFields,
+        dragged: false,
+        error: buildElementCacheMissMessage({
+          conversationId,
+          tabId,
+          elementId: options.targetElementId as string,
+        }),
+      };
+    }
+  }
+
+  const escapedSourceSelector = escapeForDoubleQuotedJavaScriptString(
+    sourceElement.selector,
+  );
+  const escapedSourceDocumentId = escapeForDoubleQuotedJavaScriptString(
+    cachedSource.documentId,
+  );
+  const escapedSourceFingerprint = escapeForDoubleQuotedJavaScriptString(
+    sourceElement.fingerprint || '',
+  );
+  const escapedTargetSelector = cachedTarget
+    ? escapeForDoubleQuotedJavaScriptString(cachedTarget.element.selector)
+    : '';
+  const escapedTargetDocumentId = cachedTarget
+    ? escapeForDoubleQuotedJavaScriptString(cachedTarget.documentId)
+    : '';
+  const escapedTargetFingerprint = cachedTarget
+    ? escapeForDoubleQuotedJavaScriptString(
+        cachedTarget.element.fingerprint || '',
+      )
+    : '';
+
+  const steps = Math.max(2, Math.min(40, options.steps ?? 10));
+  const offsetX = options.offsetX ?? 0;
+  const offsetY = options.offsetY ?? 0;
+  const hasTargetLiteral = hasTarget ? 'true' : 'false';
+  const positionLiteral = options.position || 'before';
+
+  const script = `
+    (async function() {
+      const sourceSelector = "${escapedSourceSelector}";
+      const sourceDocumentId = "${escapedSourceDocumentId}";
+      const sourceFingerprint = "${escapedSourceFingerprint}";
+      const targetSelector = "${escapedTargetSelector}";
+      const targetDocumentId = "${escapedTargetDocumentId}";
+      const targetFingerprint = "${escapedTargetFingerprint}";
+      const hasTarget = ${hasTargetLiteral};
+      const offsetX = ${offsetX};
+      const offsetY = ${offsetY};
+      const steps = ${steps};
+      const dropPosition = "${positionLiteral}";
+      ${buildCachedElementIdentityHelpersScript()}
+
+      const sourceEl = document.querySelector(sourceSelector);
+      if (!sourceEl) {
+        return { dragged: false, error: "Source element not found in DOM", stale: true };
+      }
+      const sourceValidation = validateCachedElement(
+        sourceDocumentId,
+        sourceFingerprint,
+        sourceEl,
+      );
+      if (!sourceValidation.ok) {
+        return { dragged: false, error: sourceValidation.error, stale: sourceValidation.stale };
+      }
+
+      let targetEl = null;
+      if (hasTarget) {
+        targetEl = document.querySelector(targetSelector);
+        if (!targetEl) {
+          return { dragged: false, error: "Target element not found in DOM", stale: true };
+        }
+        const targetValidation = validateCachedElement(
+          targetDocumentId,
+          targetFingerprint,
+          targetEl,
+        );
+        if (!targetValidation.ok) {
+          return { dragged: false, error: targetValidation.error, stale: targetValidation.stale };
+        }
+      }
+
+      function centerOf(el) {
+        const rect = el.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      }
+
+      const sourceRect = sourceEl.getBoundingClientRect();
+      const sourceStyle = window.getComputedStyle(sourceEl);
+      if (
+        sourceStyle.display === 'none' ||
+        sourceStyle.visibility === 'hidden' ||
+        sourceStyle.opacity === '0'
+      ) {
+        return { dragged: false, error: "Source element is not visible", stale: false };
+      }
+      if (sourceRect.width === 0 || sourceRect.height === 0) {
+        return { dragged: false, error: "Source element has zero size", stale: false };
+      }
+
+      if (
+        sourceRect.top < 0 ||
+        sourceRect.bottom > window.innerHeight ||
+        sourceRect.left < 0 ||
+        sourceRect.right > window.innerWidth
+      ) {
+        sourceEl.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+      }
+
+      const start = centerOf(sourceEl);
+      let end;
+      if (hasTarget && targetEl) {
+        const targetStyle = window.getComputedStyle(targetEl);
+        if (
+          targetStyle.display === 'none' ||
+          targetStyle.visibility === 'hidden' ||
+          targetStyle.opacity === '0'
+        ) {
+          return { dragged: false, error: "Target element is not visible", stale: false };
+        }
+        let targetRect = targetEl.getBoundingClientRect();
+        if (
+          targetRect.top < 0 ||
+          targetRect.bottom > window.innerHeight ||
+          targetRect.left < 0 ||
+          targetRect.right > window.innerWidth
+        ) {
+          targetEl.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+          // Source rect may shift after the scroll; recompute start too.
+          const refreshedSourceRect = sourceEl.getBoundingClientRect();
+          start.x = refreshedSourceRect.left + refreshedSourceRect.width / 2;
+          start.y = refreshedSourceRect.top + refreshedSourceRect.height / 2;
+          targetRect = targetEl.getBoundingClientRect();
+        }
+        if (
+          targetRect.bottom <= 0 ||
+          targetRect.top >= window.innerHeight ||
+          targetRect.right <= 0 ||
+          targetRect.left >= window.innerWidth
+        ) {
+          return {
+            dragged: false,
+            error: "Target element is off-screen after scroll-into-view",
+            stale: false,
+          };
+        }
+        // Position the drop point relative to the target.
+        // "before" = above the target's midpoint (so DnD libraries insert before)
+        // "after"  = below the target's midpoint (so DnD libraries insert after)
+        // Default is "before" — "drag X to Y" naturally means "place X where Y is".
+        const pos = dropPosition;
+        const midX = targetRect.left + targetRect.width / 2;
+        const midY = targetRect.top + targetRect.height / 2;
+        // Nudge 25% of height above or below the midpoint
+        const nudge = targetRect.height * 0.25;
+        end = {
+          x: midX,
+          y: pos === 'before' ? midY - nudge : midY + nudge,
+        };
+      } else {
+        end = { x: start.x + offsetX, y: start.y + offsetY };
+        // Clamp to viewport so elementFromPoint doesn't return null
+        end.x = Math.max(0, Math.min(end.x, window.innerWidth - 1));
+        end.y = Math.max(0, Math.min(end.y, window.innerHeight - 1));
+      }
+
+      function makeDataTransfer() {
+        try {
+          return new DataTransfer();
+        } catch (e) {
+          return null;
+        }
+      }
+      const dataTransfer = makeDataTransfer();
+
+      function fire(el, type, x, y, extra) {
+        if (!el) return;
+        const init = {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          view: window,
+          clientX: x,
+          clientY: y,
+          screenX: x,
+          screenY: y,
+          button: 0,
+          buttons: type === 'mouseup' || type === 'pointerup' ? 0 : 1,
+          ...(extra || {}),
+        };
+        let event;
+        if (type.startsWith('pointer')) {
+          event = new PointerEvent(type, {
+            ...init,
+            pointerType: 'mouse',
+            pointerId: 1,
+            isPrimary: true,
+          });
+        } else if (type.startsWith('drag') || type === 'drop') {
+          event = new DragEvent(type, {
+            ...init,
+            dataTransfer: dataTransfer,
+          });
+        } else {
+          event = new MouseEvent(type, init);
+        }
+        el.dispatchEvent(event);
+      }
+
+      function topElementAt(x, y) {
+        const el = document.elementFromPoint(x, y);
+        return el || document.body;
+      }
+
+      async function waitFrame() {
+        await new Promise((resolve) => {
+          // requestAnimationFrame doesn't fire when the tab is hidden;
+          // race it against a short setTimeout to avoid hanging.
+          let done = false;
+          requestAnimationFrame(() => { if (!done) { done = true; resolve(null); } });
+          setTimeout(() => { if (!done) { done = true; resolve(null); } }, 32);
+        });
+      }
+
+      try {
+        fire(sourceEl, 'pointerover', start.x, start.y);
+        fire(sourceEl, 'pointerenter', start.x, start.y);
+        fire(sourceEl, 'mouseover', start.x, start.y);
+        fire(sourceEl, 'mouseenter', start.x, start.y);
+        fire(sourceEl, 'pointermove', start.x, start.y);
+        fire(sourceEl, 'mousemove', start.x, start.y);
+
+        fire(sourceEl, 'pointerdown', start.x, start.y);
+        fire(sourceEl, 'mousedown', start.x, start.y);
+
+        const draggable = sourceEl instanceof HTMLElement && sourceEl.draggable;
+        if (draggable) {
+          fire(sourceEl, 'dragstart', start.x, start.y);
+        }
+
+        let lastUnderPointer = sourceEl;
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const x = start.x + (end.x - start.x) * t;
+          const y = start.y + (end.y - start.y) * t;
+          const underPointer = topElementAt(x, y);
+          fire(underPointer, 'pointermove', x, y);
+          fire(underPointer, 'mousemove', x, y);
+          if (draggable) {
+            if (underPointer !== lastUnderPointer) {
+              // Emit pairing dragleave on the previous element before
+              // dragenter on the new one — HTML5 DnD zones rely on this
+              // to clean up hover state.
+              fire(lastUnderPointer, 'dragleave', x, y);
+              fire(underPointer, 'dragenter', x, y);
+            }
+            fire(underPointer, 'dragover', x, y);
+          }
+          lastUnderPointer = underPointer;
+          await waitFrame();
+        }
+
+        // Fire drop/mouseup on whatever element is under the cursor.
+        // The DOM may have been rearranged during the drag (DnD libraries
+        // respond to mousemove in real-time), so we don't check occlusion
+        // here — the pre-drag visibility checks already ensured the target
+        // was reachable before the drag started.
+        const dropEl = topElementAt(end.x, end.y);
+        if (draggable) {
+          fire(dropEl, 'drop', end.x, end.y);
+          fire(sourceEl, 'dragend', end.x, end.y);
+        }
+        fire(dropEl, 'pointerup', end.x, end.y);
+        fire(dropEl, 'mouseup', end.x, end.y);
+
+        return {
+          dragged: true,
+          start: { x: start.x, y: start.y },
+          end: { x: end.x, y: end.y },
+          steps,
+          viaDragEvents: draggable,
+        };
+      } catch (e) {
+        return { dragged: false, error: e && e.message ? e.message : String(e), stale: false };
+      }
+    })();
+  `;
+
+  let jsResult: JavaScriptResult;
+  try {
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      true,
+      timeout,
+    );
+  } catch (error) {
+    return {
+      success: false,
+      ...resolvedSourceFields,
+      dragged: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (!jsResult.success) {
+    return {
+      success: false,
+      ...resolvedSourceFields,
+      dragged: false,
+      error: jsResult.error || 'Drag JavaScript execution failed',
+    };
+  }
+
+  const inner = jsResult.result?.value as
+    | { dragged: boolean; error?: string; stale?: boolean }
+    | undefined;
+  if (!inner || typeof inner !== 'object') {
+    return {
+      success: false,
+      ...resolvedSourceFields,
+      dragged: false,
+      error: 'Drag JavaScript returned an invalid result structure',
+    };
+  }
+  if (!inner.dragged) {
+    return {
+      success: false,
+      ...resolvedSourceFields,
+      dragged: false,
+      staleElement: inner.stale === true,
+      error: inner.error,
+    };
+  }
+
+  return {
+    success: true,
+    ...resolvedSourceFields,
+    dragged: true,
+  };
+}
+
+/**
+ * Result type for set_slider operation
+ */
+export interface SetSliderResult extends ElementActionResult {
+  sliderSet: boolean;
+  previousValue?: string;
+  newValue?: string;
+  min?: number;
+  max?: number;
+  staleElement?: boolean;
+  error?: string;
+}
+
+/**
+ * Set a slider to a target value. Supports two kinds of slider:
+ *
+ * 1. **Native** `<input type=range>` — writes the value property and
+ *    dispatches `input` + `change` events.
+ * 2. **ARIA custom sliders** — elements with `role="slider"` and
+ *    `aria-valuemin` / `aria-valuemax`. Computes the target click
+ *    coordinate on the track and dispatches pointer/mouse/click events
+ *    at that position so the site's JS updates the slider.
+ */
+export async function performElementSetSlider(
+  conversationId: string,
+  elementId: string,
+  value: number | string,
+  tabId: number,
+  timeout: number = 30000,
+): Promise<SetSliderResult> {
+  console.log(
+    `🎚️  [SetSlider] Setting slider ${elementId} to ${value} on tab ${tabId}`,
+  );
+
+  const cachedElement = elementCache.getElementById(
+    conversationId,
+    tabId,
+    elementId,
+  );
+  if (!cachedElement) {
+    return {
+      success: false,
+      ...buildResolvedElementResultFields(elementId, elementId),
+      sliderSet: false,
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId,
+      }),
+    };
+  }
+  const element = cachedElement.element;
+  const resolvedFields = buildResolvedElementResultFields(
+    cachedElement.requestedElementId,
+    cachedElement.resolvedElementId,
+  );
+
+  const escapedSelector = escapeForDoubleQuotedJavaScriptString(
+    element.selector,
+  );
+  const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
+    cachedElement.documentId,
+  );
+  const escapedFingerprint = escapeForDoubleQuotedJavaScriptString(
+    element.fingerprint || '',
+  );
+  const escapedValue = escapeForDoubleQuotedJavaScriptString(String(value));
+
+  const script = `
+    (async function() {
+      const selector = "${escapedSelector}";
+      const expectedDocumentId = "${escapedDocumentId}";
+      const expectedFingerprint = "${escapedFingerprint}";
+      const requestedValue = "${escapedValue}";
+      ${buildCachedElementIdentityHelpersScript()}
+
+      const el = document.querySelector(selector);
+      if (!el) {
+        return { sliderSet: false, error: "Element not found in DOM", stale: true };
+      }
+      const snapshotValidation = validateCachedElement(
+        expectedDocumentId,
+        expectedFingerprint,
+        el,
+      );
+      if (!snapshotValidation.ok) {
+        return {
+          sliderSet: false,
+          error: snapshotValidation.error,
+          stale: snapshotValidation.stale,
+        };
+      }
+
+      // ---- Determine slider type ----
+      const isNativeRange = (el instanceof HTMLInputElement) && el.type === 'range';
+      const ariaRole = (el.getAttribute('role') || '').toLowerCase();
+      const isAriaSlider = ariaRole === 'slider';
+      // Generic: any other element (custom progress bar detected by slidable hint)
+      const isGeneric = !isNativeRange && !isAriaSlider;
+
+      // ---- Parse min / max / step ----
+      let min, max, step;
+      if (isNativeRange) {
+        min = Number(el.min === '' ? 0 : el.min);
+        max = Number(el.max === '' ? 100 : el.max);
+        step = Number(el.step === '' || el.step === 'any' ? 0 : el.step);
+      } else if (isAriaSlider) {
+        min = Number(el.getAttribute('aria-valuemin') ?? 0);
+        max = Number(el.getAttribute('aria-valuemax') ?? 100);
+        step = 0;
+      } else {
+        // Generic: treat as 0–100 percentage range
+        min = 0;
+        max = 100;
+        step = 0;
+      }
+      if (!isFinite(min) || !isFinite(max) || max <= min) {
+        return { sliderSet: false, error: "Slider min/max are not a valid numeric range", stale: false };
+      }
+
+      // ---- Resolve target value ----
+      let numeric;
+      const trimmed = requestedValue.trim();
+      if (trimmed.endsWith('%')) {
+        const pct = Number(trimmed.slice(0, -1));
+        if (!isFinite(pct)) {
+          return { sliderSet: false, error: "Percentage value is not numeric", stale: false };
+        }
+        numeric = min + ((max - min) * pct) / 100;
+      } else {
+        numeric = Number(trimmed);
+        if (!isFinite(numeric)) {
+          return { sliderSet: false, error: "Value is not numeric", stale: false };
+        }
+      }
+      if (numeric < min) numeric = min;
+      if (numeric > max) numeric = max;
+      if (step > 0) {
+        const quantized = min + Math.round((numeric - min) / step) * step;
+        numeric = Math.max(min, Math.min(max, quantized));
+      }
+
+      // ============================================================
+      // NATIVE RANGE PATH: write value + dispatch events
+      // ============================================================
+      if (isNativeRange) {
+        const previousValue = el.value;
+        const descriptor = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value',
+        );
+        const setter = descriptor && descriptor.set;
+        if (setter) {
+          setter.call(el, String(numeric));
+        } else {
+          el.value = String(numeric);
+        }
+        el.dispatchEvent(new Event('input', { bubbles: true, cancelable: false }));
+        el.dispatchEvent(new Event('change', { bubbles: true, cancelable: false }));
+
+        return {
+          sliderSet: true,
+          previousValue,
+          newValue: el.value,
+          min,
+          max,
+        };
+      }
+
+      // ============================================================
+      // POSITION-CLICK PATH: ARIA slider + generic custom sliders
+      // Compute target (x,y) on the element and dispatch click events.
+      //
+      // For generic sliders, the cached element may be a leaf inside the
+      // slider container (e.g. progress-buffered inside progress-area).
+      // Walk up to find the full-width container for position calculation,
+      // but dispatch events on the original element so they bubble to the
+      // container's click handler.
+      // ============================================================
+      const previousValue = isAriaSlider
+        ? (el.getAttribute('aria-valuenow') || '')
+        : '';
+
+      // Find the slider track/container for position calculation
+      let trackEl = el;
+      if (isGeneric) {
+        // Walk up to find a parent whose width represents the full slider range.
+        // The container is typically the widest ancestor with a slider-related class.
+        const SLIDER_RE = /\\b(progress|slider|seek|scrub|range|timeline|playback)\\b/i;
+        let ancestor = el.parentElement;
+        for (let d = 0; ancestor && d < 4; d++, ancestor = ancestor.parentElement) {
+          if (ancestor === document.body || ancestor === document.documentElement) break;
+          const ancIdClass = (ancestor.id || '') + ' ' + Array.from(ancestor.classList).join(' ');
+          if (SLIDER_RE.test(ancIdClass)) {
+            const ancRect = ancestor.getBoundingClientRect();
+            if (ancRect.width > trackEl.getBoundingClientRect().width) {
+              trackEl = ancestor;
+            }
+          }
+        }
+      }
+
+      const rect = trackEl.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        return { sliderSet: false, error: "Slider element has zero size", stale: false };
+      }
+
+      // Determine orientation
+      const orientation = trackEl.getAttribute('aria-orientation');
+      const isVertical = orientation === 'vertical' || (!orientation && rect.height > rect.width * 2);
+      const fraction = (numeric - min) / (max - min);
+
+      let clickX, clickY;
+      if (isVertical) {
+        clickX = rect.left + rect.width / 2;
+        clickY = rect.bottom - fraction * rect.height;
+      } else {
+        clickX = rect.left + fraction * rect.width;
+        clickY = rect.top + rect.height / 2;
+      }
+
+      // Dispatch full pointer → mouse → click sequence at the computed position
+      const eventInit = {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: clickX,
+        clientY: clickY,
+        button: 0,
+        buttons: 1,
+      };
+
+      // Dispatch on trackEl (the slider container) so the click handler fires
+      // directly, rather than relying on bubbling from a leaf child.
+      const dispatchTarget = isGeneric ? trackEl : el;
+      dispatchTarget.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerType: 'mouse', isPrimary: true }));
+      dispatchTarget.dispatchEvent(new MouseEvent('mousedown', eventInit));
+      dispatchTarget.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerType: 'mouse', isPrimary: true, buttons: 0 }));
+      dispatchTarget.dispatchEvent(new MouseEvent('mouseup', { ...eventInit, buttons: 0 }));
+      dispatchTarget.dispatchEvent(new MouseEvent('click', { ...eventInit, buttons: 0 }));
+
+      dispatchTarget.dispatchEvent(new Event('input', { bubbles: true }));
+      dispatchTarget.dispatchEvent(new Event('change', { bubbles: true }));
+
+      await new Promise(r => setTimeout(r, 100));
+
+      const newValue = isAriaSlider
+        ? (el.getAttribute('aria-valuenow') || '')
+        : String(numeric);
+      return {
+        sliderSet: true,
+        previousValue,
+        newValue,
+        min,
+        max,
+      };
+    })();
+  `;
+
+  let jsResult: JavaScriptResult;
+  try {
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      script,
+      true,
+      true,
+      timeout,
+    );
+  } catch (error) {
+    return {
+      success: false,
+      ...resolvedFields,
+      sliderSet: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (!jsResult.success) {
+    return {
+      success: false,
+      ...resolvedFields,
+      sliderSet: false,
+      error: jsResult.error || 'set_slider JavaScript execution failed',
+    };
+  }
+
+  const inner = jsResult.result?.value as
+    | {
+        sliderSet: boolean;
+        error?: string;
+        stale?: boolean;
+        previousValue?: string;
+        newValue?: string;
+        min?: number;
+        max?: number;
+      }
+    | undefined;
+  if (!inner || typeof inner !== 'object') {
+    return {
+      success: false,
+      ...resolvedFields,
+      sliderSet: false,
+      error: 'set_slider JavaScript returned an invalid result structure',
+    };
+  }
+  if (!inner.sliderSet) {
+    return {
+      success: false,
+      ...resolvedFields,
+      sliderSet: false,
+      staleElement: inner.stale === true,
+      error: inner.error,
+    };
+  }
+
+  return {
+    success: true,
+    ...resolvedFields,
+    sliderSet: true,
+    previousValue: inner.previousValue,
+    newValue: inner.newValue,
+    min: inner.min,
+    max: inner.max,
   };
 }
 

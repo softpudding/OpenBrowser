@@ -53,9 +53,17 @@ extension/
 ```bash
 npm install
 npm run build        # Production
-npm run dev          # Watch mode
+npm run dev          # Watch mode (with auto-reload)
 npm run typecheck    # Type check only
 ```
+
+### Auto-Reload (Dev Mode)
+
+`npm run dev` starts Vite in watch mode **and** a WebSocket reload server on `ws://127.0.0.1:8767`. The extension's background script connects to this server in dev builds and calls `chrome.runtime.reload()` automatically whenever Vite rebuilds.
+
+- **First load**: After installing/reloading the extension manually once with a dev build, all subsequent rebuilds auto-reload — no need to visit `chrome://extensions`.
+- **Production builds** (`npm run build`): The reload code is tree-shaken out entirely via the `__DEV__` compile-time constant.
+- **Key files**: `src/background/dev-reload.ts` (extension client), `vite.config.ts` (`devReloadPlugin`).
 
 ## CONVENTIONS
 

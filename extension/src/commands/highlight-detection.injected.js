@@ -4,6 +4,8 @@ const HIGHLIGHT_TYPE_PRIORITY = {
   selectable: 2,
   scrollable: 3,
   hoverable: 4,
+  draggable: 5,
+  droppable: 6,
 };
 
 const HIGHLIGHT_SIGNAL_SCORE = {
@@ -132,6 +134,18 @@ function isElementVisibleForDetection(el) {
     return false;
   }
 
+  // CSS opacity creates a compositing group: a child with opacity:1 inside
+  // a parent with opacity:0 is invisible, but getComputedStyle(child).opacity
+  // still returns '1'. Walk up ancestors to catch hover-revealed containers
+  // (e.g. video player control bars that use opacity:0 → opacity:1 on hover).
+  let ancestor = el.parentElement;
+  for (let i = 0; i < 5 && ancestor; i++) {
+    if (ancestor === document.body || ancestor === document.documentElement)
+      break;
+    if (window.getComputedStyle(ancestor).opacity === '0') return false;
+    ancestor = ancestor.parentElement;
+  }
+
   const rect = el.getBoundingClientRect();
   return rect.width > 0 && rect.height > 0;
 }
@@ -146,6 +160,50 @@ function isElementInViewportForDetection(el) {
     rect.left < window.innerWidth &&
     rect.right > 0
   );
+}
+
+// Check whether an element is visible within all ancestor scroll containers.
+// Elements inside overflow:auto/scroll parents that are scrolled out of view
+// should not be highlighted — the agent should scroll to discover them.
+function isElementVisibleInScrollParent(el) {
+  const elRect = el.getBoundingClientRect();
+  let parent = el.parentElement;
+  while (
+    parent &&
+    parent !== document.body &&
+    parent !== document.documentElement
+  ) {
+    const style = window.getComputedStyle(parent);
+    const overflowY = style.overflowY;
+    const overflowX = style.overflowX;
+    const hasScrollY =
+      overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden';
+    const hasScrollX =
+      overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden';
+    if (hasScrollY || hasScrollX) {
+      const parentRect = parent.getBoundingClientRect();
+      // Allow a small tolerance (2px) for border/padding edge cases
+      const tolerance = 2;
+      if (hasScrollY) {
+        if (
+          elRect.bottom <= parentRect.top + tolerance ||
+          elRect.top >= parentRect.bottom - tolerance
+        ) {
+          return false;
+        }
+      }
+      if (hasScrollX) {
+        if (
+          elRect.right <= parentRect.left + tolerance ||
+          elRect.left >= parentRect.right - tolerance
+        ) {
+          return false;
+        }
+      }
+    }
+    parent = parent.parentElement;
+  }
+  return true;
 }
 
 function getDomDepth(el) {
@@ -596,8 +654,16 @@ function isMeaningfulPointerCandidate(el) {
   const viewportArea = window.innerWidth * window.innerHeight;
   const elementArea = getElementArea(rect);
 
-  if (elementArea <= 0 || elementArea > viewportArea * 0.35) {
+  if (elementArea <= 0) {
     return false;
+  }
+
+  if (elementArea > viewportArea * 0.35) {
+    // Large elements are usually layout wrappers, not interaction targets.
+    // Exception: cursor:pointer + user-select:none together indicate a
+    // deliberate interactive region (video player, canvas app, game area).
+    if (elementArea > viewportArea * 0.7) return false;
+    return window.getComputedStyle(el).userSelect === 'none';
   }
 
   const searchText = getElementSearchText(el);
@@ -1050,6 +1116,225 @@ function isHoverableCandidate(el) {
   return true;
 }
 
+// ──────────────────────────────────────────────────────────────
+// Drag-and-drop detection predicates
+// ──────────────────────────────────────────────────────────────
+
+/** Per-scan cache so Tier 4 droppable inference doesn't re-evaluate. */
+const _draggableCache = new WeakMap();
+
+const DROP_TOKEN_REGEX =
+  /\b(drop|zone|target|column|lane|bucket|list|board)\b/i;
+
+function isDraggableCandidate(el) {
+  if (_draggableCache.has(el)) {
+    return _draggableCache.get(el);
+  }
+  const result = _isDraggableCandidateCore(el);
+  _draggableCache.set(el, result);
+  return result;
+}
+
+function _isDraggableCandidateCore(el) {
+  if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) {
+    return false;
+  }
+  const tag = el.tagName;
+  if (tag === 'BODY' || tag === 'HTML') {
+    return false;
+  }
+  if (el instanceof HTMLElement && el.hasAttribute('disabled')) {
+    return false;
+  }
+
+  // Tier 1 — Explicit markers
+  if (el.draggable === true || el.getAttribute('draggable') === 'true') {
+    return true;
+  }
+  if (
+    el.hasAttribute('data-rbd-draggable-handle') ||
+    el.hasAttribute('data-rbd-drag-handle-draggable-id') ||
+    el.hasAttribute('data-dnd-draggable') ||
+    el.hasAttribute('aria-grabbed')
+  ) {
+    return true;
+  }
+
+  // Tier 2 — Library container children
+  let parent = el.parentElement;
+  for (
+    let depth = 0;
+    parent && depth < 2;
+    depth += 1, parent = parent.parentElement
+  ) {
+    if (parent instanceof HTMLElement) {
+      const parentClasses = Array.from(parent.classList).join(' ');
+      if (/\bsortable\b/i.test(parentClasses) && parent.contains(el)) {
+        return true;
+      }
+      if (
+        parent.hasAttribute('data-rbd-droppable-id') &&
+        el.hasAttribute('data-rbd-draggable-context-id')
+      ) {
+        return true;
+      }
+    }
+  }
+
+  // Tier 3 — CSS / structural heuristics
+  // Exclude sliders — they should use set_slider, not drag_and_drop
+  if (el instanceof HTMLInputElement && el.type === 'range') {
+    return false;
+  }
+  if (el.getAttribute && el.getAttribute('role') === 'slider') {
+    return false;
+  }
+  if (el instanceof HTMLElement) {
+    const computedCursor = window.getComputedStyle(el).cursor;
+    const hasGrabCursor =
+      computedCursor === 'grab' || computedCursor === 'move';
+    if (hasGrabCursor) {
+      return true;
+    }
+  }
+
+  // Tier 4 — Direct child of structural drop zone (covers custom mousedown DnD)
+  // If the element has user-select:none and its IMMEDIATE parent's class tokens
+  // match the drop-zone regex, and that parent has 2+ visible children of the
+  // same tag, the element is likely a drag source.
+  // Only class names are checked — data attributes like data-column-id are
+  // references, not structural markers. Only the immediate parent is checked
+  // because user-select:none is inherited.
+  if (el instanceof HTMLElement) {
+    const userSelect = window.getComputedStyle(el).userSelect;
+    if (userSelect === 'none') {
+      const ancestor = el.parentElement;
+      if (ancestor instanceof HTMLElement) {
+        const cls = Array.from(ancestor.classList).join(' ');
+        if (DROP_TOKEN_REGEX.test(cls.toLowerCase())) {
+          const elTag = el.tagName;
+          const sameTagSiblings = Array.from(ancestor.children).filter(
+            (c) =>
+              c instanceof HTMLElement &&
+              c.tagName === elTag &&
+              c.offsetParent !== null,
+          );
+          if (sameTagSiblings.length >= 2) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function isDroppableCandidate(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+  const tag = el.tagName;
+  if (tag === 'BODY' || tag === 'HTML') {
+    return false;
+  }
+  const rect = el.getBoundingClientRect();
+  if (rect.width < 40 || rect.height < 40) {
+    return false;
+  }
+
+  // Tier 1 — Explicit markers
+  const dropEffect = el.getAttribute('aria-dropeffect');
+  if (dropEffect && dropEffect !== 'none') {
+    return true;
+  }
+  if (
+    el.hasAttribute('data-rbd-droppable-id') ||
+    el.hasAttribute('data-dnd-droppable') ||
+    el.hasAttribute('dropzone')
+  ) {
+    return true;
+  }
+
+  // Tier 2 — Library container patterns
+  const classes = Array.from(el.classList).join(' ');
+  if (/\bsortable\b/i.test(classes)) {
+    const visibleChildren = Array.from(el.children).filter(
+      (child) => child instanceof HTMLElement && child.offsetParent !== null,
+    );
+    if (visibleChildren.length >= 2) {
+      return true;
+    }
+  }
+
+  // Tier 3 — Parent-of-draggable inference (uses cached isDraggableCandidate)
+  const directChildren = Array.from(el.children).filter(
+    (child) => child instanceof HTMLElement && child.offsetParent !== null,
+  );
+  if (directChildren.length >= 2) {
+    let draggableCount = 0;
+    for (const child of directChildren) {
+      if (isDraggableCandidate(child)) {
+        draggableCount += 1;
+        if (draggableCount >= 2) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Detect slider-like elements that should be interacted with via set_slider.
+ * Matches:
+ *   Tier 1 — Explicit markers:
+ *     - Native <input type="range">
+ *     - Elements with role="slider" (custom ARIA sliders)
+ *   Tier 2 — Structural heuristic for custom progress bars:
+ *     - cursor: pointer AND class/id contains slider-related tokens
+ *       AND has a child whose class suggests a track/fill/thumb structure
+ */
+const SLIDER_TOKEN_REGEX =
+  /\b(progress|slider|seek|scrub|range|timeline|playback)\b/i;
+const SLIDER_CHILD_TOKEN_REGEX =
+  /\b(track|played|filled|fill|thumb|scrubber|bar|handle|knob|indicator)\b/i;
+
+function isSlidableCandidate(el) {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+  // Tier 1: Native range input
+  if (el instanceof HTMLInputElement && el.type === 'range') {
+    return true;
+  }
+  // Tier 1: ARIA slider
+  if (el.getAttribute('role') === 'slider') {
+    return true;
+  }
+
+  // Tier 2: Custom progress bar heuristic
+  // Requires ALL of: slider-related class/id token + pointer cursor + structural child
+  const idAndClass = (el.id || '') + ' ' + Array.from(el.classList).join(' ');
+  if (!SLIDER_TOKEN_REGEX.test(idAndClass)) {
+    return false;
+  }
+  const cursor = window.getComputedStyle(el).cursor;
+  if (cursor !== 'pointer' && cursor !== 'grab' && cursor !== 'move') {
+    return false;
+  }
+  // Check for at least one child with track/fill/thumb-like class
+  const children = el.querySelectorAll('*');
+  for (let i = 0; i < children.length && i < 30; i++) {
+    const childClasses = Array.from(children[i].classList).join(' ');
+    if (SLIDER_CHILD_TOKEN_REGEX.test(childClasses)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function hasSwipeApi(el) {
   const candidates = [
     el.swiper,
@@ -1264,6 +1549,62 @@ function getInteractionHints(el) {
     hints.push('swipable');
   }
 
+  // Check the element itself and also walk its direct children (up to 20)
+  // because resolveClickableCandidate may have lifted a child handle to a
+  // parent wrapper, losing descendant-only drag signals.
+  if (isDraggableCandidate(el)) {
+    hints.push('draggable');
+  } else {
+    const children = el.children;
+    for (let i = 0; i < children.length && i < 20; i++) {
+      if (isDraggableCandidate(children[i])) {
+        hints.push('draggable');
+        break;
+      }
+    }
+  }
+
+  if (isDroppableCandidate(el)) {
+    hints.push('droppable');
+  }
+
+  // Check element, its children, AND its ancestors for slidable signal.
+  // - Children: resolveClickableCandidate may have lifted a child slider to a parent
+  // - Ancestors: a leaf element inside a slider container (e.g. progress-buffered
+  //   inside progress-area) needs the hint propagated from its container
+  if (isSlidableCandidate(el)) {
+    hints.push('slidable');
+  } else {
+    let foundSlidable = false;
+    // Check direct children
+    const sliderChildren = el.children;
+    for (let i = 0; i < sliderChildren.length && i < 20; i++) {
+      if (isSlidableCandidate(sliderChildren[i])) {
+        foundSlidable = true;
+        break;
+      }
+    }
+    // Check ancestors (up to 3 levels) — handles leaf elements inside slider containers
+    if (!foundSlidable) {
+      let ancestor = el.parentElement;
+      for (
+        let depth = 0;
+        ancestor && depth < 3;
+        depth++, ancestor = ancestor.parentElement
+      ) {
+        if (ancestor === document.body || ancestor === document.documentElement)
+          break;
+        if (isSlidableCandidate(ancestor)) {
+          foundSlidable = true;
+          break;
+        }
+      }
+    }
+    if (foundSlidable) {
+      hints.push('slidable');
+    }
+  }
+
   return hints;
 }
 
@@ -1428,6 +1769,18 @@ function resolveElementCandidate(el, requestedType) {
   if (requestedType === 'hoverable') {
     return isHoverableCandidate(el)
       ? buildResolvedCandidate(el, 'hoverable', 'hoverable')
+      : null;
+  }
+
+  if (requestedType === 'draggable') {
+    return isDraggableCandidate(el)
+      ? buildResolvedCandidate(el, 'draggable', 'draggable')
+      : null;
+  }
+
+  if (requestedType === 'droppable') {
+    return isDroppableCandidate(el)
+      ? buildResolvedCandidate(el, 'droppable', 'droppable')
       : null;
   }
 
@@ -1893,6 +2246,10 @@ function countViewportPlaceholderSignals(metricsStartTime) {
       continue;
     }
 
+    if (!isElementVisibleInScrollParent(element)) {
+      continue;
+    }
+
     const rect = element.getBoundingClientRect();
     const clampedWidth = Math.min(window.innerWidth, Math.max(0, rect.width));
     const clampedHeight = Math.min(
@@ -2052,6 +2409,10 @@ function collectHighlightCandidates(config, trace, layoutStability) {
       continue;
     }
 
+    if (!isElementVisibleInScrollParent(element)) {
+      continue;
+    }
+
     if (!isElementInActiveTopLayer(element, activeTopLayerRoot)) {
       continue;
     }
@@ -2106,6 +2467,8 @@ function collectHighlightCandidates(config, trace, layoutStability) {
     inputable: 0,
     hoverable: 0,
     selectable: 0,
+    draggable: 0,
+    droppable: 0,
   };
 
   const elements = prunedCandidates.map((candidate) => {

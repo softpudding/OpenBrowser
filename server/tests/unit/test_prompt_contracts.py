@@ -243,7 +243,7 @@ class TestPromptContracts:
         description = get_element_interaction_tool_description()
 
         assert (
-            "Only `click`, `keyboard_input`, and `select` use the **YELLOW stage**"
+            "`click`, `keyboard_input`, and `select` return a YELLOW preview screenshot before execution."
             in description
         )
         assert "confirm_select" in description

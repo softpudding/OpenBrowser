@@ -36,6 +36,9 @@ from server.models.commands import (
     GetElementHtmlCommand,
     HighlightSingleElementCommand,
     SelectElementCommand,
+    DragAndDropElementCommand,
+    SetSliderValueCommand,
+    HighlightDropPreviewCommand,
 )
 
 # Import action types for type checking
@@ -469,6 +472,80 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 element_id=action.element_id,
             )
 
+        elif action_type == "drag_and_drop":
+            if not action.element_id:
+                raise ValueError("drag_and_drop requires element_id (source)")
+            if not action.target_element_id:
+                raise ValueError(
+                    "drag_and_drop requires target_element_id (drop container)"
+                )
+
+            # 2PC: Phase 1 returns drop preview with inner elements
+            preview_command = HighlightDropPreviewCommand(
+                source_element_id=action.element_id,
+                target_element_id=action.target_element_id,
+                conversation_id=self.conversation_id,
+                tab_id=action.tab_id,
+            )
+            result_dict = self._execute_command_sync(preview_command)
+            if not result_dict or not result_dict.get("success"):
+                ext_error = self._extract_result_error(result_dict)
+                raise RuntimeError(f"Failed to get drop preview: {ext_error}")
+
+            data = result_dict.get("data", {})
+            screenshot = data.get("screenshot")
+            inner_elements = data.get("elements", [])
+
+            self._set_pending_confirmation(
+                element_id=action.element_id,
+                action_type="drag_and_drop",
+                full_html="",
+                extra_data={
+                    "target_element_id": action.target_element_id,
+                    "steps": action.steps or 10,
+                    "tab_id": action.tab_id,
+                    "inner_elements": inner_elements,
+                },
+                screenshot_data_url=screenshot,
+            )
+            inner_count = len(inner_elements)
+            message = (
+                f"Drag preview for {action.element_id} → "
+                f"{action.target_element_id}: "
+                f"{inner_count} inner element{'s' if inner_count != 1 else ''} found. "
+                f"Use confirm_drag_and_drop to drop at end, or specify "
+                f"relative_to and position for precise placement."
+            )
+            return self._build_observation_from_result(
+                result_dict,
+                message,
+                screenshot_data_url=screenshot,
+                element_id=action.element_id,
+                highlighted_elements=inner_elements,
+            )
+
+        elif action_type == "set_slider":
+            if not action.element_id:
+                raise ValueError("set_slider requires element_id parameter")
+            if action.value is None:
+                raise ValueError("set_slider requires value parameter")
+            if isinstance(action.value, list):
+                raise ValueError(
+                    "set_slider value must be a number or percentage string, not a list"
+                )
+            command = SetSliderValueCommand(
+                element_id=action.element_id,
+                value=action.value,
+                conversation_id=self.conversation_id,
+                tab_id=action.tab_id,
+            )
+            result_dict = self._execute_element_command(command, "set slider value")
+            return self._build_observation_from_result(
+                result_dict,
+                f"Set slider {action.element_id} to {action.value}",
+                element_id=action.element_id,
+            )
+
         elif action_type == "keyboard_input":
             if not action.element_id:
                 raise ValueError("keyboard_input requires element_id parameter")
@@ -664,6 +741,70 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 result_dict,
                 message,
                 element_id=pending_element_id,
+            )
+
+        elif action_type == "confirm_drag_and_drop":
+            pending = self._get_pending_confirmation()
+            if not pending or pending["action_type"] != "drag_and_drop":
+                raise ValueError(
+                    "No pending drag_and_drop confirmation found. "
+                    "Please call drag_and_drop with target_element_id first."
+                )
+            pending_source_id = pending.get("element_id")
+            pending_extra_data = pending.get("extra_data", {})
+            if not pending_source_id:
+                raise ValueError(
+                    "Pending drag_and_drop confirmation is missing source element_id."
+                )
+            target_id = pending_extra_data.get("target_element_id")
+            if not target_id:
+                raise ValueError(
+                    "Pending drag_and_drop confirmation is missing target_element_id."
+                )
+
+            # Determine drop target: relative_to inner element or the container itself
+            drop_target_id = target_id
+            # "after" on the container means drop below its midpoint → append
+            drop_position = "after"
+            if action.relative_to:
+                # Validate that relative_to is one of the previewed inner elements
+                inner_elements = pending_extra_data.get("inner_elements") or []
+                inner_ids = {
+                    el.get("id") for el in inner_elements if isinstance(el, dict)
+                }
+                if action.relative_to not in inner_ids:
+                    raise ValueError(
+                        f"relative_to '{action.relative_to}' is not one of the "
+                        f"inner elements from the drop preview. "
+                        f"Valid IDs: {', '.join(sorted(inner_ids))}"
+                    )
+                drop_target_id = action.relative_to
+                drop_position = action.position or "before"
+
+            command = DragAndDropElementCommand(
+                element_id=pending_source_id,
+                target_element_id=drop_target_id,
+                position=drop_position,
+                steps=pending_extra_data.get("steps", 10),
+                conversation_id=self.conversation_id,
+                tab_id=pending_extra_data.get("tab_id"),
+            )
+            result_dict = self._execute_element_command(command, "drag and drop")
+            if action.relative_to:
+                message = (
+                    f"Confirmed drag: {pending_source_id} → "
+                    f"{drop_position} {action.relative_to} "
+                    f"in {target_id}"
+                )
+            else:
+                message = (
+                    f"Confirmed drag: {pending_source_id} → " f"end of {target_id}"
+                )
+            self._clear_pending_confirmation()
+            return self._build_observation_from_result(
+                result_dict,
+                message,
+                element_id=pending_source_id,
             )
 
         else:

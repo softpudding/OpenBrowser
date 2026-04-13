@@ -21,6 +21,8 @@ const COLORS: Record<ElementType, string> = {
   inputable: '#FF9900',
   hoverable: '#9966FF',
   selectable: '#FF6B6B',
+  draggable: '#FF6600',
+  droppable: '#339966',
   any: '#00CCCC',
 };
 
@@ -33,6 +35,8 @@ const LABEL_BG_COLORS: Record<ElementType, string> = {
   inputable: 'rgba(255, 153, 0, 0.7)',
   hoverable: 'rgba(153, 102, 255, 0.7)',
   selectable: 'rgba(255, 107, 107, 0.7)',
+  draggable: 'rgba(255, 102, 0, 0.7)',
+  droppable: 'rgba(51, 153, 102, 0.7)',
   any: 'rgba(0, 204, 204, 0.7)',
 };
 

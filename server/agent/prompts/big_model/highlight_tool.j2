@@ -19,7 +19,7 @@ Build or extend the interactive-element inventory for the current page state.
 - `element_id` labels such as `A1H`, `Q7M`, `X4Y`
 - HTML snippets for the returned elements
 - A collision-aware page of one `element_type`
-- Some returned lines can include type or affordance hints, for example `A1H(scrollable, swipable)`
+- Some returned lines can include type or affordance hints, for example `A1H(scrollable, swipable)` or `A1H(clickable, draggable)`
 
 ## Element IDs
 
@@ -39,11 +39,13 @@ Build or extend the interactive-element inventory for the current page state.
 { "element_type": "scrollable" }     // Scroll containers
 { "element_type": "hoverable" }      // Hover targets
 { "element_type": "selectable" }     // Native <select> elements
+{ "element_type": "draggable" }      // Drag sources (cards, handles, sliders)
+{ "element_type": "droppable" }      // Drop targets (columns, zones, tracks)
 { "keywords": ["Continue with Email"] } // Exact observed readable text only
 ```
 
 **Parameters**:
-- `element_type`: Single type to highlight - `"any"` (default), `"scrollable"`, `"inputable"`, `"hoverable"`, or `"selectable"`
+- `element_type`: Single type to highlight - `"any"` (default), `"scrollable"`, `"inputable"`, `"hoverable"`, `"selectable"`, `"draggable"`, or `"droppable"`
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
 - `keywords`: Exact literal text already visible on the target itself in the current screenshot or current highlight HTML. Use this only to accelerate a known text match, not to guess controls. When provided, all matching elements are returned without pagination.
 
@@ -67,6 +69,9 @@ Build or extend the interactive-element inventory for the current page state.
 - If a control itself visibly shows an icon plus `52`, the only literal keyword is `52`, not guessed icon words like `star`, `favorite`, or `bookmark`.
 - If a returned element is marked `swipable`, prefer `swipe` for carousel or gallery movement.
 - If a returned element is marked `scrollable`, prefer `scroll` on that region when your goal is to reveal more content inside it.
+- If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`. To find valid drop targets, use `element_type: "droppable"`.
+- If a returned element is marked `slidable`, use `set_slider` — do not click or drag the slider thumb manually. This applies to video progress bars, volume controls, range inputs, etc.
+- For drag-and-drop tasks (kanban boards, reorderable lists): first identify drag sources (`draggable` hint in `any` or `element_type: "draggable"`), then find drop targets (`element_type: "droppable"`), then use `drag_and_drop` with `element_id` (source) and `target_element_id` (drop zone).
 - For text-entry targets, if `any` was not enough you may narrow to `inputable`. Once you pick an input target, always `click` it first and complete that confirmation before `keyboard_input`.
 - If a later action says the document changed, the target identity changed, or the cached element is stale, stop using the old IDs and rebuild with `highlight`.
 

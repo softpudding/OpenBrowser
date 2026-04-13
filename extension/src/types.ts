@@ -207,6 +207,34 @@ export interface SelectElementCommand extends BaseCommand {
   tab_id?: number;
 }
 
+export interface DragAndDropElementCommand extends BaseCommand {
+  type: 'drag_and_drop_element';
+  /** Source element ID from highlight response (short opaque string) */
+  element_id: string;
+  /** Optional target element ID. Mutually exclusive with offset_x/offset_y. */
+  target_element_id?: string;
+  /** Where to place relative to target: 'before' (above/left) or 'after' (below/right). Only with target_element_id. */
+  position?: 'before' | 'after';
+  /** Horizontal pixel offset from source center (positive = right) */
+  offset_x?: number;
+  /** Vertical pixel offset from source center (positive = down) */
+  offset_y?: number;
+  /** Number of intermediate mousemove steps (2-40) */
+  steps?: number;
+  /** Target tab ID (optional - auto-resolved if not provided) */
+  tab_id?: number;
+}
+
+export interface SetSliderValueCommand extends BaseCommand {
+  type: 'set_slider_value';
+  /** Element ID of the <input type=range> */
+  element_id: string;
+  /** Numeric value or percentage string like '75%' */
+  value: number | string;
+  /** Target tab ID (optional - auto-resolved if not provided) */
+  tab_id?: number;
+}
+
 export interface GetElementHtmlCommand extends BaseCommand {
   type: 'get_element_html';
   element_id: string;
@@ -218,6 +246,15 @@ export interface HighlightSingleElementCommand extends BaseCommand {
   element_id: string;
   intended_action?: 'click' | 'keyboard_input' | 'select';
   tab_id?: number; // Optional: uses active tab if not provided
+}
+
+export interface HighlightDropPreviewCommand extends BaseCommand {
+  type: 'highlight_drop_preview';
+  /** Source element ID (the element being dragged) */
+  source_element_id: string;
+  /** Target container element ID (the drop zone) */
+  target_element_id: string;
+  tab_id?: number;
 }
 
 export interface RecordingControlCommand extends BaseCommand {
@@ -264,8 +301,11 @@ export type Command =
   | SwipeElementCommand
   | KeyboardInputCommand
   | SelectElementCommand
+  | DragAndDropElementCommand
+  | SetSliderValueCommand
   | GetElementHtmlCommand
   | HighlightSingleElementCommand
+  | HighlightDropPreviewCommand
   | RecordingControlCommand;
 
 export interface CommandResponse {
@@ -314,9 +354,15 @@ export type ElementType =
   | 'inputable'
   | 'hoverable'
   | 'selectable'
+  | 'draggable'
+  | 'droppable'
   | 'any';
 
-export type InteractionHint = 'swipable';
+export type InteractionHint =
+  | 'swipable'
+  | 'draggable'
+  | 'droppable'
+  | 'slidable';
 
 export interface InteractiveElement {
   id: string; // Element ID: short opaque visual-safe string for the current highlighted document (e.g. "A1H", "Q7M", "X4Y")

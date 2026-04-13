@@ -39,15 +39,18 @@ class ElementInteractionAction(OpenBrowserAction):
         "swipe",
         "keyboard_input",
         "select",
+        "drag_and_drop",
+        "set_slider",
         "confirm_click",
         "confirm_keyboard_input",
         "confirm_select",
+        "confirm_drag_and_drop",
     ] = Field(
-        description="Element interaction action (click, keyboard_input, and select require confirm_* follow-up; confirm_* executes the current pending confirmation; hover/scroll/swipe execute directly)"
+        description="Element interaction action (click, keyboard_input, select, and drag_and_drop require confirm_* follow-up; confirm_* executes the current pending confirmation; hover/scroll/swipe/set_slider execute directly)"
     )
     element_id: Optional[str] = Field(
         default=None,
-        description="Element ID (short opaque string) from highlight. Required for click, hover, element scroll/swipe, keyboard_input, and select. Ignored for confirm_* actions.",
+        description="Element ID (short opaque string) from highlight. Required for click, hover, element scroll/swipe, keyboard_input, select, drag_and_drop (source), and set_slider. Ignored for confirm_* actions.",
     )
     direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",
@@ -79,9 +82,40 @@ class ElementInteractionAction(OpenBrowserAction):
         default=None,
         description="Text to input for keyboard_input actions",
     )
-    value: Optional[Union[str, List[str]]] = Field(
+    value: Optional[Union[str, List[str], float]] = Field(
         default=None,
-        description="Option value(s) to select for select actions (string or list for multi-select)",
+        description=(
+            "For `select`: option value(s) as string or list. "
+            "For `set_slider`: target value as a number inside [min, max] or a "
+            "percentage string like '75%' interpreted between min and max."
+        ),
+    )
+    target_element_id: Optional[str] = Field(
+        default=None,
+        description=("Drop target container element ID for `drag_and_drop`. Required."),
+    )
+    relative_to: Optional[str] = Field(
+        default=None,
+        description=(
+            "Inner element ID for precise drop placement in `confirm_drag_and_drop`. "
+            "This ID comes from the drop preview's inner element list. "
+            "Omit to drop at the end of the container."
+        ),
+    )
+    position: Optional[str] = Field(
+        default=None,
+        description=(
+            "Where to place the dragged element relative to `relative_to`: "
+            "'before' (above/left) or 'after' (below/right). "
+            "Only used with `confirm_drag_and_drop` when `relative_to` is set. "
+            "Defaults to 'before'."
+        ),
+    )
+    steps: Optional[int] = Field(
+        default=10,
+        ge=2,
+        le=40,
+        description="Number of intermediate mousemove steps for drag_and_drop (2-40).",
     )
     tab_id: Optional[int] = Field(
         default=None,

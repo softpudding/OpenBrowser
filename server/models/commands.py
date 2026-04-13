@@ -428,6 +428,65 @@ class GetElementHtmlCommand(BaseCommand):
     )
 
 
+class DragAndDropElementCommand(BaseCommand):
+    """Drag a source element to either a target element or a relative pixel offset.
+
+    Exactly one of `target_element_id` or (`offset_x`, `offset_y`) must be provided.
+    tab_id is optional and will be auto-resolved to the current managed tab if not provided.
+    """
+
+    type: Literal["drag_and_drop_element"] = "drag_and_drop_element"
+    element_id: str = Field(description="Source element ID from highlight response")
+    target_element_id: Optional[str] = Field(
+        default=None,
+        description="Target element ID to drop onto. Mutually exclusive with offset_x/offset_y.",
+    )
+    position: Optional[str] = Field(
+        default=None,
+        description="Where to place relative to target: 'before' or 'after'. Only with target_element_id.",
+    )
+    offset_x: Optional[float] = Field(
+        default=None,
+        description="Horizontal pixel offset (positive = right) from the source center. Use with offset_y instead of target_element_id.",
+    )
+    offset_y: Optional[float] = Field(
+        default=None,
+        description="Vertical pixel offset (positive = down) from the source center. Use with offset_x instead of target_element_id.",
+    )
+    steps: int = Field(
+        default=10,
+        ge=2,
+        le=40,
+        description="Number of intermediate mousemove steps between source and target (2-40). More steps help DnD libraries register the gesture.",
+    )
+    tab_id: Optional[int] = Field(
+        default=None,
+        description="Target tab ID (optional, auto-resolved if not provided)",
+    )
+
+
+class SetSliderValueCommand(BaseCommand):
+    """Set the value of a native <input type=range> slider directly.
+
+    Bypasses pixel-precision dragging by writing the element's value and dispatching
+    `input` and `change` events. For non-native (custom) sliders, use drag_and_drop_element.
+    """
+
+    type: Literal["set_slider_value"] = "set_slider_value"
+    element_id: str = Field(description="Element ID of the <input type=range>")
+    value: Union[float, str] = Field(
+        description=(
+            "Target value. Either an absolute numeric value within the slider's "
+            "[min, max] range, or a string like '50%' interpreted as a percentage "
+            "between min and max."
+        )
+    )
+    tab_id: Optional[int] = Field(
+        default=None,
+        description="Target tab ID (optional, auto-resolved if not provided)",
+    )
+
+
 class HighlightSingleElementCommand(BaseCommand):
     """Highlight a single element with visual confirmation for 2PC flow"""
 
@@ -436,6 +495,27 @@ class HighlightSingleElementCommand(BaseCommand):
     intended_action: Optional[Literal["click", "keyboard_input", "select"]] = Field(
         default=None,
         description="Optional action name to render in the confirmation reminder banner",
+    )
+    tab_id: Optional[int] = Field(
+        default=None,
+        description="Target tab ID (optional, uses active tab if not provided)",
+    )
+
+
+class HighlightDropPreviewCommand(BaseCommand):
+    """Highlight inner elements of a drop container for drag-and-drop 2PC flow.
+
+    Sent when drag_and_drop targets a container element. The extension crops
+    the screenshot to the container and highlights its inner draggable children
+    so the agent can choose a precise drop position.
+    """
+
+    type: Literal["highlight_drop_preview"] = "highlight_drop_preview"
+    source_element_id: str = Field(
+        description="Source element ID (the element being dragged)"
+    )
+    target_element_id: str = Field(
+        description="Target container element ID (the drop zone)"
     )
     tab_id: Optional[int] = Field(
         default=None,
@@ -509,7 +589,10 @@ Command = Union[
     KeyboardInputCommand,
     SelectElementCommand,
     GetElementHtmlCommand | HighlightSingleElementCommand,
+    HighlightDropPreviewCommand,
     RecordingControlCommand,
+    DragAndDropElementCommand,
+    SetSliderValueCommand,
 ]
 
 
@@ -543,7 +626,10 @@ def parse_command(data: dict) -> Command:
         "select_element": SelectElementCommand,
         "get_element_html": GetElementHtmlCommand,
         "highlight_single_element": HighlightSingleElementCommand,
+        "highlight_drop_preview": HighlightDropPreviewCommand,
         "recording_control": RecordingControlCommand,
+        "drag_and_drop_element": DragAndDropElementCommand,
+        "set_slider_value": SetSliderValueCommand,
     }
 
     if cmd_type not in command_map:
