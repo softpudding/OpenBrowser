@@ -2916,9 +2916,12 @@ tabManager.addTabClosedListener((conversationId: string, tabId: number) => {
   cleanupTabState(conversationId, tabId);
 });
 
-// In dev builds, connect to Vite reload server for automatic extension reloading
+// In dev builds, connect to Vite reload server for automatic extension reloading.
+// Static import avoids Vite's __vitePreload polyfill (which references `document`
+// and breaks in MV3 service workers). The function is only called when __DEV__.
+import { initDevReload } from './dev-reload';
 if (__DEV__) {
-  import('./dev-reload').then(({ initDevReload }) => initDevReload());
+  initDevReload();
 }
 
 console.log('✅ OpenBrowser extension loaded (Strict Mode)');

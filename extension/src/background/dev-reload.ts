@@ -1,19 +1,23 @@
 /**
  * Dev-only: auto-reload the extension when Vite rebuilds.
  *
- * Connects to a tiny WebSocket server started by the Vite reload plugin
- * (ws://127.0.0.1:8767). On receiving a "reload" message, calls
+ * Connects to a tiny WebSocket server started by the `npm run dev` Vite
+ * plugin (ws://127.0.0.1:8767). On receiving a "reload" message, calls
  * chrome.runtime.reload() to pick up the new build from dist/.
  *
  * This module is only imported when __DEV__ is true, and tree-shaken
  * out of production builds.
+ *
+ * MV3 service workers are killed after ~30s of inactivity. We use both
+ * setInterval (fast reconnect while SW is alive) and chrome.alarms
+ * (wakes the SW after it has been terminated) to stay connected.
  */
 
 const RELOAD_WS_URL = 'ws://127.0.0.1:8767';
-const RECONNECT_INTERVAL = 3000;
+const RECONNECT_INTERVAL_MS = 2000;
+const KEEPALIVE_ALARM = 'dev-reload-keepalive';
 
 let ws: WebSocket | null = null;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 function connect() {
   if (ws) return;
@@ -23,10 +27,6 @@ function connect() {
 
     ws.onopen = () => {
       console.log('🔄 [DevReload] Connected to Vite reload server');
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
     };
 
     ws.onmessage = (event) => {
@@ -38,7 +38,6 @@ function connect() {
 
     ws.onclose = () => {
       ws = null;
-      scheduleReconnect();
     };
 
     ws.onerror = () => {
@@ -47,19 +46,29 @@ function connect() {
     };
   } catch {
     ws = null;
-    scheduleReconnect();
   }
-}
-
-function scheduleReconnect() {
-  if (reconnectTimer) return;
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    connect();
-  }, RECONNECT_INTERVAL);
 }
 
 export function initDevReload() {
   console.log('🔄 [DevReload] Initializing dev auto-reload (port 8767)');
+
+  // Fast reconnect while the service worker is alive
+  setInterval(() => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      connect();
+    }
+  }, RECONNECT_INTERVAL_MS);
+
+  // Alarm-based fallback: wakes the SW even after Chrome terminates it
+  chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === KEEPALIVE_ALARM) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        connect();
+      }
+    }
+  });
+
+  // Initial connection
   connect();
 }

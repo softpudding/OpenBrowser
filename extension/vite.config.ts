@@ -50,21 +50,22 @@ const copyManifestPlugin = () => ({
   },
 });
 
-// Vite plugin: starts a tiny WebSocket server on port 8767 during watch mode.
-// After each rebuild, sends "reload" to all connected clients (the extension's
-// dev-reload module), which triggers chrome.runtime.reload().
+// Vite plugin: starts a WebSocket server on port 8767 during dev builds.
+// After the build completes, waits for the extension to connect (if not
+// already connected) and sends "reload" to trigger chrome.runtime.reload().
+// Then exits the process so `npm run dev` is a one-shot build+reload.
 const devReloadPlugin = () => {
   let wss: WSSType | null = null;
   const clients = new Set<WSType>();
+  let isDev = false;
 
   return {
     name: 'dev-reload',
-    // Only activate in watch / dev mode
     buildStart() {
-      if (!process.argv.includes('--watch')) return;
-      if (wss) return; // already started
+      isDev = process.env.npm_lifecycle_event === 'dev';
+      if (!isDev) return;
+      if (wss) return;
 
-      // Dynamic import so ws is only needed in dev
       import('ws').then(({ WebSocketServer }) => {
         wss = new WebSocketServer({ port: 8767 });
         wss.on('connection', (socket) => {
@@ -73,7 +74,7 @@ const devReloadPlugin = () => {
         });
         wss.on('error', (err: NodeJS.ErrnoException) => {
           if (err.code === 'EADDRINUSE') {
-            console.warn('🔄 [DevReload] Port 8767 already in use — reload server skipped (another dev instance running?)');
+            console.warn('🔄 [DevReload] Port 8767 already in use — reload server skipped');
           } else {
             console.warn('🔄 [DevReload] WebSocket server error:', err.message);
           }
@@ -81,16 +82,44 @@ const devReloadPlugin = () => {
         });
         console.log('🔄 [DevReload] WebSocket reload server listening on ws://127.0.0.1:8767');
       }).catch(() => {
-        console.warn('🔄 [DevReload] "ws" package not installed — skipping reload server. Run: npm i -D ws @types/ws');
+        console.warn('🔄 [DevReload] "ws" package not installed — skipping. Run: npm i -D ws @types/ws');
       });
     },
     closeBundle() {
-      // After each rebuild, tell all connected extensions to reload
-      if (clients.size === 0) return;
-      console.log(`🔄 [DevReload] Build complete — notifying ${clients.size} client(s) to reload`);
-      for (const client of clients) {
-        try { client.send('reload'); } catch { /* client gone */ }
+      if (!isDev) return;
+
+      const sendReloadAndExit = () => {
+        if (clients.size > 0) {
+          console.log(`🔄 [DevReload] Sending reload to ${clients.size} client(s)...`);
+          for (const client of clients) {
+            try { client.send('reload'); } catch { /* client gone */ }
+          }
+          // Give the message time to flush, then exit
+          setTimeout(() => process.exit(0), 300);
+        }
+      };
+
+      // If extension is already connected, reload immediately
+      if (clients.size > 0) {
+        sendReloadAndExit();
+        return;
       }
+
+      // Otherwise wait for the extension to connect (up to 10s)
+      console.log('🔄 [DevReload] Build complete — waiting for extension to connect...');
+      const timeout = setTimeout(() => {
+        console.warn('🔄 [DevReload] No extension connected within 10s. Reload the extension manually once, then future `npm run dev` runs will auto-reload.');
+        process.exit(0);
+      }, 10_000);
+
+      // Check periodically if a client has connected
+      const poll = setInterval(() => {
+        if (clients.size > 0) {
+          clearTimeout(timeout);
+          clearInterval(poll);
+          sendReloadAndExit();
+        }
+      }, 200);
     },
   };
 };
@@ -108,6 +137,9 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [copyManifestPlugin(), devReloadPlugin()],
     build: {
+      // Disable modulepreload polyfill — it injects __vitePreload which
+      // references `document`, breaking dynamic imports in MV3 service workers.
+      modulePreload: { polyfill: false },
       outDir: 'dist',
       rollupOptions: {
         input: {
