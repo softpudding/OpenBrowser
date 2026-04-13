@@ -1992,6 +1992,15 @@ function shouldDropCandidate(candidate, kept) {
   return false;
 }
 
+const MAX_OUTER_HTML = 2000;
+
+function truncateOuterHTML(element) {
+  if (!element.outerHTML) return undefined;
+  const raw = element.outerHTML.trim();
+  if (raw.length <= MAX_OUTER_HTML) return raw;
+  return raw.substring(0, MAX_OUTER_HTML) + '<!-- truncated -->';
+}
+
 function toInteractiveElement(candidate) {
   const interactionHints = getInteractionHints(candidate.element);
   const displayType =
@@ -2009,9 +2018,7 @@ function toInteractiveElement(candidate) {
     ...(interactionHints.length > 0 ? { interactionHints } : {}),
     tagName: candidate.element.tagName.toLowerCase(),
     selector: generateSelector(candidate.element),
-    html: candidate.element.outerHTML
-      ? candidate.element.outerHTML.trim()
-      : undefined,
+    html: truncateOuterHTML(candidate.element),
     text,
     searchText: getElementSearchText(candidate.element),
     fingerprint: getElementFingerprint(candidate.element),
@@ -2020,6 +2027,59 @@ function toInteractiveElement(candidate) {
     isInViewport: true,
   };
 }
+
+function toInteractiveElementLite(candidate, stashIndex) {
+  const interactionHints = getInteractionHints(candidate.element);
+  const displayType =
+    candidate.type === 'clickable' &&
+    !isSemanticControlElement(candidate.element) &&
+    (interactionHints.includes('swipable') ||
+      isScrollableCandidate(candidate.element))
+      ? 'scrollable'
+      : candidate.type;
+  const text = getElementTextForDetection(candidate.element);
+
+  return {
+    id: '',
+    type: displayType,
+    ...(interactionHints.length > 0 ? { interactionHints } : {}),
+    tagName: candidate.element.tagName.toLowerCase(),
+    selector: '',
+    text,
+    searchText: getElementSearchText(candidate.element),
+    fingerprint: getElementFingerprint(candidate.element),
+    bbox: getElementRect(candidate.element),
+    isVisible: true,
+    isInViewport: true,
+    _stashIndex: stashIndex,
+  };
+}
+
+function enrichStashedElement(stashedCandidate, idx) {
+  const el = stashedCandidate.element;
+  if (!el || !el.isConnected) {
+    return { _stashIndex: idx, selector: '', html: undefined };
+  }
+  return {
+    _stashIndex: idx,
+    selector: generateSelector(el),
+    html: truncateOuterHTML(el),
+  };
+}
+
+window.__obStashedCandidates = null;
+window.__obEnrichElements = function(indices, expectedDocumentId) {
+  if (expectedDocumentId && window.__obDetectedDocumentId !== expectedDocumentId) {
+    return [];
+  }
+  const stashed = window.__obStashedCandidates;
+  if (!stashed) return [];
+  return indices.map(function(idx) {
+    const candidate = stashed[idx];
+    if (!candidate) return { _stashIndex: idx, selector: '', html: undefined };
+    return enrichStashedElement(candidate, idx);
+  });
+};
 
 function countVisibleClickableCandidates(metricsStartTime) {
   const clickableCandidates = document.querySelectorAll(
@@ -2472,8 +2532,11 @@ function collectHighlightCandidates(config, trace, layoutStability) {
     droppable: 0,
   };
 
-  const elements = prunedCandidates.map((candidate) => {
-    const element = toInteractiveElement(candidate);
+  // T1-A: Stash candidate elements for deferred enrichment and use lite conversion
+  window.__obStashedCandidates = prunedCandidates;
+
+  const elements = prunedCandidates.map((candidate, index) => {
+    const element = toInteractiveElementLite(candidate, index);
     counts[element.type] += 1;
     return element;
   });
@@ -2504,12 +2567,16 @@ async function runOpenBrowserHighlightDetection(config) {
     layoutStability,
   );
 
+  // T1-A: Store documentId for enrichment stale-detection guard
+  const docId = getCurrentDocumentId();
+  window.__obDetectedDocumentId = docId;
+
   trace('return', `elements=${elements.length}`);
   return {
     elements,
     counts,
     layoutStability,
-    documentId: getCurrentDocumentId(),
+    documentId: docId,
     viewport: {
       width: window.innerWidth,
       height: window.innerHeight,

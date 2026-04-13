@@ -65,6 +65,24 @@ export function getHighlightKeywordHaystack(
     .replace(/\s+/g, '');
 }
 
+/**
+ * Build a script that enriches stashed lite elements with selector and html.
+ * Called after pagination to only enrich the visible-page elements.
+ */
+export function buildHighlightEnrichmentScript(
+  stashIndices: number[],
+  documentId?: string,
+): string {
+  return `
+    (() => {
+      if (typeof window.__obEnrichElements === 'function') {
+        return window.__obEnrichElements(${JSON.stringify(stashIndices)}, ${JSON.stringify(documentId ?? null)});
+      }
+      return [];
+    })();
+  `;
+}
+
 export function filterHighlightElementsByKeywords(
   elements: InteractiveElement[],
   keywords?: readonly string[],

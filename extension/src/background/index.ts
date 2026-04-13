@@ -29,6 +29,7 @@ import { assignHashedElementIds } from '../commands/element-id';
 import { buildElementCacheMissMessage } from '../commands/element-cache';
 import {
   buildHighlightDetectionScript,
+  buildHighlightEnrichmentScript,
   filterHighlightElementsByKeywords,
 } from '../commands/highlight-detection';
 import {
@@ -180,8 +181,9 @@ function buildStoredHighlightPages(options: {
   viewportWidth: number;
   viewportHeight: number;
   keywordMode: boolean;
+  page?: number;
 }): InteractiveElement[][] {
-  const { filteredElements, viewportWidth, viewportHeight, keywordMode } =
+  const { filteredElements, viewportWidth, viewportHeight, keywordMode, page } =
     options;
 
   if (keywordMode) {
@@ -192,6 +194,7 @@ function buildStoredHighlightPages(options: {
     filteredElements,
     viewportWidth,
     viewportHeight,
+    page,
   );
   return collisionFreePages.map((collisionFreePage) =>
     sortElementsByVisualOrder(collisionFreePage),
@@ -414,9 +417,13 @@ async function captureHighlightedPageState(
         viewportWidth: detectedViewportWidth,
         viewportHeight: detectedViewportHeight,
         keywordMode: false,
+        page,
       });
       paginatedElements = storedPages[Math.max(0, page - 1)] ?? [];
-      totalPages = storedPages.length;
+      // T1-B: Estimate total pages from first page size instead of computing all
+      const firstPageSize = storedPages[0]?.length || 1;
+      const estimatedTotalPages = Math.ceil(filteredElements.length / firstPageSize);
+      totalPages = Math.max(storedPages.length, estimatedTotalPages);
       console.log(
         `📄 [${logLabel}] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`,
       );
@@ -424,6 +431,47 @@ async function captureHighlightedPageState(
         `⏱️ [HighlightTrace] background pagination build-pages=${Date.now() - paginationBuildStart}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
       );
     }
+
+    // T1-A: Enrich only the visible-page elements with selector + html
+    const enrichStart = Date.now();
+    const stashIndices = paginatedElements
+      .map((el: any) => el._stashIndex)
+      .filter((idx: any) => typeof idx === 'number');
+    if (stashIndices.length > 0) {
+      const enrichScript = buildHighlightEnrichmentScript(stashIndices, detectedDocumentId);
+      const enrichResult = await javascript.executeJavaScript(
+        tabId,
+        conversationId,
+        enrichScript,
+        true,
+        false,
+        5000,
+        true,
+      );
+      if (enrichResult.success && Array.isArray(enrichResult.result?.value)) {
+        const enriched = enrichResult.result.value;
+        const enrichMap = new Map<number, { selector: string; html?: string }>();
+        for (const item of enriched) {
+          if (typeof item._stashIndex === 'number') {
+            enrichMap.set(item._stashIndex, item);
+          }
+        }
+        paginatedElements = paginatedElements.map((el: any) => {
+          const data = enrichMap.get(el._stashIndex);
+          if (data) {
+            return { ...el, selector: data.selector, html: data.html };
+          }
+          return el;
+        });
+        // Also update the stored pages entry so cache and downstream use enriched data
+        if (storedPages[currentPage - 1]) {
+          storedPages[currentPage - 1] = paginatedElements;
+        }
+      }
+    }
+    console.log(
+      `⏱️ [HighlightTrace] background enrichment ${Date.now() - enrichStart}ms (indices=${stashIndices.length})`,
+    );
 
     const screenshotStart = Date.now();
     const screenshotResult = await captureScreenshot(
@@ -528,8 +576,8 @@ async function captureHighlightedPageState(
       keywords: keywordList,
       totalElements: filteredElements.length,
       totalPages,
-      pages: storedPages,
-      page: currentPage,
+      pages: [paginatedElements], // T1-A: Only cache the enriched current page
+      page: 1,
     });
     console.log(
       `⏱️ [HighlightTrace] background cache-store ${Date.now() - cacheStoreStart}ms (page=${storedPage.page}, count=${displayOrderedElements.length})`,

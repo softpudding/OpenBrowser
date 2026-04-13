@@ -112,6 +112,11 @@ export function normalizeVisualElementIdInput(value: string): string {
 }
 
 export function buildElementIdentityKey(element: InteractiveElement): string {
+  const fp = element.fingerprint;
+  if (fp) {
+    const b = element.bbox;
+    return `${fp}\u0000${b.x},${b.y},${b.width},${b.height}`;
+  }
   return `${element.selector}\u0000${element.html ?? ''}`;
 }
 
@@ -141,8 +146,9 @@ export function assignHashedElementIds(
     });
 
   for (const { element, index } of elementsByStableKey) {
+    const hashInput = element.fingerprint || element.selector;
     const { hash } = generateUniqueHash(
-      element.selector,
+      hashInput,
       existingHashes,
       element.html,
     );
