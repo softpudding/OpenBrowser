@@ -161,6 +161,38 @@ function isElementInViewportForDetection(el) {
   );
 }
 
+// Check whether an element is visible within all ancestor scroll containers.
+// Elements inside overflow:auto/scroll parents that are scrolled out of view
+// should not be highlighted — the agent should scroll to discover them.
+function isElementVisibleInScrollParent(el) {
+  const elRect = el.getBoundingClientRect();
+  let parent = el.parentElement;
+  while (parent && parent !== document.body && parent !== document.documentElement) {
+    const style = window.getComputedStyle(parent);
+    const overflowY = style.overflowY;
+    const overflowX = style.overflowX;
+    const hasScrollY = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden';
+    const hasScrollX = overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden';
+    if (hasScrollY || hasScrollX) {
+      const parentRect = parent.getBoundingClientRect();
+      // Allow a small tolerance (2px) for border/padding edge cases
+      const tolerance = 2;
+      if (hasScrollY) {
+        if (elRect.bottom <= parentRect.top + tolerance || elRect.top >= parentRect.bottom - tolerance) {
+          return false;
+        }
+      }
+      if (hasScrollX) {
+        if (elRect.right <= parentRect.left + tolerance || elRect.left >= parentRect.right - tolerance) {
+          return false;
+        }
+      }
+    }
+    parent = parent.parentElement;
+  }
+  return true;
+}
+
 function getDomDepth(el) {
   let depth = 0;
   let current = el;
@@ -2188,6 +2220,10 @@ function countViewportPlaceholderSignals(metricsStartTime) {
       continue;
     }
 
+    if (!isElementVisibleInScrollParent(element)) {
+      continue;
+    }
+
     const rect = element.getBoundingClientRect();
     const clampedWidth = Math.min(window.innerWidth, Math.max(0, rect.width));
     const clampedHeight = Math.min(
@@ -2344,6 +2380,10 @@ function collectHighlightCandidates(config, trace, layoutStability) {
     }
 
     if (!isElementInViewportForDetection(element)) {
+      continue;
+    }
+
+    if (!isElementVisibleInScrollParent(element)) {
       continue;
     }
 

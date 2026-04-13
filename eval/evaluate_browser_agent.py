@@ -54,6 +54,12 @@ OPENBROWSER_PORT = 8765
 SSE_CONNECT_TIMEOUT = 30
 SSE_READ_TIMEOUT = int(os.environ.get("OPENBROWSER_SSE_READ_TIMEOUT", "600"))
 
+# API-stall detection & retry.  After a test times out, we scan its SSE
+# events for observation→action gaps exceeding this threshold.  If found,
+# the test is re-queued (up to API_STALL_MAX_RETRIES times).
+API_STALL_THRESHOLD = float(os.environ.get("OPENBROWSER_API_STALL_THRESHOLD", "60"))
+API_STALL_MAX_RETRIES = int(os.environ.get("OPENBROWSER_API_STALL_MAX_RETRIES", "3"))
+
 # Paths
 EVAL_DIR = Path(__file__).parent
 DATASET_DIR = EVAL_DIR / "dataset"
@@ -65,6 +71,57 @@ OUTPUT_BASE_DIR.mkdir(exist_ok=True)
 DATASET_DIR.mkdir(exist_ok=True)
 LOCK_DIR.mkdir(exist_ok=True)
 DEFAULT_SESSION_DB_PATH = Path.home() / ".openbrowser" / "sessions.db"
+
+
+def detect_api_stalls(
+    sse_events: List[Dict[str, Any]],
+    threshold: float = API_STALL_THRESHOLD,
+) -> List[float]:
+    """Scan SSE events for observation→action gaps that exceed *threshold*.
+
+    Returns a list of gap durations (seconds) where the model API took
+    unreasonably long to respond.  An empty list means no stalls detected.
+
+    Also detects the "trailing stall" case: the test timed out while
+    waiting for an API response after the last observation, so no
+    completed pair exists.  We approximate this by checking if the last
+    event is an ObservationEvent and the gap to the final timestamp in
+    the stream exceeds the threshold.
+    """
+    # Build ordered list of (timestamp, kind) for action/observation events.
+    pairs: list[tuple[float, str]] = []
+    last_ts_overall: float = 0.0
+    for ev in sse_events:
+        ts = ev.get("timestamp")
+        if ts:
+            last_ts_overall = max(last_ts_overall, float(ts))
+        data = ev.get("data")
+        if not isinstance(data, dict):
+            continue
+        ev_type = data.get("type", "")
+        if not ts or ev_type not in ("ActionEvent", "ObservationEvent"):
+            continue
+        pairs.append((float(ts), ev_type))
+
+    pairs.sort(key=lambda p: p[0])
+
+    stalls: list[float] = []
+    for i in range(1, len(pairs)):
+        prev_ts, prev_kind = pairs[i - 1]
+        curr_ts, curr_kind = pairs[i]
+        if prev_kind == "ObservationEvent" and curr_kind == "ActionEvent":
+            gap = curr_ts - prev_ts
+            if gap >= threshold:
+                stalls.append(gap)
+
+    # Trailing stall: last event is an observation and a long time passed
+    # before the stream ended (test was killed waiting for model response).
+    if pairs and pairs[-1][1] == "ObservationEvent" and last_ts_overall:
+        trailing_gap = last_ts_overall - pairs[-1][0]
+        if trailing_gap >= threshold:
+            stalls.append(trailing_gap)
+
+    return stalls
 
 
 @dataclass
@@ -2125,6 +2182,8 @@ class Evaluator:
         busy_sites: set[str] = set()
         in_flight: Dict[Any, ScheduledJob] = {}
         target_order = list(range(len(targets)))
+        # Track retries per (target_index, test_index) for API-stall detection.
+        retry_counts: Dict[Tuple[int, int], int] = {}
 
         with ThreadPoolExecutor(max_workers=max_parallel) as executor:
             while True:
@@ -2168,6 +2227,10 @@ class Evaluator:
                         scheduled_job.site_bucket,
                     )
 
+                # Re-check pending after processing completions (retries
+                # may have re-queued jobs).
+                pending_jobs = any(jobs for jobs in jobs_by_target.values())
+
                 if not in_flight and not pending_jobs:
                     break
 
@@ -2184,16 +2247,63 @@ class Evaluator:
                     busy_sites.discard(job.site_bucket)
 
                     result = future.result()
-                    results_by_target[job.target_index][job.test_index] = result
 
                     status = "PASSED" if result.passed else "FAILED"
+
+                    # --- API-stall retry logic ---
+                    # If the test timed out, check whether Dashscope API
+                    # stalls (observation→action gaps > threshold) caused it.
+                    # If so, re-queue for another attempt.
+                    job_key = (job.target_index, job.test_index)
+                    retries_so_far = retry_counts.get(job_key, 0)
+                    should_retry = False
+
+                    timed_out = (
+                        result.duration is not None
+                        and result.duration >= job.test_case.time_limit
+                    )
+                    if (
+                        timed_out
+                        and retries_so_far < API_STALL_MAX_RETRIES
+                    ):
+                        stalls = detect_api_stalls(
+                            result.sse_events,
+                            threshold=API_STALL_THRESHOLD,
+                        )
+                        if stalls:
+                            should_retry = True
+                            retry_counts[job_key] = retries_so_far + 1
+                            stall_summary = ", ".join(
+                                f"{s:.0f}s" for s in sorted(stalls, reverse=True)[:3]
+                            )
+                            logger.info(
+                                "API stall detected in '%s' for '%s' "
+                                "(stalls: %s). Retry %d/%d.",
+                                job.test_case.name,
+                                job.model_key,
+                                stall_summary,
+                                retries_so_far + 1,
+                                API_STALL_MAX_RETRIES,
+                            )
+                            # Re-queue at the front of the target's pending
+                            # list so it runs again soon.
+                            jobs_by_target[job.target_index].insert(0, job)
+
+                    if not should_retry:
+                        results_by_target[job.target_index][job.test_index] = result
+
                     logger.info(
-                        "Completed test '%s' for model '%s': %s %.1f/%.1f",
+                        "Completed test '%s' for model '%s': %s %.1f/%.1f%s",
                         job.test_case.name,
                         job.model_key,
                         status,
                         result.score,
                         result.max_score,
+                        (
+                            f" [retrying due to API stall, attempt {retries_so_far + 1}]"
+                            if should_retry
+                            else ""
+                        ),
                     )
 
         return {

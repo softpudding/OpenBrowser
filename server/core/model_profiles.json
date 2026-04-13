@@ -3,7 +3,8 @@
   "profiles": {
     "large": {
       "models": [
-        "dashscope/qwen3.5-plus"
+        "dashscope/qwen3.5-plus",
+        "dashscope/qwen3.6-plus"
       ]
     },
     "small": {
