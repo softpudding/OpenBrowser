@@ -2262,10 +2262,7 @@ class Evaluator:
                         result.duration is not None
                         and result.duration >= job.test_case.time_limit
                     )
-                    if (
-                        timed_out
-                        and retries_so_far < API_STALL_MAX_RETRIES
-                    ):
+                    if timed_out and retries_so_far < API_STALL_MAX_RETRIES:
                         stalls = detect_api_stalls(
                             result.sse_events,
                             threshold=API_STALL_THRESHOLD,

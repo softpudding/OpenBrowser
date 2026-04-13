@@ -140,7 +140,8 @@ function isElementVisibleForDetection(el) {
   // (e.g. video player control bars that use opacity:0 → opacity:1 on hover).
   let ancestor = el.parentElement;
   for (let i = 0; i < 5 && ancestor; i++) {
-    if (ancestor === document.body || ancestor === document.documentElement) break;
+    if (ancestor === document.body || ancestor === document.documentElement)
+      break;
     if (window.getComputedStyle(ancestor).opacity === '0') return false;
     ancestor = ancestor.parentElement;
   }
@@ -167,23 +168,35 @@ function isElementInViewportForDetection(el) {
 function isElementVisibleInScrollParent(el) {
   const elRect = el.getBoundingClientRect();
   let parent = el.parentElement;
-  while (parent && parent !== document.body && parent !== document.documentElement) {
+  while (
+    parent &&
+    parent !== document.body &&
+    parent !== document.documentElement
+  ) {
     const style = window.getComputedStyle(parent);
     const overflowY = style.overflowY;
     const overflowX = style.overflowX;
-    const hasScrollY = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden';
-    const hasScrollX = overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden';
+    const hasScrollY =
+      overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden';
+    const hasScrollX =
+      overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden';
     if (hasScrollY || hasScrollX) {
       const parentRect = parent.getBoundingClientRect();
       // Allow a small tolerance (2px) for border/padding edge cases
       const tolerance = 2;
       if (hasScrollY) {
-        if (elRect.bottom <= parentRect.top + tolerance || elRect.top >= parentRect.bottom - tolerance) {
+        if (
+          elRect.bottom <= parentRect.top + tolerance ||
+          elRect.top >= parentRect.bottom - tolerance
+        ) {
           return false;
         }
       }
       if (hasScrollX) {
-        if (elRect.right <= parentRect.left + tolerance || elRect.left >= parentRect.right - tolerance) {
+        if (
+          elRect.right <= parentRect.left + tolerance ||
+          elRect.left >= parentRect.right - tolerance
+        ) {
           return false;
         }
       }
@@ -1110,7 +1123,8 @@ function isHoverableCandidate(el) {
 /** Per-scan cache so Tier 4 droppable inference doesn't re-evaluate. */
 const _draggableCache = new WeakMap();
 
-const DROP_TOKEN_REGEX = /\b(drop|zone|target|column|lane|bucket|list|board)\b/i;
+const DROP_TOKEN_REGEX =
+  /\b(drop|zone|target|column|lane|bucket|list|board)\b/i;
 
 function isDraggableCandidate(el) {
   if (_draggableCache.has(el)) {
@@ -1148,7 +1162,11 @@ function _isDraggableCandidateCore(el) {
 
   // Tier 2 — Library container children
   let parent = el.parentElement;
-  for (let depth = 0; parent && depth < 2; depth += 1, parent = parent.parentElement) {
+  for (
+    let depth = 0;
+    parent && depth < 2;
+    depth += 1, parent = parent.parentElement
+  ) {
     if (parent instanceof HTMLElement) {
       const parentClasses = Array.from(parent.classList).join(' ');
       if (/\bsortable\b/i.test(parentClasses) && parent.contains(el)) {
@@ -1173,7 +1191,8 @@ function _isDraggableCandidateCore(el) {
   }
   if (el instanceof HTMLElement) {
     const computedCursor = window.getComputedStyle(el).cursor;
-    const hasGrabCursor = computedCursor === 'grab' || computedCursor === 'move';
+    const hasGrabCursor =
+      computedCursor === 'grab' || computedCursor === 'move';
     if (hasGrabCursor) {
       return true;
     }
@@ -1277,8 +1296,10 @@ function isDroppableCandidate(el) {
  *     - cursor: pointer AND class/id contains slider-related tokens
  *       AND has a child whose class suggests a track/fill/thumb structure
  */
-const SLIDER_TOKEN_REGEX = /\b(progress|slider|seek|scrub|range|timeline|playback)\b/i;
-const SLIDER_CHILD_TOKEN_REGEX = /\b(track|played|filled|fill|thumb|scrubber|bar|handle|knob|indicator)\b/i;
+const SLIDER_TOKEN_REGEX =
+  /\b(progress|slider|seek|scrub|range|timeline|playback)\b/i;
+const SLIDER_CHILD_TOKEN_REGEX =
+  /\b(track|played|filled|fill|thumb|scrubber|bar|handle|knob|indicator)\b/i;
 
 function isSlidableCandidate(el) {
   if (!(el instanceof HTMLElement)) {
@@ -1566,8 +1587,13 @@ function getInteractionHints(el) {
     // Check ancestors (up to 3 levels) — handles leaf elements inside slider containers
     if (!foundSlidable) {
       let ancestor = el.parentElement;
-      for (let depth = 0; ancestor && depth < 3; depth++, ancestor = ancestor.parentElement) {
-        if (ancestor === document.body || ancestor === document.documentElement) break;
+      for (
+        let depth = 0;
+        ancestor && depth < 3;
+        depth++, ancestor = ancestor.parentElement
+      ) {
+        if (ancestor === document.body || ancestor === document.documentElement)
+          break;
         if (isSlidableCandidate(ancestor)) {
           foundSlidable = true;
           break;
