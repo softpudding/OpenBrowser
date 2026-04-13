@@ -235,28 +235,80 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
                 parts.append(f"page={url[:120]}")
             if title:
                 parts.append(f"title={title[:80]}")
-            if tag:
-                parts.append(f"tag={tag}")
-            if text:
-                parts.append(f'text="{text}"')
-            if selector:
-                parts.append(f"sel={selector}")
-            if aria:
-                parts.append(f"aria={aria[:60]}")
-            if html:
-                # Show the opening tag + attributes so the agent can spot
-                # native controls (<select>, <input type=checkbox>, <a href>)
-                # without expanding to event_detail. Full HTML is available
-                # via the event_detail command.
-                html_peek = html[:140]
-                if len(html) > 140:
-                    html_peek += "…"
-                parts.append(f"html={html_peek}")
+
+            # For drag_and_drop events, show source and target elements
+            if event_type == "drag_and_drop":
+                source_el = event_data.get("sourceElement") or {}
+                target_el = event_data.get("targetElement") or {}
+                src_text = (source_el.get("text") or "")[:60]
+                src_sel = (source_el.get("selector") or "")[:60]
+                tgt_text = (target_el.get("text") or "")[:60]
+                tgt_sel = (target_el.get("selector") or "")[:60]
+                if src_text:
+                    parts.append(f'source="{src_text}"')
+                elif src_sel:
+                    parts.append(f"source_sel={src_sel}")
+                if tgt_text:
+                    parts.append(f'target="{tgt_text}"')
+                elif tgt_sel:
+                    parts.append(f"target_sel={tgt_sel}")
+                src_html = source_el.get("html") or ""
+                if src_html:
+                    peek = src_html[:120]
+                    if len(src_html) > 120:
+                        peek += "…"
+                    parts.append(f"source_html={peek}")
+                tgt_html = target_el.get("html") or ""
+                if tgt_html:
+                    peek = tgt_html[:120]
+                    if len(tgt_html) > 120:
+                        peek += "…"
+                    parts.append(f"target_html={peek}")
+            elif event_type == "set_slider":
+                if tag:
+                    parts.append(f"tag={tag}")
+                if text:
+                    parts.append(f'text="{text}"')
+                if selector:
+                    parts.append(f"sel={selector}")
+                slider_value = event_data.get("value")
+                if slider_value is not None:
+                    parts.append(f"value={slider_value}")
+                slider_min = event_data.get("min")
+                slider_max = event_data.get("max")
+                if slider_min is not None:
+                    parts.append(f"min={slider_min}")
+                if slider_max is not None:
+                    parts.append(f"max={slider_max}")
+                if html:
+                    html_peek = html[:140]
+                    if len(html) > 140:
+                        html_peek += "…"
+                    parts.append(f"html={html_peek}")
+            else:
+                if tag:
+                    parts.append(f"tag={tag}")
+                if text:
+                    parts.append(f'text="{text}"')
+                if selector:
+                    parts.append(f"sel={selector}")
+                if aria:
+                    parts.append(f"aria={aria[:60]}")
+                if html:
+                    # Show the opening tag + attributes so the agent can spot
+                    # native controls (<select>, <input type=checkbox>, <a href>)
+                    # without expanding to event_detail. Full HTML is available
+                    # via the event_detail command.
+                    html_peek = html[:140]
+                    if len(html) > 140:
+                        html_peek += "…"
+                    parts.append(f"html={html_peek}")
+
             if has_keyframe:
                 parts.append("[has keyframe]")
 
             value = element.get("value")
-            if isinstance(value, str) and value:
+            if isinstance(value, str) and value and event_type != "set_slider":
                 parts.append(f'value="{value[:80]}"')
 
             selected_text = element.get("selectedText")

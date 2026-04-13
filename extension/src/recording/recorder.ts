@@ -272,7 +272,7 @@ function getPreActionBindingType(
   eventType: string,
   eventData: Record<string, unknown>,
 ): RecordingPreActionType | null {
-  if (eventType === 'click') {
+  if (eventType === 'click' || eventType === 'drag_and_drop') {
     return 'click';
   }
 

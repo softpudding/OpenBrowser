@@ -1,6 +1,12 @@
 import { calculateConfirmationBannerLayout } from '../commands/single-highlight';
 
-type AnnotatableRecordingEventType = 'click' | 'focus' | 'change' | 'submit';
+type AnnotatableRecordingEventType =
+  | 'click'
+  | 'focus'
+  | 'change'
+  | 'submit'
+  | 'drag_and_drop'
+  | 'set_slider';
 
 interface RecordingEventBBox {
   x: number;
@@ -11,7 +17,7 @@ interface RecordingEventBBox {
 
 interface RecordingKeyframeAnnotationTarget {
   bbox: RecordingEventBBox;
-  intendedAction: 'click' | 'keyboard_input';
+  intendedAction: 'click' | 'keyboard_input' | 'drag_and_drop' | 'set_slider';
   message: string;
 }
 
@@ -57,7 +63,14 @@ function getEventTargetRecord(
   eventType: AnnotatableRecordingEventType,
   eventData: Record<string, unknown>,
 ): Record<string, unknown> | null {
-  const candidate = eventType === 'submit' ? eventData.form : eventData.element;
+  let candidate: unknown;
+  if (eventType === 'submit') {
+    candidate = eventData.form;
+  } else if (eventType === 'drag_and_drop') {
+    candidate = eventData.targetElement;
+  } else {
+    candidate = eventData.element;
+  }
 
   return isObjectRecord(candidate) ? candidate : null;
 }
@@ -77,6 +90,14 @@ export function getRecordingAnnotationMessage(
     return 'This is the input the user just focused.';
   }
 
+  if (eventType === 'drag_and_drop') {
+    return 'This is where the user dropped the dragged element.';
+  }
+
+  if (eventType === 'set_slider') {
+    return 'This is the slider the user adjusted.';
+  }
+
   return 'This is the element the user just typed into.';
 }
 
@@ -88,7 +109,9 @@ export function resolveRecordingKeyframeAnnotationTarget(
     eventType !== 'click' &&
     eventType !== 'focus' &&
     eventType !== 'change' &&
-    eventType !== 'submit'
+    eventType !== 'submit' &&
+    eventType !== 'drag_and_drop' &&
+    eventType !== 'set_slider'
   ) {
     return null;
   }
@@ -103,9 +126,20 @@ export function resolveRecordingKeyframeAnnotationTarget(
     return null;
   }
 
+  let intendedAction: RecordingKeyframeAnnotationTarget['intendedAction'];
+  if (eventType === 'click') {
+    intendedAction = 'click';
+  } else if (eventType === 'drag_and_drop') {
+    intendedAction = 'drag_and_drop';
+  } else if (eventType === 'set_slider') {
+    intendedAction = 'set_slider';
+  } else {
+    intendedAction = 'keyboard_input';
+  }
+
   return {
     bbox,
-    intendedAction: eventType === 'click' ? 'click' : 'keyboard_input',
+    intendedAction,
     message: getRecordingAnnotationMessage(eventType),
   };
 }

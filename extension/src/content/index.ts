@@ -19,6 +19,16 @@ let scrollTimeoutId: number | null = null;
 const CONTAINER_TEXT_MAX_LENGTH = 280;
 const ELEMENT_HTML_MAX_LENGTH = 1500;
 
+// Drag-and-drop recording state
+const DRAG_DISTANCE_THRESHOLD = 30;
+let pendingDrag: {
+  sourceElement: Element;
+  startX: number;
+  startY: number;
+} | null = null;
+let dragConfirmedByHtml5 = false;
+let suppressNextClickRecording = false;
+
 function isOpenBrowserUiPage(): boolean {
   if (
     window.location.protocol !== 'http:' &&
@@ -537,6 +547,14 @@ function findOwningForm(element: Element): HTMLFormElement | null {
   return element instanceof HTMLFormElement ? element : element.closest('form');
 }
 
+function isSliderLikeElement(el: Element): boolean {
+  if (el instanceof HTMLInputElement && el.type === 'range') {
+    return true;
+  }
+  const role = el.getAttribute('role');
+  return role === 'slider' && el.hasAttribute('aria-valuemin');
+}
+
 function installRecordingListeners(): void {
   document.addEventListener(
     'pointerdown',
@@ -553,6 +571,13 @@ function installRecordingListeners(): void {
         return;
       }
 
+      pendingDrag = {
+        sourceElement: event.target,
+        startX: pointerEvent.clientX,
+        startY: pointerEvent.clientY,
+      };
+      dragConfirmedByHtml5 = false;
+
       const form = findOwningForm(event.target);
       sendRecordingPreAction('click', {
         element: serializeElement(event.target),
@@ -564,9 +589,97 @@ function installRecordingListeners(): void {
     true,
   );
 
+  // HTML5 drag-and-drop detection
+  document.addEventListener(
+    'dragstart',
+    (event) => {
+      if (!shouldRecordTrustedEvent(event) || !pendingDrag) {
+        return;
+      }
+      dragConfirmedByHtml5 = true;
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'drop',
+    (event) => {
+      if (
+        !shouldRecordTrustedEvent(event) ||
+        !isElement(event.target) ||
+        !pendingDrag ||
+        !dragConfirmedByHtml5
+      ) {
+        return;
+      }
+
+      sendRecordingEvent('drag_and_drop', {
+        sourceElement: serializeElement(pendingDrag.sourceElement),
+        targetElement: serializeElement(event.target),
+        startX: pendingDrag.startX,
+        startY: pendingDrag.startY,
+        endX: (event as DragEvent).clientX,
+        endY: (event as DragEvent).clientY,
+      });
+      suppressNextClickRecording = true;
+      pendingDrag = null;
+      dragConfirmedByHtml5 = false;
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'dragend',
+    () => {
+      // Cleanup for cancelled HTML5 drags where drop never fired
+      pendingDrag = null;
+      dragConfirmedByHtml5 = false;
+    },
+    true,
+  );
+
+  // Pointer-based drag detection (for non-HTML5 DnD libraries)
+  document.addEventListener(
+    'pointerup',
+    (event) => {
+      if (!pendingDrag || dragConfirmedByHtml5) {
+        pendingDrag = null;
+        return;
+      }
+
+      if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        pendingDrag = null;
+        return;
+      }
+
+      const dx = (event as PointerEvent).clientX - pendingDrag.startX;
+      const dy = (event as PointerEvent).clientY - pendingDrag.startY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance > DRAG_DISTANCE_THRESHOLD) {
+        sendRecordingEvent('drag_and_drop', {
+          sourceElement: serializeElement(pendingDrag.sourceElement),
+          targetElement: serializeElement(event.target),
+          startX: pendingDrag.startX,
+          startY: pendingDrag.startY,
+          endX: (event as PointerEvent).clientX,
+          endY: (event as PointerEvent).clientY,
+        });
+        suppressNextClickRecording = true;
+      }
+
+      pendingDrag = null;
+    },
+    true,
+  );
+
   document.addEventListener(
     'click',
     (event) => {
+      if (suppressNextClickRecording) {
+        suppressNextClickRecording = false;
+        return;
+      }
       if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
         return;
       }
@@ -598,6 +711,15 @@ function installRecordingListeners(): void {
         return;
       }
 
+      // Suppress per-frame input events from range sliders — the final
+      // value is captured by the change handler as a set_slider event.
+      if (
+        event.target instanceof HTMLInputElement &&
+        event.target.type === 'range'
+      ) {
+        return;
+      }
+
       sendRecordingEvent('input', {
         element: serializeElement(event.target),
       });
@@ -609,6 +731,26 @@ function installRecordingListeners(): void {
     'change',
     (event) => {
       if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        return;
+      }
+
+      if (isSliderLikeElement(event.target)) {
+        const el = event.target;
+        sendRecordingEvent('set_slider', {
+          element: serializeElement(el),
+          value:
+            el instanceof HTMLInputElement
+              ? el.value
+              : el.getAttribute('aria-valuenow'),
+          min:
+            el instanceof HTMLInputElement
+              ? el.min
+              : el.getAttribute('aria-valuemin'),
+          max:
+            el instanceof HTMLInputElement
+              ? el.max
+              : el.getAttribute('aria-valuemax'),
+        });
         return;
       }
 

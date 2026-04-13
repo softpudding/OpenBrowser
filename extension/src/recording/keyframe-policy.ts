@@ -1,6 +1,12 @@
 import type { ScreenshotCaptureOptions } from '../utils/highlight-screenshot';
 
-const ACTION_KEYFRAME_EVENT_TYPES = new Set(['click', 'change', 'submit']);
+const ACTION_KEYFRAME_EVENT_TYPES = new Set([
+  'click',
+  'change',
+  'submit',
+  'drag_and_drop',
+  'set_slider',
+]);
 const DEFAULT_RECORDING_KEYFRAME_WAIT_MS = 180;
 const ACTION_RECORDING_KEYFRAME_WAIT_MS = 60;
 const PRE_ACTION_RECORDING_KEYFRAME_WAIT_MS = 0;
