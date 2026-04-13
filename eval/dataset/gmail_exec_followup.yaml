@@ -3,7 +3,7 @@ name: "Gmail Finance Follow-up"
 difficulty: hard
 description: "Use Gmail-style search operators to find the exact finance board-packet thread, label it correctly, reply with exact text, attach the correct PDF, and send."
 start_url: "http://localhost:16605/gmail/?reset=1"
-instruction: 'In the Gmail mock, use search operators to find the correct finance board-packet thread from Mira Lin at aldercap.com. Open that exact thread, add it to the Finance/Board-Prep label, reply with this exact sentence: "Approved for Friday board prep. Please route the signed PDF back before 4 PM." Attach the mock PDF named Board-Pack-Revision-C.pdf and send the reply.'
+instruction: 'In the Gmail mock, use search operators to find the correct finance board packet thread from Mira Lin at aldercap.com. Open that exact thread, add it to the Finance/Board-Prep label, reply with this exact sentence: "Approved for Friday board prep. Please route the signed PDF back before 4 PM." Attach the mock PDF named Board-Pack-Revision-C.pdf and send the reply.'
 time_limit: 660.0
 cost_limit: 1.4
 
