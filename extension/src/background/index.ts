@@ -66,6 +66,7 @@ import {
 } from '../utils/layout-stability';
 import {
   TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+  HIGHLIGHT_POST_DETECTION_CAPTURE_OPTIONS,
   type ScreenshotCaptureOptions,
 } from '../utils/highlight-screenshot';
 import {
@@ -311,15 +312,8 @@ async function captureHighlightedPageState(
   await tabManager.ensureTabManaged(tabId, conversationId);
   tabManager.updateTabActivity(tabId, conversationId);
 
-  await runHighlightPreconditionWarmup({
-    tabId,
-    conversationId,
-    elementType,
-    page,
-    waitForRender: preconditionWaitForRender,
-    captureOptions: preconditionCaptureOptions,
-    logLabel,
-  });
+  // T0-B: Removed runHighlightPreconditionWarmup — the detection script
+  // evaluates readiness itself and the retry loop handles not_ready state.
 
   const maxHighlightAttempts = 3;
   const highlightDetectionTimeoutMs = 18000;
@@ -339,6 +333,7 @@ async function captureHighlightedPageState(
       true,
       true,
       highlightDetectionTimeoutMs,
+      true, // skipNewTabDetection — highlight detection never creates tabs
     );
 
     if (!detectionResult.success || !detectionResult.result?.value) {
@@ -438,7 +433,7 @@ async function captureHighlightedPageState(
       90,
       false,
       0,
-      TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+      HIGHLIGHT_POST_DETECTION_CAPTURE_OPTIONS, // T0-C: skip warmup after detection
     );
 
     if (!screenshotResult?.success || !screenshotResult?.imageData) {
@@ -477,6 +472,7 @@ async function captureHighlightedPageState(
       true,
       false,
       2000,
+      true, // skipNewTabDetection — consistency check never creates tabs
     );
     const currentConsistencySamples =
       consistencyResult.success &&
@@ -560,15 +556,13 @@ async function captureHighlightedPageState(
       `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${storedPage.elements.length})`,
     );
 
-    const compressStart = Date.now();
-    const compressedScreenshotResult = await compressScreenshotResult({
+    // T0-D: Skip double compression — drawHighlights already compresses via
+    // encodeCanvasWithCompression. Pass the result directly.
+    const highlightScreenshotResult = {
       imageData: highlightedScreenshot,
       dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
       dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list,
-    });
-    console.log(
-      `⏱️ [HighlightTrace] background compress ${Date.now() - compressStart}ms`,
-    );
+    };
     console.log(
       `⏱️ [HighlightTrace] background total ${Date.now() - highlightTraceStart}ms`,
     );
@@ -580,7 +574,7 @@ async function captureHighlightedPageState(
       page: currentPage,
       pageState,
       readinessReasons,
-      ...buildScreenshotPayload(compressedScreenshotResult),
+      ...buildScreenshotPayload(highlightScreenshotResult),
     };
   }
 

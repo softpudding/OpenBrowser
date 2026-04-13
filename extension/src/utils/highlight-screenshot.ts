@@ -35,6 +35,14 @@ export const TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
   warmupMaxAttempts: 3,
 };
 
+// T0-C: Post-detection screenshot skips warmup because detection already
+// validated page readiness. Avoids a redundant full DOM scan.
+export const HIGHLIGHT_POST_DETECTION_CAPTURE_OPTIONS: ScreenshotCaptureOptions =
+  {
+    ...DEFAULT_SCREENSHOT_CAPTURE_OPTIONS,
+    warmupBeforeCapture: false,
+  };
+
 export function calculateScreenshotOutputScale(
   imageWidth: number,
   imageHeight: number,

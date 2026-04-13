@@ -2343,7 +2343,8 @@ function getCandidateElementsForScan(layoutStability, trace, config) {
     return allElements;
   }
 
-  const root = document.documentElement || document.body;
+  // T0-E: Start at body to avoid wasting scan budget on <head> elements.
+  const root = document.body || document.documentElement;
   if (!root || typeof document.createTreeWalker !== 'function') {
     const fallbackElements = Array.from(document.querySelectorAll('*')).slice(
       0,

@@ -114,6 +114,7 @@ export async function executeJavaScript(
   returnByValue: boolean = true,
   awaitPromise: boolean = false,
   timeout: number = 30000,
+  skipNewTabDetection: boolean = false,
 ): Promise<JavaScriptResult> {
   console.log(
     `📜 [JavaScript] Executing JavaScript in tab ${tabId} session ${conversationId}:`,
@@ -407,22 +408,24 @@ export async function executeJavaScript(
         // ============================================================
         // STEP 4: Detect new tabs created by JavaScript
         // ============================================================
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for onCreated listener
-        const tabsAfterJs = tabManager.getManagedTabsOnly(conversationId);
-        const newTabs = tabsAfterJs.filter(
-          (tab) => !tabIdsBeforeJs.has(tab.tabId),
-        );
-
-        if (newTabs.length > 0) {
-          console.log(
-            `📊 [JavaScript] Detected ${newTabs.length} new tabs created`,
+        if (!skipNewTabDetection) {
+          await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for onCreated listener
+          const tabsAfterJs = tabManager.getManagedTabsOnly(conversationId);
+          const newTabs = tabsAfterJs.filter(
+            (tab) => !tabIdsBeforeJs.has(tab.tabId),
           );
-          response.new_tabs_created = newTabs.map((tab) => ({
-            tabId: tab.tabId,
-            url: tab.url,
-            title: tab.title,
-            loading: !tab.url || tab.url === 'chrome://newtab/',
-          }));
+
+          if (newTabs.length > 0) {
+            console.log(
+              `📊 [JavaScript] Detected ${newTabs.length} new tabs created`,
+            );
+            response.new_tabs_created = newTabs.map((tab) => ({
+              tabId: tab.tabId,
+              url: tab.url,
+              title: tab.title,
+              loading: !tab.url || tab.url === 'chrome://newtab/',
+            }));
+          }
         }
 
         return response;
