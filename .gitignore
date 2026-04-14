@@ -80,7 +80,3 @@ eval/output
 # Claude Code local state
 .claude/
 CLAUDE.local.md
-catchup.md
-debug_toggle.js
-servererror
-tmp/
