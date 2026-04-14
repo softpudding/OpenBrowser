@@ -2331,8 +2331,7 @@
             display: inline;
         }
 
-        .compiler-log-entry.collapsed .compiler-log-full,
-        .compiler-log-entry.collapsed .compiler-log-image {
+        .compiler-log-entry.collapsed .compiler-log-full {
             display: none;
         }
 
@@ -2348,10 +2347,6 @@
             display: none;
         }
 
-        .compiler-log-entry:not(.collapsed) .compiler-log-image {
-            display: block;
-        }
-
         .compiler-log-ellipsis {
             color: rgba(255, 210, 140, 0.5);
             margin-left: 2px;
@@ -2362,10 +2357,16 @@
         .compiler-log-image {
             display: block;
             max-width: 100%;
-            max-height: 240px;
+            max-height: 80px;
+            width: auto;
             margin-top: 6px;
-            border-radius: 6px;
+            border-radius: 4px;
             border: 1px solid var(--panel-border);
+            cursor: zoom-in;
+        }
+
+        .compiler-log-entry:not(.collapsed) .compiler-log-image {
+            max-height: 240px;
         }
 
         .recording-compiler-draft {
@@ -5190,7 +5191,7 @@
                                 ></textarea>
                                 <button class="ghost-button" id="recording-intent-note-save" onclick="void saveIntentNote()">Save</button>
                                 <span class="recording-intent-note-status" id="recording-intent-note-status"></span>
-                                <button class="cta-button-primary" id="review-to-compile-btn" onclick="void goToRecordingPhase('compile')">
+                                <button class="cta-button-primary" id="review-to-compile-btn" onclick="void continueToCompile()">
                                     Continue to Compile <span class="cta-arrow">→</span>
                                 </button>
                             </div>
@@ -6270,7 +6271,7 @@
                 <div class="recording-keyframe">
                     ${metaText}
                     <img
-                        class="recording-keyframe-image"
+                        class="recording-keyframe-image event-image"
                         src="${keyframe.imageData}"
                         alt="${altText}"
                         loading="lazy"
@@ -6360,6 +6361,7 @@
             }).join('');
 
             container.innerHTML = itemsHtml;
+            setupImageClickHandlers();
         }
 
         function getRecordingEntryKey(entry, fallbackIndex = 0) {
@@ -6504,6 +6506,7 @@
                 </details>
             `;
             for (const c of containers) c.innerHTML = html;
+            setupImageClickHandlers();
         }
 
         function formatRelativeTime(value) {
@@ -6895,6 +6898,7 @@
             compilerRoutine = null;
             compilerCompiling = false;
             compilerQuestion = null;
+            compilerStalled = false;
             compilerReviewActive = false;
             compilerReviewSummary = '';
             openRecordingPanel('detail');
@@ -8363,6 +8367,11 @@
         let compilerRoutine = null;
         let compilerCompiling = false;
         let compilerQuestion = null;
+        // True when the agent stopped without calling ask_user — e.g. it
+        // replied in prose after a vague user answer. The UI reuses the
+        // question panel so the user can send a follow-up and resume the
+        // agent loop.
+        let compilerStalled = false;
         // When the agent has called submit_workflow successfully and is
         // waiting for the user to either approve or send revision feedback,
         // these hold the wrap-up message and the Routine currently in review.
@@ -8455,7 +8464,7 @@
             const noteInput = document.getElementById('recording-intent-note-input');
             const statusNode = document.getElementById('recording-intent-note-status');
             if (!recordingId || !noteInput) {
-                return;
+                return false;
             }
 
             const note = noteInput.value.trim();
@@ -8482,11 +8491,24 @@
                     statusNode.textContent = 'Saved';
                     setTimeout(() => { statusNode.textContent = ''; }, 2000);
                 }
+                return true;
             } catch (error) {
                 if (statusNode) {
                     statusNode.textContent = `Error: ${error.message}`;
                 }
+                return false;
             }
+        }
+
+        async function continueToCompile() {
+            const noteInput = document.getElementById('recording-intent-note-input');
+            const savedNote = recordingPanelSession?.metadata?.intent_note ?? '';
+            const currentNote = noteInput ? noteInput.value.trim() : '';
+            if (noteInput && currentNote !== String(savedNote).trim()) {
+                const ok = await saveIntentNote();
+                if (!ok) return;
+            }
+            goToRecordingPhase('compile');
         }
 
         function updateCompilerSection() {
@@ -8502,16 +8524,21 @@
             if (compileBtn) {
                 compileBtn.disabled = compilerCompiling
                     || Boolean(compilerQuestion)
+                    || compilerStalled
                     || compilerReviewActive;
                 compileBtn.textContent = compilerCompiling
                     ? 'Compiling...'
                     : (compilerRoutine ? 'Recompile Routine' : 'Compile Routine');
             }
 
-            // Show question UI when the agent is asking
+            // Show question UI when the agent is asking OR when the agent
+            // stalled with a free-form message (we reuse the same panel so
+            // the user can reply and resume the loop).
             if (questionNode && questionText) {
                 if (compilerQuestion) {
-                    questionText.textContent = compilerQuestion;
+                    questionText.textContent = compilerStalled
+                        ? `The compiler agent replied without asking a structured question — send a follow-up to resume:\n\n${compilerQuestion}`
+                        : compilerQuestion;
                     questionNode.hidden = false;
                 } else {
                     questionNode.hidden = true;
@@ -8655,15 +8682,29 @@
 
             if (result.status === 'asking') {
                 compilerQuestion = result.question || 'The compiler agent has a question.';
+                compilerStalled = false;
                 compilerReviewActive = false;
                 compilerReviewSummary = '';
                 if (compileStatus) {
                     compileStatus.textContent = 'Waiting for your answer...';
                 }
+            } else if (result.status === 'stalled') {
+                // Agent stopped with a direct message instead of calling
+                // ask_user or submit_workflow. Keep session alive and prompt
+                // the user for a follow-up.
+                compilerQuestion = result.message
+                    || 'The compiler agent stopped without asking a question or submitting a Routine. Send a follow-up to resume.';
+                compilerStalled = true;
+                compilerReviewActive = false;
+                compilerReviewSummary = '';
+                if (compileStatus) {
+                    compileStatus.textContent = 'Agent paused — send a follow-up to resume.';
+                }
             } else if (result.status === 'review') {
                 // Agent submitted a Routine and is waiting for the user to
                 // approve it or send revision feedback.
                 compilerQuestion = null;
+                compilerStalled = false;
                 compilerRoutine = result;
                 compilerReviewActive = true;
                 compilerReviewSummary = result.summary_message || '';
@@ -8683,6 +8724,7 @@
             } else {
                 // status === 'completed' (or anything else terminal)
                 compilerQuestion = null;
+                compilerStalled = false;
                 compilerRoutine = result;
                 compilerReviewActive = false;
                 compilerReviewSummary = '';
@@ -8764,19 +8806,27 @@
 
             // Image support (keyframe screenshots from trace_viewer)
             let imageHtml = '';
-            const imageUrl = data.image || '';
-            if (imageUrl) {
-                imageHtml = `<img class="compiler-log-image" src="${escapeHtml(imageUrl)}" alt="keyframe" loading="lazy">`;
+            const imageUrls = Array.isArray(data.images) && data.images.length
+                ? data.images
+                : (data.image ? [data.image] : []);
+            if (imageUrls.length) {
+                imageHtml = imageUrls
+                    .map((url) => `<img class="compiler-log-image event-image" src="${escapeHtml(url)}" alt="keyframe" loading="lazy">`)
+                    .join('');
             }
 
             entry.innerHTML = `<span class="compiler-log-label ${labelClass}">${label}</span> <span class="compiler-log-text">${textHtml}</span>${imageHtml}`;
 
             // Make every entry clickable: short ones can still hold tool_call_id
             // and we want a consistent affordance.
-            entry.addEventListener('click', () => entry.classList.toggle('collapsed'));
+            entry.addEventListener('click', (event) => {
+                if (event.target instanceof HTMLImageElement) return;
+                entry.classList.toggle('collapsed');
+            });
 
             logNode.appendChild(entry);
             logNode.scrollTop = logNode.scrollHeight;
+            setupImageClickHandlers();
         }
 
         async function streamCompilerSSE(url, body) {
@@ -8881,6 +8931,7 @@
             compilerCompiling = true;
             compilerRoutine = null;
             compilerQuestion = null;
+            compilerStalled = false;
             compilerReviewActive = false;
             compilerReviewSummary = '';
 
@@ -8919,13 +8970,19 @@
             const answer = textarea.value.trim();
             if (!answer) return;
 
+            const wasStalled = compilerStalled;
             compilerCompiling = true;
             compilerQuestion = null;
+            compilerStalled = false;
             textarea.value = '';
             updateRecordingPanel();
 
             const compileStatus = document.getElementById('recording-compile-status');
-            if (compileStatus) compileStatus.textContent = 'Continuing compilation...';
+            if (compileStatus) {
+                compileStatus.textContent = wasStalled
+                    ? 'Resuming compiler agent...'
+                    : 'Continuing compilation...';
+            }
 
             try {
                 await streamCompilerSSE(

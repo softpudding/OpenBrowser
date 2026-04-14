@@ -511,7 +511,14 @@ class RecordingManager:
     def _strip_large_payloads(self, event_data: dict[str, Any]) -> dict[str, Any]:
         """Drop obviously large fields that do not belong in trace storage."""
         stripped = dict(event_data)
-        for key in ["image", "image_url", "screenshot", "screenshot_data_url"]:
+        for key in [
+            "image",
+            "images",
+            "image_url",
+            "image_urls",
+            "screenshot",
+            "screenshot_data_url",
+        ]:
             stripped.pop(key, None)
         return stripped
 

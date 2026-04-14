@@ -10,10 +10,11 @@ const ACTION_KEYFRAME_EVENT_TYPES = new Set([
 const DEFAULT_RECORDING_KEYFRAME_WAIT_MS = 180;
 const ACTION_RECORDING_KEYFRAME_WAIT_MS = 60;
 const PRE_ACTION_RECORDING_KEYFRAME_WAIT_MS = 0;
+const AFTER_ACTION_RECORDING_KEYFRAME_WAIT_MS = 400;
 const RECORDING_KEYFRAME_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
   preferredFormat: 'jpeg',
-  maxOutputWidth: 960,
-  maxOutputHeight: 540,
+  maxOutputWidth: 1920,
+  maxOutputHeight: 1080,
   warmupBeforeCapture: true,
   warmupMaxAttempts: 1,
   settleBeforeCapture: true,
@@ -23,8 +24,8 @@ const RECORDING_KEYFRAME_CAPTURE_OPTIONS: ScreenshotCaptureOptions = {
 const PRE_ACTION_RECORDING_KEYFRAME_CAPTURE_OPTIONS: ScreenshotCaptureOptions =
   {
     preferredFormat: 'jpeg',
-    maxOutputWidth: 960,
-    maxOutputHeight: 540,
+    maxOutputWidth: 1920,
+    maxOutputHeight: 1080,
     warmupBeforeCapture: false,
     settleBeforeCapture: false,
   };
@@ -110,6 +111,14 @@ export function getRecordingPreActionWaitForRender(): number {
 
 export function getRecordingPreActionCaptureOptions(): ScreenshotCaptureOptions {
   return { ...PRE_ACTION_RECORDING_KEYFRAME_CAPTURE_OPTIONS };
+}
+
+export function shouldCaptureAfterKeyframe(eventType: string): boolean {
+  return ACTION_KEYFRAME_EVENT_TYPES.has(eventType);
+}
+
+export function getRecordingAfterKeyframeWaitForRender(): number {
+  return AFTER_ACTION_RECORDING_KEYFRAME_WAIT_MS;
 }
 
 export function shouldDiscardPostCaptureRecordingKeyframe(
