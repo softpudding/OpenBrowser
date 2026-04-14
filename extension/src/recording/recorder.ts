@@ -1318,7 +1318,12 @@ async function enrichEventDataWithKeyframe(
         eventData,
         preActionKeyframe,
       );
-      return attachAfterKeyframeIfApplicable(recording, eventType, tab, withBefore);
+      return attachAfterKeyframeIfApplicable(
+        recording,
+        eventType,
+        tab,
+        withBefore,
+      );
     }
   }
 

@@ -469,7 +469,9 @@ def _build_form_step(
     }
 
 
-def _build_anchor_from_element(element: dict[str, Any], event_data: dict[str, Any]) -> dict[str, Any]:
+def _build_anchor_from_element(
+    element: dict[str, Any], event_data: dict[str, Any]
+) -> dict[str, Any]:
     """Build an anchor dict from an element payload (not necessarily event_data['element'])."""
     container = element.get("container")
     if not isinstance(container, dict):
@@ -550,7 +552,12 @@ def _build_set_slider_step(
     anchor = _build_anchor(event_data)
     event_index = event.get("event_index")
 
-    label = anchor.get("text") or anchor.get("aria_label") or anchor.get("selector") or "slider"
+    label = (
+        anchor.get("text")
+        or anchor.get("aria_label")
+        or anchor.get("selector")
+        or "slider"
+    )
     value = event_data.get("value")
     min_val = event_data.get("min")
     max_val = event_data.get("max")
