@@ -469,6 +469,129 @@ def _build_form_step(
     }
 
 
+def _build_anchor_from_element(
+    element: dict[str, Any], event_data: dict[str, Any]
+) -> dict[str, Any]:
+    """Build an anchor dict from an element payload (not necessarily event_data['element'])."""
+    container = element.get("container")
+    if not isinstance(container, dict):
+        container = {}
+
+    return {
+        "selector": _normalize_text(element.get("selector")),
+        "text": _normalize_text(element.get("text")),
+        "aria_label": _normalize_text(element.get("ariaLabel")),
+        "placeholder": _normalize_text(element.get("placeholder")),
+        "container": {
+            "kind": _normalize_text(container.get("kind")),
+            "selector": _normalize_text(container.get("selector")),
+            "title": _normalize_text(container.get("title")),
+            "href": _normalize_text(container.get("href")),
+        },
+        "page_url": _get_page_url(event_data),
+    }
+
+
+def _build_drag_and_drop_step(
+    event: dict[str, Any],
+    sorted_index: int,
+) -> dict[str, Any]:
+    event_data = _event_data(event)
+    event_index = event.get("event_index")
+
+    source_element = event_data.get("sourceElement")
+    if not isinstance(source_element, dict):
+        source_element = {}
+    target_element = event_data.get("targetElement")
+    if not isinstance(target_element, dict):
+        target_element = {}
+
+    source_anchor = _build_anchor_from_element(source_element, event_data)
+    target_anchor = _build_anchor_from_element(target_element, event_data)
+
+    source_label = (
+        _normalize_text(source_element.get("text"))
+        or _normalize_text(source_element.get("ariaLabel"))
+        or _normalize_text(source_element.get("selector"))
+        or "source"
+    )
+    target_label = (
+        _normalize_text(target_element.get("text"))
+        or _normalize_text(target_element.get("ariaLabel"))
+        or _normalize_text(target_element.get("selector"))
+        or "target"
+    )
+
+    return {
+        "id": f"step_{sorted_index + 1:03d}",
+        "type": "drag_and_drop",
+        "action": "drag_and_drop",
+        "description": f"Drag {source_label} to {target_label}",
+        "target": {
+            "source": source_anchor,
+            "destination": target_anchor,
+        },
+        "source_event_indexes": [event_index] if event_index is not None else [],
+        "anchors": [source_anchor, target_anchor],
+        "preconditions": [
+            {
+                "type": "page_url_contains",
+                "value": _get_page_url(event_data),
+            }
+        ],
+        "postconditions": [],
+        "executor_preference": "agent",
+    }
+
+
+def _build_set_slider_step(
+    event: dict[str, Any],
+    sorted_index: int,
+) -> dict[str, Any]:
+    event_data = _event_data(event)
+    anchor = _build_anchor(event_data)
+    event_index = event.get("event_index")
+
+    label = (
+        anchor.get("text")
+        or anchor.get("aria_label")
+        or anchor.get("selector")
+        or "slider"
+    )
+    value = event_data.get("value")
+    min_val = event_data.get("min")
+    max_val = event_data.get("max")
+
+    value_desc = f" to {value}" if value else ""
+    description = f"Set {label}{value_desc}"
+
+    target: dict[str, Any] = {"anchor": anchor}
+    if value is not None:
+        target["value"] = value
+    if min_val is not None:
+        target["min"] = min_val
+    if max_val is not None:
+        target["max"] = max_val
+
+    return {
+        "id": f"step_{sorted_index + 1:03d}",
+        "type": "set_slider",
+        "action": "set_slider",
+        "description": description,
+        "target": target,
+        "source_event_indexes": [event_index] if event_index is not None else [],
+        "anchors": [anchor],
+        "preconditions": [
+            {
+                "type": "page_url_contains",
+                "value": _get_page_url(event_data),
+            }
+        ],
+        "postconditions": [],
+        "executor_preference": "agent",
+    }
+
+
 def normalize_trace_events(
     events: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -522,6 +645,16 @@ def normalize_trace_events(
 
         if event_type == "click":
             steps.append(_build_click_step(event, len(steps)))
+            index += 1
+            continue
+
+        if event_type == "drag_and_drop":
+            steps.append(_build_drag_and_drop_step(event, len(steps)))
+            index += 1
+            continue
+
+        if event_type == "set_slider":
+            steps.append(_build_set_slider_step(event, len(steps)))
             index += 1
             continue
 

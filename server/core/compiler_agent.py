@@ -77,7 +77,6 @@ class TraceViewerAction(Action):
         "summary",
         "events",
         "event_detail",
-        "keyframe",
         "normalized_steps",
     ] = Field(description="The trace viewer command to execute.")
     start: int = Field(
@@ -90,7 +89,7 @@ class TraceViewerAction(Action):
     )
     event_index: int = Field(
         default=0,
-        description="Event index for 'event_detail' and 'keyframe' commands.",
+        description="Event index for the 'event_detail' command.",
     )
 
     @property
@@ -99,7 +98,7 @@ class TraceViewerAction(Action):
         content.append(f"trace_viewer {self.command}", style="bold cyan")
         if self.command == "events":
             content.append(f" start={self.start} count={self.count}")
-        elif self.command in ("event_detail", "keyframe"):
+        elif self.command == "event_detail":
             content.append(f" event_index={self.event_index}")
         return content
 
@@ -109,7 +108,7 @@ class TraceViewerObservation(Observation):
 
     success: bool = Field(default=True)
     text_result: str = Field(default="")
-    image_url: Optional[str] = Field(default=None)
+    image_urls: list[str] = Field(default_factory=list)
 
     @property
     def visualize(self) -> Text:
@@ -118,8 +117,8 @@ class TraceViewerObservation(Observation):
     @property
     def to_llm_content(self) -> Sequence[TextContent | ImageContent]:
         items: list[TextContent | ImageContent] = []
-        if self.image_url:
-            items.append(ImageContent(image_urls=[self.image_url]))
+        for url in self.image_urls:
+            items.append(ImageContent(image_urls=[url]))
         items.append(TextContent(text=self.text_result))
         return items
 
@@ -151,8 +150,6 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
             return self._handle_events(action.start, action.count)
         if action.command == "event_detail":
             return self._handle_event_detail(action.event_index)
-        if action.command == "keyframe":
-            return self._handle_keyframe(action.event_index)
         if action.command == "normalized_steps":
             return self._handle_normalized_steps()
         return TraceViewerObservation(
@@ -229,34 +226,92 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
                 isinstance(event_data.get("keyframe"), dict)
                 and event_data["keyframe"].get("imageData")
             )
+            has_keyframe_after = bool(
+                isinstance(event_data.get("keyframeAfter"), dict)
+                and event_data["keyframeAfter"].get("imageData")
+            )
 
             parts = [f"[{event_index}] {event_type}"]
             if url:
                 parts.append(f"page={url[:120]}")
             if title:
                 parts.append(f"title={title[:80]}")
-            if tag:
-                parts.append(f"tag={tag}")
-            if text:
-                parts.append(f'text="{text}"')
-            if selector:
-                parts.append(f"sel={selector}")
-            if aria:
-                parts.append(f"aria={aria[:60]}")
-            if html:
-                # Show the opening tag + attributes so the agent can spot
-                # native controls (<select>, <input type=checkbox>, <a href>)
-                # without expanding to event_detail. Full HTML is available
-                # via the event_detail command.
-                html_peek = html[:140]
-                if len(html) > 140:
-                    html_peek += "…"
-                parts.append(f"html={html_peek}")
+
+            # For drag_and_drop events, show source and target elements
+            if event_type == "drag_and_drop":
+                source_el = event_data.get("sourceElement") or {}
+                target_el = event_data.get("targetElement") or {}
+                src_text = (source_el.get("text") or "")[:60]
+                src_sel = (source_el.get("selector") or "")[:60]
+                tgt_text = (target_el.get("text") or "")[:60]
+                tgt_sel = (target_el.get("selector") or "")[:60]
+                if src_text:
+                    parts.append(f'source="{src_text}"')
+                elif src_sel:
+                    parts.append(f"source_sel={src_sel}")
+                if tgt_text:
+                    parts.append(f'target="{tgt_text}"')
+                elif tgt_sel:
+                    parts.append(f"target_sel={tgt_sel}")
+                src_html = source_el.get("html") or ""
+                if src_html:
+                    peek = src_html[:120]
+                    if len(src_html) > 120:
+                        peek += "…"
+                    parts.append(f"source_html={peek}")
+                tgt_html = target_el.get("html") or ""
+                if tgt_html:
+                    peek = tgt_html[:120]
+                    if len(tgt_html) > 120:
+                        peek += "…"
+                    parts.append(f"target_html={peek}")
+            elif event_type == "set_slider":
+                if tag:
+                    parts.append(f"tag={tag}")
+                if text:
+                    parts.append(f'text="{text}"')
+                if selector:
+                    parts.append(f"sel={selector}")
+                slider_value = event_data.get("value")
+                if slider_value is not None:
+                    parts.append(f"value={slider_value}")
+                slider_min = event_data.get("min")
+                slider_max = event_data.get("max")
+                if slider_min is not None:
+                    parts.append(f"min={slider_min}")
+                if slider_max is not None:
+                    parts.append(f"max={slider_max}")
+                if html:
+                    html_peek = html[:140]
+                    if len(html) > 140:
+                        html_peek += "…"
+                    parts.append(f"html={html_peek}")
+            else:
+                if tag:
+                    parts.append(f"tag={tag}")
+                if text:
+                    parts.append(f'text="{text}"')
+                if selector:
+                    parts.append(f"sel={selector}")
+                if aria:
+                    parts.append(f"aria={aria[:60]}")
+                if html:
+                    # Show the opening tag + attributes so the agent can spot
+                    # native controls (<select>, <input type=checkbox>, <a href>)
+                    # without expanding to event_detail. Full HTML is available
+                    # via the event_detail command.
+                    html_peek = html[:140]
+                    if len(html) > 140:
+                        html_peek += "…"
+                    parts.append(f"html={html_peek}")
+
             if has_keyframe:
                 parts.append("[has keyframe]")
+            if has_keyframe_after:
+                parts.append("[has after]")
 
             value = element.get("value")
-            if isinstance(value, str) and value:
+            if isinstance(value, str) and value and event_type != "set_slider":
                 parts.append(f'value="{value[:80]}"')
 
             selected_text = element.get("selectedText")
@@ -284,51 +339,44 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
 
         detail = json.loads(json.dumps(event))
         event_data = detail.get("event_data") or {}
-        keyframe = event_data.get("keyframe")
-        if isinstance(keyframe, dict) and keyframe.get("imageData"):
-            keyframe["imageData"] = (
-                f"[image data, {len(keyframe['imageData'])} chars "
-                f"— use 'keyframe' command to view]"
+
+        # Strip imageData from the JSON payload (it would explode the text size)
+        # and instead surface the keyframes as inline images in the observation.
+        image_urls: list[str] = []
+        image_captions: list[str] = []
+        for slot, label in (("keyframe", "before"), ("keyframeAfter", "after")):
+            kf = event_data.get(slot)
+            if not (isinstance(kf, dict) and kf.get("imageData")):
+                continue
+            image_data = kf["imageData"]
+            kf["imageData"] = (
+                f"[{label}-keyframe attached as image #{len(image_urls) + 1}]"
             )
+            url = (
+                image_data
+                if image_data.startswith("data:")
+                else f"data:image/png;base64,{image_data}"
+            )
+            image_urls.append(url)
+            caption = f"Image #{len(image_urls)} ({label})"
+            annotation = kf.get("annotationMessage")
+            if annotation:
+                caption += f": {annotation}"
+            image_captions.append(caption)
 
         formatted = json.dumps(detail, indent=2, ensure_ascii=False)
-        return TraceViewerObservation(success=True, text_result=formatted)
-
-    def _handle_keyframe(self, event_index: int) -> TraceViewerObservation:
-        event = self._events_by_index.get(event_index)
-        if event is None:
-            return TraceViewerObservation(
-                success=False,
-                text_result=f"Event index {event_index} not found.",
+        if image_captions:
+            formatted = (
+                "Attached keyframes:\n  "
+                + "\n  ".join(image_captions)
+                + "\n\n"
+                + formatted
             )
-
-        event_data = event.get("event_data") or {}
-        keyframe = event_data.get("keyframe")
-        if not isinstance(keyframe, dict):
-            return TraceViewerObservation(
-                success=False,
-                text_result=f"Event {event_index} has no keyframe.",
-            )
-
-        image_data = keyframe.get("imageData", "")
-        if not image_data:
-            return TraceViewerObservation(
-                success=False,
-                text_result=f"Event {event_index} keyframe has no image data.",
-            )
-
-        if image_data.startswith("data:"):
-            url = image_data
-        else:
-            url = f"data:image/png;base64,{image_data}"
-
-        annotation = keyframe.get("annotationMessage") or ""
-        event_type = event.get("event_type", "?")
-        text = f"Keyframe for event [{event_index}] ({event_type})"
-        if annotation:
-            text += f"\nAnnotation: {annotation}"
-
-        return TraceViewerObservation(success=True, text_result=text, image_url=url)
+        return TraceViewerObservation(
+            success=True,
+            text_result=formatted,
+            image_urls=image_urls,
+        )
 
     def _handle_normalized_steps(self) -> TraceViewerObservation:
         lines: list[str] = []
@@ -363,8 +411,12 @@ class TraceViewerTool(ToolDefinition[TraceViewerAction, TraceViewerObservation])
                 description=(
                     "Browse the recorded browser trace. Use commands: "
                     "summary, events (with start/count), event_detail "
-                    "(with event_index), keyframe (with event_index), "
-                    "normalized_steps."
+                    "(with event_index), normalized_steps. "
+                    "event_detail returns the full event JSON plus any "
+                    "attached keyframes inline: a before-keyframe (page "
+                    "state immediately before the action) and, when the "
+                    "event is listed with [has after], an after-keyframe "
+                    "(page state immediately after the action)."
                 ),
                 action_type=TraceViewerAction,
                 observation_type=TraceViewerObservation,
@@ -1107,6 +1159,9 @@ async def compile_with_agent(
             system_message_suffix="",
         ),
         system_prompt_filename=COMPILER_PROMPT_FILENAME,
+        # Keep every keyframe in context — compiler reasoning depends on
+        # seeing all trace_viewer screenshots, not just the most recent.
+        tool_image_window=None,
     )
 
     # Build the initial user message
@@ -1220,6 +1275,16 @@ def _read_routine_from_session(session: CompilerSession) -> dict[str, Any]:
         return {"routine_markdown": last_text, "goal": "", "step_count": 0}
 
 
+def _get_last_agent_message(events: Sequence[Event]) -> str | None:
+    """Return the most recent agent MessageEvent text, or None."""
+    for event in reversed(events):
+        if isinstance(event, MessageEvent) and event.source == "agent":
+            text = _extract_message_text(event)
+            if text:
+                return text
+    return None
+
+
 def _collect_result(session: CompilerSession) -> dict[str, Any]:
     """Check conversation state and return the appropriate result.
 
@@ -1228,8 +1293,10 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
     - "review"    — submit_workflow succeeded and the agent is waiting for
                     the user to approve or send revision feedback; keep
                     session alive
-    - "completed" — terminal (no submit happened, conversation just ran out
-                    of work); cleanup session
+    - "stalled"   — the agent stopped without calling ask_user or
+                    submit_workflow (e.g. it replied in free-form prose to a
+                    vague user answer). Keep the session alive so the user
+                    can send a follow-up via /compile/answer.
     """
     recording_id = session.recording_id
 
@@ -1268,20 +1335,20 @@ def _collect_result(session: CompilerSession) -> dict[str, Any]:
         _compiler_sessions[recording_id] = session
         return routine_doc
 
-    # 3. Terminal — no submit happened, conversation just ended.
-    routine_doc = _read_routine_from_session(session)
-    routine_doc["status"] = "completed"
-    routine_doc["recording_id"] = recording_id
-    routine_doc["model"] = session.model
-    routine_doc["trace_path"] = dumped_trace_path
-
-    _compiler_sessions.pop(recording_id, None)
-    try:
-        session.conversation.close()
-    except Exception:
-        pass
-
-    return routine_doc
+    # 3. Agent stalled — no submit happened and no ask_user is pending, but
+    # the conversation ran out of work. Treat this as a resumable state: the
+    # agent most likely replied in prose to the previous user message instead
+    # of calling ask_user. Keep the session alive and surface the agent's
+    # last message so the frontend can prompt the user for a follow-up.
+    stalled_message = _get_last_agent_message(events)
+    _compiler_sessions[recording_id] = session
+    return {
+        "status": "stalled",
+        "message": stalled_message or "",
+        "recording_id": recording_id,
+        "model": session.model,
+        "trace_path": dumped_trace_path,
+    }
 
 
 def finalize_compiler_session(recording_id: str) -> dict[str, Any]:

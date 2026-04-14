@@ -76,3 +76,7 @@ reference/
 eval/.server_port
 eval/.locks/
 eval/output
+
+# Claude Code local state
+.claude/
+CLAUDE.local.md

@@ -402,10 +402,14 @@ class SessionManager:
         # Remove common image fields
         if "image" in stripped:
             del stripped["image"]
+        if "images" in stripped:
+            del stripped["images"]
         if "screenshot_data_url" in stripped:
             del stripped["screenshot_data_url"]
         if "image_url" in stripped:
             del stripped["image_url"]
+        if "image_urls" in stripped:
+            del stripped["image_urls"]
 
         # Also strip from nested data structures
         if "data" in stripped and isinstance(stripped["data"], dict):

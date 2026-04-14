@@ -4,11 +4,13 @@ import { captureScreenshot, compressIfNeeded } from '../commands/screenshot';
 import { debuggerSessionManager } from '../commands/debugger-manager';
 import { annotateRecordingKeyframe } from './keyframe-annotation';
 import {
+  getRecordingAfterKeyframeWaitForRender,
   getRecordingKeyframeCaptureOptions,
   getRecordingKeyframeWaitForRender,
   getRecordingPreActionCaptureOptions,
   getRecordingPreActionWaitForRender,
   isInputLikeRecordingTarget,
+  shouldCaptureAfterKeyframe,
   shouldCaptureRecordingKeyframe,
   shouldDiscardPostCaptureRecordingKeyframe,
 } from './keyframe-policy';
@@ -18,8 +20,8 @@ const DEFAULT_RECORDING_LAUNCH_MODE: RecordingLaunchMode = 'dedicated_window';
 const RECORDING_GROUP_TITLE_PREFIX = 'OpenBrowser Recording';
 const RECORDING_GROUP_COLOR = 'grey' as chrome.tabGroups.Color;
 const RECORDING_GROUP_COLLAPSED = false;
-const RECORDING_KEYFRAME_THRESHOLD_BYTES = 380 * 1024;
-const RECORDING_KEYFRAME_MIN_QUALITY = 40;
+const RECORDING_KEYFRAME_THRESHOLD_BYTES = 1024 * 1024;
+const RECORDING_KEYFRAME_MIN_QUALITY = 65;
 const RECORDING_SCREENSHOT_CONVERSATION_PREFIX = 'recording';
 const ACTIVE_RECORDING_STORAGE_KEY = 'openbrowser_active_recording';
 const PRE_ACTION_KEYFRAME_TTL_MS = 1500;
@@ -272,7 +274,7 @@ function getPreActionBindingType(
   eventType: string,
   eventData: Record<string, unknown>,
 ): RecordingPreActionType | null {
-  if (eventType === 'click') {
+  if (eventType === 'click' || eventType === 'drag_and_drop') {
     return 'click';
   }
 
@@ -1012,7 +1014,7 @@ async function buildRecordingKeyframe(
       tabId,
       conversationId,
       false,
-      65,
+      80,
       false,
       waitForRender,
       captureOptions,
@@ -1311,10 +1313,16 @@ async function enrichEventDataWithKeyframe(
       eventData,
     );
     if (preActionKeyframe) {
-      return attachRecordingKeyframeToEventData(
+      const withBefore = await attachRecordingKeyframeToEventData(
         eventType,
         eventData,
         preActionKeyframe,
+      );
+      return attachAfterKeyframeIfApplicable(
+        recording,
+        eventType,
+        tab,
+        withBefore,
       );
     }
   }
@@ -1362,7 +1370,39 @@ async function enrichEventDataWithKeyframe(
     return eventData;
   }
 
+  // Fallback path (no pre-action keyframe): the captured keyframe already
+  // reflects post-action state, so we don't capture an additional keyframeAfter.
   return attachRecordingKeyframeToEventData(eventType, eventData, keyframe);
+}
+
+async function attachAfterKeyframeIfApplicable(
+  recording: ActiveRecording,
+  eventType: string,
+  tab: chrome.tabs.Tab,
+  eventData: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (!tab.id || !shouldCaptureAfterKeyframe(eventType)) {
+    return eventData;
+  }
+
+  const afterKeyframe = await buildRecordingKeyframe(
+    tab.id,
+    recording.recordingId,
+    `after_${eventType}`,
+    getRecordingAfterKeyframeWaitForRender(),
+  );
+  if (!afterKeyframe) {
+    return eventData;
+  }
+
+  // Intentionally do NOT run shouldDiscardPostCaptureRecordingKeyframe: clicks
+  // that navigate are expected to land on a new URL, and the destination page
+  // is precisely what we want the compiler to see.
+  afterKeyframe.annotationMessage = `Page state immediately after the ${eventType} action.`;
+  return {
+    ...eventData,
+    keyframeAfter: afterKeyframe,
+  };
 }
 
 function isTabIdInRecordingScope(

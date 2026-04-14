@@ -46,8 +46,8 @@ describe('recording keyframe policy', () => {
     const options = getRecordingKeyframeCaptureOptions();
 
     expect(options.preferredFormat).toBe('jpeg');
-    expect(options.maxOutputWidth).toBe(960);
-    expect(options.maxOutputHeight).toBe(540);
+    expect(options.maxOutputWidth).toBe(1920);
+    expect(options.maxOutputHeight).toBe(1080);
     expect(options.warmupBeforeCapture).toBe(true);
     expect(options.settleBeforeCapture).toBe(true);
   });
@@ -57,8 +57,8 @@ describe('recording keyframe policy', () => {
 
     expect(getRecordingPreActionWaitForRender()).toBe(0);
     expect(options.preferredFormat).toBe('jpeg');
-    expect(options.maxOutputWidth).toBe(960);
-    expect(options.maxOutputHeight).toBe(540);
+    expect(options.maxOutputWidth).toBe(1920);
+    expect(options.maxOutputHeight).toBe(1080);
     expect(options.warmupBeforeCapture).toBe(false);
     expect(options.settleBeforeCapture).toBe(false);
   });
