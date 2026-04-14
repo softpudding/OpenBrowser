@@ -437,6 +437,7 @@ async function captureHighlightedPageState(
     const stashIndices = paginatedElements
       .map((el: any) => el._stashIndex)
       .filter((idx: any) => typeof idx === 'number');
+    let enrichmentSucceeded = false;
     if (stashIndices.length > 0) {
       const enrichScript = buildHighlightEnrichmentScript(stashIndices, detectedDocumentId);
       const enrichResult = await javascript.executeJavaScript(
@@ -449,6 +450,7 @@ async function captureHighlightedPageState(
         true,
       );
       if (enrichResult.success && Array.isArray(enrichResult.result?.value)) {
+        enrichmentSucceeded = true;
         const enriched = enrichResult.result.value;
         const enrichMap = new Map<number, { selector: string; html?: string }>();
         for (const item of enriched) {
@@ -463,14 +465,34 @@ async function captureHighlightedPageState(
           }
           return el;
         });
-        // Also update the stored pages entry so cache and downstream use enriched data
-        if (storedPages[currentPage - 1]) {
-          storedPages[currentPage - 1] = paginatedElements;
-        }
+      } else {
+        console.warn(
+          `⚠️ [${logLabel}] Enrichment script failed or returned non-array (success=${enrichResult.success}). ${paginatedElements.length} elements will be dropped to avoid empty-selector clicks.`,
+        );
       }
     }
+
+    // Drop any elements that still have an empty selector — they cannot be
+    // clicked/hovered/etc. (document.querySelector('') throws SyntaxError).
+    // This can happen when:
+    //  - The enrichment script failed entirely (documentId mismatch, timeout)
+    //  - The element became detached from the DOM between scan and enrichment
+    const preDropCount = paginatedElements.length;
+    paginatedElements = paginatedElements.filter(
+      (el: any) => typeof el.selector === 'string' && el.selector.length > 0,
+    );
+    const droppedCount = preDropCount - paginatedElements.length;
+    if (droppedCount > 0) {
+      console.warn(
+        `⚠️ [${logLabel}] Dropped ${droppedCount}/${preDropCount} elements with empty selectors after enrichment (enrichmentSucceeded=${enrichmentSucceeded}). These elements were unusable for clicks/hovers.`,
+      );
+    }
+    // Sync storedPages after enrichment and empty-selector filter
+    if (storedPages[currentPage - 1]) {
+      storedPages[currentPage - 1] = paginatedElements;
+    }
     console.log(
-      `⏱️ [HighlightTrace] background enrichment ${Date.now() - enrichStart}ms (indices=${stashIndices.length})`,
+      `⏱️ [HighlightTrace] background enrichment ${Date.now() - enrichStart}ms (indices=${stashIndices.length}, dropped=${droppedCount})`,
     );
 
     const screenshotStart = Date.now();

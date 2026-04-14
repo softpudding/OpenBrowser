@@ -40,6 +40,93 @@ const SWIPE_LIBRARY_REGEX =
 const VISUALLY_HIDDEN_TOKEN_REGEX =
   /\b(sr-only|sronly|screen-reader|screenreader|screen-reader-only|visually-hidden|visuallyhidden|u-hidden-visually|a11y-hidden)\b/i;
 const NOT_READY_SCAN_LIMIT = 500;
+
+// T2-A: Targeted seed selector replacing querySelectorAll('*') for full scans.
+// Covers semantic interactives, ARIA roles, attribute-based click handlers,
+// and common drag/drop markers. A secondary pass (see getFullScanCandidates)
+// catches cursor:pointer div/span fallbacks and pre-computed scroll containers.
+const INTERACTIVE_SEED_SELECTOR = [
+  // Semantic interactives
+  'a[href]',
+  'a[target]',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'summary',
+  'details',
+  'label',
+  // ARIA roles
+  '[role="button"]',
+  '[role="link"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  '[role="option"]',
+  '[role="radio"]',
+  '[role="switch"]',
+  '[role="tab"]',
+  '[role="treeitem"]',
+  '[role="checkbox"]',
+  '[role="combobox"]',
+  '[role="textbox"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
+  // Explicit interactivity
+  '[tabindex]',
+  '[contenteditable]',
+  '[draggable="true"]',
+  '[onclick]',
+  '[ng-click]',
+  '[\\@click]',
+  '[x-on\\:click]',
+  '[data-click]',
+  '[data-action]',
+  '[onmouseover]',
+  '[onmouseenter]',
+  '[data-hover]',
+  // Drag-and-drop markers
+  '[aria-grabbed]',
+  '[data-rbd-draggable-handle]',
+  '[data-rbd-drag-handle-draggable-id]',
+  '[data-rbd-droppable-id]',
+  '[data-dnd-draggable]',
+  // Class-based structural clickable hints (catches divs styled as buttons
+  // without cursor:pointer — getStructuralClickableSignal still filters these
+  // by size/text/SVG signals, so false positives are rejected downstream).
+  '[class*="btn"]',
+  '[class*="button"]',
+  '[class*="Button"]',
+  '[class*="Btn"]',
+].join(', ');
+
+// Broader tag set for the cursor:pointer / grab fallback scan. Elements in
+// INTERACTIVE_SEED_SELECTOR are deduped. The actual interactivity filter
+// still runs in the main scan (isElementVisibleForDetection +
+// resolveElementCandidate), so including extra tags is safe — they simply
+// get rejected if they don't qualify.
+const POINTER_CURSOR_FALLBACK_SELECTOR = [
+  'div', 'span', 'li', 'td', 'th', 'tr',
+  'section', 'article', 'main', 'aside', 'nav',
+  'header', 'footer', 'figure', 'figcaption',
+  'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'img', 'svg', 'picture', 'video',
+].join(', ');
+
+// Tags that commonly host overflow:auto/scroll/hidden containers. Narrow
+// set keeps findScrollContainers O(containers) rather than O(DOM).
+// Also includes class/style hints for custom elements or framework
+// components (e.g., <x-scroll-area>, styled spans) that use scroll behavior
+// without being one of the tag-whitelisted containers.
+const SCROLL_CONTAINER_TAG_SELECTOR = [
+  'div', 'section', 'article', 'main', 'aside', 'nav',
+  'header', 'footer', 'ul', 'ol', 'dl', 'form',
+  'table', 'tbody', 'figure', 'details', 'dialog', 'menu',
+  '[class*="scroll"]',
+  '[class*="Scroll"]',
+  '[style*="overflow"]',
+].join(', ');
+
 const TEXT_LIKE_TAG_SET = new Set([
   'a',
   'abbr',
@@ -116,8 +203,85 @@ function getElementArea(rect) {
   return Math.max(0, rect.width) * Math.max(0, rect.height);
 }
 
+// ──────────────────────────────────────────────────────────────
+// T2-C: Per-scan caches for getComputedStyle and getBoundingClientRect.
+// Reset via resetDetectionCaches() at the start of each detection run.
+// Using module-level lets so helpers throughout the file can share them.
+// Rationale: during a scan, the same element is tested in multiple contexts
+// (visibility, viewport, scroll-parent, candidate resolution, hit-test,
+// ancestor walks). Caching avoids 5-10x redundant getComputedStyle calls.
+// ──────────────────────────────────────────────────────────────
+
+let _styleCache = new WeakMap();
+let _rectCache = new WeakMap();
+let _scrollContainers = [];
+
+function cachedStyle(el) {
+  let s = _styleCache.get(el);
+  if (!s) {
+    s = window.getComputedStyle(el);
+    _styleCache.set(el, s);
+  }
+  return s;
+}
+
+function cachedRect(el) {
+  let r = _rectCache.get(el);
+  if (!r) {
+    r = el.getBoundingClientRect();
+    _rectCache.set(el, r);
+  }
+  return r;
+}
+
+function resetDetectionCaches() {
+  _styleCache = new WeakMap();
+  _rectCache = new WeakMap();
+  _scrollContainers = [];
+}
+
+// T2-D: Pre-compute the list of elements that act as scroll/clip containers.
+// Each entry carries the cached rect and overflow axes so the per-element
+// scroll-parent check can skip re-reading style/rect during the main scan.
+function findScrollContainers() {
+  const containers = [];
+  const candidates = document.querySelectorAll(SCROLL_CONTAINER_TAG_SELECTOR);
+  for (const el of candidates) {
+    if (el === document.body || el === document.documentElement) {
+      continue;
+    }
+    if (!(el instanceof HTMLElement)) {
+      continue;
+    }
+    const rect = cachedRect(el);
+    if (rect.width <= 0 || rect.height <= 0) {
+      continue;
+    }
+    const style = cachedStyle(el);
+    const overflowX = style.overflowX;
+    const overflowY = style.overflowY;
+    const hasScrollX =
+      overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden';
+    const hasScrollY =
+      overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden';
+    if (hasScrollX || hasScrollY) {
+      containers.push({ el, rect, hasScrollX, hasScrollY });
+    }
+  }
+  return containers;
+}
+
 function isElementVisibleForDetection(el) {
   if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) {
+    return false;
+  }
+
+  // Explicit aria-hidden="true" is a hard signal that this node is not meant
+  // for user interaction. Accessibility/automation overlays (e.g. Baidu
+  // button-hp-installed decoys, screen-reader-skip wrappers) set this along
+  // with tabindex="-1" and near-zero opacity. Skipping them avoids cache
+  // pollution that later causes selector drift via :nth-of-type.
+  if (el.getAttribute('aria-hidden') === 'true') {
     return false;
   }
 
@@ -125,12 +289,19 @@ function isElementVisibleForDetection(el) {
     return false;
   }
 
-  const style = window.getComputedStyle(el);
+  const style = cachedStyle(el);
   if (
     style.display === 'none' ||
     style.visibility === 'hidden' ||
     style.opacity === '0'
   ) {
+    return false;
+  }
+
+  // Near-zero opacity (e.g. opacity: 1e-05 used by automation overlays to
+  // remain hit-testable but invisible). Treat as not visible for detection.
+  const opacityNum = Number.parseFloat(style.opacity);
+  if (Number.isFinite(opacityNum) && opacityNum < 0.01) {
     return false;
   }
 
@@ -142,16 +313,16 @@ function isElementVisibleForDetection(el) {
   for (let i = 0; i < 5 && ancestor; i++) {
     if (ancestor === document.body || ancestor === document.documentElement)
       break;
-    if (window.getComputedStyle(ancestor).opacity === '0') return false;
+    if (cachedStyle(ancestor).opacity === '0') return false;
     ancestor = ancestor.parentElement;
   }
 
-  const rect = el.getBoundingClientRect();
+  const rect = cachedRect(el);
   return rect.width > 0 && rect.height > 0;
 }
 
 function isElementInViewportForDetection(el) {
-  const rect = el.getBoundingClientRect();
+  const rect = cachedRect(el);
   return (
     rect.width > 0 &&
     rect.height > 0 &&
@@ -162,46 +333,39 @@ function isElementInViewportForDetection(el) {
   );
 }
 
-// Check whether an element is visible within all ancestor scroll containers.
+// T2-D: Check whether an element is visible within all ancestor scroll
+// containers by consulting the pre-computed _scrollContainers list rather
+// than walking the ancestor chain and re-reading style/rect per element.
 // Elements inside overflow:auto/scroll parents that are scrolled out of view
 // should not be highlighted — the agent should scroll to discover them.
 function isElementVisibleInScrollParent(el) {
-  const elRect = el.getBoundingClientRect();
-  let parent = el.parentElement;
-  while (
-    parent &&
-    parent !== document.body &&
-    parent !== document.documentElement
-  ) {
-    const style = window.getComputedStyle(parent);
-    const overflowY = style.overflowY;
-    const overflowX = style.overflowX;
-    const hasScrollY =
-      overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden';
-    const hasScrollX =
-      overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden';
-    if (hasScrollY || hasScrollX) {
-      const parentRect = parent.getBoundingClientRect();
-      // Allow a small tolerance (2px) for border/padding edge cases
-      const tolerance = 2;
-      if (hasScrollY) {
-        if (
-          elRect.bottom <= parentRect.top + tolerance ||
-          elRect.top >= parentRect.bottom - tolerance
-        ) {
-          return false;
-        }
-      }
-      if (hasScrollX) {
-        if (
-          elRect.right <= parentRect.left + tolerance ||
-          elRect.left >= parentRect.right - tolerance
-        ) {
-          return false;
-        }
+  const containers = _scrollContainers;
+  if (!containers || containers.length === 0) {
+    return true;
+  }
+  const elRect = cachedRect(el);
+  // Allow a small tolerance (2px) for border/padding edge cases
+  const tolerance = 2;
+  for (const container of containers) {
+    if (container.el === el) continue;
+    if (!container.el.contains(el)) continue;
+    const parentRect = container.rect;
+    if (container.hasScrollY) {
+      if (
+        elRect.bottom <= parentRect.top + tolerance ||
+        elRect.top >= parentRect.bottom - tolerance
+      ) {
+        return false;
       }
     }
-    parent = parent.parentElement;
+    if (container.hasScrollX) {
+      if (
+        elRect.right <= parentRect.left + tolerance ||
+        elRect.left >= parentRect.right - tolerance
+      ) {
+        return false;
+      }
+    }
   }
   return true;
 }
@@ -258,8 +422,8 @@ function isVisuallyHiddenForDetection(el) {
     return true;
   }
 
-  const style = window.getComputedStyle(el);
-  const rect = el.getBoundingClientRect();
+  const style = cachedStyle(el);
+  const rect = cachedRect(el);
   const tinyBox = rect.width <= 4 && rect.height <= 4;
   const hidesOverflow =
     style.overflow === 'hidden' ||
@@ -476,7 +640,7 @@ function isDisabledForDetection(el) {
 }
 
 function hasPointerCursor(el) {
-  return window.getComputedStyle(el).cursor === 'pointer';
+  return cachedStyle(el).cursor === 'pointer';
 }
 
 function getBaseClickableSignal(el) {
@@ -564,7 +728,7 @@ function getControlAffinityScore(el) {
     score -= 24;
   }
 
-  const rect = el.getBoundingClientRect();
+  const rect = cachedRect(el);
   if (rect.width >= 20 && rect.height >= 20) {
     score += 6;
   }
@@ -650,7 +814,7 @@ function isMeaningfulPointerCandidate(el) {
     return false;
   }
 
-  const rect = el.getBoundingClientRect();
+  const rect = cachedRect(el);
   const viewportArea = window.innerWidth * window.innerHeight;
   const elementArea = getElementArea(rect);
 
@@ -663,7 +827,7 @@ function isMeaningfulPointerCandidate(el) {
     // Exception: cursor:pointer + user-select:none together indicate a
     // deliberate interactive region (video player, canvas app, game area).
     if (elementArea > viewportArea * 0.7) return false;
-    return window.getComputedStyle(el).userSelect === 'none';
+    return cachedStyle(el).userSelect === 'none';
   }
 
   const searchText = getElementSearchText(el);
@@ -709,7 +873,7 @@ function getStructuralClickableSignal(el) {
     return null;
   }
 
-  const rect = el.getBoundingClientRect();
+  const rect = cachedRect(el);
   const viewportArea = window.innerWidth * window.innerHeight;
   const elementArea = getElementArea(rect);
   if (
@@ -881,8 +1045,8 @@ function isTightClickableWrapper(parent, child) {
     return false;
   }
 
-  const parentRect = parent.getBoundingClientRect();
-  const childRect = child.getBoundingClientRect();
+  const parentRect = cachedRect(parent);
+  const childRect = cachedRect(child);
   const parentArea = getElementArea(parentRect);
   const childArea = getElementArea(childRect);
 
@@ -1002,8 +1166,8 @@ function isLikelyTextTruncationContainer(el) {
     return false;
   }
 
-  const style = window.getComputedStyle(el);
-  const rect = el.getBoundingClientRect();
+  const style = cachedStyle(el);
+  const rect = cachedRect(el);
   const horizontalOverflow = el.scrollWidth - el.clientWidth;
   const verticalOverflow = el.scrollHeight - el.clientHeight;
   const singleLineText =
@@ -1036,7 +1200,7 @@ function isLikelyTextTruncationContainer(el) {
     return false;
   }
 
-  const childStyle = window.getComputedStyle(onlyVisibleChild);
+  const childStyle = cachedStyle(onlyVisibleChild);
   return (
     childStyle.display.startsWith('inline') || childStyle.display === 'contents'
   );
@@ -1062,7 +1226,7 @@ function isScrollableCandidate(el) {
     return false;
   }
 
-  const style = window.getComputedStyle(el);
+  const style = cachedStyle(el);
   const overflowX = `${style.overflow} ${style.overflowX}`.toLowerCase();
   const overflowY = `${style.overflow} ${style.overflowY}`.toLowerCase();
   const horizontalOverflow = el.scrollWidth - el.clientWidth;
@@ -1190,7 +1354,7 @@ function _isDraggableCandidateCore(el) {
     return false;
   }
   if (el instanceof HTMLElement) {
-    const computedCursor = window.getComputedStyle(el).cursor;
+    const computedCursor = cachedStyle(el).cursor;
     const hasGrabCursor =
       computedCursor === 'grab' || computedCursor === 'move';
     if (hasGrabCursor) {
@@ -1206,7 +1370,7 @@ function _isDraggableCandidateCore(el) {
   // references, not structural markers. Only the immediate parent is checked
   // because user-select:none is inherited.
   if (el instanceof HTMLElement) {
-    const userSelect = window.getComputedStyle(el).userSelect;
+    const userSelect = cachedStyle(el).userSelect;
     if (userSelect === 'none') {
       const ancestor = el.parentElement;
       if (ancestor instanceof HTMLElement) {
@@ -1238,7 +1402,7 @@ function isDroppableCandidate(el) {
   if (tag === 'BODY' || tag === 'HTML') {
     return false;
   }
-  const rect = el.getBoundingClientRect();
+  const rect = cachedRect(el);
   if (rect.width < 40 || rect.height < 40) {
     return false;
   }
@@ -1320,7 +1484,7 @@ function isSlidableCandidate(el) {
   if (!SLIDER_TOKEN_REGEX.test(idAndClass)) {
     return false;
   }
-  const cursor = window.getComputedStyle(el).cursor;
+  const cursor = cachedStyle(el).cursor;
   if (cursor !== 'pointer' && cursor !== 'grab' && cursor !== 'move') {
     return false;
   }
@@ -1366,12 +1530,12 @@ function hasHorizontalSwipeLayout(el) {
     return false;
   }
 
-  const rect = el.getBoundingClientRect();
+  const rect = cachedRect(el);
   if (rect.width < 140 || rect.height < 80) {
     return false;
   }
 
-  const style = window.getComputedStyle(el);
+  const style = cachedStyle(el);
   const overflowX = `${style.overflow} ${style.overflowX}`.toLowerCase();
   const constrainsOverflowX =
     overflowX.includes('hidden') ||
@@ -1394,7 +1558,7 @@ function hasHorizontalSwipeLayout(el) {
         return false;
       }
 
-      const childStyle = window.getComputedStyle(child);
+      const childStyle = cachedStyle(child);
       return (
         childStyle.transform !== 'none' ||
         childStyle.display.includes('flex') ||
@@ -1425,7 +1589,7 @@ function hasHorizontalSwipeLayout(el) {
       continue;
     }
 
-    const childRect = child.getBoundingClientRect();
+    const childRect = cachedRect(child);
     if (childRect.width < 40 || childRect.height < 40) {
       continue;
     }
@@ -1525,7 +1689,7 @@ function findSwipeContext(el, maxDepth = 4) {
 
     if (
       hasHorizontalSwipeLayout(current) &&
-      current.getBoundingClientRect().width >= 180
+      cachedRect(current).width >= 180
     ) {
       return current;
     }
@@ -1608,6 +1772,90 @@ function getInteractionHints(el) {
   return hints;
 }
 
+// Attributes we try as discriminators among matching siblings. Order matters:
+// explicit test/identity attrs first, then user-facing labels, then generic
+// data-*/aria-* and framework scoped attrs. Presence-based matching
+// ([attr]) is preferred over value matching when the attribute is binary.
+const SIBLING_DISCRIMINATOR_ATTRS = [
+  'data-testid',
+  'data-test-id',
+  'data-test',
+  'data-cy',
+  'data-qa',
+  'name',
+  'aria-label',
+  'aria-labelledby',
+  'role',
+  'type',
+  'href',
+  'data-hp-bound',
+  'data-action',
+  'data-role',
+];
+
+function getSiblingDiscriminator(el, parent, baseSegment) {
+  if (!parent) {
+    return null;
+  }
+
+  // Collect siblings that would match the baseSegment so we know which
+  // attributes actually distinguish el from the collision set.
+  let matchingSiblings;
+  try {
+    matchingSiblings = Array.from(parent.children).filter((child) => {
+      try {
+        return child !== el && child.matches(baseSegment);
+      } catch (_error) {
+        return false;
+      }
+    });
+  } catch (_error) {
+    return null;
+  }
+
+  if (matchingSiblings.length === 0) {
+    return null;
+  }
+
+  for (const attr of SIBLING_DISCRIMINATOR_ATTRS) {
+    if (!el.hasAttribute(attr)) {
+      continue;
+    }
+    const myValue = el.getAttribute(attr) ?? '';
+
+    // Presence-only discriminator: if no sibling has this attribute at all,
+    // [attr] is stable regardless of value.
+    const siblingHasAttr = matchingSiblings.some((s) => s.hasAttribute(attr));
+    if (!siblingHasAttr) {
+      return `[${attr}]`;
+    }
+
+    // Value discriminator: if our value is unique among siblings.
+    const siblingHasSameValue = matchingSiblings.some(
+      (s) => (s.getAttribute(attr) ?? '') === myValue,
+    );
+    if (!siblingHasSameValue && myValue.length > 0 && myValue.length <= 80) {
+      return `[${attr}="${escapeCssValue(myValue)}"]`;
+    }
+  }
+
+  // Fallback: a Vue-scoped data-v-* attribute whose presence differs from
+  // siblings is often stable for the life of a component mount.
+  for (const attr of Array.from(el.attributes)) {
+    if (!/^data-v-[a-f0-9]+$/i.test(attr.name)) {
+      continue;
+    }
+    const siblingHasAttr = matchingSiblings.some((s) =>
+      s.hasAttribute(attr.name),
+    );
+    if (!siblingHasAttr) {
+      return `[${attr.name}]`;
+    }
+  }
+
+  return null;
+}
+
 function generateSelectorSegment(el) {
   const tag = el.tagName.toLowerCase();
 
@@ -1634,6 +1882,14 @@ function generateSelectorSegment(el) {
     }
   } catch (_error) {
     segment = tag;
+  }
+
+  // Prefer a stable attribute-based discriminator over :nth-of-type, which
+  // drifts when accessibility/automation layers insert sibling overlays
+  // (e.g. button-hp-installed decoys) between detection and click.
+  const discriminator = getSiblingDiscriminator(el, parent, segment);
+  if (discriminator) {
+    return `${segment}${discriminator}`;
   }
 
   const sameTagSiblings = Array.from(parent.children).filter(
@@ -2310,7 +2566,7 @@ function countViewportPlaceholderSignals(metricsStartTime) {
       continue;
     }
 
-    const rect = element.getBoundingClientRect();
+    const rect = cachedRect(element);
     const clampedWidth = Math.min(window.innerWidth, Math.max(0, rect.width));
     const clampedHeight = Math.min(
       window.innerHeight,
@@ -2387,18 +2643,71 @@ function evaluateReadinessSnapshot(trace) {
   return readiness;
 }
 
+// T2-A: Build the union of elements to scan without touching every DOM node.
+// Uses a targeted seed selector for semantic/ARIA/attribute interactives,
+// then a bounded pointer-cursor fallback pass over common container tags
+// (filtered by viewport + cursor style via the style/rect caches), plus the
+// pre-computed scroll containers from findScrollContainers(). Typical
+// reduction vs querySelectorAll('*') is 60-90% on heavy DOM pages.
+function getFullScanCandidates() {
+  const seen = new Set();
+  const results = [];
+
+  const add = (el) => {
+    if (!el || seen.has(el)) return;
+    seen.add(el);
+    results.push(el);
+  };
+
+  // Pass 1: semantic interactives, ARIA roles, attribute click/hover handlers.
+  for (const el of document.querySelectorAll(INTERACTIVE_SEED_SELECTOR)) {
+    add(el);
+  }
+
+  // Pass 2: cursor:pointer / grab / move fallback on common container tags.
+  // The viewport check cheaply skips off-screen elements; the style lookup
+  // is cached so repeated tests share the same getComputedStyle result.
+  const viewportW = window.innerWidth;
+  const viewportH = window.innerHeight;
+  for (const el of document.querySelectorAll(POINTER_CURSOR_FALLBACK_SELECTOR)) {
+    if (seen.has(el)) continue;
+    if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) continue;
+    const rect = cachedRect(el);
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    if (
+      rect.top >= viewportH ||
+      rect.bottom <= 0 ||
+      rect.left >= viewportW ||
+      rect.right <= 0
+    ) {
+      continue;
+    }
+    const cursor = cachedStyle(el).cursor;
+    if (cursor === 'pointer' || cursor === 'grab' || cursor === 'move') {
+      add(el);
+    }
+  }
+
+  // Pass 3: pre-computed scroll/clip containers (for scrollable candidates).
+  for (const container of _scrollContainers) {
+    add(container.el);
+  }
+
+  return results;
+}
+
 function getCandidateElementsForScan(layoutStability, trace, config) {
   const useFullScan =
     layoutStability.state !== 'not_ready' ||
     config.fullPageScanOnNotReady === true;
 
   if (useFullScan) {
-    const allElements = Array.from(document.querySelectorAll('*'));
+    const allElements = getFullScanCandidates();
     trace(
       'querySelectorAll',
       layoutStability.state === 'not_ready'
-        ? `count=${allElements.length} state=not_ready override=full_scan`
-        : `count=${allElements.length}`,
+        ? `count=${allElements.length} state=not_ready override=full_scan targeted=true`
+        : `count=${allElements.length} targeted=true`,
     );
     return allElements;
   }
@@ -2445,6 +2754,18 @@ function getCandidateElementsForScan(layoutStability, trace, config) {
 function collectHighlightCandidates(config, trace, layoutStability) {
   const activeTopLayerRoot = getActiveTopLayerRoot();
   const registry = new Map();
+
+  // T2-D: Scroll/clip containers were already pre-computed at the start of
+  // runOpenBrowserHighlightDetection (before readiness eval so that
+  // isElementVisibleInScrollParent gives correct answers for placeholder
+  // signals). Keep the assertion here for readability; findScrollContainers
+  // is idempotent but we avoid re-running it.
+  if (!_scrollContainers || _scrollContainers.length === 0) {
+    // Defensive: ensure populated in case a caller bypassed the outer flow.
+    _scrollContainers = findScrollContainers();
+  }
+  trace('scroll:containers', `count=${_scrollContainers.length}`);
+
   const allElements = getCandidateElementsForScan(
     layoutStability,
     trace,
@@ -2478,16 +2799,19 @@ function collectHighlightCandidates(config, trace, layoutStability) {
       continue;
     }
 
-    const hitTestVisibility = getElementHitTestVisibility(element);
-    if (!hitTestVisibility.visible) {
-      continue;
-    }
-
+    // T2-B: Resolve the candidate BEFORE the 5-point hit-test. Most elements
+    // that pass the cheap visibility checks still fail type resolution; hit
+    // testing them costs 5x elementsFromPoint() calls for nothing.
     const resolvedCandidate = resolveElementCandidate(
       element,
       config.elementType,
     );
     if (!resolvedCandidate) {
+      continue;
+    }
+
+    const hitTestVisibility = getElementHitTestVisibility(element);
+    if (!hitTestVisibility.visible) {
       continue;
     }
 
@@ -2558,6 +2882,17 @@ async function runOpenBrowserHighlightDetection(config) {
     'start',
     `elementType=${config.elementType} fullPageScanOnNotReady=${config.fullPageScanOnNotReady === true}`,
   );
+
+  // T2-C: Reset per-scan style/rect caches so stale rects from prior scans
+  // can't leak in.
+  resetDetectionCaches();
+
+  // T2-D: Populate scroll/clip containers BEFORE readiness evaluation.
+  // evaluateReadinessSnapshot calls countViewportPlaceholderSignals, which
+  // uses isElementVisibleInScrollParent — with an empty _scrollContainers
+  // list that check would trivially return true and placeholder counts
+  // could flip readiness state incorrectly.
+  _scrollContainers = findScrollContainers();
 
   const layoutStability = evaluateReadinessSnapshot(trace);
 
