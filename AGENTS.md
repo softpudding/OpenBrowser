@@ -289,7 +289,6 @@ highlight_elements(element_type="any", page=1)    → Explicit any-first discove
 # Highlight other types (one at a time)
 highlight_elements(element_type="inputable")   → Input fields
 highlight_elements(element_type="scrollable")  → Scrollable areas
-highlight_elements(element_type="hoverable")   → Hoverable elements
 highlight_elements(element_type="selectable")  → Native select dropdowns
 highlight_elements(element_type="clickable")   → Targeted fallback for icon-only controls after any-first discovery
 ```

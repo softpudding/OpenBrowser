@@ -9,10 +9,9 @@ import { describe, test, expect } from 'bun:test';
  *   if (elementType === 'clickable' && isClickable(el)) type = 'clickable';
  *   else if (elementType === 'scrollable' && isScrollable(el)) type = 'scrollable';
  *   else if (elementType === 'inputable' && isInputable(el)) type = 'inputable';
- *   else if (elementType === 'hoverable' && isHoverable(el)) type = 'hoverable';
  *
  * Expected behavior:
- *   - element_type="any" returns elements matching ANY of the four types
+ *   - element_type="any" returns elements matching ANY of the supported types
  *   - Elements matching multiple types are deduplicated (appear once with first matched type)
  *   - "any" + keywords skips pagination (like current keywords mode)
  *   - Backward compatibility: existing types still work independently
@@ -21,7 +20,7 @@ import { describe, test, expect } from 'bun:test';
 // Type definitions for test clarity
 interface InteractiveElement {
   id: string;
-  type: 'clickable' | 'scrollable' | 'inputable' | 'hoverable';
+  type: 'clickable' | 'scrollable' | 'inputable';
   tagName: string;
   selector: string;
   html?: string;
@@ -41,13 +40,13 @@ interface HighlightResult {
 // This function should be exported for testing
 declare function detectElementTypes(
   element: Element,
-  requestedType: 'clickable' | 'scrollable' | 'inputable' | 'hoverable' | 'any',
-): 'clickable' | 'scrollable' | 'inputable' | 'hoverable' | null;
+  requestedType: 'clickable' | 'scrollable' | 'inputable' | 'any',
+): 'clickable' | 'scrollable' | 'inputable' | null;
 
 // Mock highlight result processor (will be implemented)
 declare function processHighlightElements(
   elements: InteractiveElement[],
-  requestedType: 'clickable' | 'scrollable' | 'inputable' | 'hoverable' | 'any',
+  requestedType: 'clickable' | 'scrollable' | 'inputable' | 'any',
   keywords?: string[],
 ): {
   elements: InteractiveElement[];
@@ -64,7 +63,6 @@ describe('Any Type Detection', () => {
         'clickable',
         'scrollable',
         'inputable',
-        'hoverable',
         'any',
       ] as const;
       expect(validTypes).toContain('any');
@@ -94,40 +92,31 @@ describe('Any Type Detection', () => {
           selector === 'input, textarea, [contenteditable]',
       } as unknown as Element;
 
-      const mockHoverableElement = {
-        tagName: 'div',
-        matches: (selector: string) => selector === '[onmouseover]',
-      } as unknown as Element;
-
       // When "any" is requested, all should return a type (not null)
       // This test will FAIL until implementation is done
       expect(() => {
         const result1 = detectElementTypes(mockClickableElement, 'any');
         const result2 = detectElementTypes(mockScrollableElement, 'any');
         const result3 = detectElementTypes(mockInputableElement, 'any');
-        const result4 = detectElementTypes(mockHoverableElement, 'any');
 
         // All should return a valid type
-        expect(['clickable', 'scrollable', 'inputable', 'hoverable']).toContain(
+        expect(['clickable', 'scrollable', 'inputable']).toContain(
           result1,
         );
-        expect(['clickable', 'scrollable', 'inputable', 'hoverable']).toContain(
+        expect(['clickable', 'scrollable', 'inputable']).toContain(
           result2,
         );
-        expect(['clickable', 'scrollable', 'inputable', 'hoverable']).toContain(
+        expect(['clickable', 'scrollable', 'inputable']).toContain(
           result3,
-        );
-        expect(['clickable', 'scrollable', 'inputable', 'hoverable']).toContain(
-          result4,
         );
       }).toThrow('detectElementTypes is not defined');
     });
 
     test('should deduplicate elements matching multiple types', () => {
-      // RED: Elements can match multiple types (e.g., a button is both clickable and hoverable)
+      // RED: Elements can match multiple types (e.g., a button is both clickable and scrollable)
       // When element_type="any", same element should appear only once
 
-      // Mock element that matches both clickable AND hoverable
+      // Mock element that matches multiple types
       const multiTypeElement: InteractiveElement = {
         id: '',
         type: 'clickable', // First matched type should be used
@@ -151,10 +140,10 @@ describe('Any Type Detection', () => {
     });
 
     test('should assign first matched type for multi-type elements', () => {
-      // Priority order: clickable > scrollable > inputable > hoverable
+      // Priority order: clickable > scrollable > inputable
       // This ensures consistent behavior across runs
 
-      // A button with onmouseover matches both clickable and hoverable
+      // A scrollable button matches both clickable and scrollable
       // Should be classified as "clickable" (higher priority)
 
       expect(() => {
@@ -162,12 +151,12 @@ describe('Any Type Detection', () => {
         const mockButton = {
           tagName: 'button',
           matches: (s: string) => s.includes('button'),
-          getAttribute: (attr: string) =>
-            attr === 'onmouseover' ? 'highlight()' : null,
+          scrollHeight: 500,
+          clientHeight: 200,
         } as unknown as Element;
 
         const result = detectElementTypes(mockButton, 'any');
-        expect(result).toBe('clickable'); // Not 'hoverable'
+        expect(result).toBe('clickable'); // Not 'scrollable'
       }).toThrow('detectElementTypes is not defined');
     });
   });
@@ -262,28 +251,21 @@ describe('Any Type Detection', () => {
     test('should still work with element_type="clickable"', () => {
       // Existing behavior should not change
       const validType = 'clickable' as const;
-      expect(['clickable', 'scrollable', 'inputable', 'hoverable']).toContain(
+      expect(['clickable', 'scrollable', 'inputable']).toContain(
         validType,
       );
     });
 
     test('should still work with element_type="scrollable"', () => {
       const validType = 'scrollable' as const;
-      expect(['clickable', 'scrollable', 'inputable', 'hoverable']).toContain(
+      expect(['clickable', 'scrollable', 'inputable']).toContain(
         validType,
       );
     });
 
     test('should still work with element_type="inputable"', () => {
       const validType = 'inputable' as const;
-      expect(['clickable', 'scrollable', 'inputable', 'hoverable']).toContain(
-        validType,
-      );
-    });
-
-    test('should still work with element_type="hoverable"', () => {
-      const validType = 'hoverable' as const;
-      expect(['clickable', 'scrollable', 'inputable', 'hoverable']).toContain(
+      expect(['clickable', 'scrollable', 'inputable']).toContain(
         validType,
       );
     });
@@ -322,10 +304,10 @@ describe('Any Type Detection', () => {
   describe('Type detection priority', () => {
     test('clickable should have highest priority', () => {
       // When element matches multiple types, priority order:
-      // clickable > scrollable > inputable > hoverable
+      // clickable > scrollable > inputable
 
       expect(() => {
-        // A scrollable input field should be classified as 'inputable' (higher than hoverable)
+        // A scrollable input field should be classified as 'inputable'
         // A clickable scrollable div should be classified as 'clickable' (highest)
         // This ensures consistent, predictable behavior
 
@@ -353,8 +335,7 @@ describe('Any Type Detection', () => {
 
         // Textarea is inputable AND can be scrollable
         // Should be classified as 'inputable' (higher priority than scrollable)
-        // Wait, actually inputable > scrollable in priority
-        // Let me reconsider: clickable > scrollable > inputable > hoverable
+        // Priority: clickable > scrollable > inputable
 
         const result = detectElementTypes(mockScrollableInputable, 'any');
         // Actually textarea should be inputable first
@@ -365,30 +346,13 @@ describe('Any Type Detection', () => {
 
     test('inputable should have third priority', () => {
       expect(() => {
-        const mockInputableHoverable = {
+        const mockInputable = {
           tagName: 'input',
-          matches: (s: string) => s.includes('[onmouseover]'),
-          getAttribute: (attr: string) =>
-            attr === 'onmouseover' ? 'highlight()' : null,
+          matches: (s: string) => s.includes('input'),
         } as unknown as Element;
 
-        const result = detectElementTypes(mockInputableHoverable, 'any');
-        expect(result).toBe('inputable'); // Higher priority than hoverable
-      }).toThrow('detectElementTypes is not defined');
-    });
-
-    test('hoverable should have lowest priority', () => {
-      expect(() => {
-        // Element that only matches hoverable
-        const mockHoverableOnly = {
-          tagName: 'div',
-          matches: (s: string) => s.includes('[onmouseover]'),
-          getAttribute: (attr: string) =>
-            attr === 'onmouseover' ? 'highlight()' : null,
-        } as unknown as Element;
-
-        const result = detectElementTypes(mockHoverableOnly, 'any');
-        expect(result).toBe('hoverable');
+        const result = detectElementTypes(mockInputable, 'any');
+        expect(result).toBe('inputable');
       }).toThrow('detectElementTypes is not defined');
     });
   });
@@ -401,12 +365,11 @@ describe('Integration: highlight_elements command with "any"', () => {
       'clickable',
       'scrollable',
       'inputable',
-      'hoverable',
       'any',
     ];
 
     // This test documents the expected valid values
-    expect(validElementTypes).toHaveLength(5);
+    expect(validElementTypes).toHaveLength(4);
     expect(validElementTypes).toContain('any');
   });
 
@@ -446,15 +409,6 @@ describe('Integration: highlight_elements command with "any"', () => {
             isVisible: true,
             isInViewport: true,
           },
-          {
-            id: 'span1',
-            type: 'hoverable',
-            tagName: 'span',
-            selector: 'span.tooltip',
-            bbox: { x: 0, y: 300, width: 50, height: 20 },
-            isVisible: true,
-            isInViewport: true,
-          },
         ],
         totalPages: 1,
         currentPage: 1,
@@ -466,7 +420,6 @@ describe('Integration: highlight_elements command with "any"', () => {
       expect(types).toContain('clickable');
       expect(types).toContain('inputable');
       expect(types).toContain('scrollable');
-      expect(types).toContain('hoverable');
     }).toBeDefined();
   });
 });

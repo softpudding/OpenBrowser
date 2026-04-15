@@ -109,7 +109,7 @@ class OpenBrowserObservation(Observation):
     )
     element_type: Optional[str] = Field(
         default=None,
-        description="Type of elements highlighted (clickable/scrollable/inputable/hoverable/selectable/draggable/droppable)",
+        description="Type of elements highlighted (clickable/scrollable/inputable/selectable/draggable/droppable)",
     )
     small_model: Optional[bool] = Field(
         default=None,

@@ -352,7 +352,6 @@ export type ElementType =
   | 'clickable'
   | 'scrollable'
   | 'inputable'
-  | 'hoverable'
   | 'selectable'
   | 'draggable'
   | 'droppable'

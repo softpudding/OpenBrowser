@@ -20,7 +20,7 @@ Use one `element_id` from the current interactive observation to act on the page
 - If an action says the document changed or the cached element is stale, call `highlight` again before retrying.
 - If the page changed significantly and you already have the new default observation, use its new `element_id`s.
 - If the page changed significantly and you do not yet have the new observation, rebuild inventory before acting again.
-- Narrow to `inputable`, `scrollable`, `hoverable`, or `selectable` only when the task directly targets that affordance and `any` was not enough.
+- Narrow to `inputable`, `scrollable`, or `selectable` only when the task directly targets that affordance and `any` was not enough.
 - `element_id` labels use a visual-safe uppercase alphabet. Lowercase letters never appear, and confusable characters such as `0`, `o`, `I`, `l`, `B/8`, `S/5`, `Z/2`, and `G/6` are excluded. Copy the label exactly as shown.
 
 ## Commands

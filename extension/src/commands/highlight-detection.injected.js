@@ -3,9 +3,8 @@ const HIGHLIGHT_TYPE_PRIORITY = {
   inputable: 1,
   selectable: 2,
   scrollable: 3,
-  hoverable: 4,
-  draggable: 5,
-  droppable: 6,
+  draggable: 4,
+  droppable: 5,
 };
 
 const HIGHLIGHT_SIGNAL_SCORE = {
@@ -17,7 +16,6 @@ const HIGHLIGHT_SIGNAL_SCORE = {
   inputable: 360,
   selectable: 340,
   scrollable: 220,
-  hoverable: 160,
 };
 
 const POINTER_ROLE_SET = new Set([
@@ -1085,37 +1083,6 @@ function isScrollableCandidate(el) {
   return canScrollVertically || canScrollHorizontally || canSwipeHorizontally;
 }
 
-function isHoverableCandidate(el) {
-  if (isInputableCandidate(el) || isSelectableCandidate(el)) {
-    return false;
-  }
-
-  if (isClickableCandidate(el)) {
-    return false;
-  }
-
-  if (
-    el.hasAttribute('onmouseover') ||
-    el.hasAttribute('onmouseenter') ||
-    el.hasAttribute('data-hover')
-  ) {
-    return true;
-  }
-
-  if (!isMeaningfulPointerCandidate(el)) {
-    return false;
-  }
-
-  if (
-    hasExplicitClickableAncestor(el) ||
-    hasStructuredInteractiveDescendant(el)
-  ) {
-    return false;
-  }
-
-  return true;
-}
-
 // ──────────────────────────────────────────────────────────────
 // Drag-and-drop detection predicates
 // ──────────────────────────────────────────────────────────────
@@ -1766,12 +1733,6 @@ function resolveElementCandidate(el, requestedType) {
       : null;
   }
 
-  if (requestedType === 'hoverable') {
-    return isHoverableCandidate(el)
-      ? buildResolvedCandidate(el, 'hoverable', 'hoverable')
-      : null;
-  }
-
   if (requestedType === 'draggable') {
     return isDraggableCandidate(el)
       ? buildResolvedCandidate(el, 'draggable', 'draggable')
@@ -1809,10 +1770,6 @@ function resolveElementCandidate(el, requestedType) {
 
     if (isScrollableCandidate(el)) {
       candidates.push(buildResolvedCandidate(el, 'scrollable', 'scrollable'));
-    }
-
-    if (isHoverableCandidate(el)) {
-      candidates.push(buildResolvedCandidate(el, 'hoverable', 'hoverable'));
     }
 
     if (candidates.length === 0) {
@@ -2465,7 +2422,6 @@ function collectHighlightCandidates(config, trace, layoutStability) {
     clickable: 0,
     scrollable: 0,
     inputable: 0,
-    hoverable: 0,
     selectable: 0,
     draggable: 0,
     droppable: 0,
