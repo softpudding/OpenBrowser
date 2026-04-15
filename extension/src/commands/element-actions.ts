@@ -36,22 +36,33 @@ function hoverKey(conversationId: string, tabId: number): string {
 }
 
 /**
+ * Returns true if a hover state is stored for the given conversation + tab.
+ */
+export function hasHoverState(
+  conversationId: string,
+  tabId: number,
+): boolean {
+  return hoverStateStore.has(hoverKey(conversationId, tabId));
+}
+
+/**
  * Re-fire hover events on the last-hovered element for a given
  * conversation + tab. This restores hover-dependent UI (e.g. video
  * player controls) that would otherwise disappear between the hover
- * action and a subsequent click confirmation screenshot.
+ * action and a subsequent highlight scan or confirmation screenshot.
  *
- * Silently no-ops if there is no stored hover state or the element
- * is gone/stale.
+ * Returns true if hover events were actually re-fired (so the caller
+ * can sleep briefly for CSS transitions). Returns false if no stored
+ * state, the element is gone/stale, or the document changed.
  */
 export async function replayHoverState(
   conversationId: string,
   tabId: number,
   timeout: number = 3000,
-): Promise<void> {
+): Promise<boolean> {
   const key = hoverKey(conversationId, tabId);
   const state = hoverStateStore.get(key);
-  if (!state) return;
+  if (!state) return false;
 
   const escapedSelector = escapeForDoubleQuotedJavaScriptString(state.selector);
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
@@ -122,18 +133,20 @@ export async function replayHoverState(
       console.log(
         `🔄 [HoverReplay] Re-fired hover events on "${state.selector}"`,
       );
-    } else {
-      console.log(`🔄 [HoverReplay] Skipped: ${value?.reason || 'unknown'}`);
-      // Clear stale hover state
-      if (
-        value?.reason === 'document changed' ||
-        value?.reason === 'element gone'
-      ) {
-        hoverStateStore.delete(key);
-      }
+      return true;
     }
+    console.log(`🔄 [HoverReplay] Skipped: ${value?.reason || 'unknown'}`);
+    // Clear stale hover state
+    if (
+      value?.reason === 'document changed' ||
+      value?.reason === 'element gone'
+    ) {
+      hoverStateStore.delete(key);
+    }
+    return false;
   } catch (err) {
     console.warn(`⚠️ [HoverReplay] Failed to replay hover:`, err);
+    return false;
   }
 }
 

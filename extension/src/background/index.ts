@@ -43,6 +43,7 @@ import {
   performElementSelect,
   replayHoverState,
   clearHoverState,
+  hasHoverState,
 } from '../commands/element-actions';
 import {
   LABEL_FONT_SIZE,
@@ -314,6 +315,18 @@ async function captureHighlightedPageState(
 
   await tabManager.ensureTabManaged(tabId, conversationId);
   tabManager.updateTabActivity(tabId, conversationId);
+
+  // Re-fire hover events before scanning so hover-revealed UI (e.g. video
+  // player auto-hide control bars) is present in the DOM. Without this,
+  // CSS hover timers expire between turns and the next scan misses
+  // everything the agent just hovered to see. Clearing is the caller's
+  // responsibility on mutating actions (click/input/select, tab view/switch).
+  if (hasHoverState(conversationId, tabId)) {
+    const replayed = await replayHoverState(conversationId, tabId);
+    if (replayed) {
+      await new Promise((r) => setTimeout(r, 150));
+    }
+  }
 
   // T0-B: Removed runHighlightPreconditionWarmup — the detection script
   // evaluates readiness itself and the retry loop handles not_ready state.
@@ -1367,6 +1380,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             // Set the switched-to tab as active
             tabManager.setCurrentActiveTabId(conversationId, command.tab_id);
 
+            // Switching to another tab invalidates any hover context on the
+            // destination tab — start fresh.
+            clearHoverState(conversationId, command.tab_id);
+
             // Capture screenshot after switching
             const switchPageState = await captureDefaultHighlightedPageState({
               tabId: command.tab_id,
@@ -1407,6 +1424,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             }
             await tabManager.ensureTabManaged(command.tab_id, conversationId);
             tabManager.updateTabActivity(command.tab_id, conversationId);
+            // Refresh reloads the document, invalidating any stored hover target.
+            clearHoverState(conversationId, command.tab_id);
             const refreshResult = await tabs.refreshTab(command.tab_id);
 
             // Capture screenshot after refresh
@@ -1439,6 +1458,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
             await tabManager.ensureTabManaged(viewActiveTabId, conversationId);
             tabManager.updateTabActivity(viewActiveTabId, conversationId);
+
+            // Tab view is an observational checkpoint that doesn't preserve
+            // transient UI state; clear any stored hover so the next scan
+            // reflects a neutral baseline.
+            clearHoverState(conversationId, viewActiveTabId);
 
             console.log(
               `👁️ [Tab View] Capturing screenshot for tab ${viewActiveTabId}, conversation: ${conversationId}`,
@@ -1505,6 +1529,10 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
             await tabManager.ensureTabManaged(targetTabId, conversationId);
             tabManager.updateTabActivity(targetTabId, conversationId);
+
+            // Back/forward navigation changes the document, invalidating
+            // any stored hover target.
+            clearHoverState(conversationId, targetTabId);
 
             console.log(
               `↩️ [Tab ${command.action}] Navigating ${command.action} in tab ${targetTabId}, conversation: ${conversationId}`,
@@ -1958,6 +1986,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           );
         }
 
+        // Clear hover state: a click typically consumes the hover-revealed
+        // UI and may navigate or mutate the DOM, making the stored hover
+        // target obsolete.
+        clearHoverState(command.conversation_id, clickTabId);
+
         const clickPageState = await captureDefaultHighlightedPageState({
           tabId: screenshotTabId,
           conversationId: command.conversation_id,
@@ -2149,6 +2182,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           command.text,
           inputTabId,
         );
+        clearHoverState(command.conversation_id, inputTabId);
         const inputPageState = await captureDefaultHighlightedPageState({
           tabId: inputTabId,
           conversationId: command.conversation_id,
@@ -2179,6 +2213,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           selectTabId,
           command.value,
         );
+        clearHoverState(command.conversation_id, selectTabId);
         const selectPageState = await captureDefaultHighlightedPageState({
           tabId: selectTabId,
           conversationId: command.conversation_id,
