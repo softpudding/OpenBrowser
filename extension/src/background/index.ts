@@ -51,8 +51,10 @@ import {
 } from '../commands/label-constants';
 import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import {
+  isLabelWithinViewport,
   paginateCollisionFreeElements,
   sortElementsByVisualOrder,
+  type LabelPosition,
 } from '../utils/collision-detection';
 import {
   HIGHLIGHT_CONSISTENCY_CONFIG,
@@ -174,6 +176,42 @@ async function runRawScreenshotPrime(options: {
   );
 }
 
+const LABEL_POSITION_FALLBACK_ORDER: LabelPosition[] = [
+  'above',
+  'below',
+  'left',
+  'right',
+];
+
+// Keyword-mode bypasses the collision planner (it must show all matches on
+// one page), but the renderer still needs a labelPosition that fits in the
+// viewport — otherwise the label is clipped by the overlay's overflow:hidden.
+function assignViewportFeasibleLabelPosition(
+  element: InteractiveElement,
+  viewportWidth: number,
+  viewportHeight: number,
+): InteractiveElement {
+  if (element.labelPosition) {
+    return element;
+  }
+
+  for (const position of LABEL_POSITION_FALLBACK_ORDER) {
+    if (
+      isLabelWithinViewport(
+        element.bbox,
+        position,
+        viewportWidth,
+        viewportHeight,
+        element.id,
+      )
+    ) {
+      return { ...element, labelPosition: position };
+    }
+  }
+
+  return { ...element, labelPosition: 'above' };
+}
+
 function buildStoredHighlightPages(options: {
   filteredElements: InteractiveElement[];
   viewportWidth: number;
@@ -184,7 +222,14 @@ function buildStoredHighlightPages(options: {
     options;
 
   if (keywordMode) {
-    return [sortElementsByVisualOrder(filteredElements)];
+    const placed = filteredElements.map((element) =>
+      assignViewportFeasibleLabelPosition(
+        element,
+        viewportWidth,
+        viewportHeight,
+      ),
+    );
+    return [sortElementsByVisualOrder(placed)];
   }
 
   const collisionFreePages = paginateCollisionFreeElements(
@@ -276,7 +321,9 @@ function buildInPageHighlightScript(
       const items = ${JSON.stringify(items)};
       const OVERLAY_ID = ${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)};
       const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
-      const LABEL_H = 22;
+      const LABEL_FONT_SIZE = ${LABEL_FONT_SIZE};
+      const LABEL_PADDING = ${LABEL_PADDING};
+      const MAX_LABEL_WIDTH = ${MAX_LABEL_WIDTH};
 
       // Remove any previous highlights
       document.getElementById(OVERLAY_ID)?.remove();
@@ -291,8 +338,15 @@ function buildInPageHighlightScript(
       overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2147483647;overflow:hidden;';
       document.documentElement.appendChild(overlay);
 
-      const vh = window.innerHeight;
       const bboxes = [];
+      // box-sizing:border-box so max-width caps the total rendered width
+      // (matching the collision planner's MAX_LABEL_WIDTH, which is the full
+      // label width including padding).
+      const LABEL_BASE_CSS = 'position:fixed;box-sizing:border-box;'
+        + 'font:bold ' + LABEL_FONT_SIZE + 'px/' + LABEL_FONT_SIZE + 'px Arial,sans-serif;'
+        + 'color:#fff;padding:' + LABEL_PADDING + 'px;border-radius:2px;'
+        + 'white-space:nowrap;pointer-events:none;overflow:hidden;text-overflow:ellipsis;'
+        + 'max-width:' + MAX_LABEL_WIDTH + 'px;';
 
       for (const item of items) {
         try {
@@ -304,29 +358,31 @@ function buildInPageHighlightScript(
           // Inset box-shadow on the element — rendered inside the element's own
           // area so it can't be clipped by ancestor overflow:hidden, and doesn't
           // affect layout. Guaranteed aligned by the browser.
-          el.style.setProperty('box-shadow', 'inset 0 0 0 2px ' + item.borderColor, 'important');
+          el.style.setProperty('box-shadow', 'inset 0 0 0 3px ' + item.borderColor, 'important');
           el.setAttribute(HL_ATTR, item.id);
 
-          // Label as overlay div
-          let lx = rect.left;
-          let ly;
-          switch (item.labelPos) {
-            case 'below': ly = rect.bottom + 1; break;
-            case 'left':  lx = rect.left - 40; ly = rect.top; break;
-            case 'right': lx = rect.right; ly = rect.top; break;
-            default:      ly = rect.top - LABEL_H; break;
-          }
-          if (ly < 0) ly = rect.top;
-          if (ly + LABEL_H > vh) ly = vh - LABEL_H;
-          if (lx < 0) lx = 0;
-
+          // Render label off-screen first to measure actual dimensions, then
+          // position it using the measured size — keeps positioning consistent
+          // with the collision-detection model (which uses actual label width).
           const label = document.createElement('div');
-          label.style.cssText = 'position:fixed;left:' + lx + 'px;top:' + ly + 'px;'
-            + 'font:bold 16px/16px Arial,sans-serif;color:#fff;padding:3px;border-radius:2px;'
-            + 'white-space:nowrap;pointer-events:none;'
-            + 'background:' + item.bgColor + ';';
+          label.style.cssText = LABEL_BASE_CSS + 'left:-9999px;top:0;background:' + item.bgColor + ';';
           label.textContent = item.id;
           overlay.appendChild(label);
+
+          const labelRect = label.getBoundingClientRect();
+          const labelW = labelRect.width;
+          const labelH = labelRect.height;
+
+          let lx, ly;
+          switch (item.labelPos) {
+            case 'below': lx = rect.left;            ly = rect.bottom;       break;
+            case 'left':  lx = rect.left - labelW;   ly = rect.top;          break;
+            case 'right': lx = rect.right;           ly = rect.top;          break;
+            default:      lx = rect.left;            ly = rect.top - labelH; break;
+          }
+
+          label.style.left = lx + 'px';
+          label.style.top = ly + 'px';
 
           bboxes.push({ id: item.id, bbox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } });
         } catch (e) { /* skip */ }
