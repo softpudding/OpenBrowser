@@ -36,7 +36,10 @@ export async function moveTo(
     );
     positionByTab.set(tabId, { x, y });
   } catch (err) {
-    console.warn(`⚠️ [MockMouse] moveTo(${x}, ${y}) failed on tab ${tabId}:`, err);
+    console.warn(
+      `⚠️ [MockMouse] moveTo(${x}, ${y}) failed on tab ${tabId}:`,
+      err,
+    );
   }
 }
 
@@ -67,13 +70,20 @@ export async function moveToCoords(
   conversationId: string,
   bbox: { x: number; y: number; width: number; height: number },
 ): Promise<void> {
-  await moveTo(tabId, conversationId, bbox.x + bbox.width / 2, bbox.y + bbox.height / 2);
+  await moveTo(
+    tabId,
+    conversationId,
+    bbox.x + bbox.width / 2,
+    bbox.y + bbox.height / 2,
+  );
 }
 
 /**
  * Return the last known CDP mouse position for a tab.
  */
-export function getPosition(tabId: number): { x: number; y: number } | undefined {
+export function getPosition(
+  tabId: number,
+): { x: number; y: number } | undefined {
   return positionByTab.get(tabId);
 }
 

@@ -289,24 +289,24 @@ function buildHighlightConsistencyScript(
 }
 
 // Color mapping matching visual-highlight.ts
-const IN_PAGE_HIGHLIGHT_COLORS: Record<string, { border: string; bg: string }> = {
-  clickable: { border: '#0066FF', bg: 'rgba(0,102,255,0.7)' },
-  scrollable: { border: '#00CC66', bg: 'rgba(0,204,102,0.7)' },
-  inputable: { border: '#FF9900', bg: 'rgba(255,153,0,0.7)' },
-  selectable: { border: '#FF6B6B', bg: 'rgba(255,107,107,0.7)' },
-  draggable: { border: '#FF6600', bg: 'rgba(255,102,0,0.7)' },
-  droppable: { border: '#339966', bg: 'rgba(51,153,102,0.7)' },
-  any: { border: '#00CCCC', bg: 'rgba(0,204,204,0.7)' },
-};
+const IN_PAGE_HIGHLIGHT_COLORS: Record<string, { border: string; bg: string }> =
+  {
+    clickable: { border: '#0066FF', bg: 'rgba(0,102,255,0.7)' },
+    scrollable: { border: '#00CC66', bg: 'rgba(0,204,102,0.7)' },
+    inputable: { border: '#FF9900', bg: 'rgba(255,153,0,0.7)' },
+    selectable: { border: '#FF6B6B', bg: 'rgba(255,107,107,0.7)' },
+    draggable: { border: '#FF6600', bg: 'rgba(255,102,0,0.7)' },
+    droppable: { border: '#339966', bg: 'rgba(51,153,102,0.7)' },
+    any: { border: '#00CCCC', bg: 'rgba(0,204,204,0.7)' },
+  };
 
 const OB_HIGHLIGHT_OVERLAY_ID = '__ob_highlight_overlay__';
 const OB_HIGHLIGHT_ATTR = 'data-ob-hl';
 
-function buildInPageHighlightScript(
-  elements: InteractiveElement[],
-): string {
+function buildInPageHighlightScript(elements: InteractiveElement[]): string {
   const items = elements.map((el) => {
-    const colors = IN_PAGE_HIGHLIGHT_COLORS[el.type] || IN_PAGE_HIGHLIGHT_COLORS.clickable;
+    const colors =
+      IN_PAGE_HIGHLIGHT_COLORS[el.type] || IN_PAGE_HIGHLIGHT_COLORS.clickable;
     return {
       id: el.id,
       selector: el.selector,
@@ -641,7 +641,10 @@ async function captureHighlightedPageState(
     // Apply bboxes returned from the highlight injection script
     const preCaptureData = screenshotResult.preCaptureResult;
     if (preCaptureData?.bboxes && Array.isArray(preCaptureData.bboxes)) {
-      const bboxMap = new Map<string, { x: number; y: number; width: number; height: number }>();
+      const bboxMap = new Map<
+        string,
+        { x: number; y: number; width: number; height: number }
+      >();
       for (const entry of preCaptureData.bboxes) {
         if (entry.id && entry.bbox) {
           bboxMap.set(entry.id, entry.bbox);

@@ -100,15 +100,9 @@ describe('Any Type Detection', () => {
         const result3 = detectElementTypes(mockInputableElement, 'any');
 
         // All should return a valid type
-        expect(['clickable', 'scrollable', 'inputable']).toContain(
-          result1,
-        );
-        expect(['clickable', 'scrollable', 'inputable']).toContain(
-          result2,
-        );
-        expect(['clickable', 'scrollable', 'inputable']).toContain(
-          result3,
-        );
+        expect(['clickable', 'scrollable', 'inputable']).toContain(result1);
+        expect(['clickable', 'scrollable', 'inputable']).toContain(result2);
+        expect(['clickable', 'scrollable', 'inputable']).toContain(result3);
       }).toThrow('detectElementTypes is not defined');
     });
 
@@ -251,23 +245,17 @@ describe('Any Type Detection', () => {
     test('should still work with element_type="clickable"', () => {
       // Existing behavior should not change
       const validType = 'clickable' as const;
-      expect(['clickable', 'scrollable', 'inputable']).toContain(
-        validType,
-      );
+      expect(['clickable', 'scrollable', 'inputable']).toContain(validType);
     });
 
     test('should still work with element_type="scrollable"', () => {
       const validType = 'scrollable' as const;
-      expect(['clickable', 'scrollable', 'inputable']).toContain(
-        validType,
-      );
+      expect(['clickable', 'scrollable', 'inputable']).toContain(validType);
     });
 
     test('should still work with element_type="inputable"', () => {
       const validType = 'inputable' as const;
-      expect(['clickable', 'scrollable', 'inputable']).toContain(
-        validType,
-      );
+      expect(['clickable', 'scrollable', 'inputable']).toContain(validType);
     });
 
     test('should maintain pagination for individual types without keywords', () => {
@@ -361,12 +349,7 @@ describe('Any Type Detection', () => {
 describe('Integration: highlight_elements command with "any"', () => {
   test('should validate element_type parameter accepts "any"', () => {
     // The command schema should accept "any" as valid element_type
-    const validElementTypes = [
-      'clickable',
-      'scrollable',
-      'inputable',
-      'any',
-    ];
+    const validElementTypes = ['clickable', 'scrollable', 'inputable', 'any'];
 
     // This test documents the expected valid values
     expect(validElementTypes).toHaveLength(4);
