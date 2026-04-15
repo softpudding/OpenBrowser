@@ -2358,11 +2358,11 @@ function collectHighlightCandidates(config, trace, layoutStability) {
       );
     }
 
-    if (!isElementVisibleForDetection(element)) {
+    if (!isElementInViewportForDetection(element)) {
       continue;
     }
 
-    if (!isElementInViewportForDetection(element)) {
+    if (!isElementVisibleForDetection(element)) {
       continue;
     }
 

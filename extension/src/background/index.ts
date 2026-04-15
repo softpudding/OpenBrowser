@@ -243,6 +243,113 @@ function buildHighlightConsistencyScript(
   `;
 }
 
+// Color mapping matching visual-highlight.ts
+const IN_PAGE_HIGHLIGHT_COLORS: Record<string, { border: string; bg: string }> = {
+  clickable: { border: '#0066FF', bg: 'rgba(0,102,255,0.7)' },
+  scrollable: { border: '#00CC66', bg: 'rgba(0,204,102,0.7)' },
+  inputable: { border: '#FF9900', bg: 'rgba(255,153,0,0.7)' },
+  selectable: { border: '#FF6B6B', bg: 'rgba(255,107,107,0.7)' },
+  draggable: { border: '#FF6600', bg: 'rgba(255,102,0,0.7)' },
+  droppable: { border: '#339966', bg: 'rgba(51,153,102,0.7)' },
+  any: { border: '#00CCCC', bg: 'rgba(0,204,204,0.7)' },
+};
+
+const OB_HIGHLIGHT_OVERLAY_ID = '__ob_highlight_overlay__';
+const OB_HIGHLIGHT_ATTR = 'data-ob-hl';
+
+function buildInPageHighlightScript(
+  elements: InteractiveElement[],
+): string {
+  const items = elements.map((el) => {
+    const colors = IN_PAGE_HIGHLIGHT_COLORS[el.type] || IN_PAGE_HIGHLIGHT_COLORS.clickable;
+    return {
+      id: el.id,
+      selector: el.selector,
+      borderColor: colors.border,
+      bgColor: colors.bg,
+      labelPos: el.labelPosition || 'above',
+    };
+  });
+
+  return `
+    (() => {
+      const items = ${JSON.stringify(items)};
+      const OVERLAY_ID = ${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)};
+      const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
+      const LABEL_H = 22;
+
+      // Remove any previous highlights
+      document.getElementById(OVERLAY_ID)?.remove();
+      document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
+        el.style.removeProperty('box-shadow');
+        el.removeAttribute(HL_ATTR);
+      });
+
+      // Create overlay for labels only (boxes use inset box-shadow on elements)
+      const overlay = document.createElement('div');
+      overlay.id = OVERLAY_ID;
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2147483647;overflow:hidden;';
+      document.documentElement.appendChild(overlay);
+
+      const vh = window.innerHeight;
+      const bboxes = [];
+
+      for (const item of items) {
+        try {
+          const el = document.querySelector(item.selector);
+          if (!el) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) continue;
+
+          // Inset box-shadow on the element — rendered inside the element's own
+          // area so it can't be clipped by ancestor overflow:hidden, and doesn't
+          // affect layout. Guaranteed aligned by the browser.
+          el.style.setProperty('box-shadow', 'inset 0 0 0 2px ' + item.borderColor, 'important');
+          el.setAttribute(HL_ATTR, item.id);
+
+          // Label as overlay div
+          let lx = rect.left;
+          let ly;
+          switch (item.labelPos) {
+            case 'below': ly = rect.bottom + 1; break;
+            case 'left':  lx = rect.left - 40; ly = rect.top; break;
+            case 'right': lx = rect.right; ly = rect.top; break;
+            default:      ly = rect.top - LABEL_H; break;
+          }
+          if (ly < 0) ly = rect.top;
+          if (ly + LABEL_H > vh) ly = vh - LABEL_H;
+          if (lx < 0) lx = 0;
+
+          const label = document.createElement('div');
+          label.style.cssText = 'position:fixed;left:' + lx + 'px;top:' + ly + 'px;'
+            + 'font:bold 16px/16px Arial,sans-serif;color:#fff;padding:3px;border-radius:2px;'
+            + 'white-space:nowrap;pointer-events:none;'
+            + 'background:' + item.bgColor + ';';
+          label.textContent = item.id;
+          overlay.appendChild(label);
+
+          bboxes.push({ id: item.id, bbox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } });
+        } catch (e) { /* skip */ }
+      }
+
+      return { bboxes };
+    })();
+  `;
+}
+
+function buildHighlightCleanupScript(): string {
+  return `
+    (() => {
+      const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
+      document.getElementById(${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)})?.remove();
+      document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
+        el.style.removeProperty('box-shadow');
+        el.removeAttribute(HL_ATTR);
+      });
+    })();
+  `;
+}
+
 interface ScreenshotPayload {
   screenshot?: string;
   dialog_auto_accepted?: unknown;
@@ -430,6 +537,13 @@ async function captureHighlightedPageState(
       );
     }
 
+    // Inject highlights into the page DOM before capturing. Using CSS
+    // outlines on elements guarantees pixel-perfect alignment because the
+    // browser renders them as part of the element — no bbox-to-screenshot
+    // coordinate mapping needed. This eliminates hidden-tab layout
+    // discrepancies where getBoundingClientRect() and Page.captureScreenshot
+    // see different geometry.
+    const highlightScript = buildInPageHighlightScript(paginatedElements);
     const screenshotStart = Date.now();
     const screenshotResult = await captureScreenshot(
       tabId,
@@ -439,7 +553,22 @@ async function captureHighlightedPageState(
       false,
       0,
       TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+      highlightScript,
     );
+
+    // Clean up injected highlights from the DOM
+    try {
+      await javascript.executeJavaScript(
+        tabId,
+        conversationId,
+        buildHighlightCleanupScript(),
+        true,
+        false,
+        2000,
+      );
+    } catch (e) {
+      console.warn(`⚠️ [${logLabel}] highlight cleanup failed: ${e}`);
+    }
 
     if (!screenshotResult?.success || !screenshotResult?.imageData) {
       throw new Error(
@@ -447,11 +576,28 @@ async function captureHighlightedPageState(
       );
     }
     console.log(
-      `📸 [${logLabel}] Screenshot captured, size: ${screenshotResult.imageData.length} bytes`,
+      `📸 [${logLabel}] Screenshot captured (with in-page highlights), size: ${screenshotResult.imageData.length} bytes`,
     );
     console.log(
       `⏱️ [HighlightTrace] background screenshot ${Date.now() - screenshotStart}ms`,
     );
+
+    // Apply bboxes returned from the highlight injection script
+    const preCaptureData = screenshotResult.preCaptureResult;
+    if (preCaptureData?.bboxes && Array.isArray(preCaptureData.bboxes)) {
+      const bboxMap = new Map<string, { x: number; y: number; width: number; height: number }>();
+      for (const entry of preCaptureData.bboxes) {
+        if (entry.id && entry.bbox) {
+          bboxMap.set(entry.id, entry.bbox);
+        }
+      }
+      for (const element of filteredElements) {
+        const freshBbox = bboxMap.get(element.id);
+        if (freshBbox) {
+          element.bbox = freshBbox;
+        }
+      }
+    }
 
     const imageScale =
       screenshotResult.metadata?.imageScale ||
@@ -546,23 +692,11 @@ async function captureHighlightedPageState(
       );
     }
 
-    const drawHighlightsStart = Date.now();
-    const highlightedScreenshot = await drawHighlights(
-      screenshotResult.imageData,
-      storedPage.elements,
-      {
-        scale: imageScale,
-        viewportWidth,
-        viewportHeight,
-      },
-    );
-    console.log(
-      `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${storedPage.elements.length})`,
-    );
-
+    // Highlights are already baked into the screenshot via in-page injection.
+    // Just compress the screenshot directly — no post-hoc drawing needed.
     const compressStart = Date.now();
     const compressedScreenshotResult = await compressScreenshotResult({
-      imageData: highlightedScreenshot,
+      imageData: screenshotResult.imageData,
       dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
       dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list,
     });

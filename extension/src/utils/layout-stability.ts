@@ -148,12 +148,17 @@ export function evaluateLayoutReadiness(
     reasons.push('pending-images');
   }
 
+  // When the viewport already has rich content (contentScore >= 4), skeleton
+  // and placeholder signals are likely persistent SPA chrome that will never
+  // clear. Treat them as soft rather than hard blockers so we don't waste
+  // retry attempts waiting for a state that will never arrive.
+  const richContent = contentScore >= 4;
   const hasHardBlocker =
     reasons.includes('document-not-complete') ||
     reasons.includes('low-viewport-content') ||
-    reasons.includes('skeleton-placeholders') ||
+    (!richContent && reasons.includes('skeleton-placeholders')) ||
     reasons.includes('loading-spinner') ||
-    reasons.includes('placeholder-area');
+    (!richContent && reasons.includes('placeholder-area'));
 
   let state: HighlightPageState = 'not_ready';
   if (
@@ -279,12 +284,13 @@ export function buildLayoutStabilityHelpersScript(): string {
         reasons.push('pending-images');
       }
 
+      const richContent = contentScore >= 4;
       const hasHardBlocker =
         reasons.includes('document-not-complete') ||
         reasons.includes('low-viewport-content') ||
-        reasons.includes('skeleton-placeholders') ||
+        (!richContent && reasons.includes('skeleton-placeholders')) ||
         reasons.includes('loading-spinner') ||
-        reasons.includes('placeholder-area');
+        (!richContent && reasons.includes('placeholder-area'));
 
       let state = 'not_ready';
       if (
