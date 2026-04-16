@@ -16,6 +16,13 @@ const LABEL_COLORS = {
     blue:   '#0079bf'
 };
 
+const BOARD_MEMBERS = [
+    { id: 'm1', initials: 'SC', name: 'Sarah Chen',   color: '#e74c3c' },
+    { id: 'm2', initials: 'JW', name: 'James Wilson', color: '#3498db' },
+    { id: 'm3', initials: 'MG', name: 'Maria Garcia', color: '#2ecc71' },
+    { id: 'm4', initials: 'DK', name: 'David Kim',    color: '#9b59b6' },
+];
+
 // Board state – mutable
 const boardData = {
     columns: [
@@ -27,6 +34,7 @@ const boardData = {
                     id: 'c1',
                     title: 'Write unit tests',
                     labels: ['blue'],
+                    members: ['m2'],
                     checklist: [
                         { text: 'Test auth flow', checked: false },
                         { text: 'Test API endpoints', checked: false },
@@ -39,6 +47,7 @@ const boardData = {
                     id: 'c2',
                     title: 'Update documentation',
                     labels: ['green'],
+                    members: [],
                     checklist: [],
                     due: null,
                     description: ''
@@ -47,14 +56,16 @@ const boardData = {
                     id: 'c3',
                     title: 'Fix login bug',
                     labels: ['red'],
+                    members: ['m1'],
                     checklist: [],
-                    due: 'Apr 15',
+                    due: '2026-04-15',
                     description: ''
                 },
                 {
                     id: 'c4',
                     title: 'Refactor auth module',
                     labels: [],
+                    members: [],
                     checklist: [],
                     due: null,
                     description: ''
@@ -69,6 +80,7 @@ const boardData = {
                     id: 'c5',
                     title: 'Design API schema',
                     labels: ['yellow'],
+                    members: ['m1', 'm3'],
                     checklist: [
                         { text: 'Define endpoints', checked: false },
                         { text: 'Set up auth', checked: true },
@@ -82,6 +94,7 @@ const boardData = {
                     id: 'c6',
                     title: 'Build search feature',
                     labels: ['blue'],
+                    members: ['m4'],
                     checklist: [],
                     due: null,
                     description: ''
@@ -90,14 +103,16 @@ const boardData = {
                     id: 'c7',
                     title: 'Create dashboard',
                     labels: ['purple'],
+                    members: [],
                     checklist: [],
-                    due: 'Apr 20',
+                    due: '2026-04-20',
                     description: ''
                 },
                 {
                     id: 'c8',
                     title: 'Set up CI/CD',
                     labels: [],
+                    members: ['m2', 'm4'],
                     checklist: [],
                     due: null,
                     description: ''
@@ -112,6 +127,7 @@ const boardData = {
                     id: 'c9',
                     title: 'Deploy staging build',
                     labels: ['green'],
+                    members: ['m3'],
                     checklist: [
                         { text: 'Run tests', checked: true },
                         { text: 'Deploy to staging', checked: false }
@@ -123,6 +139,7 @@ const boardData = {
                     id: 'c10',
                     title: 'Code review: payments',
                     labels: ['red'],
+                    members: [],
                     checklist: [],
                     due: null,
                     description: ''
@@ -131,6 +148,7 @@ const boardData = {
                     id: 'c11',
                     title: 'Update user permissions',
                     labels: ['yellow'],
+                    members: ['m1'],
                     checklist: [],
                     due: null,
                     description: ''
@@ -139,6 +157,7 @@ const boardData = {
                     id: 'c12',
                     title: 'Performance optimization',
                     labels: [],
+                    members: [],
                     checklist: [],
                     due: null,
                     description: ''
@@ -153,6 +172,7 @@ const boardData = {
                     id: 'c13',
                     title: 'Set up project repo',
                     labels: ['green'],
+                    members: ['m2'],
                     checklist: [],
                     due: null,
                     description: ''
@@ -161,6 +181,7 @@ const boardData = {
                     id: 'c14',
                     title: 'Design mockups',
                     labels: ['purple'],
+                    members: ['m3', 'm4'],
                     checklist: [],
                     due: null,
                     description: ''
@@ -169,6 +190,7 @@ const boardData = {
                     id: 'c15',
                     title: 'Create database schema',
                     labels: ['blue'],
+                    members: ['m1'],
                     checklist: [],
                     due: null,
                     description: ''
@@ -177,6 +199,7 @@ const boardData = {
                     id: 'c16',
                     title: 'Sprint planning meeting',
                     labels: [],
+                    members: [],
                     checklist: [],
                     due: null,
                     description: ''
@@ -190,6 +213,12 @@ let nextCardId = 17;
 let activeFilter = null; // null or a label color string
 
 /* ---------- Helpers ---------- */
+
+function formatDueDate(iso) {
+    if (!iso) return null;
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 function findCard(cardId) {
     for (const col of boardData.columns) {
@@ -290,12 +319,12 @@ function createCardElement(card, columnId) {
     titleDiv.textContent = card.title;
     el.appendChild(titleDiv);
 
-    // Badges
+    // Badges row (due date + checklist)
     const badges = [];
     if (card.due) {
         badges.push(`<span class="card-badge card-badge-due">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            ${card.due}
+            ${formatDueDate(card.due)}
         </span>`);
     }
     if (card.checklist && card.checklist.length > 0) {
@@ -306,11 +335,36 @@ function createCardElement(card, columnId) {
             ${done}/${total}
         </span>`);
     }
-    if (badges.length > 0) {
-        const badgesDiv = document.createElement('div');
-        badgesDiv.className = 'card-badges';
-        badgesDiv.innerHTML = badges.join('');
-        el.appendChild(badgesDiv);
+
+    // Card bottom row: badges + member avatars
+    if (badges.length > 0 || (card.members && card.members.length > 0)) {
+        const bottomRow = document.createElement('div');
+        bottomRow.className = 'card-bottom-row';
+
+        if (badges.length > 0) {
+            const badgesDiv = document.createElement('div');
+            badgesDiv.className = 'card-badges';
+            badgesDiv.innerHTML = badges.join('');
+            bottomRow.appendChild(badgesDiv);
+        }
+
+        if (card.members && card.members.length > 0) {
+            const membersDiv = document.createElement('div');
+            membersDiv.className = 'card-member-avatars';
+            card.members.forEach(memberId => {
+                const member = BOARD_MEMBERS.find(m => m.id === memberId);
+                if (!member) return;
+                const avatar = document.createElement('span');
+                avatar.className = 'card-member-avatar';
+                avatar.style.background = member.color;
+                avatar.textContent = member.initials;
+                avatar.title = member.name;
+                membersDiv.appendChild(avatar);
+            });
+            bottomRow.appendChild(membersDiv);
+        }
+
+        el.appendChild(bottomRow);
     }
 
     // Pencil (quick edit) button — hidden by default, shown on hover via CSS
@@ -571,16 +625,22 @@ function openCardModal(cardId) {
         checklistSection.style.display = 'none';
     }
 
-    // Reset label picker
-    document.getElementById('label-picker-popover').style.display = 'none';
+    // Close any open popovers
+    closeAllPopovers();
+
+    // Members
+    renderModalMembers();
+
+    // Due date
+    renderModalDueDate();
 
     // Show modal
     overlay.classList.add('active');
 }
 
 function closeCardModal() {
+    closeAllPopovers();
     document.getElementById('card-modal-overlay').classList.remove('active');
-    document.getElementById('label-picker-popover').style.display = 'none';
     tracker.track('card_modal_close', {});
     currentModalCardId = null;
     renderBoard(); // refresh cards in case labels/checklist changed
@@ -614,15 +674,24 @@ function renderChecklist(card) {
     });
 }
 
+/* ---------- Popovers ---------- */
+
+function closeAllPopovers() {
+    document.getElementById('label-picker-popover').style.display = 'none';
+    document.getElementById('members-picker-popover').style.display = 'none';
+    document.getElementById('dates-picker-popover').style.display = 'none';
+}
+
 /* ---------- Label Picker ---------- */
 
 function openLabelPicker() {
     const popover = document.getElementById('label-picker-popover');
-    popover.style.display = popover.style.display === 'none' ? '' : 'none';
-
-    if (popover.style.display !== 'none') {
+    const isOpen = popover.style.display !== 'none';
+    closeAllPopovers();
+    if (!isOpen) {
         tracker.track('label_picker_open', {});
         updateLabelPickerState();
+        popover.style.display = '';
     }
 }
 
@@ -666,6 +735,134 @@ function toggleLabel(color) {
     });
 }
 
+/* ---------- Members ---------- */
+
+function openMemberPicker() {
+    const popover = document.getElementById('members-picker-popover');
+    const isOpen = popover.style.display !== 'none';
+    closeAllPopovers();
+    if (!isOpen) {
+        renderMemberPicker();
+        popover.style.display = '';
+        tracker.track('member_picker_open', {});
+    }
+}
+
+function renderMemberPicker() {
+    const result = findCard(currentModalCardId);
+    if (!result) return;
+    const list = document.getElementById('member-picker-list');
+    list.innerHTML = '';
+    BOARD_MEMBERS.forEach(member => {
+        const isAssigned = result.card.members.includes(member.id);
+        const item = document.createElement('button');
+        item.className = 'member-picker-item' + (isAssigned ? ' assigned' : '');
+        item.dataset.memberId = member.id;
+        item.innerHTML = `
+            <span class="member-picker-avatar" style="background:${member.color}">${member.initials}</span>
+            <span class="member-picker-name">${member.name}</span>
+            ${isAssigned ? `<svg class="member-picker-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
+        `;
+        list.appendChild(item);
+    });
+}
+
+function toggleMember(memberId) {
+    const result = findCard(currentModalCardId);
+    if (!result) return;
+    const idx = result.card.members.indexOf(memberId);
+    if (idx !== -1) {
+        result.card.members.splice(idx, 1);
+        tracker.track('member_remove', { memberId });
+    } else {
+        result.card.members.push(memberId);
+        tracker.track('member_assign', { memberId });
+    }
+    renderMemberPicker();
+    renderModalMembers();
+}
+
+function renderModalMembers() {
+    const result = findCard(currentModalCardId);
+    if (!result) return;
+    const section = document.getElementById('modal-members-section');
+    const container = document.getElementById('modal-assigned-members');
+    container.innerHTML = '';
+    if (result.card.members.length > 0) {
+        result.card.members.forEach(memberId => {
+            const member = BOARD_MEMBERS.find(m => m.id === memberId);
+            if (!member) return;
+            const avatar = document.createElement('span');
+            avatar.className = 'modal-member-avatar';
+            avatar.style.background = member.color;
+            avatar.textContent = member.initials;
+            avatar.title = member.name;
+            container.appendChild(avatar);
+        });
+        section.style.display = '';
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+/* ---------- Dates ---------- */
+
+function openDatePicker() {
+    const popover = document.getElementById('dates-picker-popover');
+    const isOpen = popover.style.display !== 'none';
+    closeAllPopovers();
+    if (!isOpen) {
+        const result = findCard(currentModalCardId);
+        const input = document.getElementById('due-date-input');
+        input.value = (result && result.card.due) ? result.card.due : '';
+        popover.style.display = '';
+        tracker.track('date_picker_open', {});
+    }
+}
+
+function saveDueDate() {
+    const result = findCard(currentModalCardId);
+    if (!result) return;
+    const val = document.getElementById('due-date-input').value;
+    result.card.due = val || null;
+    tracker.track('due_date_set', { due: val });
+    document.getElementById('dates-picker-popover').style.display = 'none';
+    renderModalDueDate();
+}
+
+function removeDueDate() {
+    const result = findCard(currentModalCardId);
+    if (!result) return;
+    result.card.due = null;
+    tracker.track('due_date_remove', {});
+    document.getElementById('dates-picker-popover').style.display = 'none';
+    renderModalDueDate();
+}
+
+function renderModalDueDate() {
+    const result = findCard(currentModalCardId);
+    if (!result) return;
+    const section = document.getElementById('modal-due-section');
+    const badge = document.getElementById('modal-due-badge');
+    if (result.card.due) {
+        badge.textContent = formatDueDate(result.card.due);
+        section.style.display = '';
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+/* ---------- Archive ---------- */
+
+function archiveCard() {
+    const result = findCard(currentModalCardId);
+    if (!result) return;
+    tracker.track('card_archive', { cardTitle: result.card.title });
+    const idx = result.column.cards.indexOf(result.card);
+    if (idx !== -1) result.column.cards.splice(idx, 1);
+    closeCardModal();
+}
+
 /* ---------- Add Card Inline ---------- */
 
 function showAddCardForm(columnId) {
@@ -703,6 +900,7 @@ function submitAddCard(columnId) {
         id: 'c' + (nextCardId++),
         title,
         labels: [],
+        members: [],
         checklist: [],
         due: null,
         description: ''
@@ -991,6 +1189,55 @@ document.addEventListener('click', function(e) {
     // Labels button in sidebar
     if (e.target.closest('#sidebar-labels-btn')) {
         openLabelPicker();
+        return;
+    }
+
+    // Members button in sidebar
+    if (e.target.closest('#sidebar-members-btn')) {
+        openMemberPicker();
+        return;
+    }
+
+    // Dates button in sidebar
+    if (e.target.closest('#sidebar-dates-btn')) {
+        openDatePicker();
+        return;
+    }
+
+    // Archive button in sidebar
+    if (e.target.closest('#sidebar-archive-btn')) {
+        archiveCard();
+        return;
+    }
+
+    // Members picker close
+    if (e.target.closest('#members-picker-close')) {
+        document.getElementById('members-picker-popover').style.display = 'none';
+        return;
+    }
+
+    // Dates picker close
+    if (e.target.closest('#dates-picker-close')) {
+        document.getElementById('dates-picker-popover').style.display = 'none';
+        return;
+    }
+
+    // Member picker item click
+    const memberItem = e.target.closest('.member-picker-item');
+    if (memberItem && memberItem.closest('#member-picker-list')) {
+        toggleMember(memberItem.dataset.memberId);
+        return;
+    }
+
+    // Due date save
+    if (e.target.closest('#due-date-save')) {
+        saveDueDate();
+        return;
+    }
+
+    // Due date remove
+    if (e.target.closest('#due-date-remove')) {
+        removeDueDate();
         return;
     }
 
