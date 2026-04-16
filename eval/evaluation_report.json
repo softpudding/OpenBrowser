@@ -1,7 +1,7 @@
 {
   "evaluation": {
-    "timestamp": "2026-04-16 00:19:26",
-    "unix_timestamp": 1776269966.727225,
+    "timestamp": "2026-04-16 12:57:45",
+    "unix_timestamp": 1776315465.866534,
     "summary": {
       "total_tests": 70,
       "passed_tests": 59,
@@ -14,25 +14,25 @@
     "model_performance": {
       "dashscope/qwen3.5-flash": {
         "pass_rate": 80.0,
-        "task_score": 264.3,
+        "task_score": 262.7,
         "task_max_score": 304.8,
-        "efficiency_score": 18.4945,
-        "usage_score": 29.5324,
-        "composite_score": 0.7544,
-        "avg_duration": 289.8,
-        "avg_cost": 0.224698,
+        "efficiency_score": 17.5078,
+        "usage_score": 29.7044,
+        "composite_score": 0.7498,
+        "avg_duration": 308.83,
+        "avg_cost": 0.21822,
         "passed_count": 28,
         "total_tests": 35
       },
       "dashscope/qwen3.5-plus": {
         "pass_rate": 88.57,
-        "task_score": 283.3,
+        "task_score": 276.8,
         "task_max_score": 304.8,
-        "efficiency_score": 16.5824,
-        "usage_score": 18.6653,
-        "composite_score": 0.7328,
-        "avg_duration": 331.5,
-        "avg_cost": 0.708404,
+        "efficiency_score": 16.1587,
+        "usage_score": 20.0958,
+        "composite_score": 0.7386,
+        "avg_duration": 335.62,
+        "avg_cost": 0.633391,
         "passed_count": 31,
         "total_tests": 35
       }
@@ -45,23 +45,23 @@
             "passed": true,
             "task_score": 6.0,
             "task_max_score": 6.0,
-            "efficiency_score": 0.6659,
-            "usage_score": 0.8909,
-            "composite_score": 0.9114,
-            "total_score": 7.56,
-            "duration": 100.22,
-            "cost": 0.065483
+            "efficiency_score": 0.6199,
+            "usage_score": 0.8831,
+            "composite_score": 0.9006,
+            "total_score": 7.5,
+            "duration": 114.02,
+            "cost": 0.070145
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 6.0,
             "task_max_score": 6.0,
-            "efficiency_score": 0.568,
-            "usage_score": 0.5517,
-            "composite_score": 0.8239,
-            "total_score": 7.12,
-            "duration": 129.6,
-            "cost": 0.268973
+            "efficiency_score": 0.5293,
+            "usage_score": 0.552,
+            "composite_score": 0.8163,
+            "total_score": 7.08,
+            "duration": 141.2,
+            "cost": 0.268781
           }
         }
       },
@@ -72,23 +72,23 @@
             "passed": true,
             "task_score": 10.5,
             "task_max_score": 10.5,
-            "efficiency_score": 0.5331,
-            "usage_score": 0.8729,
-            "composite_score": 0.8812,
-            "total_score": 11.91,
-            "duration": 252.1,
-            "cost": 0.190663
+            "efficiency_score": 0.4515,
+            "usage_score": 0.8484,
+            "composite_score": 0.86,
+            "total_score": 11.8,
+            "duration": 296.2,
+            "cost": 0.227344
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 10.5,
             "task_max_score": 10.5,
-            "efficiency_score": 0.4028,
-            "usage_score": 0.5588,
-            "composite_score": 0.7923,
-            "total_score": 11.46,
-            "duration": 322.5,
-            "cost": 0.661758
+            "efficiency_score": 0.3179,
+            "usage_score": 0.5094,
+            "composite_score": 0.7655,
+            "total_score": 11.33,
+            "duration": 368.33,
+            "cost": 0.73591
           }
         }
       },
@@ -99,23 +99,23 @@
             "passed": true,
             "task_score": 3,
             "task_max_score": 3,
-            "efficiency_score": 0.7369,
-            "usage_score": 0.9192,
-            "composite_score": 0.9312,
-            "total_score": 4.66,
-            "duration": 78.93,
-            "cost": 0.064664
+            "efficiency_score": 0.7395,
+            "usage_score": 0.9366,
+            "composite_score": 0.9352,
+            "total_score": 4.68,
+            "duration": 78.16,
+            "cost": 0.050697
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 3,
             "task_max_score": 3,
-            "efficiency_score": 0.6444,
-            "usage_score": 0.7637,
-            "composite_score": 0.8816,
-            "total_score": 4.41,
-            "duration": 106.69,
-            "cost": 0.189074
+            "efficiency_score": 0.6329,
+            "usage_score": 0.7633,
+            "composite_score": 0.8792,
+            "total_score": 4.4,
+            "duration": 110.13,
+            "cost": 0.189329
           }
         }
       },
@@ -126,23 +126,23 @@
             "passed": true,
             "task_score": 9.0,
             "task_max_score": 9.0,
-            "efficiency_score": 0.7105,
-            "usage_score": 0.9085,
-            "composite_score": 0.9238,
-            "total_score": 10.62,
-            "duration": 202.66,
-            "cost": 0.183083
+            "efficiency_score": 0.6279,
+            "usage_score": 0.8775,
+            "composite_score": 0.9011,
+            "total_score": 10.51,
+            "duration": 260.46,
+            "cost": 0.245038
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 9.0,
             "task_max_score": 9.0,
-            "efficiency_score": 0.5973,
-            "usage_score": 0.6509,
-            "composite_score": 0.8496,
-            "total_score": 10.25,
-            "duration": 281.86,
-            "cost": 0.698206
+            "efficiency_score": 0.5607,
+            "usage_score": 0.6587,
+            "composite_score": 0.8439,
+            "total_score": 10.22,
+            "duration": 307.49,
+            "cost": 0.682633
           }
         }
       },
@@ -153,23 +153,23 @@
             "passed": true,
             "task_score": 2.5,
             "task_max_score": 2.5,
-            "efficiency_score": 0.8249,
-            "usage_score": 0.9351,
-            "composite_score": 0.952,
-            "total_score": 4.26,
-            "duration": 70.05,
-            "cost": 0.051948
+            "efficiency_score": 0.8267,
+            "usage_score": 0.9456,
+            "composite_score": 0.9545,
+            "total_score": 4.27,
+            "duration": 69.31,
+            "cost": 0.043503
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 2.5,
             "task_max_score": 2.5,
-            "efficiency_score": 0.767,
-            "usage_score": 0.7585,
-            "composite_score": 0.9051,
-            "total_score": 4.03,
-            "duration": 93.21,
-            "cost": 0.19321
+            "efficiency_score": 0.751,
+            "usage_score": 0.7607,
+            "composite_score": 0.9023,
+            "total_score": 4.01,
+            "duration": 99.6,
+            "cost": 0.191412
           }
         }
       },
@@ -180,23 +180,23 @@
             "passed": true,
             "task_score": 8.0,
             "task_max_score": 8.0,
-            "efficiency_score": 0.3244,
-            "usage_score": 0.6937,
-            "composite_score": 0.8036,
-            "total_score": 9.02,
-            "duration": 445.91,
-            "cost": 0.428851
+            "efficiency_score": 0.2465,
+            "usage_score": 0.6405,
+            "composite_score": 0.7774,
+            "total_score": 8.89,
+            "duration": 497.29,
+            "cost": 0.503311
           },
           "dashscope/qwen3.5-plus": {
-            "passed": true,
-            "task_score": 8.0,
+            "passed": false,
+            "task_score": 2.5,
             "task_max_score": 8.0,
-            "efficiency_score": 0.2248,
-            "usage_score": 0,
-            "composite_score": 0.645,
-            "total_score": 8.22,
-            "duration": 511.64,
-            "cost": 1.424757
+            "efficiency_score": 0,
+            "usage_score": 0.9794,
+            "composite_score": 0.1959,
+            "total_score": 3.48,
+            "duration": 660.0,
+            "cost": 0.028871
           }
         }
       },
@@ -207,23 +207,23 @@
             "passed": true,
             "task_score": 10.0,
             "task_max_score": 10.0,
-            "efficiency_score": 0.5821,
-            "usage_score": 0.8474,
-            "composite_score": 0.8859,
-            "total_score": 11.43,
-            "duration": 300.86,
-            "cost": 0.259448
+            "efficiency_score": 0.4376,
+            "usage_score": 0.8571,
+            "composite_score": 0.8589,
+            "total_score": 11.29,
+            "duration": 404.95,
+            "cost": 0.242864
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 10.0,
             "task_max_score": 10.0,
-            "efficiency_score": 0.3857,
-            "usage_score": 0.4496,
-            "composite_score": 0.7671,
-            "total_score": 10.84,
-            "duration": 442.26,
-            "cost": 0.935648
+            "efficiency_score": 0.3842,
+            "usage_score": 0.4168,
+            "composite_score": 0.7602,
+            "total_score": 10.8,
+            "duration": 443.36,
+            "cost": 0.991488
           }
         }
       },
@@ -234,23 +234,23 @@
             "passed": true,
             "task_score": 9.0,
             "task_max_score": 9.0,
-            "efficiency_score": 0.5708,
-            "usage_score": 0.865,
-            "composite_score": 0.8871,
-            "total_score": 10.44,
-            "duration": 309.04,
-            "cost": 0.229548
+            "efficiency_score": 0.5984,
+            "usage_score": 0.8812,
+            "composite_score": 0.8959,
+            "total_score": 10.48,
+            "duration": 289.14,
+            "cost": 0.201966
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 9.0,
             "task_max_score": 9.0,
-            "efficiency_score": 0.467,
-            "usage_score": 0.5369,
-            "composite_score": 0.8008,
-            "total_score": 10.0,
-            "duration": 383.74,
-            "cost": 0.787304
+            "efficiency_score": 0.4889,
+            "usage_score": 0.528,
+            "composite_score": 0.8034,
+            "total_score": 10.02,
+            "duration": 367.98,
+            "cost": 0.802473
           }
         }
       },
@@ -259,25 +259,25 @@
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
             "passed": true,
-            "task_score": 15.0,
+            "task_score": 14.0,
             "task_max_score": 15.0,
-            "efficiency_score": 0.5374,
-            "usage_score": 0.8356,
-            "composite_score": 0.8746,
-            "total_score": 16.37,
-            "duration": 277.54,
-            "cost": 0.328877
+            "efficiency_score": 0.4461,
+            "usage_score": 0.9121,
+            "composite_score": 0.8716,
+            "total_score": 15.36,
+            "duration": 332.34,
+            "cost": 0.175805
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 15.0,
             "task_max_score": 15.0,
-            "efficiency_score": 0.511,
-            "usage_score": 0.6571,
-            "composite_score": 0.8336,
+            "efficiency_score": 0.5174,
+            "usage_score": 0.6548,
+            "composite_score": 0.8345,
             "total_score": 16.17,
-            "duration": 293.42,
-            "cost": 0.685825
+            "duration": 289.56,
+            "cost": 0.690308
           }
         }
       },
@@ -288,23 +288,23 @@
             "passed": true,
             "task_score": 9.5,
             "task_max_score": 9.5,
-            "efficiency_score": 0.7325,
-            "usage_score": 0.8862,
-            "composite_score": 0.9237,
-            "total_score": 11.12,
-            "duration": 133.77,
-            "cost": 0.113806
+            "efficiency_score": 0.6244,
+            "usage_score": 0.8584,
+            "composite_score": 0.8966,
+            "total_score": 10.98,
+            "duration": 187.79,
+            "cost": 0.14158
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 9.5,
             "task_max_score": 9.5,
-            "efficiency_score": 0.5317,
-            "usage_score": 0.4752,
-            "composite_score": 0.8014,
-            "total_score": 10.51,
-            "duration": 234.15,
-            "cost": 0.524791
+            "efficiency_score": 0.5832,
+            "usage_score": 0.5581,
+            "composite_score": 0.8283,
+            "total_score": 10.64,
+            "duration": 208.39,
+            "cost": 0.441892
           }
         }
       },
@@ -313,25 +313,25 @@
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
             "passed": false,
-            "task_score": 3,
+            "task_score": 4,
             "task_max_score": 10,
-            "efficiency_score": 0.1331,
-            "usage_score": 0.6511,
-            "composite_score": 0.1569,
-            "total_score": 3.78,
-            "duration": 520.13,
-            "cost": 0.348859
+            "efficiency_score": 0.6262,
+            "usage_score": 0.8152,
+            "composite_score": 0.2883,
+            "total_score": 5.44,
+            "duration": 224.29,
+            "cost": 0.184767
           },
           "dashscope/qwen3.5-plus": {
             "passed": false,
             "task_score": 4,
             "task_max_score": 10,
-            "efficiency_score": 0.4816,
-            "usage_score": 0.1734,
-            "composite_score": 0.131,
+            "efficiency_score": 0.4832,
+            "usage_score": 0.173,
+            "composite_score": 0.1312,
             "total_score": 4.66,
-            "duration": 311.02,
-            "cost": 0.826573
+            "duration": 310.1,
+            "cost": 0.82697
           }
         }
       },
@@ -342,23 +342,23 @@
             "passed": true,
             "task_score": 12,
             "task_max_score": 12,
-            "efficiency_score": 0.2104,
-            "usage_score": 0.5379,
-            "composite_score": 0.7497,
-            "total_score": 12.75,
-            "duration": 473.78,
-            "cost": 0.462069
+            "efficiency_score": 0,
+            "usage_score": 0.9926,
+            "composite_score": 0.7985,
+            "total_score": 12.99,
+            "duration": 600.0,
+            "cost": 0.007396
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 12,
             "task_max_score": 12,
             "efficiency_score": 0,
-            "usage_score": 0.9676,
+            "usage_score": 0.9677,
             "composite_score": 0.7935,
             "total_score": 12.97,
             "duration": 600.0,
-            "cost": 0.032379
+            "cost": 0.032326
           }
         }
       },
@@ -366,26 +366,26 @@
         "name": "TaskFlow Full Workflow \u2014 Create, Label, Drag & Filter",
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
-            "passed": false,
-            "task_score": 8.5,
+            "passed": true,
+            "task_score": 13.0,
             "task_max_score": 13.0,
-            "efficiency_score": 0,
-            "usage_score": 0.9965,
-            "composite_score": 0.1993,
-            "total_score": 9.5,
-            "duration": 600.0,
-            "cost": 0.006931
+            "efficiency_score": 0.2511,
+            "usage_score": 0.7271,
+            "composite_score": 0.7956,
+            "total_score": 13.98,
+            "duration": 449.32,
+            "cost": 0.545825
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 13.0,
             "task_max_score": 13.0,
-            "efficiency_score": 0.24,
-            "usage_score": 0.3493,
-            "composite_score": 0.7179,
-            "total_score": 13.59,
-            "duration": 455.98,
-            "cost": 1.301466
+            "efficiency_score": 0.1963,
+            "usage_score": 0.2888,
+            "composite_score": 0.697,
+            "total_score": 13.49,
+            "duration": 482.24,
+            "cost": 1.422402
           }
         }
       },
@@ -396,23 +396,23 @@
             "passed": true,
             "task_score": 12.0,
             "task_max_score": 12.0,
-            "efficiency_score": 0.6202,
-            "usage_score": 0.9183,
-            "composite_score": 0.9077,
-            "total_score": 13.54,
-            "duration": 189.88,
-            "cost": 0.098033
+            "efficiency_score": 0.6286,
+            "usage_score": 0.8847,
+            "composite_score": 0.9027,
+            "total_score": 13.51,
+            "duration": 185.72,
+            "cost": 0.138317
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 12.0,
             "task_max_score": 12.0,
-            "efficiency_score": 0.5895,
-            "usage_score": 0.6199,
-            "composite_score": 0.8419,
-            "total_score": 13.21,
-            "duration": 205.26,
-            "cost": 0.456125
+            "efficiency_score": 0.5458,
+            "usage_score": 0.6418,
+            "composite_score": 0.8375,
+            "total_score": 13.19,
+            "duration": 227.08,
+            "cost": 0.42988
           }
         }
       },
@@ -423,23 +423,23 @@
             "passed": true,
             "task_score": 10.0,
             "task_max_score": 10.0,
-            "efficiency_score": 0.575,
-            "usage_score": 0.8157,
-            "composite_score": 0.8781,
-            "total_score": 11.39,
-            "duration": 416.48,
-            "cost": 0.387098
+            "efficiency_score": 0.5403,
+            "usage_score": 0.7771,
+            "composite_score": 0.8635,
+            "total_score": 11.32,
+            "duration": 450.46,
+            "cost": 0.467991
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 10.0,
             "task_max_score": 10.0,
-            "efficiency_score": 0.5037,
-            "usage_score": 0.4267,
-            "composite_score": 0.7861,
-            "total_score": 10.93,
-            "duration": 486.35,
-            "cost": 1.203933
+            "efficiency_score": 0.4682,
+            "usage_score": 0.4083,
+            "composite_score": 0.7753,
+            "total_score": 10.88,
+            "duration": 521.19,
+            "cost": 1.2426
           }
         }
       },
@@ -450,23 +450,23 @@
             "passed": true,
             "task_score": 11.0,
             "task_max_score": 11.0,
-            "efficiency_score": 0.5622,
-            "usage_score": 0.8371,
-            "composite_score": 0.8799,
-            "total_score": 12.4,
-            "duration": 455.29,
-            "cost": 0.390968
+            "efficiency_score": 0.5848,
+            "usage_score": 0.8508,
+            "composite_score": 0.8871,
+            "total_score": 12.44,
+            "duration": 431.85,
+            "cost": 0.358165
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 11.0,
             "task_max_score": 11.0,
-            "efficiency_score": 0.4197,
-            "usage_score": 0.3441,
-            "composite_score": 0.7527,
-            "total_score": 11.76,
-            "duration": 603.53,
-            "cost": 1.574278
+            "efficiency_score": 0.3089,
+            "usage_score": 0.3461,
+            "composite_score": 0.731,
+            "total_score": 11.66,
+            "duration": 718.75,
+            "cost": 1.569323
           }
         }
       },
@@ -477,23 +477,23 @@
             "passed": true,
             "task_score": 2,
             "task_max_score": 2,
-            "efficiency_score": 0.8877,
-            "usage_score": 0.9532,
-            "composite_score": 0.9682,
-            "total_score": 3.84,
-            "duration": 33.7,
-            "cost": 0.023385
+            "efficiency_score": 0.8991,
+            "usage_score": 0.9625,
+            "composite_score": 0.9723,
+            "total_score": 3.86,
+            "duration": 30.27,
+            "cost": 0.018734
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 2,
             "task_max_score": 2,
-            "efficiency_score": 0.8246,
-            "usage_score": 0.8337,
-            "composite_score": 0.9317,
-            "total_score": 3.66,
-            "duration": 52.61,
-            "cost": 0.083138
+            "efficiency_score": 0.8039,
+            "usage_score": 0.8354,
+            "composite_score": 0.9279,
+            "total_score": 3.64,
+            "duration": 58.82,
+            "cost": 0.082305
           }
         }
       },
@@ -501,26 +501,26 @@
         "name": "Gmail Inbox Cleanup",
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
-            "passed": true,
-            "task_score": 7.0,
+            "passed": false,
+            "task_score": 2.0,
             "task_max_score": 7.0,
-            "efficiency_score": 0.1164,
-            "usage_score": 0.6194,
-            "composite_score": 0.7471,
-            "total_score": 7.74,
-            "duration": 530.17,
-            "cost": 0.456765
+            "efficiency_score": 0,
+            "usage_score": 0.3895,
+            "composite_score": 0.0779,
+            "total_score": 2.39,
+            "duration": 600.0,
+            "cost": 0.73264
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 7.0,
             "task_max_score": 7.0,
-            "efficiency_score": 0.3269,
-            "usage_score": 0.0645,
-            "composite_score": 0.6783,
-            "total_score": 7.39,
-            "duration": 403.85,
-            "cost": 1.122552
+            "efficiency_score": 0.3282,
+            "usage_score": 0.254,
+            "composite_score": 0.7164,
+            "total_score": 7.58,
+            "duration": 403.07,
+            "cost": 0.895225
           }
         }
       },
@@ -531,23 +531,23 @@
             "passed": true,
             "task_score": 5.0,
             "task_max_score": 5.0,
-            "efficiency_score": 0.5899,
-            "usage_score": 0.8637,
-            "composite_score": 0.8907,
-            "total_score": 6.45,
-            "duration": 164.06,
-            "cost": 0.136297
+            "efficiency_score": 0.6676,
+            "usage_score": 0.9017,
+            "composite_score": 0.9139,
+            "total_score": 6.57,
+            "duration": 132.95,
+            "cost": 0.098264
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 5.0,
             "task_max_score": 5.0,
-            "efficiency_score": 0.3908,
-            "usage_score": 0.4101,
-            "composite_score": 0.7602,
+            "efficiency_score": 0.3679,
+            "usage_score": 0.4354,
+            "composite_score": 0.7607,
             "total_score": 5.8,
-            "duration": 243.69,
-            "cost": 0.589852
+            "duration": 252.84,
+            "cost": 0.564636
           }
         }
       },
@@ -556,25 +556,25 @@
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
             "passed": false,
-            "task_score": 5.0,
+            "task_score": 6.5,
             "task_max_score": 12.0,
-            "efficiency_score": 0.421,
-            "usage_score": 0.7848,
-            "composite_score": 0.2412,
-            "total_score": 6.21,
-            "duration": 347.39,
-            "cost": 0.430347
+            "efficiency_score": 0.6854,
+            "usage_score": 0.9316,
+            "composite_score": 0.3234,
+            "total_score": 8.12,
+            "duration": 188.76,
+            "cost": 0.136896
           },
           "dashscope/qwen3.5-plus": {
             "passed": false,
             "task_score": 4.5,
             "task_max_score": 12.0,
-            "efficiency_score": 0,
-            "usage_score": 0.9856,
-            "composite_score": 0.1971,
-            "total_score": 5.49,
-            "duration": 600.0,
-            "cost": 0.028737
+            "efficiency_score": 0.2238,
+            "usage_score": 0.569,
+            "composite_score": 0.1585,
+            "total_score": 5.29,
+            "duration": 465.73,
+            "cost": 0.862091
           }
         }
       },
@@ -586,22 +586,22 @@
             "task_score": 0.5,
             "task_max_score": 3.5,
             "efficiency_score": 0,
-            "usage_score": 0.9915,
-            "composite_score": 0.1983,
-            "total_score": 1.49,
+            "usage_score": 0.5224,
+            "composite_score": 0.1045,
+            "total_score": 1.02,
             "duration": 500.0,
-            "cost": 0.010142
+            "cost": 0.57314
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 3.5,
             "task_max_score": 3.5,
-            "efficiency_score": 0.7302,
-            "usage_score": 0.7692,
-            "composite_score": 0.8999,
-            "total_score": 5.0,
-            "duration": 134.89,
-            "cost": 0.276961
+            "efficiency_score": 0.4456,
+            "usage_score": 0.5544,
+            "composite_score": 0.8,
+            "total_score": 4.5,
+            "duration": 277.18,
+            "cost": 0.534674
           }
         }
       },
@@ -610,25 +610,25 @@
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
             "passed": false,
-            "task_score": 4.5,
+            "task_score": 3.5,
             "task_max_score": 15.0,
             "efficiency_score": 0,
-            "usage_score": 0.7414,
-            "composite_score": 0.1483,
-            "total_score": 5.24,
+            "usage_score": 0.9966,
+            "composite_score": 0.1993,
+            "total_score": 4.5,
             "duration": 600.0,
-            "cost": 0.517285
+            "cost": 0.006756
           },
           "dashscope/qwen3.5-plus": {
             "passed": false,
-            "task_score": 11.0,
+            "task_score": 6.0,
             "task_max_score": 15.0,
             "efficiency_score": 0,
-            "usage_score": 0.3423,
-            "composite_score": 0.0685,
-            "total_score": 11.34,
+            "usage_score": 0.9853,
+            "composite_score": 0.1971,
+            "total_score": 6.99,
             "duration": 600.0,
-            "cost": 1.315394
+            "cost": 0.029382
           }
         }
       },
@@ -639,23 +639,23 @@
             "passed": true,
             "task_score": 9.5,
             "task_max_score": 9.5,
-            "efficiency_score": 0.7211,
-            "usage_score": 0.924,
-            "composite_score": 0.929,
+            "efficiency_score": 0.718,
+            "usage_score": 0.9293,
+            "composite_score": 0.9295,
             "total_score": 11.15,
-            "duration": 150.59,
-            "cost": 0.11394
+            "duration": 152.28,
+            "cost": 0.106015
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 9.5,
             "task_max_score": 9.5,
-            "efficiency_score": 0.6251,
-            "usage_score": 0.6955,
-            "composite_score": 0.8641,
-            "total_score": 10.82,
-            "duration": 202.46,
-            "cost": 0.456683
+            "efficiency_score": 0.6312,
+            "usage_score": 0.6976,
+            "composite_score": 0.8658,
+            "total_score": 10.83,
+            "duration": 199.16,
+            "cost": 0.453613
           }
         }
       },
@@ -666,23 +666,23 @@
             "passed": true,
             "task_score": 9.0,
             "task_max_score": 9.0,
-            "efficiency_score": 0.7181,
-            "usage_score": 0.9101,
-            "composite_score": 0.9256,
-            "total_score": 10.63,
-            "duration": 186.03,
-            "cost": 0.134841
+            "efficiency_score": 0.6813,
+            "usage_score": 0.9085,
+            "composite_score": 0.918,
+            "total_score": 10.59,
+            "duration": 210.36,
+            "cost": 0.137228
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 9.0,
             "task_max_score": 9.0,
-            "efficiency_score": 0.6068,
-            "usage_score": 0.6227,
-            "composite_score": 0.8459,
-            "total_score": 10.23,
-            "duration": 259.5,
-            "cost": 0.56588
+            "efficiency_score": 0.4989,
+            "usage_score": 0.625,
+            "composite_score": 0.8248,
+            "total_score": 10.12,
+            "duration": 330.74,
+            "cost": 0.562517
           }
         }
       },
@@ -691,25 +691,25 @@
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
             "passed": true,
-            "task_score": 11.5,
+            "task_score": 12.0,
             "task_max_score": 12.0,
-            "efficiency_score": 0.4481,
-            "usage_score": 0.8452,
-            "composite_score": 0.8587,
-            "total_score": 12.79,
-            "duration": 298.0,
-            "cost": 0.232186
+            "efficiency_score": 0.4243,
+            "usage_score": 0.8463,
+            "composite_score": 0.8541,
+            "total_score": 13.27,
+            "duration": 310.86,
+            "cost": 0.230535
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 12.0,
             "task_max_score": 12.0,
-            "efficiency_score": 0.4265,
-            "usage_score": 0.5055,
-            "composite_score": 0.7864,
-            "total_score": 12.93,
-            "duration": 309.71,
-            "cost": 0.741754
+            "efficiency_score": 0.322,
+            "usage_score": 0.4556,
+            "composite_score": 0.7555,
+            "total_score": 12.78,
+            "duration": 366.11,
+            "cost": 0.816651
           }
         }
       },
@@ -717,26 +717,26 @@
         "name": "Amazon Variant Checkout",
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
-            "passed": true,
-            "task_score": 10.2,
+            "passed": false,
+            "task_score": 6.6,
             "task_max_score": 10.2,
-            "efficiency_score": 0.7401,
-            "usage_score": 0.922,
-            "composite_score": 0.9324,
-            "total_score": 11.86,
-            "duration": 181.92,
-            "cost": 0.124738
+            "efficiency_score": 0.7473,
+            "usage_score": 0.926,
+            "composite_score": 0.3347,
+            "total_score": 8.27,
+            "duration": 176.91,
+            "cost": 0.118396
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 10.2,
             "task_max_score": 10.2,
-            "efficiency_score": 0.6424,
-            "usage_score": 0.6743,
-            "composite_score": 0.8634,
-            "total_score": 11.52,
-            "duration": 250.3,
-            "cost": 0.521042
+            "efficiency_score": 0.568,
+            "usage_score": 0.6435,
+            "composite_score": 0.8423,
+            "total_score": 11.41,
+            "duration": 302.37,
+            "cost": 0.570381
           }
         }
       },
@@ -744,26 +744,26 @@
         "name": "TaskFlow Drag & Edit \u2014 DnD, Checklist & Hover Quick-Edit",
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
-            "passed": false,
-            "task_score": 9.0,
+            "passed": true,
+            "task_score": 11.5,
             "task_max_score": 11.5,
-            "efficiency_score": 0.5221,
-            "usage_score": 0.865,
-            "composite_score": 0.2774,
-            "total_score": 10.39,
-            "duration": 258.05,
-            "cost": 0.202454
+            "efficiency_score": 0.5095,
+            "usage_score": 0.8324,
+            "composite_score": 0.8684,
+            "total_score": 12.84,
+            "duration": 264.88,
+            "cost": 0.251339
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 11.5,
             "task_max_score": 11.5,
-            "efficiency_score": 0.4519,
-            "usage_score": 0.5317,
-            "composite_score": 0.7967,
-            "total_score": 12.48,
-            "duration": 295.99,
-            "cost": 0.702442
+            "efficiency_score": 0.4518,
+            "usage_score": 0.5412,
+            "composite_score": 0.7986,
+            "total_score": 12.49,
+            "duration": 296.03,
+            "cost": 0.688214
           }
         }
       },
@@ -774,23 +774,23 @@
             "passed": true,
             "task_score": 10.0,
             "task_max_score": 10.0,
-            "efficiency_score": 0.8177,
-            "usage_score": 0.9418,
-            "composite_score": 0.9519,
-            "total_score": 11.76,
-            "duration": 185.92,
-            "cost": 0.133833
+            "efficiency_score": 0.7899,
+            "usage_score": 0.9319,
+            "composite_score": 0.9444,
+            "total_score": 11.72,
+            "duration": 214.31,
+            "cost": 0.156626
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 10.0,
             "task_max_score": 10.0,
-            "efficiency_score": 0.5864,
-            "usage_score": 0.5944,
-            "composite_score": 0.8362,
-            "total_score": 11.18,
-            "duration": 421.86,
-            "cost": 0.932923
+            "efficiency_score": 0.7078,
+            "usage_score": 0.7271,
+            "composite_score": 0.887,
+            "total_score": 11.43,
+            "duration": 298.02,
+            "cost": 0.627642
           }
         }
       },
@@ -801,23 +801,23 @@
             "passed": true,
             "task_score": 6.6,
             "task_max_score": 6.6,
-            "efficiency_score": 0.6444,
-            "usage_score": 0.8625,
-            "composite_score": 0.9014,
-            "total_score": 8.11,
-            "duration": 220.46,
-            "cost": 0.178766
+            "efficiency_score": 0.6004,
+            "usage_score": 0.8551,
+            "composite_score": 0.8911,
+            "total_score": 8.06,
+            "duration": 247.76,
+            "cost": 0.188329
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 6.6,
             "task_max_score": 6.6,
-            "efficiency_score": 0.5102,
-            "usage_score": 0.5114,
-            "composite_score": 0.8043,
-            "total_score": 7.62,
-            "duration": 303.65,
-            "cost": 0.635162
+            "efficiency_score": 0.637,
+            "usage_score": 0.656,
+            "composite_score": 0.8586,
+            "total_score": 7.89,
+            "duration": 225.03,
+            "cost": 0.44721
           }
         }
       },
@@ -828,23 +828,23 @@
             "passed": true,
             "task_score": 3,
             "task_max_score": 3,
-            "efficiency_score": 0.7963,
-            "usage_score": 0.8204,
-            "composite_score": 0.9233,
-            "total_score": 4.62,
-            "duration": 122.19,
-            "cost": 0.0898
+            "efficiency_score": 0.7815,
+            "usage_score": 0.815,
+            "composite_score": 0.9193,
+            "total_score": 4.6,
+            "duration": 131.08,
+            "cost": 0.092512
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 3,
             "task_max_score": 3,
-            "efficiency_score": 0.7446,
-            "usage_score": 0.4221,
-            "composite_score": 0.8333,
-            "total_score": 4.17,
-            "duration": 153.22,
-            "cost": 0.288955
+            "efficiency_score": 0.7198,
+            "usage_score": 0.3416,
+            "composite_score": 0.8123,
+            "total_score": 4.06,
+            "duration": 168.1,
+            "cost": 0.329175
           }
         }
       },
@@ -853,25 +853,25 @@
         "results_by_model": {
           "dashscope/qwen3.5-flash": {
             "passed": true,
-            "task_score": 7.0,
+            "task_score": 6.0,
             "task_max_score": 7.0,
-            "efficiency_score": 0.7592,
-            "usage_score": 0.929,
-            "composite_score": 0.9376,
-            "total_score": 8.69,
-            "duration": 144.48,
-            "cost": 0.10652
+            "efficiency_score": 0,
+            "usage_score": 0.6476,
+            "composite_score": 0.7295,
+            "total_score": 6.65,
+            "duration": 600.0,
+            "cost": 0.528554
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 7.0,
             "task_max_score": 7.0,
-            "efficiency_score": 0.6964,
-            "usage_score": 0.7518,
-            "composite_score": 0.8896,
+            "efficiency_score": 0.6981,
+            "usage_score": 0.7519,
+            "composite_score": 0.89,
             "total_score": 8.45,
-            "duration": 182.16,
-            "cost": 0.372334
+            "duration": 181.11,
+            "cost": 0.372191
           }
         }
       },
@@ -882,23 +882,23 @@
             "passed": true,
             "task_score": 9.0,
             "task_max_score": 9.0,
-            "efficiency_score": 0.5831,
-            "usage_score": 0.8393,
-            "composite_score": 0.8845,
-            "total_score": 10.42,
-            "duration": 375.25,
-            "cost": 0.353452
+            "efficiency_score": 0.4374,
+            "usage_score": 0.827,
+            "composite_score": 0.8529,
+            "total_score": 10.26,
+            "duration": 506.37,
+            "cost": 0.380624
           },
           "dashscope/qwen3.5-plus": {
-            "passed": false,
-            "task_score": 5.0,
+            "passed": true,
+            "task_score": 9.0,
             "task_max_score": 9.0,
-            "efficiency_score": 0,
-            "usage_score": 0,
-            "composite_score": 0,
-            "total_score": 5.0,
-            "duration": 900.0,
-            "cost": 2.496835
+            "efficiency_score": 0.3021,
+            "usage_score": 0.1622,
+            "composite_score": 0.6929,
+            "total_score": 9.46,
+            "duration": 628.08,
+            "cost": 1.843213
           }
         }
       },
@@ -909,23 +909,23 @@
             "passed": true,
             "task_score": 6.0,
             "task_max_score": 6.0,
-            "efficiency_score": 0.6916,
-            "usage_score": 0.9046,
-            "composite_score": 0.9192,
-            "total_score": 7.6,
-            "duration": 166.52,
-            "cost": 0.114509
+            "efficiency_score": 0.6161,
+            "usage_score": 0.8851,
+            "composite_score": 0.9002,
+            "total_score": 7.5,
+            "duration": 207.28,
+            "cost": 0.137898
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 6.0,
             "task_max_score": 6.0,
-            "efficiency_score": 0.6138,
-            "usage_score": 0.6652,
-            "composite_score": 0.8558,
-            "total_score": 7.28,
-            "duration": 208.53,
-            "cost": 0.401799
+            "efficiency_score": 0.7038,
+            "usage_score": 0.7457,
+            "composite_score": 0.8899,
+            "total_score": 7.45,
+            "duration": 159.94,
+            "cost": 0.305123
           }
         }
       },
@@ -937,22 +937,22 @@
             "task_score": 2.0,
             "task_max_score": 7.5,
             "efficiency_score": 0,
-            "usage_score": 0.4967,
-            "composite_score": 0.0993,
-            "total_score": 2.5,
+            "usage_score": 0.9955,
+            "composite_score": 0.1991,
+            "total_score": 3.0,
             "duration": 660.0,
-            "cost": 0.755007
+            "cost": 0.006679
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 7.5,
             "task_max_score": 7.5,
-            "efficiency_score": 0.3636,
-            "usage_score": 0.2649,
-            "composite_score": 0.7257,
-            "total_score": 8.13,
-            "duration": 420.03,
-            "cost": 1.102685
+            "efficiency_score": 0.287,
+            "usage_score": 0.1992,
+            "composite_score": 0.6972,
+            "total_score": 7.99,
+            "duration": 470.61,
+            "cost": 1.201165
           }
         }
       },
@@ -963,23 +963,23 @@
             "passed": true,
             "task_score": 8.5,
             "task_max_score": 8.5,
-            "efficiency_score": 0.718,
-            "usage_score": 0.9068,
-            "composite_score": 0.925,
-            "total_score": 10.12,
-            "duration": 191.74,
-            "cost": 0.139824
+            "efficiency_score": 0.7005,
+            "usage_score": 0.9121,
+            "composite_score": 0.9225,
+            "total_score": 10.11,
+            "duration": 203.68,
+            "cost": 0.131816
           },
           "dashscope/qwen3.5-plus": {
             "passed": true,
             "task_score": 8.5,
             "task_max_score": 8.5,
-            "efficiency_score": 0.7078,
-            "usage_score": 0.7369,
-            "composite_score": 0.8889,
-            "total_score": 9.94,
-            "duration": 198.67,
-            "cost": 0.394718
+            "efficiency_score": 0.6936,
+            "usage_score": 0.7089,
+            "composite_score": 0.8805,
+            "total_score": 9.9,
+            "duration": 208.34,
+            "cost": 0.436672
           }
         }
       }

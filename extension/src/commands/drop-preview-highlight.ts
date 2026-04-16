@@ -140,8 +140,18 @@ export async function highlightDropPreview(
       const bh = Math.round(el.bbox.height * scale) + boxPadding * 2;
       ctx.fillRect(bx, by, bw, edgeThickness);
       ctx.fillRect(bx, by + bh - edgeThickness, bw, edgeThickness);
-      ctx.fillRect(bx, by + edgeThickness, edgeThickness, bh - edgeThickness * 2);
-      ctx.fillRect(bx + bw - edgeThickness, by + edgeThickness, edgeThickness, bh - edgeThickness * 2);
+      ctx.fillRect(
+        bx,
+        by + edgeThickness,
+        edgeThickness,
+        bh - edgeThickness * 2,
+      );
+      ctx.fillRect(
+        bx + bw - edgeThickness,
+        by + edgeThickness,
+        edgeThickness,
+        bh - edgeThickness * 2,
+      );
     }
 
     // Draw labels
