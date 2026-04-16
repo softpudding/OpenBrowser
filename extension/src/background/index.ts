@@ -323,11 +323,38 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
       const LABEL_PADDING = ${LABEL_PADDING};
       const MAX_LABEL_WIDTH = ${MAX_LABEL_WIDTH};
 
+      // Snapshot + restore helpers so we don't leak our overrides onto the
+      // page when pre-existing inline styles are present.
+      const SAVED_ATTR = HL_ATTR + '-saved';
+      const OVERRIDES = ['transition', 'box-shadow'];
+      const snapshotOverrides = (el) => {
+        const snap = {};
+        for (const p of OVERRIDES) {
+          snap[p] = {
+            v: el.style.getPropertyValue(p),
+            i: el.style.getPropertyPriority(p),
+          };
+        }
+        el.setAttribute(SAVED_ATTR, JSON.stringify(snap));
+      };
+      const restoreOverrides = (el) => {
+        let snap = {};
+        try { snap = JSON.parse(el.getAttribute(SAVED_ATTR) || '{}'); } catch (_) {}
+        for (const p of OVERRIDES) {
+          const saved = snap[p];
+          if (saved && saved.v) {
+            el.style.setProperty(p, saved.v, saved.i || '');
+          } else {
+            el.style.removeProperty(p);
+          }
+        }
+        el.removeAttribute(SAVED_ATTR);
+      };
+
       // Remove any previous highlights
       document.getElementById(OVERLAY_ID)?.remove();
       document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
-        el.style.removeProperty('box-shadow');
-        el.style.removeProperty('transition');
+        restoreOverrides(el);
         el.removeAttribute(HL_ATTR);
       });
 
@@ -354,6 +381,20 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
           const rect = el.getBoundingClientRect();
           if (rect.width <= 0 || rect.height <= 0) continue;
 
+          // Skip elements whose center is covered by something else (e.g. a
+          // button hidden behind a modal popup). Without this check, the
+          // border is still drawn inside the hidden element and the label
+          // floats free over whatever is actually on top.
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          if (cx >= 0 && cy >= 0 && cx < innerWidth && cy < innerHeight) {
+            const hit = document.elementFromPoint(cx, cy);
+            if (hit && hit !== el && !el.contains(hit)) continue;
+          }
+
+          // Snapshot any inline transition/box-shadow so cleanup can restore
+          // them exactly (including !important priority) instead of stripping.
+          snapshotOverrides(el);
           // Disable CSS transitions so the page can't animate the shadow in
           // (e.g. sidebar items with "transition: all 0.2s" would cause the
           // CDP screenshot to catch the box-shadow mid-interpolation and the
@@ -407,10 +448,21 @@ function buildHighlightCleanupScript(): string {
   return `
     (() => {
       const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
+      const SAVED_ATTR = HL_ATTR + '-saved';
+      const OVERRIDES = ['transition', 'box-shadow'];
       document.getElementById(${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)})?.remove();
       document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
-        el.style.removeProperty('box-shadow');
-        el.style.removeProperty('transition');
+        let snap = {};
+        try { snap = JSON.parse(el.getAttribute(SAVED_ATTR) || '{}'); } catch (_) {}
+        for (const p of OVERRIDES) {
+          const saved = snap[p];
+          if (saved && saved.v) {
+            el.style.setProperty(p, saved.v, saved.i || '');
+          } else {
+            el.style.removeProperty(p);
+          }
+        }
+        el.removeAttribute(SAVED_ATTR);
         el.removeAttribute(HL_ATTR);
       });
     })();
