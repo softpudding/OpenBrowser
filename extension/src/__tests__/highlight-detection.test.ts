@@ -188,7 +188,7 @@ describe('highlight-detection helpers', () => {
     const truncationSource = script.slice(truncationStart, truncationEnd);
     const scrollableStart = script.indexOf('function isScrollableCandidate');
     const scrollableEnd = script.indexOf(
-      'function isHoverableCandidate',
+      '// ──────────────────────────────────────────────────────────────\n// Drag-and-drop',
       scrollableStart,
     );
     const scrollableSource = script.slice(scrollableStart, scrollableEnd);
@@ -215,9 +215,6 @@ describe('highlight-detection helpers', () => {
     );
     expect(resolveElementCandidateSource).toContain(
       "candidates.push(buildResolvedCandidate(el, 'scrollable', 'scrollable'));",
-    );
-    expect(resolveElementCandidateSource).toContain(
-      "candidates.push(buildResolvedCandidate(el, 'hoverable', 'hoverable'));",
     );
     expect(resolveElementCandidateSource).toContain(
       'candidates.sort(compareCandidates);',

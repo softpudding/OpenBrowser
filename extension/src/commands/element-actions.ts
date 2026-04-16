@@ -14,6 +14,7 @@ import type { ElementActionResult } from '../types';
 import { buildElementCacheMissMessage, elementCache } from './element-cache';
 import { executeJavaScript, type JavaScriptResult } from './javascript';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
+import { moveTo, moveToElement } from './mock-mouse';
 
 function escapeForDoubleQuotedJavaScriptString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -27,6 +28,7 @@ function escapeForDoubleQuotedJavaScriptString(value: string): string {
 interface HoverState {
   selector: string;
   documentId: string;
+  bbox: { x: number; y: number; width: number; height: number };
 }
 
 const hoverStateStore = new Map<string, HoverState>();
@@ -52,6 +54,11 @@ export async function replayHoverState(
   const key = hoverKey(conversationId, tabId);
   const state = hoverStateStore.get(key);
   if (!state) return;
+
+  // Move CDP virtual mouse to stored bbox center for CSS :hover persistence
+  const bboxCenterX = state.bbox.x + state.bbox.width / 2;
+  const bboxCenterY = state.bbox.y + state.bbox.height / 2;
+  await moveTo(tabId, conversationId, bboxCenterX, bboxCenterY);
 
   const escapedSelector = escapeForDoubleQuotedJavaScriptString(state.selector);
   const escapedDocumentId = escapeForDoubleQuotedJavaScriptString(
@@ -578,6 +585,9 @@ export async function performElementClick(
     `✅ [ElementClick] Found element: selector="${element.selector}"`,
   );
 
+  // Move CDP virtual mouse to element center for CSS :hover persistence
+  await moveToElement(tabId, conversationId, elementId);
+
   // ============================================================
   // STEP 2: Build JavaScript to click with full event sequence
   // ============================================================
@@ -875,6 +885,9 @@ export async function performElementHover(
     `✅ [ElementHover] Found element: selector="${element.selector}"`,
   );
 
+  // Move CDP virtual mouse to element center for CSS :hover activation
+  await moveToElement(tabId, conversationId, elementId);
+
   // ============================================================
   // STEP 2: Build JavaScript to dispatch hover events
   // ============================================================
@@ -1047,6 +1060,7 @@ export async function performElementHover(
   hoverStateStore.set(hoverKey(conversationId, tabId), {
     selector: element.selector,
     documentId: cachedElement.documentId,
+    bbox: { ...element.bbox },
   });
 
   // If dialog opened during hover, propagate dialog info
@@ -1538,6 +1552,9 @@ export async function performElementSwipe(
   console.log(
     `✅ [ElementSwipe] Found element: selector="${element.selector}"`,
   );
+
+  // Move CDP virtual mouse to element center for CSS :hover persistence
+  await moveToElement(tabId, conversationId, elementId);
 
   const escapedSelector = escapeForDoubleQuotedJavaScriptString(
     element.selector,
@@ -2719,6 +2736,9 @@ export async function performElementDragAndDrop(
     cachedSource.resolvedElementId,
   );
 
+  // Move CDP virtual mouse to source element center for CSS :hover persistence
+  await moveToElement(tabId, conversationId, sourceElementId);
+
   let cachedTarget: ReturnType<typeof elementCache.getElementById> | null =
     null;
   if (hasTarget) {
@@ -3130,6 +3150,9 @@ export async function performElementSetSlider(
     cachedElement.requestedElementId,
     cachedElement.resolvedElementId,
   );
+
+  // Move CDP virtual mouse to element center for CSS :hover persistence
+  await moveToElement(tabId, conversationId, elementId);
 
   const escapedSelector = escapeForDoubleQuotedJavaScriptString(
     element.selector,
@@ -3778,6 +3801,9 @@ export async function performElementSelect(
   console.log(
     `✅ [ElementSelect] Found element: selector="${element.selector}"`,
   );
+
+  // Move CDP virtual mouse to element center for CSS :hover persistence
+  await moveToElement(tabId, conversationId, elementId);
 
   // ============================================================
   // STEP 2: Build JavaScript to select option(s)

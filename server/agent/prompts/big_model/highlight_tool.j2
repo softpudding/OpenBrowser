@@ -37,7 +37,6 @@ Build or extend the interactive-element inventory for the current page state.
 { "page": 2 }                        // Page 2 of the current any inventory
 { "element_type": "inputable" }      // Text-entry affordances
 { "element_type": "scrollable" }     // Scroll containers
-{ "element_type": "hoverable" }      // Hover targets
 { "element_type": "selectable" }     // Native <select> elements
 { "element_type": "draggable" }      // Drag sources (cards, handles, sliders)
 { "element_type": "droppable" }      // Drop targets (columns, zones, tracks)
@@ -45,7 +44,7 @@ Build or extend the interactive-element inventory for the current page state.
 ```
 
 **Parameters**:
-- `element_type`: Single type to highlight - `"any"` (default), `"scrollable"`, `"inputable"`, `"hoverable"`, `"selectable"`, `"draggable"`, or `"droppable"`
+- `element_type`: Single type to highlight - `"any"` (default), `"scrollable"`, `"inputable"`, `"selectable"`, `"draggable"`, or `"droppable"`
 - `page`: Page number for pagination (1-indexed, default 1). Ignored when `keywords` is provided.
 - `keywords`: Exact literal text already visible on the target itself in the current screenshot or current highlight HTML. Use this only to accelerate a known text match, not to guess controls. When provided, all matching elements are returned without pagination.
 
@@ -53,7 +52,7 @@ Build or extend the interactive-element inventory for the current page state.
 
 - You do not have a current interactive observation yet.
 - The target is truly absent from the current view on the same unchanged page state, so you need page 2+.
-- The task directly targets a specific affordance such as an input field, scroll container, hover target, or native select.
+- The task directly targets a specific affordance such as an input field, scroll container, or native select.
 - You need an exact-text match for text that is already visible on the target itself.
 
 ## Selection Rules

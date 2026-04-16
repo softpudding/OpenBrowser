@@ -29,9 +29,22 @@ function connect() {
       console.log('🔄 [DevReload] Connected to Vite reload server');
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       if (event.data === 'reload') {
-        console.log('🔄 [DevReload] Rebuild detected — reloading extension...');
+        console.log(
+          '🔄 [DevReload] Rebuild detected — cleaning up before reload...',
+        );
+        // Close all connections so the old service worker can be GC'd.
+        // Without this, the old worker stays alive alongside the new one.
+        try {
+          // Import lazily to avoid circular deps
+          const { wsClient } = await import('../websocket/client');
+          wsClient.disconnect();
+        } catch {
+          /* best effort */
+        }
+        ws?.close();
+        ws = null;
         chrome.runtime.reload();
       }
     };

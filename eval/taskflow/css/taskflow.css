@@ -464,7 +464,6 @@ input, textarea {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 6px;
     font-size: 12px;
     color: #5e6c84;
 }
@@ -1040,6 +1039,182 @@ input, textarea {
 
 .sidebar-btn:hover {
     background: rgba(0,0,0,0.12);
+}
+
+/* Card bottom row (badges + member avatars) */
+.card-bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+    gap: 6px;
+}
+
+.card-member-avatars {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.card-member-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Modal mini sections (Members + Due Date) */
+.modal-mini-sections {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-left: 28px;
+    margin-bottom: 16px;
+}
+
+.modal-mini-section {
+    min-width: 80px;
+}
+
+.modal-mini-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5e6c84;
+    margin-bottom: 6px;
+}
+
+.modal-assigned-members {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.modal-member-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+}
+
+.modal-due-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: #fce8e6;
+    color: #eb5a46;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.modal-due-badge:hover {
+    background: #f9ccc8;
+}
+
+/* Shared card popover */
+.card-popover {
+    position: absolute;
+    top: 60px;
+    right: 20px;
+    width: 280px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    z-index: 10;
+    padding: 12px;
+}
+
+/* Member picker */
+.member-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 6px;
+    border-radius: 6px;
+    text-align: left;
+    transition: background 0.15s;
+    cursor: pointer;
+}
+
+.member-picker-item:hover {
+    background: rgba(0,0,0,0.06);
+}
+
+.member-picker-item.assigned {
+    background: rgba(0,121,191,0.08);
+}
+
+.member-picker-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.member-picker-name {
+    flex: 1;
+    font-size: 14px;
+    color: #172b4d;
+}
+
+.member-picker-check {
+    color: #0079bf;
+    flex-shrink: 0;
+}
+
+/* Dates picker */
+.dates-picker-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5e6c84;
+    margin-bottom: 6px;
+}
+
+.dates-picker-input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid #dfe1e6;
+    border-radius: 4px;
+    font-size: 14px;
+    outline: none;
+    margin-bottom: 10px;
+    color: #172b4d;
+    transition: border-color 0.15s;
+}
+
+.dates-picker-input:focus {
+    border-color: #0079bf;
+    box-shadow: 0 0 0 1px #0079bf;
+}
+
+.dates-picker-actions {
+    display: flex;
+    gap: 8px;
 }
 
 /* Label Picker Popover */

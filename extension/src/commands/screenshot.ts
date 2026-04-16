@@ -1003,6 +1003,7 @@ async function captureScreenshotWithCDP(
   _resizeToPreset: boolean = true, // 已忽略，不再进行缩放
   waitForRender: number = 500,
   options?: ScreenshotCaptureOptions,
+  preCaptureScript?: string,
 ): Promise<any> {
   console.log(
     `📸 [Screenshot] Capturing screenshot via CDP for tab ${tabId} in session ${conversationId}`,
@@ -1201,6 +1202,22 @@ async function captureScreenshotWithCDP(
     console.log(
       `🎯 [Screenshot] Raw output pixels before offline resize: ${expectedOutputWidth}x${expectedOutputHeight}`,
     );
+
+    // Run optional pre-capture script in the same CDP session, right before
+    // Page.captureScreenshot. This forces a layout flush so that any bbox
+    // queries return positions consistent with the about-to-be-captured frame.
+    let preCaptureResult: any = undefined;
+    if (preCaptureScript) {
+      try {
+        const evalResult = await cdpCommander.sendCommand<any>(
+          'Runtime.evaluate',
+          { expression: preCaptureScript, returnByValue: true },
+        );
+        preCaptureResult = evalResult?.result?.value;
+      } catch (e) {
+        console.warn(`⚠️ [Screenshot] Pre-capture script failed: ${e}`);
+      }
+    }
 
     // 最大允许的base64数据大小：10MB
     const MAX_BASE64_SIZE = 10 * 1024 * 1024; // 10MB in bytes
@@ -1410,6 +1427,7 @@ async function captureScreenshotWithCDP(
     return {
       success: true,
       imageData: finalImageData,
+      preCaptureResult,
       metadata: {
         tabId: tabId,
         width: finalImageWidth,
@@ -1468,6 +1486,7 @@ export async function captureScreenshot(
   resizeToPreset: boolean = false,
   waitForRender: number = 500,
   options?: ScreenshotCaptureOptions,
+  preCaptureScript?: string,
 ): Promise<any> {
   // Resolve tab ID if not provided
   let targetTabId = tabId;
@@ -1594,6 +1613,7 @@ export async function captureScreenshot(
     resizeToPreset,
     waitForRender,
     options,
+    preCaptureScript,
   );
 
   // Add auto-accepted dialog info to metadata if applicable

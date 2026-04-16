@@ -160,6 +160,18 @@
 
                 <p class="modal-column-info" id="modal-column-info">in list <span id="modal-column-name"></span></p>
 
+                <!-- Members & Due Date mini sections -->
+                <div class="modal-mini-sections" id="modal-mini-sections">
+                    <div class="modal-mini-section" id="modal-members-section" style="display:none;">
+                        <div class="modal-mini-section-title">Members</div>
+                        <div class="modal-assigned-members" id="modal-assigned-members"></div>
+                    </div>
+                    <div class="modal-mini-section" id="modal-due-section" style="display:none;">
+                        <div class="modal-mini-section-title">Due Date</div>
+                        <button class="modal-due-badge" id="modal-due-badge"></button>
+                    </div>
+                </div>
+
                 <!-- Description -->
                 <div class="modal-section">
                     <div class="modal-section-header">
@@ -232,6 +244,37 @@
                     </svg>
                     Archive
                 </button>
+            </div>
+
+            <!-- Members Picker Popover -->
+            <div class="card-popover" id="members-picker-popover" style="display:none;">
+                <div class="popover-header">
+                    <h4>Members</h4>
+                    <button class="popover-close-btn" id="members-picker-close">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div id="member-picker-list"></div>
+            </div>
+
+            <!-- Dates Picker Popover -->
+            <div class="card-popover" id="dates-picker-popover" style="display:none;">
+                <div class="popover-header">
+                    <h4>Dates</h4>
+                    <button class="popover-close-btn" id="dates-picker-close">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <label class="dates-picker-label" for="due-date-input">Due date</label>
+                <input type="date" id="due-date-input" class="dates-picker-input" lang="en">
+                <div class="dates-picker-actions">
+                    <button class="btn-primary btn-small" id="due-date-save">Save</button>
+                    <button class="btn-cancel btn-small" id="due-date-remove">Remove</button>
+                </div>
             </div>
 
             <!-- Label Picker Popover -->

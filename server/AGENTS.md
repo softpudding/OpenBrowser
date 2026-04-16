@@ -140,8 +140,6 @@ OpenBrowser uses a visual-first approach where elements are highlighted with sho
 - `clickable` - Buttons, links, clickable elements
 - `scrollable` - Scrollable containers
 - `inputable` - Input fields, textareas
-- `hoverable` - Hoverable elements
-
 ### tab_id Auto-Resolution
 All visual interaction commands require `tab_id` in Python models, However, the TypeScript extension
 can auto-resolve `tab_id` from the conversation context if not provided explicitly. This allows for cleaner
@@ -219,7 +217,7 @@ OpenBrowser now uses 4 focused tools instead of a single monolithic tool:
 
 ### 2. Highlight Tool (`highlight`)
 - **Purpose**: Element discovery with collision-free visual overlays
-- **Element types**: `any` (default), `clickable`, `inputable`, `scrollable`, `hoverable`, `selectable`
+- **Element types**: `any` (default), `clickable`, `inputable`, `scrollable`, `selectable`, `draggable`, `droppable`
 - **Visual coding**: BLUE stage - safe identification before interaction
 - **Pagination**: Collision-aware pages for non-overlapping element display
 

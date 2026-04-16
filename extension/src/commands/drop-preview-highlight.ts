@@ -12,7 +12,7 @@ import { calculateConfirmationPreviewLayout } from './single-highlight';
 import { LABEL_PADDING, LABEL_FONT_SIZE } from './label-constants';
 import { getLabelDimensions, getLabelFont } from '../utils/label-geometry';
 
-// Colors for inner draggable elements (matches visual-highlight.ts)
+// Colors for inner draggable elements.
 const INNER_ELEMENT_COLOR = '#FF6600'; // draggable color
 const INNER_ELEMENT_BG = 'rgba(255, 102, 0, 0.7)';
 const BASE_BOX_PADDING = 1;
@@ -126,21 +126,33 @@ export async function highlightDropPreview(
   const cropOffsetX = previewLayout.crop.x / scale;
   const cropOffsetY = previewLayout.crop.y / scale;
   const boxPadding = Math.round(BASE_BOX_PADDING * scale);
-  const lineWidth = BASE_LINE_WIDTH * scale;
+  // Draw border as four fillRects per edge. fillRect on integer coords always
+  // lands on whole rows; stroke() straddles the path and blurs unless the width
+  // is an even integer.
+  const edgeThickness = Math.max(2, Math.round(BASE_LINE_WIDTH * scale));
 
   if (innerElements.length > 0) {
-    // Draw bounding boxes
-    ctx.strokeStyle = INNER_ELEMENT_COLOR;
-    ctx.lineWidth = lineWidth;
-    ctx.beginPath();
+    ctx.fillStyle = INNER_ELEMENT_COLOR;
     for (const el of innerElements) {
       const bx = Math.round((el.bbox.x - cropOffsetX) * scale) - boxPadding;
       const by = Math.round((el.bbox.y - cropOffsetY) * scale) - boxPadding;
       const bw = Math.round(el.bbox.width * scale) + boxPadding * 2;
       const bh = Math.round(el.bbox.height * scale) + boxPadding * 2;
-      ctx.rect(bx, by, bw, bh);
+      ctx.fillRect(bx, by, bw, edgeThickness);
+      ctx.fillRect(bx, by + bh - edgeThickness, bw, edgeThickness);
+      ctx.fillRect(
+        bx,
+        by + edgeThickness,
+        edgeThickness,
+        bh - edgeThickness * 2,
+      );
+      ctx.fillRect(
+        bx + bw - edgeThickness,
+        by + edgeThickness,
+        edgeThickness,
+        bh - edgeThickness * 2,
+      );
     }
-    ctx.stroke();
 
     // Draw labels
     const labelPadding = Math.round(LABEL_PADDING * scale);

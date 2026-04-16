@@ -63,7 +63,6 @@ describe('Highlight Integration', () => {
         createElement('btn1', 'clickable', 100, 100, 80, 30),
         createElement('input1', 'inputable', 100, 150, 200, 30),
         createElement('scroll1', 'scrollable', 100, 200, 300, 200),
-        createElement('hover1', 'hoverable', 100, 420, 100, 40),
       ];
 
       // Verify all types are present
@@ -71,8 +70,7 @@ describe('Highlight Integration', () => {
       expect(types.has('clickable')).toBe(true);
       expect(types.has('inputable')).toBe(true);
       expect(types.has('scrollable')).toBe(true);
-      expect(types.has('hoverable')).toBe(true);
-      expect(types.size).toBe(4);
+      expect(types.size).toBe(3);
     });
 
     test('should set labelPosition on elements after pagination', () => {
@@ -183,7 +181,7 @@ describe('Highlight Integration', () => {
         createElement('btn1', 'clickable', 100, 100, 80, 30),
         createElement('input1', 'inputable', 100, 100, 80, 30), // Same position
         createElement('scroll1', 'scrollable', 100, 100, 80, 30), // Same position
-        createElement('hover1', 'hoverable', 300, 100, 80, 30), // Different position
+        createElement('btn2', 'clickable', 300, 100, 80, 30), // Different position
       ];
 
       // Run pagination

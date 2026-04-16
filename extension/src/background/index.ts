@@ -21,7 +21,6 @@ import { debuggerSessionManager } from '../commands/debugger-manager';
 import { dialogManager } from '../commands/dialog';
 import { clearScreenshotCache } from '../commands/computer';
 
-import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
 import { highlightDropPreview } from '../commands/drop-preview-highlight';
 import { elementCache } from '../commands/element-cache';
@@ -51,8 +50,10 @@ import {
 } from '../commands/label-constants';
 import { getOrCreateUUID } from '../uuid/uuidGenerator';
 import {
+  isLabelWithinViewport,
   paginateCollisionFreeElements,
   sortElementsByVisualOrder,
+  type LabelPosition,
 } from '../utils/collision-detection';
 import {
   HIGHLIGHT_CONSISTENCY_CONFIG,
@@ -174,6 +175,42 @@ async function runRawScreenshotPrime(options: {
   );
 }
 
+const LABEL_POSITION_FALLBACK_ORDER: LabelPosition[] = [
+  'above',
+  'below',
+  'left',
+  'right',
+];
+
+// Keyword-mode bypasses the collision planner (it must show all matches on
+// one page), but the renderer still needs a labelPosition that fits in the
+// viewport — otherwise the label is clipped by the overlay's overflow:hidden.
+function assignViewportFeasibleLabelPosition(
+  element: InteractiveElement,
+  viewportWidth: number,
+  viewportHeight: number,
+): InteractiveElement {
+  if (element.labelPosition) {
+    return element;
+  }
+
+  for (const position of LABEL_POSITION_FALLBACK_ORDER) {
+    if (
+      isLabelWithinViewport(
+        element.bbox,
+        position,
+        viewportWidth,
+        viewportHeight,
+        element.id,
+      )
+    ) {
+      return { ...element, labelPosition: position };
+    }
+  }
+
+  return { ...element, labelPosition: 'above' };
+}
+
 function buildStoredHighlightPages(options: {
   filteredElements: InteractiveElement[];
   viewportWidth: number;
@@ -184,7 +221,14 @@ function buildStoredHighlightPages(options: {
     options;
 
   if (keywordMode) {
-    return [sortElementsByVisualOrder(filteredElements)];
+    const placed = filteredElements.map((element) =>
+      assignViewportFeasibleLabelPosition(
+        element,
+        viewportWidth,
+        viewportHeight,
+      ),
+    );
+    return [sortElementsByVisualOrder(placed)];
   }
 
   const collisionFreePages = paginateCollisionFreeElements(
@@ -239,6 +283,188 @@ function buildHighlightConsistencyScript(
           }
         }),
       };
+    })();
+  `;
+}
+
+const IN_PAGE_HIGHLIGHT_COLORS: Record<string, { border: string; bg: string }> =
+  {
+    clickable: { border: '#0066FF', bg: 'rgba(0,102,255,0.7)' },
+    scrollable: { border: '#00CC66', bg: 'rgba(0,204,102,0.7)' },
+    inputable: { border: '#FF9900', bg: 'rgba(255,153,0,0.7)' },
+    selectable: { border: '#FF6B6B', bg: 'rgba(255,107,107,0.7)' },
+    draggable: { border: '#FF6600', bg: 'rgba(255,102,0,0.7)' },
+    droppable: { border: '#339966', bg: 'rgba(51,153,102,0.7)' },
+    any: { border: '#00CCCC', bg: 'rgba(0,204,204,0.7)' },
+  };
+
+const OB_HIGHLIGHT_OVERLAY_ID = '__ob_highlight_overlay__';
+const OB_HIGHLIGHT_ATTR = 'data-ob-hl';
+
+function buildInPageHighlightScript(elements: InteractiveElement[]): string {
+  const items = elements.map((el) => {
+    const colors =
+      IN_PAGE_HIGHLIGHT_COLORS[el.type] || IN_PAGE_HIGHLIGHT_COLORS.clickable;
+    return {
+      id: el.id,
+      selector: el.selector,
+      borderColor: colors.border,
+      bgColor: colors.bg,
+      labelPos: el.labelPosition || 'above',
+    };
+  });
+
+  return `
+    (() => {
+      const items = ${JSON.stringify(items)};
+      const OVERLAY_ID = ${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)};
+      const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
+      const LABEL_FONT_SIZE = ${LABEL_FONT_SIZE};
+      const LABEL_PADDING = ${LABEL_PADDING};
+      const MAX_LABEL_WIDTH = ${MAX_LABEL_WIDTH};
+
+      // Snapshot + restore helpers so we don't leak our overrides onto the
+      // page when pre-existing inline styles are present.
+      const SAVED_ATTR = HL_ATTR + '-saved';
+      const OVERRIDES = ['transition', 'box-shadow'];
+      const snapshotOverrides = (el) => {
+        const snap = {};
+        for (const p of OVERRIDES) {
+          snap[p] = {
+            v: el.style.getPropertyValue(p),
+            i: el.style.getPropertyPriority(p),
+          };
+        }
+        el.setAttribute(SAVED_ATTR, JSON.stringify(snap));
+      };
+      const restoreOverrides = (el) => {
+        let snap = {};
+        try { snap = JSON.parse(el.getAttribute(SAVED_ATTR) || '{}'); } catch (_) {}
+        for (const p of OVERRIDES) {
+          const saved = snap[p];
+          if (saved && saved.v) {
+            el.style.setProperty(p, saved.v, saved.i || '');
+          } else {
+            el.style.removeProperty(p);
+          }
+        }
+        el.removeAttribute(SAVED_ATTR);
+      };
+
+      // Remove any previous highlights
+      document.getElementById(OVERLAY_ID)?.remove();
+      document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
+        restoreOverrides(el);
+        el.removeAttribute(HL_ATTR);
+      });
+
+      // Create overlay for labels only (boxes use inset box-shadow on elements)
+      const overlay = document.createElement('div');
+      overlay.id = OVERLAY_ID;
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2147483647;overflow:hidden;';
+      document.documentElement.appendChild(overlay);
+
+      const bboxes = [];
+      // box-sizing:border-box so max-width caps the total rendered width
+      // (matching the collision planner's MAX_LABEL_WIDTH, which is the full
+      // label width including padding).
+      const LABEL_BASE_CSS = 'position:fixed;box-sizing:border-box;'
+        + 'font:bold ' + LABEL_FONT_SIZE + 'px/' + LABEL_FONT_SIZE + 'px Arial,sans-serif;'
+        + 'color:#fff;padding:' + LABEL_PADDING + 'px;border-radius:2px;'
+        + 'white-space:nowrap;pointer-events:none;overflow:hidden;text-overflow:ellipsis;'
+        + 'max-width:' + MAX_LABEL_WIDTH + 'px;';
+
+      for (const item of items) {
+        try {
+          const el = document.querySelector(item.selector);
+          if (!el) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) continue;
+
+          // Skip elements whose center is covered by something else (e.g. a
+          // button hidden behind a modal popup). Without this check, the
+          // border is still drawn inside the hidden element and the label
+          // floats free over whatever is actually on top.
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          if (cx >= 0 && cy >= 0 && cx < innerWidth && cy < innerHeight) {
+            const hit = document.elementFromPoint(cx, cy);
+            if (hit && hit !== el && !el.contains(hit)) continue;
+          }
+
+          // Snapshot any inline transition/box-shadow so cleanup can restore
+          // them exactly (including !important priority) instead of stripping.
+          snapshotOverrides(el);
+          // Disable CSS transitions so the page can't animate the shadow in
+          // (e.g. sidebar items with "transition: all 0.2s" would cause the
+          // CDP screenshot to catch the box-shadow mid-interpolation and the
+          // border would render thinner than the specified 3px).
+          el.style.setProperty('transition', 'none', 'important');
+          // Adapt border thickness to element size: tight targets (small
+          // buttons, checkboxes) get 2px so the stroke doesn't dominate; larger
+          // targets (menu items, sections) get 3px so the stroke stays visible
+          // against a bigger empty interior.
+          const borderPx = Math.min(rect.width, rect.height) > 32 ? 3 : 2;
+          el.style.setProperty(
+            'box-shadow',
+            'inset 0 0 0 ' + borderPx + 'px ' + item.borderColor,
+            'important',
+          );
+          el.setAttribute(HL_ATTR, item.id);
+
+          // Render label off-screen first to measure actual dimensions, then
+          // position it using the measured size — keeps positioning consistent
+          // with the collision-detection model (which uses actual label width).
+          const label = document.createElement('div');
+          label.style.cssText = LABEL_BASE_CSS + 'left:-9999px;top:0;background:' + item.bgColor + ';';
+          label.textContent = item.id;
+          overlay.appendChild(label);
+
+          const labelRect = label.getBoundingClientRect();
+          const labelW = labelRect.width;
+          const labelH = labelRect.height;
+
+          let lx, ly;
+          switch (item.labelPos) {
+            case 'below': lx = rect.left;            ly = rect.bottom;       break;
+            case 'left':  lx = rect.left - labelW;   ly = rect.top;          break;
+            case 'right': lx = rect.right;           ly = rect.top;          break;
+            default:      lx = rect.left;            ly = rect.top - labelH; break;
+          }
+
+          label.style.left = lx + 'px';
+          label.style.top = ly + 'px';
+
+          bboxes.push({ id: item.id, bbox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } });
+        } catch (e) { /* skip */ }
+      }
+
+      return { bboxes };
+    })();
+  `;
+}
+
+function buildHighlightCleanupScript(): string {
+  return `
+    (() => {
+      const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
+      const SAVED_ATTR = HL_ATTR + '-saved';
+      const OVERRIDES = ['transition', 'box-shadow'];
+      document.getElementById(${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)})?.remove();
+      document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
+        let snap = {};
+        try { snap = JSON.parse(el.getAttribute(SAVED_ATTR) || '{}'); } catch (_) {}
+        for (const p of OVERRIDES) {
+          const saved = snap[p];
+          if (saved && saved.v) {
+            el.style.setProperty(p, saved.v, saved.i || '');
+          } else {
+            el.style.removeProperty(p);
+          }
+        }
+        el.removeAttribute(SAVED_ATTR);
+        el.removeAttribute(HL_ATTR);
+      });
     })();
   `;
 }
@@ -430,6 +656,13 @@ async function captureHighlightedPageState(
       );
     }
 
+    // Inject highlights into the page DOM before capturing. Using CSS
+    // outlines on elements guarantees pixel-perfect alignment because the
+    // browser renders them as part of the element — no bbox-to-screenshot
+    // coordinate mapping needed. This eliminates hidden-tab layout
+    // discrepancies where getBoundingClientRect() and Page.captureScreenshot
+    // see different geometry.
+    const highlightScript = buildInPageHighlightScript(paginatedElements);
     const screenshotStart = Date.now();
     const screenshotResult = await captureScreenshot(
       tabId,
@@ -439,7 +672,22 @@ async function captureHighlightedPageState(
       false,
       0,
       TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+      highlightScript,
     );
+
+    // Clean up injected highlights from the DOM
+    try {
+      await javascript.executeJavaScript(
+        tabId,
+        conversationId,
+        buildHighlightCleanupScript(),
+        true,
+        false,
+        2000,
+      );
+    } catch (e) {
+      console.warn(`⚠️ [${logLabel}] highlight cleanup failed: ${e}`);
+    }
 
     if (!screenshotResult?.success || !screenshotResult?.imageData) {
       throw new Error(
@@ -447,11 +695,31 @@ async function captureHighlightedPageState(
       );
     }
     console.log(
-      `📸 [${logLabel}] Screenshot captured, size: ${screenshotResult.imageData.length} bytes`,
+      `📸 [${logLabel}] Screenshot captured (with in-page highlights), size: ${screenshotResult.imageData.length} bytes`,
     );
     console.log(
       `⏱️ [HighlightTrace] background screenshot ${Date.now() - screenshotStart}ms`,
     );
+
+    // Apply bboxes returned from the highlight injection script
+    const preCaptureData = screenshotResult.preCaptureResult;
+    if (preCaptureData?.bboxes && Array.isArray(preCaptureData.bboxes)) {
+      const bboxMap = new Map<
+        string,
+        { x: number; y: number; width: number; height: number }
+      >();
+      for (const entry of preCaptureData.bboxes) {
+        if (entry.id && entry.bbox) {
+          bboxMap.set(entry.id, entry.bbox);
+        }
+      }
+      for (const element of filteredElements) {
+        const freshBbox = bboxMap.get(element.id);
+        if (freshBbox) {
+          element.bbox = freshBbox;
+        }
+      }
+    }
 
     const imageScale =
       screenshotResult.metadata?.imageScale ||
@@ -546,23 +814,11 @@ async function captureHighlightedPageState(
       );
     }
 
-    const drawHighlightsStart = Date.now();
-    const highlightedScreenshot = await drawHighlights(
-      screenshotResult.imageData,
-      storedPage.elements,
-      {
-        scale: imageScale,
-        viewportWidth,
-        viewportHeight,
-      },
-    );
-    console.log(
-      `⏱️ [HighlightTrace] background draw-highlights ${Date.now() - drawHighlightsStart}ms (elements=${storedPage.elements.length})`,
-    );
-
+    // Highlights are already baked into the screenshot via in-page injection.
+    // Just compress the screenshot directly — no post-hoc drawing needed.
     const compressStart = Date.now();
     const compressedScreenshotResult = await compressScreenshotResult({
-      imageData: highlightedScreenshot,
+      imageData: screenshotResult.imageData,
       dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
       dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list,
     });

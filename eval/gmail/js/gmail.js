@@ -973,12 +973,13 @@ window.tracker = new AgentTracker("mail.google.com", "hard");
     render();
   }
 
-  function openLabelModal(threadIds) {
+  function openLabelModal(threadIds, parent) {
     store.update((state) => {
       state.ui.modal = {
         type: "label",
         threadIds: uniqueSorted(threadIds),
         newLabelName: "",
+        parent: parent || null,
       };
     });
     render();
@@ -993,7 +994,7 @@ window.tracker = new AgentTracker("mail.google.com", "hard");
         }
       });
       if (state.ui.modal?.type === "label") {
-        state.ui.modal = null;
+        state.ui.modal = state.ui.modal.parent || null;
       }
     });
 
@@ -1313,7 +1314,7 @@ window.tracker = new AgentTracker("mail.google.com", "hard");
 
     if (action === "close-label-modal") {
       store.update((state) => {
-        state.ui.modal = null;
+        state.ui.modal = state.ui.modal?.parent || null;
       });
       render();
       return;
@@ -1376,7 +1377,7 @@ window.tracker = new AgentTracker("mail.google.com", "hard");
       const modal = store.getState().ui.modal;
       const threadIds = modal?.threadId ? [modal.threadId] : [];
       if (threadIds.length) {
-        openLabelModal(threadIds);
+        openLabelModal(threadIds, modal);
       }
       return;
     }
