@@ -1,6 +1,5 @@
 /**
- * Label dimensions for collision detection and visual highlighting
- * These constants are shared between background/index.ts and visual-highlight.ts
+ * Label dimensions for collision detection and visual highlighting.
  */
 
 export const LABEL_FONT_SIZE = 16;

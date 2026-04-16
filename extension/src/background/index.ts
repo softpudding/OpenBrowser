@@ -21,7 +21,6 @@ import { debuggerSessionManager } from '../commands/debugger-manager';
 import { dialogManager } from '../commands/dialog';
 import { clearScreenshotCache } from '../commands/computer';
 
-import { drawHighlights } from '../commands/visual-highlight';
 import { highlightSingleElement } from '../commands/single-highlight';
 import { highlightDropPreview } from '../commands/drop-preview-highlight';
 import { elementCache } from '../commands/element-cache';
@@ -288,7 +287,6 @@ function buildHighlightConsistencyScript(
   `;
 }
 
-// Color mapping matching visual-highlight.ts
 const IN_PAGE_HIGHLIGHT_COLORS: Record<string, { border: string; bg: string }> =
   {
     clickable: { border: '#0066FF', bg: 'rgba(0,102,255,0.7)' },
@@ -329,6 +327,7 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
       document.getElementById(OVERLAY_ID)?.remove();
       document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
         el.style.removeProperty('box-shadow');
+        el.style.removeProperty('transition');
         el.removeAttribute(HL_ATTR);
       });
 
@@ -355,10 +354,21 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
           const rect = el.getBoundingClientRect();
           if (rect.width <= 0 || rect.height <= 0) continue;
 
-          // Inset box-shadow on the element — rendered inside the element's own
-          // area so it can't be clipped by ancestor overflow:hidden, and doesn't
-          // affect layout. Guaranteed aligned by the browser.
-          el.style.setProperty('box-shadow', 'inset 0 0 0 3px ' + item.borderColor, 'important');
+          // Disable CSS transitions so the page can't animate the shadow in
+          // (e.g. sidebar items with "transition: all 0.2s" would cause the
+          // CDP screenshot to catch the box-shadow mid-interpolation and the
+          // border would render thinner than the specified 3px).
+          el.style.setProperty('transition', 'none', 'important');
+          // Adapt border thickness to element size: tight targets (small
+          // buttons, checkboxes) get 2px so the stroke doesn't dominate; larger
+          // targets (menu items, sections) get 3px so the stroke stays visible
+          // against a bigger empty interior.
+          const borderPx = Math.min(rect.width, rect.height) > 32 ? 3 : 2;
+          el.style.setProperty(
+            'box-shadow',
+            'inset 0 0 0 ' + borderPx + 'px ' + item.borderColor,
+            'important',
+          );
           el.setAttribute(HL_ATTR, item.id);
 
           // Render label off-screen first to measure actual dimensions, then
@@ -400,6 +410,7 @@ function buildHighlightCleanupScript(): string {
       document.getElementById(${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)})?.remove();
       document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
         el.style.removeProperty('box-shadow');
+        el.style.removeProperty('transition');
         el.removeAttribute(HL_ATTR);
       });
     })();
