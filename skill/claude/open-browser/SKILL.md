@@ -103,6 +103,37 @@ The legacy `--background --output /tmp/openbrowser.log` flag still
 works as a fallback for shell-only environments, but it should not be
 your default in Claude Code.
 
+## Attaching images to a task
+
+OpenBrowser uses multimodal LLMs, so you can send an image (screenshot,
+UI mockup, reference photo) alongside the text prompt. Use this when the
+task is "recreate this design", "why does my UI look wrong compared to
+this screenshot", or "find the element that matches this picture".
+
+Pass `--image PATH` once per image. Images are read from disk, base64
+encoded, and sent as data URIs — no upload endpoint or static server is
+required. Limit: 10 MB per image, up to 8 images per message.
+
+```bash
+python3 skill/claude/open-browser/scripts/send_task.py \
+  "Open the local dashboard and tell me which section looks different from this screenshot." \
+  --image /tmp/reference.png \
+  --chrome-uuid "$OPENBROWSER_CHROME_UUID"
+```
+
+Typical use cases:
+- **Visual regression check**: screenshot the expected UI, send it with
+  "compare this to the current page at http://localhost:3000 and list
+  differences".
+- **Reproducing a bug from a user report**: drop in the user's
+  screenshot and ask "navigate to the page shown here and confirm you
+  see the same error".
+- **Asset-matching**: send a design mockup and ask the agent to pick
+  the closest live element from the current page.
+
+The conversation history saves an `[image attached: name, NkB]` marker
+(not the bytes) so replays don't balloon to megabytes.
+
 ## Follow-up turns on the same browser session
 
 To send a second instruction to the same conversation (so the agent
