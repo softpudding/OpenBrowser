@@ -3,8 +3,14 @@
 import asyncio
 import json
 import logging
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+
+# Max raw bytes accepted per attached image (pre-base64). The frontend rejects
+# at the same threshold; this is a defense against spoofed clients.
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_IMAGES_PER_MESSAGE = 8
 
 from server.agent.agent import (
     agent_manager,
@@ -25,6 +31,73 @@ from server.api.sse import (
 router = APIRouter(prefix="/agent/conversations", tags=["agent"])
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_images(
+    raw_images: Any,
+) -> Optional[List[Dict[str, Any]]]:
+    """Validate and normalize the optional `images` field on a message POST.
+
+    Each entry must be a dict with a `data_uri` starting with `data:image/`
+    and decoded payload size ≤ MAX_IMAGE_BYTES. Returns a normalized list
+    with `data_uri`, `mime_type`, `name`, and `size_bytes` set, or None when
+    no images were provided.
+    """
+    if raw_images is None:
+        return None
+    if not isinstance(raw_images, list):
+        raise HTTPException(
+            status_code=400, detail="`images` must be a list when provided"
+        )
+    if len(raw_images) > MAX_IMAGES_PER_MESSAGE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many images (max {MAX_IMAGES_PER_MESSAGE})",
+        )
+    normalized: List[Dict[str, Any]] = []
+    for i, entry in enumerate(raw_images):
+        if not isinstance(entry, dict):
+            raise HTTPException(
+                status_code=400, detail=f"images[{i}] must be an object"
+            )
+        data_uri = entry.get("data_uri")
+        if not isinstance(data_uri, str) or not data_uri.startswith("data:image/"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"images[{i}].data_uri must be a data:image/… URI",
+            )
+        # Parse mime + base64 payload from the data URI
+        try:
+            header, payload = data_uri.split(",", 1)
+            if ";base64" not in header:
+                raise ValueError("only base64-encoded data URIs are accepted")
+            mime_type = header[len("data:") : header.index(";base64")]
+            decoded_size = (len(payload) * 3) // 4  # approximate; exact enough
+            if decoded_size > MAX_IMAGE_BYTES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"images[{i}] exceeds {MAX_IMAGE_BYTES // (1024 * 1024)}MB "
+                        f"(got ~{decoded_size // (1024 * 1024)}MB)"
+                    ),
+                )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400, detail=f"images[{i}] is not a valid data URI: {exc}"
+            )
+        normalized.append(
+            {
+                "data_uri": data_uri,
+                "mime_type": mime_type or entry.get("mime_type"),
+                "name": entry.get("name") or f"image-{i + 1}",
+                "size_bytes": entry.get("size_bytes")
+                if isinstance(entry.get("size_bytes"), int)
+                else decoded_size,
+            }
+        )
+    return normalized
 
 
 def _require_valid_browser_id(browser_id: str | None) -> str:
@@ -183,7 +256,11 @@ async def agent_messages_stream(conversation_id: str, request: Request):
     - POST: Send a message and get SSE stream response
     """
 
-    async def event_generator(message_text: str = None, cwd: str = "."):
+    async def event_generator(
+        message_text: str = None,
+        cwd: str = ".",
+        images: Optional[List[Dict[str, Any]]] = None,
+    ):
         """Generate SSE events for the agent conversation"""
         try:
             # If no message text provided, this is a GET request - just open stream
@@ -204,7 +281,7 @@ async def agent_messages_stream(conversation_id: str, request: Request):
                 )
                 event_count = 0
                 async for sse_event in process_agent_message(
-                    conversation_id, message_text, cwd
+                    conversation_id, message_text, cwd, images=images
                 ):
                     event_count += 1
                     logger.debug(
@@ -268,9 +345,10 @@ async def agent_messages_stream(conversation_id: str, request: Request):
 
             # Extract cwd parameter with default value
             cwd = message_data.get("cwd", ".")
+            images = _validate_images(message_data.get("images"))
 
             return StreamingResponse(
-                event_generator(message_data["text"], cwd),
+                event_generator(message_data["text"], cwd, images),
                 media_type="text/event-stream",
                 headers=create_sse_response_headers(),
             )

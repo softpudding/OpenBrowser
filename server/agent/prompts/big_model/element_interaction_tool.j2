@@ -14,7 +14,7 @@ Use one `element_id` from the current interactive observation to act on the page
 
 ## Interaction Modes
 
-Only `click`, `keyboard_input`, `select`, and `drag_and_drop` require confirmation before execution. `hover`, `scroll`, `swipe`, and `set_slider` execute immediately and return the default `highlight` `element_type: "any"` page 1 screenshot of the new page state.
+Only `click`, `keyboard_input`, `select`, and `drag_and_drop` require confirmation before execution. `hover`, `scroll`, `swipe`, `set_slider`, and `upload_file` execute immediately and return the default `highlight` `element_type: "any"` page 1 screenshot of the new page state.
 
 ## Visual Color System - YELLOW Stage
 
@@ -157,6 +157,19 @@ Set a slider to a target value. Works on three kinds of slider:
 
 Use `set_slider` for any element marked with the `slidable` interaction hint — do not try to click or drag the thumb manually.
 
+### upload_file
+
+Attach a local file to an `<input type="file">` element. Bypasses the native OS file picker — do not try to `click` the file input first.
+
+```json
+{ "action": "upload_file", "element_id": "F7K", "file_path": "/tmp/resume.pdf", "tab_id": 123 }
+// → Executes immediately and returns the default `highlight` `element_type: "any"` page 1 screenshot
+```
+
+Use this only on elements returned with the `uploadable` hint. The target is always the underlying `<input type="file">` even when the visible control is a styled button or label.
+
+`file_path` must be an absolute path that exists on the host running the browser. The agent is responsible for producing or locating that file beforehand (e.g. writing it to `/tmp/...` with a terminal tool, or using a path the user pasted in plain language). Relative paths and missing files are rejected with a clear error.
+
 ### select
 
 Select an option from a native `<select>` dropdown element by its visual ID.
@@ -203,6 +216,7 @@ Completed `confirm_*` actions return the default `highlight` `element_type: "any
 - For scrollable pages or regions, use `scroll`
 - If the likely target is already visible but poorly positioned, use `scroll` before more discovery or before clicking.
 - For carousel / gallery / swiper regions marked `swipable`, use `swipe`
+- For elements marked `uploadable` (file inputs), use `upload_file` with an absolute `file_path` — do not try to `click` them first.
 - If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`. To find valid drop targets, use `highlight element_type: "droppable"`.
 - If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or guessed controls first
 
@@ -210,7 +224,7 @@ Completed `confirm_*` actions return the default `highlight` `element_type: "any
 
 - `click`, `keyboard_input`, and `select` return a YELLOW preview screenshot before execution.
 - `drag_and_drop` returns a zoomed preview of the container with inner elements highlighted.
-- `hover`, `scroll`, `swipe`, `set_slider`, and completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
+- `hover`, `scroll`, `swipe`, `set_slider`, `upload_file`, and completed `confirm_*` actions return the default `highlight` `element_type: "any"` page 1 screenshot for the new page state.
 
 ## Error Handling
 

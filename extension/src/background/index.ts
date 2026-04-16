@@ -37,6 +37,7 @@ import {
   performElementSwipe,
   performElementDragAndDrop,
   performElementSetSlider,
+  performElementUpload,
   performKeyboardInput,
   performElementSelect,
   replayHoverState,
@@ -295,6 +296,7 @@ const IN_PAGE_HIGHLIGHT_COLORS: Record<string, { border: string; bg: string }> =
     selectable: { border: '#FF6B6B', bg: 'rgba(255,107,107,0.7)' },
     draggable: { border: '#FF6600', bg: 'rgba(255,102,0,0.7)' },
     droppable: { border: '#339966', bg: 'rgba(51,153,102,0.7)' },
+    uploadable: { border: '#AA66FF', bg: 'rgba(170,102,255,0.7)' },
     any: { border: '#00CCCC', bg: 'rgba(0,204,204,0.7)' },
   };
 
@@ -307,7 +309,10 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
       IN_PAGE_HIGHLIGHT_COLORS[el.type] || IN_PAGE_HIGHLIGHT_COLORS.clickable;
     return {
       id: el.id,
-      selector: el.selector,
+      // The overlay script renders the box on `selector`. For uploadable
+      // file inputs that are display:none, the visible anchor's selector
+      // lets the overlay land on something the user can actually see.
+      selector: el.overlaySelector || el.selector,
       borderColor: colors.border,
       bgColor: colors.bg,
       labelPos: el.labelPosition || 'above',
@@ -953,6 +958,7 @@ function isHeavyBrowserCommand(data: any): boolean {
     case 'set_slider_value':
     case 'keyboard_input':
     case 'select_element':
+    case 'upload_file':
     case 'handle_dialog':
       return true;
     case 'tab':
@@ -2324,6 +2330,38 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             ...sliderPageState,
           },
           error: sliderResult.error,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'upload_file': {
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
+        const uploadTabId = command.tab_id;
+        if (uploadTabId === undefined || uploadTabId === null)
+          throw new Error('tab_id is required');
+        if (!command.file_path || typeof command.file_path !== 'string')
+          throw new Error('file_path is required for upload_file');
+
+        const uploadResult = await performElementUpload(
+          command.conversation_id,
+          command.element_id,
+          uploadTabId,
+          command.file_path,
+        );
+        const uploadPageState = await captureDefaultHighlightedPageState({
+          tabId: uploadTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'UploadFile',
+        });
+
+        return {
+          success: uploadResult.success,
+          data: {
+            ...uploadResult,
+            ...uploadPageState,
+          },
+          error: uploadResult.error,
           timestamp: Date.now(),
         };
       }

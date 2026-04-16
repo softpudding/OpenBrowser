@@ -273,7 +273,7 @@ class HighlightElementsCommand(BaseCommand):
     type: Literal["highlight_elements"] = "highlight_elements"
     element_type: Optional[str] = Field(
         default="any",
-        description="Single element type to highlight for agent-visible guidance: 'any', 'scrollable', 'inputable', 'selectable', 'draggable', or 'droppable'",
+        description="Single element type to highlight for agent-visible guidance: 'any', 'scrollable', 'inputable', 'selectable', 'draggable', 'droppable', or 'uploadable'",
     )
     page: Optional[int] = Field(
         default=1,
@@ -465,6 +465,28 @@ class DragAndDropElementCommand(BaseCommand):
     )
 
 
+class UploadFileCommand(BaseCommand):
+    """Attach a file to an <input type="file"> element via CDP.
+
+    Bypasses the native OS file picker by calling DOM.setFileInputFiles
+    directly against the file input node. The browser must be able to
+    read file_path on its local filesystem, so for v1 the server and
+    Chrome must run on the same host.
+
+    tab_id is optional and will be auto-resolved to the current managed tab if not provided.
+    """
+
+    type: Literal["upload_file"] = "upload_file"
+    element_id: str = Field(description="Element ID of an uploadable <input type=file>")
+    file_path: str = Field(
+        description="Absolute path to the file to upload. Must exist on the host running the browser."
+    )
+    tab_id: Optional[int] = Field(
+        default=None,
+        description="Target tab ID (optional, auto-resolved if not provided)",
+    )
+
+
 class SetSliderValueCommand(BaseCommand):
     """Set the value of a native <input type=range> slider directly.
 
@@ -593,6 +615,7 @@ Command = Union[
     RecordingControlCommand,
     DragAndDropElementCommand,
     SetSliderValueCommand,
+    UploadFileCommand,
 ]
 
 
@@ -630,6 +653,7 @@ def parse_command(data: dict) -> Command:
         "recording_control": RecordingControlCommand,
         "drag_and_drop_element": DragAndDropElementCommand,
         "set_slider_value": SetSliderValueCommand,
+        "upload_file": UploadFileCommand,
     }
 
     if cmd_type not in command_map:

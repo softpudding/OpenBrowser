@@ -5,6 +5,7 @@ const HIGHLIGHT_TYPE_PRIORITY = {
   scrollable: 3,
   draggable: 4,
   droppable: 5,
+  uploadable: 6,
 };
 
 const HIGHLIGHT_SIGNAL_SCORE = {
@@ -16,6 +17,7 @@ const HIGHLIGHT_SIGNAL_SCORE = {
   inputable: 360,
   selectable: 340,
   scrollable: 220,
+  uploadable: 360,
 };
 
 const POINTER_ROLE_SET = new Set([
@@ -810,6 +812,69 @@ function isInputableCandidate(el) {
 
 function isSelectableCandidate(el) {
   return !isDisabledForDetection(el) && el.tagName.toLowerCase() === 'select';
+}
+
+/**
+ * Match <input type="file"> regardless of visibility. File inputs are almost
+ * always hidden (display:none / size:0) behind a styled <label> or wrapping
+ * <button> that forwards clicks via the DOM. Upload is dispatched to the
+ * underlying input via CDP DOM.setFileInputFiles, so we do not need the
+ * element to be visible — only present.
+ */
+function isUploadableCandidate(el) {
+  if (isDisabledForDetection(el)) {
+    return false;
+  }
+  if (el.tagName.toLowerCase() !== 'input') {
+    return false;
+  }
+  const inputType = (el.getAttribute('type') || '').toLowerCase();
+  return inputType === 'file';
+}
+
+/**
+ * Find the best visible DOM anchor to draw a highlight overlay on for a
+ * (usually invisible) file input. Preference:
+ *   1. <label for="<id>"> explicitly associated with the input.
+ *   2. An ancestor <label> that contains this input.
+ *   3. The nearest visible wrapping element (button, clickable div, form).
+ * Returns null if nothing visible is found (the caller should skip the input).
+ */
+function findUploadVisualAnchor(fileInput) {
+  try {
+    if (fileInput.id) {
+      const explicitLabel = document.querySelector(
+        `label[for="${CSS.escape(fileInput.id)}"]`,
+      );
+      if (explicitLabel && isElementVisibleForDetection(explicitLabel)) {
+        return explicitLabel;
+      }
+    }
+  } catch (_error) {
+    // CSS.escape failure or invalid selector — fall through to ancestor walk.
+  }
+
+  const containingLabel = fileInput.closest('label');
+  if (containingLabel && isElementVisibleForDetection(containingLabel)) {
+    return containingLabel;
+  }
+
+  let ancestor = fileInput.parentElement;
+  let depth = 0;
+  while (ancestor && depth < 6) {
+    if (
+      ancestor instanceof HTMLElement &&
+      isElementVisibleForDetection(ancestor)
+    ) {
+      const rect = ancestor.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        return ancestor;
+      }
+    }
+    ancestor = ancestor.parentElement;
+    depth += 1;
+  }
+  return null;
 }
 
 function hasStructuredInteractiveDescendant(el) {
@@ -1745,6 +1810,13 @@ function resolveElementCandidate(el, requestedType) {
       : null;
   }
 
+  if (requestedType === 'uploadable') {
+    // Uploadable elements are handled out-of-band by collectHighlightCandidates
+    // because file inputs are typically display:none and would be filtered out
+    // before reaching this resolver.
+    return null;
+  }
+
   if (requestedType === 'any') {
     const candidates = [];
 
@@ -1959,8 +2031,15 @@ function toInteractiveElement(candidate) {
       ? 'scrollable'
       : candidate.type;
   const text = getElementTextForDetection(candidate.element);
+  // For `uploadable`, the candidate element is usually a display:none file
+  // input whose own bbox is zero — use the visible anchor rect captured in
+  // collectUploadableCandidates instead.
+  const bbox =
+    candidate.type === 'uploadable' && candidate.rect
+      ? candidate.rect
+      : getElementRect(candidate.element);
 
-  return {
+  const base = {
     id: '',
     type: displayType,
     ...(interactionHints.length > 0 ? { interactionHints } : {}),
@@ -1972,10 +2051,20 @@ function toInteractiveElement(candidate) {
     text,
     searchText: getElementSearchText(candidate.element),
     fingerprint: getElementFingerprint(candidate.element),
-    bbox: getElementRect(candidate.element),
+    bbox,
     isVisible: true,
     isInViewport: true,
   };
+
+  // Uploadable inputs are hidden; the overlay renderer queries by selector
+  // and skips when rect is 0×0. Expose the visible anchor's selector so the
+  // renderer can draw the box on the anchor while actions still target the
+  // underlying <input type="file">.
+  if (candidate.type === 'uploadable' && candidate.overlayElement) {
+    base.overlaySelector = generateSelector(candidate.overlayElement);
+  }
+
+  return base;
 }
 
 function countVisibleClickableCandidates(metricsStartTime) {
@@ -2338,9 +2427,94 @@ function getCandidateElementsForScan(layoutStability, trace, config) {
   return cappedElements;
 }
 
+function collectUploadableCandidates(trace) {
+  // File inputs are usually display:none; the standard scan filters them out.
+  // This pass queries them directly and anchors the overlay on the nearest
+  // visible ancestor (label/wrapping button) while keeping the underlying
+  // <input type="file"> as the action target for CDP DOM.setFileInputFiles.
+  const fileInputs = document.querySelectorAll('input[type="file"]');
+  const candidates = [];
+
+  fileInputs.forEach((fileInput) => {
+    if (!(fileInput instanceof HTMLInputElement)) {
+      return;
+    }
+    if (isDisabledForDetection(fileInput)) {
+      return;
+    }
+
+    const anchor = findUploadVisualAnchor(fileInput);
+    if (!anchor) {
+      // No visible anchor anywhere in the ancestor chain — agent has no way
+      // to visually confirm the target. Skip rather than overlay on nothing.
+      return;
+    }
+
+    const rect = getElementRect(anchor);
+    candidates.push({
+      element: fileInput,
+      // Visible anchor element used for overlay rendering — the file input
+      // itself is usually display:none so its own bbox is zero.
+      overlayElement: anchor,
+      type: 'uploadable',
+      signalSource: 'uploadable',
+      rect,
+      area: getElementArea(rect),
+      depth: getDomDepth(fileInput),
+      signalScore: HIGHLIGHT_SIGNAL_SCORE.uploadable || 0,
+    });
+  });
+
+  trace(
+    'uploadable:scan',
+    `fileInputs=${fileInputs.length} anchored=${candidates.length}`,
+  );
+  return candidates;
+}
+
 function collectHighlightCandidates(config, trace, layoutStability) {
   const activeTopLayerRoot = getActiveTopLayerRoot();
   const registry = new Map();
+
+  if (config.elementType === 'uploadable') {
+    // Dedicated fast path: skip the visibility-filtered scan entirely since
+    // file inputs rarely survive it.
+    const uploadables = collectUploadableCandidates(trace);
+    for (const candidate of uploadables) {
+      registry.set(candidate.element, candidate);
+    }
+    const sortedUploadables = Array.from(registry.values()).sort(
+      compareDisplayCandidates,
+    );
+    const uploadableElements = sortedUploadables.map((candidate) =>
+      toInteractiveElement(candidate),
+    );
+    const uploadableCounts = {
+      clickable: 0,
+      scrollable: 0,
+      inputable: 0,
+      selectable: 0,
+      draggable: 0,
+      droppable: 0,
+      uploadable: uploadableElements.length,
+    };
+    trace(
+      'scan:done',
+      `mode=uploadable matched=${uploadableElements.length}`,
+    );
+    return { elements: uploadableElements, counts: uploadableCounts };
+  }
+
+  // Uploadable candidates live outside the visibility-filtered scan. Seed
+  // them into the registry for `any` mode so file inputs (usually hidden)
+  // show up in the default inventory alongside clickables, inputables, etc.
+  if (config.elementType === 'any') {
+    const uploadables = collectUploadableCandidates(trace);
+    for (const candidate of uploadables) {
+      registry.set(candidate.element, candidate);
+    }
+  }
+
   const allElements = getCandidateElementsForScan(
     layoutStability,
     trace,
@@ -2425,6 +2599,7 @@ function collectHighlightCandidates(config, trace, layoutStability) {
     selectable: 0,
     draggable: 0,
     droppable: 0,
+    uploadable: 0,
   };
 
   const elements = prunedCandidates.map((candidate) => {

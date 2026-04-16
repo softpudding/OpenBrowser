@@ -89,6 +89,14 @@ These are content directions, not hand or finger movement directions. Do not rei
 
 Use this for drag-and-drop cards, reorderable lists, or sortable items. Returns a zoomed preview of the container with inner elements; use `confirm_drag_and_drop` to drop at end or with `relative_to`/`position` for precise placement.
 
+### upload_file
+
+```json
+{ "action": "upload_file", "element_id": "F7K", "file_path": "/tmp/resume.pdf", "tab_id": 123 }
+```
+
+Use on elements with the `uploadable` hint (file inputs). `file_path` must be an absolute path on the host. Bypasses the native file picker — do not `click` the input first.
+
 ### set_slider
 
 ```json
@@ -109,6 +117,7 @@ Use this for any element with the `slidable` hint — native `<input type=range>
 - If the page or target region is scrollable and your goal is to reveal more content, use `scroll`
 - If the likely target is already visible but poorly positioned, use `scroll` before more highlight pagination or before clicking.
 - For carousel / gallery / swiper regions marked `swipable`, use `swipe`
+- For elements marked `uploadable` (file inputs), use `upload_file` with an absolute `file_path`
 - If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`. To find valid drop targets, use `highlight element_type: "droppable"`.
 - If a target region is marked `scrollable` or `swipable`, do not replace that affordance with guessed navigation buttons or guessed controls first
 

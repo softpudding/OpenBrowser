@@ -41,16 +41,17 @@ class ElementInteractionAction(OpenBrowserAction):
         "select",
         "drag_and_drop",
         "set_slider",
+        "upload_file",
         "confirm_click",
         "confirm_keyboard_input",
         "confirm_select",
         "confirm_drag_and_drop",
     ] = Field(
-        description="Element interaction action (click, keyboard_input, select, and drag_and_drop require confirm_* follow-up; confirm_* executes the current pending confirmation; hover/scroll/swipe/set_slider execute directly)"
+        description="Element interaction action (click, keyboard_input, select, and drag_and_drop require confirm_* follow-up; confirm_* executes the current pending confirmation; hover/scroll/swipe/set_slider/upload_file execute directly)"
     )
     element_id: Optional[str] = Field(
         default=None,
-        description="Element ID (short opaque string) from highlight. Required for click, hover, element scroll/swipe, keyboard_input, select, drag_and_drop (source), and set_slider. Ignored for confirm_* actions.",
+        description="Element ID (short opaque string) from highlight. Required for click, hover, element scroll/swipe, keyboard_input, select, drag_and_drop (source), set_slider, and upload_file. Ignored for confirm_* actions.",
     )
     direction: Optional[Literal["up", "down", "left", "right", "next", "prev"]] = Field(
         default="down",
@@ -116,6 +117,14 @@ class ElementInteractionAction(OpenBrowserAction):
         ge=2,
         le=40,
         description="Number of intermediate mousemove steps for drag_and_drop (2-40).",
+    )
+    file_path: Optional[str] = Field(
+        default=None,
+        description=(
+            "For `upload_file`: absolute path to the local file to attach to "
+            "the target <input type=file>. Must exist on the host running the "
+            "browser. Required for upload_file; ignored otherwise."
+        ),
     )
     tab_id: Optional[int] = Field(
         default=None,

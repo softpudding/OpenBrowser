@@ -38,6 +38,7 @@ from server.models.commands import (
     SelectElementCommand,
     DragAndDropElementCommand,
     SetSliderValueCommand,
+    UploadFileCommand,
     HighlightDropPreviewCommand,
 )
 
@@ -543,6 +544,26 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             return self._build_observation_from_result(
                 result_dict,
                 f"Set slider {action.element_id} to {action.value}",
+                element_id=action.element_id,
+            )
+
+        elif action_type == "upload_file":
+            if not action.element_id:
+                raise ValueError("upload_file requires element_id parameter")
+            if not action.file_path:
+                raise ValueError(
+                    "upload_file requires file_path (absolute path on the server host)"
+                )
+            command = UploadFileCommand(
+                element_id=action.element_id,
+                file_path=action.file_path,
+                conversation_id=self.conversation_id,
+                tab_id=action.tab_id,
+            )
+            result_dict = self._execute_element_command(command, "upload file")
+            return self._build_observation_from_result(
+                result_dict,
+                f"Uploaded file to {action.element_id}: {action.file_path}",
                 element_id=action.element_id,
             )
 
