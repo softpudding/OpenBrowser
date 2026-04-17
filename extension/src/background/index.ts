@@ -583,7 +583,11 @@ async function captureHighlightedPageState(
         : '';
     const detectedViewport = detectionResult.result.value.viewport || {};
     const layoutStability = detectionResult.result.value.layoutStability;
+    const inPagePerf = detectionResult.result.value._perf || {};
     const highlightTraceStart = Date.now();
+    let paginationMs = 0;
+    let screenshotMs = 0;
+    let consistencyMs = 0;
     const detectedViewportWidth =
       typeof detectedViewport.width === 'number' ? detectedViewport.width : 0;
     const detectedViewportHeight =
@@ -656,8 +660,9 @@ async function captureHighlightedPageState(
       console.log(
         `📄 [${logLabel}] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`,
       );
+      paginationMs = Date.now() - paginationBuildStart;
       console.log(
-        `⏱️ [HighlightTrace] background pagination build-pages=${Date.now() - paginationBuildStart}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
+        `⏱️ [HighlightTrace] background pagination build-pages=${paginationMs}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
       );
     }
 
@@ -702,8 +707,9 @@ async function captureHighlightedPageState(
     console.log(
       `📸 [${logLabel}] Screenshot captured (with in-page highlights), size: ${screenshotResult.imageData.length} bytes`,
     );
+    screenshotMs = Date.now() - screenshotStart;
     console.log(
-      `⏱️ [HighlightTrace] background screenshot ${Date.now() - screenshotStart}ms`,
+      `⏱️ [HighlightTrace] background screenshot ${screenshotMs}ms`,
     );
 
     // Apply bboxes returned from the highlight injection script
@@ -766,8 +772,9 @@ async function captureHighlightedPageState(
         })),
       currentConsistencySamples,
     );
+    consistencyMs = Date.now() - consistencyCheckStart;
     console.log(
-      `⏱️ [HighlightTrace] background consistency-check ${Date.now() - consistencyCheckStart}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
+      `⏱️ [HighlightTrace] background consistency-check ${consistencyMs}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
     );
     const repeatedDrift = isRepeatedHighlightDrift(
       highlightConsistency,
@@ -841,6 +848,14 @@ async function captureHighlightedPageState(
       page: currentPage,
       pageState,
       readinessReasons,
+      _perf: {
+        scan_ms: typeof inPagePerf.scan_ms === 'number' ? inPagePerf.scan_ms : 0,
+        scan_stats: inPagePerf.scan_stats || {},
+        scan_times: inPagePerf.scan_times || {},
+        pagination_ms: paginationMs,
+        screenshot_ms: screenshotMs,
+        consistency_ms: consistencyMs,
+      },
       ...buildScreenshotPayload(compressedScreenshotResult),
     };
   }
