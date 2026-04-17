@@ -16,7 +16,7 @@ When invoked with arguments, act immediately — do not ask the user what they w
 |---|---|
 | `/ob-routines` | Show available routines and ask what to do |
 | `/ob-routines list [query]` | Run `list_routines.py [query]` and display results |
-| `/ob-routines new` | Ask what flow to record, then start the full record → compile pipeline |
+| `/ob-routines new` | Ask **only** for the one-line goal/intention, then start recording immediately (see "Before recording" below) |
 | `/ob-routines execute <name>` | Run `replay.py <name>` immediately |
 
 ---
@@ -115,6 +115,21 @@ python3 skill/claude/ob-routines/scripts/list_routines.py --recordings
 ---
 
 ## Record a routine
+
+### Before recording — DO NOT interrogate the user
+
+The whole point of record → compile is that the browser actions are **observed**,
+and the Compiler Agent asks clarifying questions *after* it has seen them.
+
+Ask the user **only** for a short goal/intention (one line). Do **NOT** ask:
+- which site or URL to start from
+- which tool/screener to use
+- how to define filter terms ("what's high-value?", "what's significant?")
+- which parameters should vary between runs
+
+All of that is the compiler's job during Gate 1. Pre-record interrogation
+defeats the pipeline and wastes the user's time. If the user's goal is vague
+("find good stocks"), that's fine — start recording. The compiler will ask.
 
 ### Step 1 — start recording
 ```bash
