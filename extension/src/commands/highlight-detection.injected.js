@@ -77,6 +77,106 @@ function hasCallableMethod(value, methodNames) {
   );
 }
 
+// Layout reads (getBoundingClientRect, getComputedStyle) and elementsFromPoint
+// are the single biggest cost in collectHighlightCandidates: every visibility
+// predicate re-reads them for the same element. Within one synchronous
+// Runtime.evaluate task no page JS runs concurrently, so the values cannot
+// change mid-scan. We monkey-patch the prototypes for the duration of one
+// scan, populate a per-element WeakMap, and restore originals at the end.
+const SCAN_NON_INTERACTIVE_TAGS = new Set([
+  'script',
+  'style',
+  'link',
+  'meta',
+  'head',
+  'title',
+  'noscript',
+  'br',
+  'hr',
+  'source',
+  'track',
+  'template',
+  'param',
+  'col',
+  'colgroup',
+]);
+
+function isScanSkippableTag(el) {
+  if (!el || !el.tagName) return false;
+  return SCAN_NON_INTERACTIVE_TAGS.has(el.tagName.toLowerCase());
+}
+
+function withScanLayoutCache(fn) {
+  const rectCache = new WeakMap();
+  const styleCache = new WeakMap();
+  // elementsFromPoint dedup keyed by rounded "x:y"
+  const efpCache = new Map();
+
+  const origElementRect = Element.prototype.getBoundingClientRect;
+  const SVGGraphicsProto =
+    typeof SVGGraphicsElement !== 'undefined'
+      ? SVGGraphicsElement.prototype
+      : null;
+  const origSVGRect =
+    SVGGraphicsProto && SVGGraphicsProto.getBoundingClientRect;
+  const origGetComputedStyle = window.getComputedStyle;
+  // Patch Document.prototype rather than the document instance so we don't
+  // leave an own-property shadowing the prototype after the scan finishes.
+  const DocumentProto =
+    typeof Document !== 'undefined' ? Document.prototype : null;
+  const origElementsFromPoint =
+    DocumentProto && DocumentProto.elementsFromPoint;
+
+  function patchedRect() {
+    let r = rectCache.get(this);
+    if (r === undefined) {
+      r = origElementRect.call(this);
+      rectCache.set(this, r);
+    }
+    return r;
+  }
+
+  Element.prototype.getBoundingClientRect = patchedRect;
+  if (SVGGraphicsProto && origSVGRect) {
+    SVGGraphicsProto.getBoundingClientRect = patchedRect;
+  }
+
+  window.getComputedStyle = function (el, pseudo) {
+    if (pseudo) return origGetComputedStyle.call(window, el, pseudo);
+    let s = styleCache.get(el);
+    if (s === undefined) {
+      s = origGetComputedStyle.call(window, el);
+      styleCache.set(el, s);
+    }
+    return s;
+  };
+
+  if (DocumentProto && origElementsFromPoint) {
+    DocumentProto.elementsFromPoint = function (x, y) {
+      const key = Math.round(x) + ':' + Math.round(y);
+      let stack = efpCache.get(key);
+      if (stack === undefined) {
+        stack = origElementsFromPoint.call(this, x, y);
+        efpCache.set(key, stack);
+      }
+      return stack;
+    };
+  }
+
+  try {
+    return fn();
+  } finally {
+    Element.prototype.getBoundingClientRect = origElementRect;
+    if (SVGGraphicsProto && origSVGRect) {
+      SVGGraphicsProto.getBoundingClientRect = origSVGRect;
+    }
+    window.getComputedStyle = origGetComputedStyle;
+    if (DocumentProto && origElementsFromPoint) {
+      DocumentProto.elementsFromPoint = origElementsFromPoint;
+    }
+  }
+}
+
 function createHighlightTrace() {
   const traceStart = performance.now();
 
@@ -2473,6 +2573,12 @@ function collectUploadableCandidates(trace) {
 }
 
 function collectHighlightCandidates(config, trace, layoutStability) {
+  return withScanLayoutCache(() =>
+    collectHighlightCandidatesImpl(config, trace, layoutStability),
+  );
+}
+
+function collectHighlightCandidatesImpl(config, trace, layoutStability) {
   const activeTopLayerRoot = getActiveTopLayerRoot();
   const registry = new Map();
 
@@ -2527,6 +2633,12 @@ function collectHighlightCandidates(config, trace, layoutStability) {
         'scan:progress',
         `processed=${scannedCount} matched=${registry.size}`,
       );
+    }
+
+    // Tag-only fast reject before any layout read. Saves rect/style work on
+    // the long tail of inert markup (script/style/meta/...).
+    if (isScanSkippableTag(element)) {
+      continue;
     }
 
     if (!isElementInViewportForDetection(element)) {

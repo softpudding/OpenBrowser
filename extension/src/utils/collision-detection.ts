@@ -36,6 +36,108 @@ interface RemainingCandidate {
   element: InteractiveElement;
 }
 
+// Coarse spatial grid used to skip O(N) scans of `selected` and `remaining`
+// when checking collisions. Cell size is a heuristic — large enough that most
+// label rects touch only a couple of cells, small enough that a typical
+// query returns far fewer than the full set.
+const SPATIAL_INDEX_CELL_PX = 96;
+
+class SelectedSpatialIndex {
+  private cells = new Map<number, InteractiveElement[]>();
+
+  add(element: InteractiveElement): void {
+    const labelBBox = getLabelBBox(
+      element.bbox,
+      element.labelPosition ?? 'above',
+      element.id,
+    );
+    const union = unionBBox(element.bbox, labelBBox);
+    this.forEachCell(union, (key) => {
+      let bucket = this.cells.get(key);
+      if (!bucket) {
+        bucket = [];
+        this.cells.set(key, bucket);
+      }
+      // Avoid duplicate registration when a single element straddles cells we
+      // visit out of order — the per-call dedup Set in queryNear handles dup
+      // results across cells.
+      if (bucket[bucket.length - 1] !== element) {
+        bucket.push(element);
+      }
+    });
+  }
+
+  // Returns elements whose registered union-rect lies in any cell touched by
+  // the query rect (inflated by clearance on each side). Includes elements
+  // whose registration cells are *adjacent* to the query rect — see
+  // `queryNear` callers, which already inflate the query rect with clearance.
+  queryNear(query: BBox): InteractiveElement[] {
+    const seen = new Set<InteractiveElement>();
+    const out: InteractiveElement[] = [];
+    this.forEachCell(query, (key) => {
+      const bucket = this.cells.get(key);
+      if (!bucket) return;
+      for (const el of bucket) {
+        if (!seen.has(el)) {
+          seen.add(el);
+          out.push(el);
+        }
+      }
+    });
+    return out;
+  }
+
+  private forEachCell(rect: BBox, fn: (key: number) => void): void {
+    // Real bboxes from getBoundingClientRect are always finite, but synthetic
+    // test inputs or future callers might pass NaN/Infinity. Without this
+    // guard Math.floor would yield NaN, the loop would skip, and we'd
+    // silently drop a registration — masking real collisions.
+    if (
+      !Number.isFinite(rect.x) ||
+      !Number.isFinite(rect.y) ||
+      !Number.isFinite(rect.width) ||
+      !Number.isFinite(rect.height)
+    ) {
+      // Single sentinel cell so the registration is still discoverable.
+      fn(Number.MIN_SAFE_INTEGER);
+      return;
+    }
+    const minCx = Math.floor(rect.x / SPATIAL_INDEX_CELL_PX);
+    const maxCx = Math.floor(
+      (rect.x + Math.max(0, rect.width)) / SPATIAL_INDEX_CELL_PX,
+    );
+    const minCy = Math.floor(rect.y / SPATIAL_INDEX_CELL_PX);
+    const maxCy = Math.floor(
+      (rect.y + Math.max(0, rect.height)) / SPATIAL_INDEX_CELL_PX,
+    );
+    for (let cy = minCy; cy <= maxCy; cy++) {
+      for (let cx = minCx; cx <= maxCx; cx++) {
+        // Cantor-pair-ish key: cy gets the high bits, cx the low bits.
+        // Negative coords are uncommon for label rects but still encode safely
+        // because Math.floor preserves order under shift.
+        fn(cy * 100000 + cx);
+      }
+    }
+  }
+}
+
+function unionBBox(a: BBox, b: BBox): BBox {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  const xMax = Math.max(a.x + a.width, b.x + b.width);
+  const yMax = Math.max(a.y + a.height, b.y + b.height);
+  return { x, y, width: xMax - x, height: yMax - y };
+}
+
+function inflateBBox(rect: BBox, padding: number): BBox {
+  return {
+    x: rect.x - padding,
+    y: rect.y - padding,
+    width: rect.width + 2 * padding,
+    height: rect.height + 2 * padding,
+  };
+}
+
 interface PlacementEvaluation {
   position: LabelPosition;
   blockedCandidateCount: number;
@@ -302,12 +404,14 @@ function buildCollisionFreePages(
 
   while (remaining.length > 0) {
     const selected: InteractiveElement[] = [];
+    const selectedIndex = new SelectedSpatialIndex();
     let pageRemaining = remaining;
 
     while (pageRemaining.length > 0) {
       const nextSelection = chooseNextCandidate(
         pageRemaining,
         selected,
+        selectedIndex,
         viewportWidth,
         viewportHeight,
       );
@@ -316,10 +420,12 @@ function buildCollisionFreePages(
         break;
       }
 
-      selected.push({
+      const placed: InteractiveElement = {
         ...nextSelection.candidate.element,
         labelPosition: nextSelection.position,
-      });
+      };
+      selected.push(placed);
+      selectedIndex.add(placed);
       pageRemaining = pageRemaining.filter(
         (candidate) =>
           candidate.sourceIndex !== nextSelection.candidate.sourceIndex,
@@ -347,14 +453,16 @@ function tryBuildUniformPositionPage(
   viewportHeight?: number,
 ): InteractiveElement[] | null {
   const selected: InteractiveElement[] = [];
+  const index = new SelectedSpatialIndex();
 
   for (const element of elements) {
+    const nearby = nearbySelectedFor(element, position, element.id, index);
     if (
       !isPlacementFeasible(
         element,
         element.id,
         position,
-        selected,
+        nearby,
         viewportWidth,
         viewportHeight,
       )
@@ -362,10 +470,12 @@ function tryBuildUniformPositionPage(
       return null;
     }
 
-    selected.push({
+    const placed: InteractiveElement = {
       ...element,
       labelPosition: position,
-    });
+    };
+    selected.push(placed);
+    index.add(placed);
   }
 
   return selected;
@@ -374,6 +484,7 @@ function tryBuildUniformPositionPage(
 function chooseNextCandidate(
   remaining: RemainingCandidate[],
   selected: InteractiveElement[],
+  selectedIndex: SelectedSpatialIndex,
   viewportWidth?: number,
   viewportHeight?: number,
 ): (PlacementEvaluation & { candidate: RemainingCandidate }) | null {
@@ -388,6 +499,7 @@ function chooseNextCandidate(
       candidate.element,
       candidate.element.id,
       selected,
+      selectedIndex,
       viewportWidth,
       viewportHeight,
     );
@@ -415,6 +527,7 @@ function chooseNextCandidate(
       constrainedCandidate.feasiblePositions,
       remaining,
       selected,
+      selectedIndex,
       viewportWidth,
       viewportHeight,
     ),
@@ -426,6 +539,7 @@ function chooseLeastBlockingPlacement(
   feasiblePositions: LabelPosition[],
   remaining: RemainingCandidate[],
   selected: InteractiveElement[],
+  selectedIndex: SelectedSpatialIndex,
   viewportWidth?: number,
   viewportHeight?: number,
 ): PlacementEvaluation {
@@ -435,31 +549,106 @@ function chooseLeastBlockingPlacement(
   );
   let bestPlacement: PlacementEvaluation | null = null;
 
+  // Pre-compute each future candidate's baseline feasible positions against
+  // the current `selected` set. When we test a hypothetical placement of
+  // `candidate@position`, only future candidates whose bbox/label is
+  // geometrically near that placement can have their feasibility change. The
+  // rest keep their baseline feasibility — saving the O(|future|×4×|selected|)
+  // recomputation per position.
+  interface FutureBaseline {
+    candidate: RemainingCandidate;
+    elementUnion: BBox; // bbox ∪ all four label rects
+    feasibleCount: number;
+    totalLength: number;
+  }
+  const futureBaselines: FutureBaseline[] = futureCandidates.map((fc) => {
+    const baseline = getFeasiblePositions(
+      fc.element,
+      fc.element.id,
+      selected,
+      selectedIndex,
+      viewportWidth,
+      viewportHeight,
+    );
+    let union = fc.element.bbox;
+    for (const pos of POSITION_PRIORITY) {
+      union = unionBBox(union, getLabelBBox(fc.element.bbox, pos, fc.element.id));
+    }
+    return {
+      candidate: fc,
+      elementUnion: union,
+      feasibleCount: baseline.length,
+      totalLength: baseline.length,
+    };
+  });
+
+  const baselineBlockedCount = futureBaselines.reduce(
+    (acc, fb) => (fb.feasibleCount === 0 ? acc + 1 : acc),
+    0,
+  );
+  const baselineTotalOptions = futureBaselines.reduce(
+    (acc, fb) => acc + fb.totalLength,
+    0,
+  );
+
   for (const position of feasiblePositions) {
-    const hypotheticalSelected = [
-      ...selected,
-      {
-        ...candidate.element,
-        labelPosition: position,
-      },
-    ];
-    let blockedCandidateCount = 0;
-    let totalFutureOptions = 0;
+    const hypotheticalElement: InteractiveElement = {
+      ...candidate.element,
+      labelPosition: position,
+    };
+    const hypotheticalLabelBBox = getLabelBBox(
+      candidate.element.bbox,
+      position,
+      candidate.element.id,
+    );
+    // Influence rect: anything whose elementUnion does NOT intersect this
+    // (inflated by clearance) cannot be affected by adding the hypothetical
+    // candidate. We only need to recompute for future candidates inside it.
+    const influenceRect = inflateBBox(
+      unionBBox(candidate.element.bbox, hypotheticalLabelBBox),
+      VISUAL_LABEL_CLEARANCE_PX,
+    );
 
-    futureCandidates.forEach((candidate) => {
-      const futureOptions = getFeasiblePositions(
-        candidate.element,
-        candidate.element.id,
-        hypotheticalSelected,
-        viewportWidth,
-        viewportHeight,
-      );
+    let blockedCandidateCount = baselineBlockedCount;
+    let totalFutureOptions = baselineTotalOptions;
 
-      if (futureOptions.length === 0) {
+    for (const fb of futureBaselines) {
+      if (!bboxesIntersect(fb.elementUnion, influenceRect)) {
+        continue;
+      }
+      // Feasibility can change for this future candidate. Re-test against
+      // the spatially-near selected set plus the hypothetical candidate.
+      let updatedFeasibleLen = 0;
+      for (const pos of POSITION_PRIORITY) {
+        const nearby = nearbySelectedFor(
+          fb.candidate.element,
+          pos,
+          fb.candidate.element.id,
+          selectedIndex,
+          [hypotheticalElement],
+        );
+        if (
+          isPlacementFeasible(
+            fb.candidate.element,
+            fb.candidate.element.id,
+            pos,
+            nearby,
+            viewportWidth,
+            viewportHeight,
+          )
+        ) {
+          updatedFeasibleLen++;
+        }
+      }
+
+      // Adjust baseline aggregates for the delta on this single future.
+      if (fb.feasibleCount === 0 && updatedFeasibleLen > 0) {
+        blockedCandidateCount--;
+      } else if (fb.feasibleCount > 0 && updatedFeasibleLen === 0) {
         blockedCandidateCount++;
       }
-      totalFutureOptions += futureOptions.length;
-    });
+      totalFutureOptions += updatedFeasibleLen - fb.totalLength;
+    }
 
     if (
       !bestPlacement ||
@@ -492,18 +681,22 @@ function getFeasiblePositions(
   element: InteractiveElement,
   labelText: string,
   selected: InteractiveElement[],
+  selectedIndex: SelectedSpatialIndex | null,
   viewportWidth?: number,
   viewportHeight?: number,
 ): LabelPosition[] {
   const feasiblePositions: LabelPosition[] = [];
 
   for (const position of POSITION_PRIORITY) {
+    const nearby = selectedIndex
+      ? nearbySelectedFor(element, position, labelText, selectedIndex)
+      : selected;
     if (
       isPlacementFeasible(
         element,
         labelText,
         position,
-        selected,
+        nearby,
         viewportWidth,
         viewportHeight,
       )
@@ -513,6 +706,28 @@ function getFeasiblePositions(
   }
 
   return feasiblePositions;
+}
+
+// Returns the subset of `selected` that could plausibly collide with the
+// candidate placement. The query rect is the union of the candidate's bbox
+// and its label rect for the requested position, inflated by the visible
+// clearance threshold. Optional `extras` are appended (e.g. a hypothetical
+// candidate not yet inserted into the index).
+function nearbySelectedFor(
+  element: InteractiveElement,
+  position: LabelPosition,
+  labelText: string,
+  index: SelectedSpatialIndex,
+  extras: InteractiveElement[] = [],
+): InteractiveElement[] {
+  const labelBBox = getLabelBBox(element.bbox, position, labelText);
+  const query = inflateBBox(
+    unionBBox(element.bbox, labelBBox),
+    VISUAL_LABEL_CLEARANCE_PX,
+  );
+  const near = index.queryNear(query);
+  if (extras.length === 0) return near;
+  return near.concat(extras);
 }
 
 function isPlacementFeasible(
