@@ -1678,8 +1678,8 @@ requires-dist = [
     { name = "litellm", git = "https://github.com/softpudding/litellm.git?rev=2eb7db59461e9117b1e3e0519616b39f1497c0f9" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "numpy", specifier = ">=1.24.0" },
-    { name = "openhands-sdk", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=66ed257b" },
-    { name = "openhands-tools", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=66ed257b" },
+    { name = "openhands-sdk", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=c92a185a" },
+    { name = "openhands-tools", git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=c92a185a" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pydantic", specifier = ">=2.5.0" },
@@ -2224,7 +2224,7 @@ wheels = [
 [[package]]
 name = "openhands-sdk"
 version = "1.12.0"
-source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=66ed257b#66ed257b565971604ce722323750be540f560b80" }
+source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-sdk&rev=c92a185a#c92a185a00aa7ae58547d794835575742f1ed27e" }
 dependencies = [
     { name = "agent-client-protocol" },
     { name = "deprecation" },
@@ -2244,7 +2244,7 @@ dependencies = [
 [[package]]
 name = "openhands-tools"
 version = "1.12.0"
-source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=66ed257b#66ed257b565971604ce722323750be540f560b80" }
+source = { git = "https://github.com/softpudding/agent-sdk.git?subdirectory=openhands-tools&rev=c92a185a#c92a185a00aa7ae58547d794835575742f1ed27e" }
 dependencies = [
     { name = "bashlex" },
     { name = "binaryornot" },
