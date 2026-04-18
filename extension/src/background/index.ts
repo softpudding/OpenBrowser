@@ -21,7 +21,10 @@ import { debuggerSessionManager } from '../commands/debugger-manager';
 import { dialogManager } from '../commands/dialog';
 import { clearScreenshotCache } from '../commands/computer';
 
-import { highlightSingleElement } from '../commands/single-highlight';
+import {
+  cropScreenshotAroundElement,
+  getConfirmationPromptText,
+} from '../commands/single-highlight';
 import { highlightDropPreview } from '../commands/drop-preview-highlight';
 import { elementCache } from '../commands/element-cache';
 import { assignHashedElementIds } from '../commands/element-id';
@@ -331,7 +334,11 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
       // Snapshot + restore helpers so we don't leak our overrides onto the
       // page when pre-existing inline styles are present.
       const SAVED_ATTR = HL_ATTR + '-saved';
-      const OVERRIDES = ['transition', 'box-shadow'];
+      // outline is painted AFTER descendants (per CSS paint order), so it
+      // stays visible even when the element has opaque children filling its
+      // content area — e.g. <a class="cover mask ld"> wrapping an <img> that
+      // would fully cover an inset box-shadow.
+      const OVERRIDES = ['transition', 'outline', 'outline-offset'];
       const snapshotOverrides = (el) => {
         const snap = {};
         for (const p of OVERRIDES) {
@@ -363,17 +370,21 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
         el.removeAttribute(HL_ATTR);
       });
 
-      // Create overlay for labels only (boxes use inset box-shadow on elements)
+      // Create overlay for labels only (boxes use outline on elements).
+      // Use position:absolute so labels scroll with the document alongside
+      // the outlined elements; fixed would leave them stuck to the viewport.
       const overlay = document.createElement('div');
       overlay.id = OVERLAY_ID;
-      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2147483647;overflow:hidden;';
+      overlay.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:2147483647;';
       document.documentElement.appendChild(overlay);
 
       const bboxes = [];
+      const scrollX = window.scrollX || window.pageXOffset || 0;
+      const scrollY = window.scrollY || window.pageYOffset || 0;
       // box-sizing:border-box so max-width caps the total rendered width
       // (matching the collision planner's MAX_LABEL_WIDTH, which is the full
       // label width including padding).
-      const LABEL_BASE_CSS = 'position:fixed;box-sizing:border-box;'
+      const LABEL_BASE_CSS = 'position:absolute;box-sizing:border-box;'
         + 'font:bold ' + LABEL_FONT_SIZE + 'px/' + LABEL_FONT_SIZE + 'px Arial,sans-serif;'
         + 'color:#fff;padding:' + LABEL_PADDING + 'px;border-radius:2px;'
         + 'white-space:nowrap;pointer-events:none;overflow:hidden;text-overflow:ellipsis;'
@@ -397,12 +408,12 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
             if (hit && hit !== el && !el.contains(hit)) continue;
           }
 
-          // Snapshot any inline transition/box-shadow so cleanup can restore
+          // Snapshot any inline transition/outline so cleanup can restore
           // them exactly (including !important priority) instead of stripping.
           snapshotOverrides(el);
-          // Disable CSS transitions so the page can't animate the shadow in
+          // Disable CSS transitions so the page can't animate the outline in
           // (e.g. sidebar items with "transition: all 0.2s" would cause the
-          // CDP screenshot to catch the box-shadow mid-interpolation and the
+          // CDP screenshot to catch the outline mid-interpolation and the
           // border would render thinner than the specified 3px).
           el.style.setProperty('transition', 'none', 'important');
           // Adapt border thickness to element size: tight targets (small
@@ -411,10 +422,11 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
           // against a bigger empty interior.
           const borderPx = Math.min(rect.width, rect.height) > 32 ? 3 : 2;
           el.style.setProperty(
-            'box-shadow',
-            'inset 0 0 0 ' + borderPx + 'px ' + item.borderColor,
+            'outline',
+            borderPx + 'px solid ' + item.borderColor,
             'important',
           );
+          el.style.setProperty('outline-offset', (-borderPx) + 'px', 'important');
           el.setAttribute(HL_ATTR, item.id);
 
           // Render label off-screen first to measure actual dimensions, then
@@ -431,10 +443,10 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
 
           let lx, ly;
           switch (item.labelPos) {
-            case 'below': lx = rect.left;            ly = rect.bottom;       break;
-            case 'left':  lx = rect.left - labelW;   ly = rect.top;          break;
-            case 'right': lx = rect.right;           ly = rect.top;          break;
-            default:      lx = rect.left;            ly = rect.top - labelH; break;
+            case 'below': lx = rect.left + scrollX;            ly = rect.bottom + scrollY;       break;
+            case 'left':  lx = rect.left + scrollX - labelW;   ly = rect.top + scrollY;          break;
+            case 'right': lx = rect.right + scrollX;           ly = rect.top + scrollY;          break;
+            default:      lx = rect.left + scrollX;            ly = rect.top + scrollY - labelH; break;
           }
 
           label.style.left = lx + 'px';
@@ -449,12 +461,173 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
   `;
 }
 
+// Cleanup of injected highlight styles is deferred until the next command
+// arrives, so the yellow/colored overlay stays visible on the page between
+// commands. Keyed by tabId; a pending cleanup is overwritten if a new
+// highlight runs on the same tab before the prior one is flushed.
+const pendingHighlightCleanups = new Map<number, () => Promise<void>>();
+
+function scheduleHighlightCleanup(
+  tabId: number,
+  conversationId: string,
+): void {
+  pendingHighlightCleanups.set(tabId, async () => {
+    await javascript.executeJavaScript(
+      tabId,
+      conversationId,
+      buildHighlightCleanupScript(),
+      true,
+      false,
+      2000,
+    );
+  });
+}
+
+// Read-only / metadata commands that should NOT flush pending highlight
+// cleanups. The server sends `get_tabs` immediately after every tab action
+// to refresh its tab list; treating that as a "user-visible next command"
+// would wipe the highlights we just injected on a tab init.
+const HIGHLIGHT_PRESERVING_COMMAND_TYPES = new Set<string>(['get_tabs']);
+
+async function flushPendingHighlightCleanups(): Promise<void> {
+  if (pendingHighlightCleanups.size === 0) return;
+  const entries = Array.from(pendingHighlightCleanups.entries());
+  pendingHighlightCleanups.clear();
+  await Promise.all(
+    entries.map(async ([tabId, cleanup]) => {
+      try {
+        await cleanup();
+      } catch (e) {
+        console.warn(
+          `⚠️ [HighlightCleanup] Deferred cleanup failed for tab ${tabId}: ${e}`,
+        );
+      }
+    }),
+  );
+}
+
+// Inject a yellow confirmation outline + "Is this the element you wanted
+// to ..." banner on a single live DOM element. Shares OVERLAY_ID / HL_ATTR
+// with the broad highlight path so buildHighlightCleanupScript reverses it.
+function buildInPageSingleHighlightScript(
+  element: InteractiveElement,
+  intendedAction: 'click' | 'keyboard_input' | 'select' | undefined,
+): string {
+  const selector = element.overlaySelector || element.selector;
+  const promptText = getConfirmationPromptText(intendedAction);
+  const borderColor = '#FFD400';
+  const bannerBg = 'rgba(255,212,0,0.95)';
+
+  return `
+    (() => {
+      const OVERLAY_ID = ${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)};
+      const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
+      const SAVED_ATTR = HL_ATTR + '-saved';
+      const OVERRIDES = ['transition', 'outline', 'outline-offset'];
+
+      const snapshotOverrides = (el) => {
+        const snap = {};
+        for (const p of OVERRIDES) {
+          snap[p] = {
+            v: el.style.getPropertyValue(p),
+            i: el.style.getPropertyPriority(p),
+          };
+        }
+        el.setAttribute(SAVED_ATTR, JSON.stringify(snap));
+      };
+      const restoreOverrides = (el) => {
+        let snap = {};
+        try { snap = JSON.parse(el.getAttribute(SAVED_ATTR) || '{}'); } catch (_) {}
+        for (const p of OVERRIDES) {
+          const saved = snap[p];
+          if (saved && saved.v) {
+            el.style.setProperty(p, saved.v, saved.i || '');
+          } else {
+            el.style.removeProperty(p);
+          }
+        }
+        el.removeAttribute(SAVED_ATTR);
+      };
+
+      document.getElementById(OVERLAY_ID)?.remove();
+      document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
+        restoreOverrides(el);
+        el.removeAttribute(HL_ATTR);
+      });
+
+      const overlay = document.createElement('div');
+      overlay.id = OVERLAY_ID;
+      overlay.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:2147483647;';
+      document.documentElement.appendChild(overlay);
+
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return { bbox: null };
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return { bbox: null };
+
+      const scrollX = window.scrollX || window.pageXOffset || 0;
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+
+      snapshotOverrides(el);
+      el.style.setProperty('transition', 'none', 'important');
+      const borderPx = Math.min(rect.width, rect.height) > 32 ? 4 : 3;
+      el.style.setProperty(
+        'outline',
+        borderPx + 'px solid ' + ${JSON.stringify(borderColor)},
+        'important',
+      );
+      el.style.setProperty('outline-offset', (-borderPx) + 'px', 'important');
+      el.setAttribute(HL_ATTR, 'single');
+
+      const label = document.createElement('div');
+      const fontSize = 16;
+      const paddingX = 14;
+      const paddingY = 8;
+      label.style.cssText = 'position:absolute;box-sizing:border-box;'
+        + 'font:600 ' + fontSize + 'px/' + (fontSize + 4) + 'px '
+          + '-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;'
+        + 'color:#111;background:' + ${JSON.stringify(bannerBg)} + ';'
+        + 'padding:' + paddingY + 'px ' + paddingX + 'px;border-radius:6px;'
+        + 'border:1px solid rgba(17,17,17,0.18);'
+        + 'white-space:nowrap;pointer-events:none;'
+        + 'box-shadow:0 4px 12px rgba(0,0,0,0.18);left:-9999px;top:0;';
+      label.textContent = ${JSON.stringify(promptText)};
+      overlay.appendChild(label);
+
+      const labelRect = label.getBoundingClientRect();
+      const labelW = labelRect.width;
+      const labelH = labelRect.height;
+
+      const MARGIN = 10;
+      const elCenterX = rect.left + rect.width / 2;
+      let lx = elCenterX - labelW / 2;
+      lx = Math.max(MARGIN, Math.min(lx, innerWidth - labelW - MARGIN));
+
+      let ly;
+      if (rect.top - labelH - MARGIN >= 0) {
+        ly = rect.top - labelH - MARGIN;
+      } else if (rect.bottom + labelH + MARGIN <= innerHeight) {
+        ly = rect.bottom + MARGIN;
+      } else {
+        ly = Math.max(MARGIN, rect.top - labelH - MARGIN);
+      }
+
+      label.style.left = (lx + scrollX) + 'px';
+      label.style.top = (ly + scrollY) + 'px';
+
+      return {
+        bbox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      };
+    })();
+  `;
+}
+
 function buildHighlightCleanupScript(): string {
   return `
     (() => {
       const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
       const SAVED_ATTR = HL_ATTR + '-saved';
-      const OVERRIDES = ['transition', 'box-shadow'];
+      const OVERRIDES = ['transition', 'outline', 'outline-offset'];
       document.getElementById(${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)})?.remove();
       document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
         let snap = {};
@@ -685,19 +858,9 @@ async function captureHighlightedPageState(
       highlightScript,
     );
 
-    // Clean up injected highlights from the DOM
-    try {
-      await javascript.executeJavaScript(
-        tabId,
-        conversationId,
-        buildHighlightCleanupScript(),
-        true,
-        false,
-        2000,
-      );
-    } catch (e) {
-      console.warn(`⚠️ [${logLabel}] highlight cleanup failed: ${e}`);
-    }
+    // Keep injected highlights in the DOM until the next command runs.
+    // Flushed from handleCommand via flushPendingHighlightCleanups().
+    scheduleHighlightCleanup(tabId, conversationId);
 
     if (!screenshotResult?.success || !screenshotResult?.imageData) {
       throw new Error(
@@ -1394,6 +1557,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
  */
 async function handleCommand(command: Command): Promise<CommandResponse> {
   console.log(`📨 Handling command: ${command.type}`, command);
+
+  if (!HIGHLIGHT_PRESERVING_COMMAND_TYPES.has(command.type)) {
+    await flushPendingHighlightCleanups();
+  }
 
   try {
     switch (command.type) {
@@ -2764,13 +2931,25 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         // Brief pause for CSS transitions triggered by hover event handlers
         await new Promise((r) => setTimeout(r, 150));
 
-        // Capture screenshot
+        // Inject yellow outline + confirmation banner on the real DOM
+        // element, capture, then crop around the element for the zoom-in
+        // preview. Cleanup is deferred to the next user-visible command
+        // so the confirmation highlight stays on the live page.
+        const singleHighlightScript = buildInPageSingleHighlightScript(
+          { ...element.element, bbox: freshBbox },
+          command.intended_action,
+        );
         const screenshotResult = await captureScreenshot(
           activeTabId,
           conversationId,
           true,
           90,
+          false,
+          0,
+          undefined,
+          singleHighlightScript,
         );
+        scheduleHighlightCleanup(activeTabId, conversationId);
 
         // ============================================================
         // Check if element is visible in viewport
@@ -2816,18 +2995,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           };
         }
 
-        // Create element with fresh bbox for drawing
+        // Border + banner are already baked into the screenshot via the
+        // in-page injection; just crop it to a zoomed window around the
+        // element for the confirmation preview.
         const elementWithFreshBbox = {
           ...element.element,
           bbox: freshBbox,
         };
-
-        // Draw single element highlight
-        const highlightedScreenshot = await highlightSingleElement(
+        const highlightedScreenshot = await cropScreenshotAroundElement(
           screenshotResult.imageData,
           elementWithFreshBbox,
           {
-            intendedAction: command.intended_action,
             scale:
               screenshotResult.metadata?.imageScale ||
               screenshotResult.metadata?.devicePixelRatio ||
