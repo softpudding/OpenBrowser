@@ -136,7 +136,7 @@ def main() -> int:
         print("Ready for browser automation.")
         return 0
 
-    print("Not ready. See skill/claude/open-browser/references/setup.md if needed.")
+    print("Not ready. See ~/.claude/skills/open-browser/references/setup.md if needed.")
     return 1
 
 

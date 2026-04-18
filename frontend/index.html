@@ -3733,6 +3733,89 @@
             border-color: rgba(255, 255, 255, 0.35);
         }
 
+        .attached-image-previews {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px dashed rgba(var(--accent-rgb), 0.35);
+            background: rgba(var(--accent-rgb), 0.06);
+        }
+
+        .attached-image-previews[hidden] {
+            display: none;
+        }
+
+        .attached-image-thumb {
+            position: relative;
+            width: 64px;
+            height: 64px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        .attached-image-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .attached-image-remove {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #ffffff;
+            border: none;
+            font-size: 12px;
+            line-height: 1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .attached-image-remove:hover {
+            background: rgba(130, 30, 30, 0.9);
+        }
+
+        .image-attach-button {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            width: 34px;
+            height: 34px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            margin-right: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+
+        .image-attach-button:hover {
+            color: var(--text-primary);
+            border-color: rgba(var(--accent-rgb), 0.45);
+            background: rgba(var(--accent-rgb), 0.1);
+        }
+
+        .input-area-body.drag-active {
+            outline: 2px dashed rgba(var(--accent-rgb), 0.55);
+            outline-offset: 4px;
+            border-radius: 10px;
+        }
+
         .routine-slash-menu {
             position: absolute;
             left: 0;
@@ -5012,14 +5095,9 @@
                         </button>
                     </div>
 
-                    <div class="quick-prompts">
-                        <button class="quick-prompt" onclick="setCommand('Open https://github.com/softpudding/OpenBrowser and introduce OpenBrowser in a concise way.');">Introduce OpenBrowser</button>
-                        <button class="quick-prompt" onclick="setCommand('Open https://github.com/softpudding/OpenBrowser and star it.');">Star OpenBrowser</button>
-                    </div>
-
                     <div class="input-area">
                         <div class="input-prompt blink">Task</div>
-                        <div class="input-area-body">
+                        <div class="input-area-body" id="input-area-body">
                             <div class="routine-input-card" id="routine-input-card" hidden>
                                 <div class="routine-input-card-info">
                                     <span class="routine-input-card-icon">▶</span>
@@ -5035,9 +5113,18 @@
                                     onclick="clearStagedRoutine()"
                                 >×</button>
                             </div>
-                            <textarea class="command-input scrollbar" id="command-input" placeholder="Describe the result you want — type / to insert a saved routine" rows="1" autofocus></textarea>
+                            <div class="attached-image-previews" id="attached-image-previews" hidden></div>
+                            <textarea class="command-input scrollbar" id="command-input" placeholder="Describe the result you want…" rows="1" autofocus></textarea>
                             <div class="routine-slash-menu" id="routine-slash-menu" hidden></div>
                         </div>
+                        <input type="file" id="image-file-picker" accept="image/*" multiple hidden>
+                        <button
+                            type="button"
+                            class="image-attach-button"
+                            id="image-attach-button"
+                            title="Attach image (paste, drop, or click)"
+                            onclick="document.getElementById('image-file-picker').click()"
+                        >📎</button>
                         <button class="send-button" id="send-button" onclick="sendCommand()">Run</button>
                         <button class="pause-button" id="pause-button" onclick="pauseConversation()" style="display: none;">Pause</button>
                         <button class="sisyphus-start-button" id="sisyphus-start-btn" onclick="startSisyphus()" style="display: none; background: #224422; border: 1px solid #448844; color: #cccccc; padding: 4px 12px; cursor: pointer; border-radius: 3px; font-size: 11px;">Start Sisyphus</button>
@@ -7450,6 +7537,112 @@
         let slashMenuMatches = [];
         let routinesEditingId = null;
         let routinesModalPage = 1;
+
+        // ─────────────────────────────────────────────────────────────────
+        // Attached images: paste, drag-drop, or file picker. Shipped as
+        // data URIs alongside the text prompt so the multimodal LLM can see
+        // what the user is describing.
+        // ─────────────────────────────────────────────────────────────────
+
+        const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+        const MAX_ATTACHED_IMAGES = 8;
+        let attachedImages = [];
+
+        function renderAttachedImagePreviews() {
+            const strip = document.getElementById('attached-image-previews');
+            if (!strip) {
+                return;
+            }
+            strip.innerHTML = '';
+            if (attachedImages.length === 0) {
+                strip.hidden = true;
+                return;
+            }
+            strip.hidden = false;
+            attachedImages.forEach((img, index) => {
+                const thumb = document.createElement('div');
+                thumb.className = 'attached-image-thumb';
+                thumb.title = `${img.name} (${Math.max(1, Math.round(img.sizeBytes / 1024))}KB)`;
+
+                const imgEl = document.createElement('img');
+                imgEl.src = img.dataUri;
+                imgEl.alt = img.name;
+                thumb.appendChild(imgEl);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'attached-image-remove';
+                removeBtn.textContent = '×';
+                removeBtn.title = 'Remove';
+                removeBtn.addEventListener('click', () => {
+                    attachedImages.splice(index, 1);
+                    renderAttachedImagePreviews();
+                });
+                thumb.appendChild(removeBtn);
+
+                strip.appendChild(thumb);
+            });
+        }
+
+        function addAttachedImageFromFile(file) {
+            if (!file || !file.type || !file.type.startsWith('image/')) {
+                return;
+            }
+            if (attachedImages.length >= MAX_ATTACHED_IMAGES) {
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: `Cannot attach more than ${MAX_ATTACHED_IMAGES} images at once.`,
+                    timestamp: new Date().toISOString(),
+                });
+                return;
+            }
+            if (file.size > MAX_IMAGE_BYTES) {
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: `Image "${file.name || 'untitled'}" is ${(file.size / (1024 * 1024)).toFixed(1)}MB; limit is ${MAX_IMAGE_BYTES / (1024 * 1024)}MB.`,
+                    timestamp: new Date().toISOString(),
+                });
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+                attachedImages.push({
+                    dataUri: reader.result,
+                    mimeType: file.type,
+                    name: file.name || `pasted-image-${Date.now()}.png`,
+                    sizeBytes: file.size,
+                });
+                renderAttachedImagePreviews();
+            };
+            reader.onerror = () => {
+                addEvent({
+                    type: 'ErrorEvent',
+                    text: `Failed to read image "${file.name || 'untitled'}".`,
+                    timestamp: new Date().toISOString(),
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearAttachedImages() {
+            if (attachedImages.length === 0) {
+                return;
+            }
+            attachedImages = [];
+            renderAttachedImagePreviews();
+        }
+
+        function getAttachedImagesPayload() {
+            if (attachedImages.length === 0) {
+                return null;
+            }
+            return attachedImages.map((img) => ({
+                data_uri: img.dataUri,
+                mime_type: img.mimeType,
+                name: img.name,
+                size_bytes: img.sizeBytes,
+            }));
+        }
 
         function buildRoutinePrompt(routine) {
             // The agent receives the Routine markdown verbatim plus a one-line
@@ -10075,6 +10268,77 @@
                     sendCommand();
                 }
             });
+
+            // Paste an image directly into the prompt (Cmd-V / Ctrl-V on a screenshot)
+            document.getElementById('command-input').addEventListener('paste', function(e) {
+                if (!e.clipboardData || !e.clipboardData.items) {
+                    return;
+                }
+                let handled = false;
+                for (const item of e.clipboardData.items) {
+                    if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
+                        const file = item.getAsFile();
+                        if (file) {
+                            addAttachedImageFromFile(file);
+                            handled = true;
+                        }
+                    }
+                }
+                if (handled) {
+                    // Prevent the image from being inserted into the textarea as garbage text
+                    e.preventDefault();
+                }
+            });
+
+            // Drag-and-drop an image onto the input area
+            const inputAreaBody = document.getElementById('input-area-body');
+            if (inputAreaBody) {
+                let dragCounter = 0;
+                inputAreaBody.addEventListener('dragenter', function(e) {
+                    if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+                        dragCounter++;
+                        inputAreaBody.classList.add('drag-active');
+                    }
+                });
+                inputAreaBody.addEventListener('dragover', function(e) {
+                    if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+                        e.preventDefault();
+                    }
+                });
+                inputAreaBody.addEventListener('dragleave', function() {
+                    dragCounter = Math.max(0, dragCounter - 1);
+                    if (dragCounter === 0) {
+                        inputAreaBody.classList.remove('drag-active');
+                    }
+                });
+                inputAreaBody.addEventListener('drop', function(e) {
+                    if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) {
+                        return;
+                    }
+                    e.preventDefault();
+                    dragCounter = 0;
+                    inputAreaBody.classList.remove('drag-active');
+                    for (const file of e.dataTransfer.files) {
+                        if (file.type && file.type.startsWith('image/')) {
+                            addAttachedImageFromFile(file);
+                        }
+                    }
+                });
+            }
+
+            // Paperclip → hidden file picker
+            const imagePicker = document.getElementById('image-file-picker');
+            if (imagePicker) {
+                imagePicker.addEventListener('change', function(e) {
+                    if (!e.target.files) {
+                        return;
+                    }
+                    for (const file of e.target.files) {
+                        addAttachedImageFromFile(file);
+                    }
+                    e.target.value = '';
+                });
+            }
             document.addEventListener('click', function(event) {
                 if (!recordingMenuOpen) {
                     return;
@@ -10538,7 +10802,17 @@
             fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: command, cwd: cwd, browser_id: browserId }),
+                body: JSON.stringify((function() {
+                    const body = { text: command, cwd: cwd, browser_id: browserId };
+                    const images = getAttachedImagesPayload();
+                    if (images) {
+                        body.images = images;
+                    }
+                    // Clear previews now that the request is on the wire — keeps
+                    // subsequent messages from silently re-attaching the same image.
+                    clearAttachedImages();
+                    return body;
+                })()),
                 signal: abortController.signal
             }).then(async response => {
                 console.log(`[Frontend] POST response status: ${response.status}, ok: ${response.ok}, content-type: ${response.headers.get('content-type')}`);

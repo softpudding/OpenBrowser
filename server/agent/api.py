@@ -22,6 +22,41 @@ from server.core.session_manager import session_manager, SessionStatus
 logger = logging.getLogger(__name__)
 
 
+def _build_user_message(
+    message_text: str, images: Optional[List[Dict[str, Any]]] = None
+):
+    """Build a user message payload for conversation.send_message().
+
+    When there are no images, returns the plain text string so the SDK's
+    default behavior is preserved. When images are present, returns a
+    multimodal Message with one ImageContent per attached image.
+    """
+    if not images:
+        return message_text
+
+    from openhands.sdk.llm import Message, TextContent, ImageContent
+
+    image_urls = [img["data_uri"] for img in images if img.get("data_uri")]
+    content: List[Any] = [TextContent(text=message_text)]
+    if image_urls:
+        content.append(ImageContent(image_urls=image_urls))
+    return Message(role="user", content=content)
+
+
+def _format_image_history_marker(images: List[Dict[str, Any]]) -> str:
+    """Render a short text marker describing image attachments for history."""
+    parts = []
+    for img in images:
+        name = img.get("name") or "image"
+        size_bytes = img.get("size_bytes")
+        if isinstance(size_bytes, int) and size_bytes > 0:
+            size_kb = max(1, size_bytes // 1024)
+            parts.append(f"[image attached: {name}, {size_kb}KB]")
+        else:
+            parts.append(f"[image attached: {name}]")
+    return "\n".join(parts)
+
+
 async def _stream_sse_events(
     event_queue: Any,
     conversation_id: str,
@@ -138,7 +173,10 @@ async def create_agent_conversation(
 
 
 async def process_agent_message(
-    conversation_id: str, message_text: str, cwd: str = "."
+    conversation_id: str,
+    message_text: str,
+    cwd: str = ".",
+    images: Optional[List[Dict[str, Any]]] = None,
 ) -> AsyncGenerator[str, None]:
     """Process a message and yield SSE events using thread-based execution
 
@@ -146,6 +184,9 @@ async def process_agent_message(
         conversation_id: Conversation ID to process message in
         message_text: Message text to send to agent
         cwd: Working directory for the conversation if creating new (default: current directory)
+        images: Optional list of attached images; each entry is a dict with
+            keys `data_uri`, `mime_type`, `name`, `size_bytes`. When provided,
+            the message is sent to the LLM as a multimodal Message.
     """
     logger.debug(
         f"DEBUG: process_agent_message called with conversation_id={conversation_id}, message='{message_text[:50]}...', cwd={cwd}"
@@ -162,10 +203,13 @@ async def process_agent_message(
         conversation_id, SessionStatus.ACTIVE, increment_message_count=True
     )
 
-    # Save user message for history
+    # Save user message for history (tag image attachments inline for replay)
     try:
+        history_text = message_text
+        if images:
+            history_text = f"{message_text}\n{_format_image_history_marker(images)}"
         session_manager.save_user_message(
-            conversation_id=conversation_id, message_text=message_text
+            conversation_id=conversation_id, message_text=history_text
         )
     except Exception as e:
         logger.warning(f"Failed to save user message: {e}")
@@ -190,7 +234,13 @@ async def process_agent_message(
 
         worker_failed = False
         try:
-            command_queue.put({"agent_message": message_text, "cwd": cwd})
+            command_queue.put(
+                {
+                    "agent_message": message_text,
+                    "cwd": cwd,
+                    "images": images,
+                }
+            )
 
             async for sse_payload in _stream_sse_events(
                 response_queue,
@@ -236,9 +286,11 @@ async def process_agent_message(
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
 
-            # Send user message to conversation
+            # Send user message to conversation (multimodal when images attached)
             logger.debug(f"DEBUG: Sending message to conversation")
-            conv_state.conversation.send_message(message_text)
+            conv_state.conversation.send_message(
+                _build_user_message(message_text, images)
+            )
 
             # Run the conversation (check if it's async or sync)
             run_method = conv_state.conversation.run

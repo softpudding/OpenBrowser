@@ -235,6 +235,19 @@ export interface SetSliderValueCommand extends BaseCommand {
   tab_id?: number;
 }
 
+export interface UploadFileCommand extends BaseCommand {
+  type: 'upload_file';
+  /** Element ID of the <input type="file"> from highlight response */
+  element_id: string;
+  /**
+   * Absolute path to the file on the host running the browser. The server
+   * validates existence and readability before dispatching to the extension.
+   */
+  file_path: string;
+  /** Target tab ID (optional - auto-resolved if not provided) */
+  tab_id?: number;
+}
+
 export interface GetElementHtmlCommand extends BaseCommand {
   type: 'get_element_html';
   element_id: string;
@@ -303,6 +316,7 @@ export type Command =
   | SelectElementCommand
   | DragAndDropElementCommand
   | SetSliderValueCommand
+  | UploadFileCommand
   | GetElementHtmlCommand
   | HighlightSingleElementCommand
   | HighlightDropPreviewCommand
@@ -355,6 +369,7 @@ export type ElementType =
   | 'selectable'
   | 'draggable'
   | 'droppable'
+  | 'uploadable'
   | 'any';
 
 export type InteractionHint =
@@ -369,6 +384,7 @@ export interface InteractiveElement {
   interactionHints?: InteractionHint[]; // Extra interaction hints (e.g. swipable carousel region)
   tagName: string; // HTML tag name
   selector: string; // CSS selector to find element
+  overlaySelector?: string; // Optional: selector of a visible anchor element used only for overlay rendering (used for hidden <input type=file> anchored on a label/button)
   html?: string; // Optional: full HTML of the element (captured at highlight time)
   text?: string; // Visible text content
   searchText?: string; // Normalized semantic search text used by keyword filtering

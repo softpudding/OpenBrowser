@@ -11,6 +11,7 @@ import type { ElementActionResult } from '../types';
  * - Handles dialog events using the same pattern as javascript.ts
  */
 
+import { CdpCommander } from './cdp-commander';
 import { buildElementCacheMissMessage, elementCache } from './element-cache';
 import { executeJavaScript, type JavaScriptResult } from './javascript';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
@@ -512,6 +513,15 @@ export interface ClickResult extends ElementActionResult {
  */
 export interface HoverResult extends ElementActionResult {
   hovered: boolean;
+  staleElement?: boolean;
+  error?: string;
+}
+
+/**
+ * Result type for file upload operation
+ */
+export interface UploadResult extends ElementActionResult {
+  uploaded: boolean;
   staleElement?: boolean;
   error?: string;
 }
@@ -4097,6 +4107,109 @@ export async function performElementSelect(
 }
 
 /**
+ * Attach a local file (by absolute path on the host) to an <input type="file">
+ * via CDP `DOM.setFileInputFiles`. This bypasses the native OS file picker —
+ * attempting to click the input would pop the picker in front of the user,
+ * which the agent cannot drive.
+ *
+ * The server validates the path before dispatching, so here we only need to
+ * resolve the cached selector to a CDP `nodeId` and invoke setFileInputFiles.
+ */
+export async function performElementUpload(
+  conversationId: string,
+  elementId: string,
+  tabId: number,
+  filePath: string,
+): Promise<UploadResult> {
+  console.log(
+    `📎 [ElementUpload] Uploading "${filePath}" to element ${elementId} on tab ${tabId}`,
+  );
+
+  const cachedElement = elementCache.getElementById(
+    conversationId,
+    tabId,
+    elementId,
+  );
+  if (!cachedElement) {
+    console.log(`❌ [ElementUpload] Element ${elementId} not found in cache`);
+    return {
+      success: false,
+      ...buildResolvedElementResultFields(elementId, elementId),
+      uploaded: false,
+      staleElement: false,
+      error: buildElementCacheMissMessage({
+        conversationId,
+        tabId,
+        elementId,
+      }),
+    };
+  }
+
+  const element = cachedElement.element;
+  const resolvedElementFields = buildResolvedElementResultFields(
+    cachedElement.requestedElementId,
+    cachedElement.resolvedElementId,
+  );
+  const cdp = new CdpCommander(tabId);
+
+  try {
+    // Resolve selector → CDP nodeId. DOM.getDocument returns the document root
+    // node; DOM.querySelector is scoped to that root and accepts any CSS
+    // selector. A nodeId of 0 indicates no match (selector went stale).
+    const doc = (await cdp.sendCommand('DOM.getDocument', { depth: 0 })) as {
+      root?: { nodeId: number };
+    };
+    if (!doc || !doc.root || typeof doc.root.nodeId !== 'number') {
+      return {
+        success: false,
+        ...resolvedElementFields,
+        uploaded: false,
+        error: 'CDP DOM.getDocument returned no root node',
+      };
+    }
+
+    const queryResult = (await cdp.sendCommand('DOM.querySelector', {
+      nodeId: doc.root.nodeId,
+      selector: element.selector,
+    })) as { nodeId?: number };
+
+    if (!queryResult || !queryResult.nodeId) {
+      return {
+        success: false,
+        ...resolvedElementFields,
+        uploaded: false,
+        staleElement: true,
+        error: `Selector "${element.selector}" no longer resolves to a DOM node (element became stale).`,
+      };
+    }
+
+    await cdp.sendCommand('DOM.setFileInputFiles', {
+      nodeId: queryResult.nodeId,
+      files: [filePath],
+    });
+
+    console.log(
+      `✅ [ElementUpload] DOM.setFileInputFiles succeeded for ${elementId} (${filePath})`,
+    );
+
+    return {
+      success: true,
+      ...resolvedElementFields,
+      uploaded: true,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`❌ [ElementUpload] failed: ${message}`);
+    return {
+      success: false,
+      ...resolvedElementFields,
+      uploaded: false,
+      error: message,
+    };
+  }
+}
+
+/**
  * Export element actions module
  */
 export const elementActions = {
@@ -4105,4 +4218,5 @@ export const elementActions = {
   performElementScroll,
   performKeyboardInput,
   performElementSelect,
+  performElementUpload,
 };

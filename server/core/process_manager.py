@@ -127,6 +127,7 @@ def _conversation_worker(
                         bundle.execute_agent_message(
                             message_text=message["agent_message"],
                             event_queue=response_queue,
+                            images=message.get("images"),
                         )
                     )
 

@@ -281,7 +281,10 @@ class TestAgentMessageBrowserBinding:
         assert response.status_code == 200
         assert "event: message" in body
         mock_process_agent_message.assert_called_once_with(
-            "test-conversation", "hello from bound conversation", "."
+            "test-conversation",
+            "hello from bound conversation",
+            ".",
+            images=None,
         )
 
     def test_message_post_rejects_rebinding_conversation_to_different_browser(

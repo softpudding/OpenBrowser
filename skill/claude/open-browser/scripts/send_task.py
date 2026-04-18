@@ -17,12 +17,19 @@ Tuned for Claude Code:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
+import mimetypes
 import os
 import subprocess
 import sys
+from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+
+# Per-image cap enforced by the server (see server/api/routes/agent.py).
+# Keep this in sync: the server will reject larger payloads with 400.
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 
 def request_json(
@@ -158,6 +165,40 @@ def format_event(event_type: str, data: dict, *, show_system_prompt: bool) -> No
     )
 
 
+def load_image_as_payload(path: str) -> dict:
+    """Read a local image file and package it for the OpenBrowser API.
+
+    The server accepts data URIs so the frontend and server don't need to
+    share a filesystem. We base64-encode the raw bytes here and tag the
+    entry with mime/name/size so the server's size cap and history marker
+    both work.
+    """
+    image_path = Path(path).expanduser().resolve()
+    if not image_path.is_file():
+        raise FileNotFoundError(f"Image not found: {image_path}")
+
+    data = image_path.read_bytes()
+    if len(data) > MAX_IMAGE_BYTES:
+        raise ValueError(
+            f"Image {image_path} is {len(data) / (1024 * 1024):.1f}MB; "
+            f"server limit is {MAX_IMAGE_BYTES // (1024 * 1024)}MB per image."
+        )
+
+    mime_type, _ = mimetypes.guess_type(image_path.name)
+    if not mime_type or not mime_type.startswith("image/"):
+        raise ValueError(
+            f"{image_path} does not look like an image (mime={mime_type!r})."
+        )
+
+    encoded = base64.b64encode(data).decode("ascii")
+    return {
+        "data_uri": f"data:{mime_type};base64,{encoded}",
+        "mime_type": mime_type,
+        "name": image_path.name,
+        "size_bytes": len(data),
+    }
+
+
 def stream_task(
     base_url: str,
     conversation_id: str,
@@ -166,12 +207,15 @@ def stream_task(
     chrome_uuid: str,
     *,
     show_system_prompt: bool,
+    images: list[dict] | None = None,
 ) -> None:
+    body: dict = {"text": task, "cwd": cwd, "browser_id": chrome_uuid}
+    if images:
+        body["images"] = images
+
     request = Request(
         f"{base_url}/agent/conversations/{conversation_id}/messages",
-        data=json.dumps({"text": task, "cwd": cwd, "browser_id": chrome_uuid}).encode(
-            "utf-8"
-        ),
+        data=json.dumps(body).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
@@ -233,6 +277,8 @@ def start_background_process(args: argparse.Namespace) -> int:
         command.extend(["--conversation-id", args.conversation_id])
     if args.show_system_prompt:
         command.append("--show-system-prompt")
+    for image_path in args.image or []:
+        command.extend(["--image", image_path])
 
     with open(args.output, "a", encoding="utf-8") as log_file:
         process = subprocess.Popen(
@@ -277,6 +323,17 @@ def main() -> int:
         "--show-system-prompt",
         action="store_true",
         help="Print the SystemPromptEvent (suppressed by default to keep logs readable).",
+    )
+    parser.add_argument(
+        "--image",
+        action="append",
+        metavar="PATH",
+        help=(
+            "Attach an image (PNG/JPEG/GIF/WebP) to the user message. "
+            "Repeat the flag to attach multiple images. Images are read "
+            "from disk, base64-encoded, and sent as data URIs. Max 10MB "
+            "per image, up to 8 images per message."
+        ),
     )
     parser.add_argument(
         "--background",
@@ -348,6 +405,14 @@ def main() -> int:
             print(f"Browser UUID validation failed: {message}", file=sys.stderr)
             return 1
 
+        images: list[dict] | None = None
+        if args.image:
+            try:
+                images = [load_image_as_payload(p) for p in args.image]
+            except (FileNotFoundError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+
         if args.conversation_id:
             conversation_id = args.conversation_id
         else:
@@ -360,6 +425,7 @@ def main() -> int:
             args.cwd,
             args.chrome_uuid,
             show_system_prompt=args.show_system_prompt,
+            images=images,
         )
         return 0
     except URLError as exc:

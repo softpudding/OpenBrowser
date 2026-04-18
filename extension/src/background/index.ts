@@ -37,6 +37,7 @@ import {
   performElementSwipe,
   performElementDragAndDrop,
   performElementSetSlider,
+  performElementUpload,
   performKeyboardInput,
   performElementSelect,
   replayHoverState,
@@ -295,6 +296,7 @@ const IN_PAGE_HIGHLIGHT_COLORS: Record<string, { border: string; bg: string }> =
     selectable: { border: '#FF6B6B', bg: 'rgba(255,107,107,0.7)' },
     draggable: { border: '#FF6600', bg: 'rgba(255,102,0,0.7)' },
     droppable: { border: '#339966', bg: 'rgba(51,153,102,0.7)' },
+    uploadable: { border: '#AA66FF', bg: 'rgba(170,102,255,0.7)' },
     any: { border: '#00CCCC', bg: 'rgba(0,204,204,0.7)' },
   };
 
@@ -307,7 +309,10 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
       IN_PAGE_HIGHLIGHT_COLORS[el.type] || IN_PAGE_HIGHLIGHT_COLORS.clickable;
     return {
       id: el.id,
-      selector: el.selector,
+      // The overlay script renders the box on `selector`. For uploadable
+      // file inputs that are display:none, the visible anchor's selector
+      // lets the overlay land on something the user can actually see.
+      selector: el.overlaySelector || el.selector,
       borderColor: colors.border,
       bgColor: colors.bg,
       labelPos: el.labelPosition || 'above',
@@ -578,7 +583,11 @@ async function captureHighlightedPageState(
         : '';
     const detectedViewport = detectionResult.result.value.viewport || {};
     const layoutStability = detectionResult.result.value.layoutStability;
+    const inPagePerf = detectionResult.result.value._perf || {};
     const highlightTraceStart = Date.now();
+    let paginationMs = 0;
+    let screenshotMs = 0;
+    let consistencyMs = 0;
     const detectedViewportWidth =
       typeof detectedViewport.width === 'number' ? detectedViewport.width : 0;
     const detectedViewportHeight =
@@ -651,8 +660,9 @@ async function captureHighlightedPageState(
       console.log(
         `📄 [${logLabel}] Page ${page}/${totalPages}, showing ${paginatedElements.length} of ${filteredElements.length} elements`,
       );
+      paginationMs = Date.now() - paginationBuildStart;
       console.log(
-        `⏱️ [HighlightTrace] background pagination build-pages=${Date.now() - paginationBuildStart}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
+        `⏱️ [HighlightTrace] background pagination build-pages=${paginationMs}ms (page=${page}, viewport=${detectedViewportWidth}x${detectedViewportHeight})`,
       );
     }
 
@@ -697,9 +707,8 @@ async function captureHighlightedPageState(
     console.log(
       `📸 [${logLabel}] Screenshot captured (with in-page highlights), size: ${screenshotResult.imageData.length} bytes`,
     );
-    console.log(
-      `⏱️ [HighlightTrace] background screenshot ${Date.now() - screenshotStart}ms`,
-    );
+    screenshotMs = Date.now() - screenshotStart;
+    console.log(`⏱️ [HighlightTrace] background screenshot ${screenshotMs}ms`);
 
     // Apply bboxes returned from the highlight injection script
     const preCaptureData = screenshotResult.preCaptureResult;
@@ -761,8 +770,9 @@ async function captureHighlightedPageState(
         })),
       currentConsistencySamples,
     );
+    consistencyMs = Date.now() - consistencyCheckStart;
     console.log(
-      `⏱️ [HighlightTrace] background consistency-check ${Date.now() - consistencyCheckStart}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
+      `⏱️ [HighlightTrace] background consistency-check ${consistencyMs}ms (checked=${highlightConsistency.checkedCount}, matched=${highlightConsistency.matchedCount}, missing=${highlightConsistency.missingCount}, shifted=${highlightConsistency.shiftedCount}, maxCenterShift=${highlightConsistency.maxCenterShift}, maxSizeDelta=${highlightConsistency.maxSizeDelta}, retry=${highlightConsistency.shouldRetry})`,
     );
     const repeatedDrift = isRepeatedHighlightDrift(
       highlightConsistency,
@@ -836,6 +846,15 @@ async function captureHighlightedPageState(
       page: currentPage,
       pageState,
       readinessReasons,
+      _perf: {
+        scan_ms:
+          typeof inPagePerf.scan_ms === 'number' ? inPagePerf.scan_ms : 0,
+        scan_stats: inPagePerf.scan_stats || {},
+        scan_times: inPagePerf.scan_times || {},
+        pagination_ms: paginationMs,
+        screenshot_ms: screenshotMs,
+        consistency_ms: consistencyMs,
+      },
       ...buildScreenshotPayload(compressedScreenshotResult),
     };
   }
@@ -953,6 +972,7 @@ function isHeavyBrowserCommand(data: any): boolean {
     case 'set_slider_value':
     case 'keyboard_input':
     case 'select_element':
+    case 'upload_file':
     case 'handle_dialog':
       return true;
     case 'tab':
@@ -2324,6 +2344,38 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             ...sliderPageState,
           },
           error: sliderResult.error,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'upload_file': {
+        if (!command.conversation_id)
+          throw new Error('conversation_id required');
+        const uploadTabId = command.tab_id;
+        if (uploadTabId === undefined || uploadTabId === null)
+          throw new Error('tab_id is required');
+        if (!command.file_path || typeof command.file_path !== 'string')
+          throw new Error('file_path is required for upload_file');
+
+        const uploadResult = await performElementUpload(
+          command.conversation_id,
+          command.element_id,
+          uploadTabId,
+          command.file_path,
+        );
+        const uploadPageState = await captureDefaultHighlightedPageState({
+          tabId: uploadTabId,
+          conversationId: command.conversation_id,
+          logLabel: 'UploadFile',
+        });
+
+        return {
+          success: uploadResult.success,
+          data: {
+            ...uploadResult,
+            ...uploadPageState,
+          },
+          error: uploadResult.error,
           timestamp: Date.now(),
         };
       }

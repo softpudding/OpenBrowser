@@ -37,7 +37,7 @@ Before sending a browser task, confirm all of the following:
 Run this first:
 
 ```bash
-python3 skill/claude/open-browser/scripts/check_status.py --chrome-uuid "$OPENBROWSER_CHROME_UUID"
+python3 ~/.claude/skills/open-browser/scripts/check_status.py --chrome-uuid "$OPENBROWSER_CHROME_UUID"
 ```
 
 If readiness fails, read [references/setup.md](references/setup.md) or
@@ -72,7 +72,7 @@ Code, because the SSE stream becomes part of your conversation context
 without any extra plumbing:
 
 ```bash
-python3 skill/claude/open-browser/scripts/send_task.py \
+python3 ~/.claude/skills/open-browser/scripts/send_task.py \
   "Open https://example.com and report the page title" \
   --chrome-uuid "$OPENBROWSER_CHROME_UUID"
 ```
@@ -103,6 +103,37 @@ The legacy `--background --output /tmp/openbrowser.log` flag still
 works as a fallback for shell-only environments, but it should not be
 your default in Claude Code.
 
+## Attaching images to a task
+
+OpenBrowser uses multimodal LLMs, so you can send an image (screenshot,
+UI mockup, reference photo) alongside the text prompt. Use this when the
+task is "recreate this design", "why does my UI look wrong compared to
+this screenshot", or "find the element that matches this picture".
+
+Pass `--image PATH` once per image. Images are read from disk, base64
+encoded, and sent as data URIs — no upload endpoint or static server is
+required. Limit: 10 MB per image, up to 8 images per message.
+
+```bash
+python3 ~/.claude/skills/open-browser/scripts/send_task.py \
+  "Open the local dashboard and tell me which section looks different from this screenshot." \
+  --image /tmp/reference.png \
+  --chrome-uuid "$OPENBROWSER_CHROME_UUID"
+```
+
+Typical use cases:
+- **Visual regression check**: screenshot the expected UI, send it with
+  "compare this to the current page at http://localhost:3000 and list
+  differences".
+- **Reproducing a bug from a user report**: drop in the user's
+  screenshot and ask "navigate to the page shown here and confirm you
+  see the same error".
+- **Asset-matching**: send a design mockup and ask the agent to pick
+  the closest live element from the current page.
+
+The conversation history saves an `[image attached: name, NkB]` marker
+(not the bytes) so replays don't balloon to megabytes.
+
 ## Follow-up turns on the same browser session
 
 To send a second instruction to the same conversation (so the agent
@@ -110,7 +141,7 @@ keeps its prior screenshots and observations), reuse the conversation
 ID from the previous run:
 
 ```bash
-python3 skill/claude/open-browser/scripts/send_task.py \
+python3 ~/.claude/skills/open-browser/scripts/send_task.py \
   "Now click the 'Sign in' button you just identified" \
   --chrome-uuid "$OPENBROWSER_CHROME_UUID" \
   --conversation-id 1b32b26a-1a7e-4b6c-9599-139fc6b9c89b
@@ -122,14 +153,16 @@ report a value it already saw.
 
 ## Working Directory
 
-Run commands from the OpenBrowser repo root so the relative script
-paths resolve cleanly.
+The skill's scripts live at `~/.claude/skills/open-browser/` so they
+work from any project's current working directory. The OpenBrowser
+server itself must still be started from the repo root
+(`uv run local-chrome-server serve` in `~/git/OpenBrowser`).
 
 Use `--cwd` when the browser task should operate with context from
 another workspace:
 
 ```bash
-python3 skill/claude/open-browser/scripts/send_task.py \
+python3 ~/.claude/skills/open-browser/scripts/send_task.py \
   "Open the local app and verify the login flow" \
   --cwd /absolute/path/to/project \
   --chrome-uuid "$OPENBROWSER_CHROME_UUID"

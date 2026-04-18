@@ -244,11 +244,14 @@ class BrowserExecutorBundle:
         self,
         message_text: str,
         event_queue: Any,
+        images: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Execute a conversation turn inside the worker process.
 
         Events are streamed back to the main process via ``event_queue`` as
         ``SSEEvent`` instances so the HTTP layer can forward them unchanged.
+        When ``images`` is provided, the user message is sent as a multimodal
+        ``Message`` with one ``ImageContent`` per attachment.
         """
         if not self.state.initialized:
             raise RuntimeError(
@@ -276,7 +279,18 @@ class BrowserExecutorBundle:
         conv_state.visualizer.set_event_queue(event_queue)
 
         try:
-            conv_state.conversation.send_message(message_text)
+            if images:
+                from openhands.sdk.llm import Message, TextContent, ImageContent
+
+                image_urls = [img["data_uri"] for img in images if img.get("data_uri")]
+                content: list[Any] = [TextContent(text=message_text)]
+                if image_urls:
+                    content.append(ImageContent(image_urls=image_urls))
+                conv_state.conversation.send_message(
+                    Message(role="user", content=content)
+                )
+            else:
+                conv_state.conversation.send_message(message_text)
 
             run_method = conv_state.conversation.run
             if inspect.iscoroutinefunction(run_method):

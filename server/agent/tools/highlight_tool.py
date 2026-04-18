@@ -34,7 +34,7 @@ class BaseHighlightAction(OpenBrowserAction):
 
     element_type: str = Field(
         default="any",
-        description="Single element type to highlight for agent-visible guidance: any/scrollable/inputable/selectable/draggable/droppable. Defaults to 'any'.",
+        description="Single element type to highlight for agent-visible guidance: any/scrollable/inputable/selectable/draggable/droppable/uploadable. Defaults to 'any'.",
     )
     page: int = Field(
         default=1,

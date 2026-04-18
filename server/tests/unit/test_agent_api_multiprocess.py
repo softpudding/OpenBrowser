@@ -47,6 +47,7 @@ async def test_process_agent_message_uses_worker_queues() -> None:
     assert command_queue.get_nowait() == {
         "agent_message": "hello worker",
         "cwd": "/tmp/workspace",
+        "images": None,
     }
     assert any("event: agent_event" in payload for payload in sse_payloads)
     assert any("event: complete" in payload for payload in sse_payloads)

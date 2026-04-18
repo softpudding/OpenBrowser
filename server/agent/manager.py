@@ -329,7 +329,9 @@ class OpenBrowserAgentManager:
         agent_context = self._build_agent_context()
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
-        tool_image_window = get_context_image_window()
+        tool_image_window = get_context_image_window(
+            routine_replay=self._is_routine_replay_mode(mode)
+        )
         condenser_llm = llm_instance.model_copy(update={"usage_id": "condenser"})
         agent = Agent(
             llm=llm_instance,
@@ -576,7 +578,9 @@ class OpenBrowserAgentManager:
         agent_context = self._build_agent_context()
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
         tools = self._get_tools_for_model(model, model_alias)
-        tool_image_window = get_context_image_window()
+        tool_image_window = get_context_image_window(
+            routine_replay=self._is_routine_replay_mode(mode)
+        )
         condenser_llm = llm_instance.model_copy(update={"usage_id": "condenser"})
         agent = Agent(
             llm=llm_instance,

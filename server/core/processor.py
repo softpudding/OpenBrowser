@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import json
+import os
 from typing import Dict, Optional, Any, List
 from datetime import datetime
 
@@ -33,6 +34,7 @@ from server.models.commands import (
     RecordingControlCommand,
     DragAndDropElementCommand,
     SetSliderValueCommand,
+    UploadFileCommand,
     HighlightDropPreviewCommand,
 )
 from server.websocket.manager import ws_manager
@@ -260,6 +262,8 @@ class CommandProcessor:
                 return await self._execute_recording_control(command)
             elif isinstance(command, HighlightDropPreviewCommand):
                 return await self._execute_highlight_drop_preview(command)
+            elif isinstance(command, UploadFileCommand):
+                return await self._execute_upload_file(command)
             else:
                 raise ValueError(f"Unknown command type: {command.type}")
 
@@ -452,6 +456,36 @@ class CommandProcessor:
         self, command: HighlightDropPreviewCommand
     ) -> CommandResponse:
         """Highlight inner elements of a drop container for drag-and-drop 2PC"""
+        return await self._send_prepared_command(command)
+
+    async def _execute_upload_file(self, command: UploadFileCommand) -> CommandResponse:
+        """Attach a local file to an <input type=file> via CDP.
+
+        Validates the path server-side before dispatching to the extension,
+        so a bad path returns an observation the agent can react to instead
+        of failing opaquely inside CDP.
+        """
+        if not os.path.isabs(command.file_path):
+            return CommandResponse(
+                success=False,
+                command_id=command.command_id,
+                error=(
+                    f"file_path must be absolute, got: {command.file_path!r}. "
+                    "Pass the full path (e.g. /tmp/file.png)."
+                ),
+            )
+        if not os.path.isfile(command.file_path):
+            return CommandResponse(
+                success=False,
+                command_id=command.command_id,
+                error=f"File not found: {command.file_path}",
+            )
+        if not os.access(command.file_path, os.R_OK):
+            return CommandResponse(
+                success=False,
+                command_id=command.command_id,
+                error=f"File not readable: {command.file_path}",
+            )
         return await self._send_prepared_command(command)
 
     async def _execute_select_element(
