@@ -708,9 +708,7 @@ async function captureHighlightedPageState(
       `📸 [${logLabel}] Screenshot captured (with in-page highlights), size: ${screenshotResult.imageData.length} bytes`,
     );
     screenshotMs = Date.now() - screenshotStart;
-    console.log(
-      `⏱️ [HighlightTrace] background screenshot ${screenshotMs}ms`,
-    );
+    console.log(`⏱️ [HighlightTrace] background screenshot ${screenshotMs}ms`);
 
     // Apply bboxes returned from the highlight injection script
     const preCaptureData = screenshotResult.preCaptureResult;
@@ -849,7 +847,8 @@ async function captureHighlightedPageState(
       pageState,
       readinessReasons,
       _perf: {
-        scan_ms: typeof inPagePerf.scan_ms === 'number' ? inPagePerf.scan_ms : 0,
+        scan_ms:
+          typeof inPagePerf.scan_ms === 'number' ? inPagePerf.scan_ms : 0,
         scan_stats: inPagePerf.scan_stats || {},
         scan_times: inPagePerf.scan_times || {},
         pagination_ms: paginationMs,

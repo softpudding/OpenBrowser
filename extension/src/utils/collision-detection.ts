@@ -572,7 +572,10 @@ function chooseLeastBlockingPlacement(
     );
     let union = fc.element.bbox;
     for (const pos of POSITION_PRIORITY) {
-      union = unionBBox(union, getLabelBBox(fc.element.bbox, pos, fc.element.id));
+      union = unionBBox(
+        union,
+        getLabelBBox(fc.element.bbox, pos, fc.element.id),
+      );
     }
     return {
       candidate: fc,

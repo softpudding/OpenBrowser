@@ -2874,11 +2874,7 @@ async function runOpenBrowserHighlightDetection(config) {
   const layoutStability = evaluateReadinessSnapshot(trace);
 
   const scanStart = performance.now();
-  const scanResult = collectHighlightCandidates(
-    config,
-    trace,
-    layoutStability,
-  );
+  const scanResult = collectHighlightCandidates(config, trace, layoutStability);
   const { elements, counts } = scanResult;
   const scanMs = Math.round(performance.now() - scanStart);
 
