@@ -122,16 +122,18 @@ const devReloadPlugin = () => {
         return;
       }
 
-      // Otherwise wait for the extension to connect (up to 10s)
+      // Otherwise wait for the extension to connect (up to 40s — covers a
+      // full chrome.alarms keepalive cycle when the MV3 service worker has
+      // been terminated by Chrome).
       console.log(
         '🔄 [DevReload] Build complete — waiting for extension to connect...',
       );
       const timeout = setTimeout(() => {
         console.warn(
-          '🔄 [DevReload] No extension connected within 10s. Reload the extension manually once, then future `npm run dev` runs will auto-reload.',
+          '🔄 [DevReload] No extension connected within 40s. Reload the extension manually once, then future `npm run dev` runs will auto-reload.',
         );
         process.exit(0);
-      }, 10_000);
+      }, 40_000);
 
       // Check periodically if a client has connected
       const poll = setInterval(() => {

@@ -45,7 +45,7 @@ drive the browser that registered it.
 ## Quick verification
 
 ```bash
-python3 skill/claude/open-browser/scripts/check_status.py --chrome-uuid "$OPENBROWSER_CHROME_UUID"
+python3 ~/.claude/skills/open-browser/scripts/check_status.py --chrome-uuid "$OPENBROWSER_CHROME_UUID"
 ```
 
 Expected outcome:

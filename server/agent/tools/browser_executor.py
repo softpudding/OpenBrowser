@@ -105,6 +105,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         self.conversation_id = None
         # Pending confirmations per conversation for 2PC actions.
         self.pending_confirmations: Dict[str, Dict[str, Any]] = {}
+        # Most recent highlight result per conversation. Keyed by conversation_id,
+        # value is the list of element dicts returned by the last highlight call.
+        # Used in routine-replay mode to auto-confirm clicks/selects/keyboard_input
+        # when the target was just uniquely highlighted.
+        self.last_highlight_elements: Dict[str, List[Dict[str, Any]]] = {}
 
     def _uses_small_model(self) -> bool:
         """Whether the active conversation uses the small-model profile."""
@@ -131,6 +136,38 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     model_name = None
 
         return is_small_model(model_name)
+
+    def _is_routine_replay_mode(self) -> bool:
+        """Whether the active conversation is running in routine-replay mode."""
+        if not self.conversation_id:
+            return False
+
+        session = session_manager.get_session(str(self.conversation_id))
+        if session is None:
+            return False
+
+        return session.metadata.get("mode") == "routine_replay"
+
+    def _auto_confirm_target_id(self, requested_element_id: str) -> str | None:
+        """Return the resolved element id if auto-confirm applies, else None.
+
+        In routine-replay mode, when the most recent highlight call in this
+        conversation returned exactly one element whose id matches the one the
+        agent is now targeting, we can skip the two-phase confirmation round
+        trip: the routine SOP's precise keywords already disambiguated the
+        target, so a confirmation prompt adds latency without adding safety.
+        """
+        if not self._is_routine_replay_mode():
+            return None
+        if not self.conversation_id or not requested_element_id:
+            return None
+        recent = self.last_highlight_elements.get(self.conversation_id)
+        if not recent or len(recent) != 1:
+            return None
+        only_id = recent[0].get("id")
+        if not only_id or only_id != requested_element_id:
+            return None
+        return only_id
 
     def __call__(
         self, action: OpenBrowserAction, conversation
@@ -333,6 +370,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         # Extract elements and pagination info
         elements = result_dict.get("data", {}).get("elements", [])
         total_elements = result_dict.get("data", {}).get("totalElements", 0)
+        if self.conversation_id:
+            self.last_highlight_elements[self.conversation_id] = list(elements)
         element_label = self._format_highlight_element_label(
             element_type=element_type, count=len(elements)
         )
@@ -366,6 +405,22 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         if action_type == "click":
             if not action.element_id:
                 raise ValueError("click requires element_id parameter")
+            auto_id = self._auto_confirm_target_id(action.element_id)
+            if auto_id:
+                command = ClickElementCommand(
+                    element_id=auto_id,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                if not result_dict or not result_dict.get("success"):
+                    ext_error = self._extract_result_error(result_dict)
+                    raise RuntimeError(f"Failed to click element: {ext_error}")
+                return self._build_observation_from_result(
+                    result_dict,
+                    f"Auto-confirmed and clicked element: {auto_id}",
+                    element_id=auto_id,
+                )
             element_preview = self._get_element_full_html(action.element_id, "click")
             full_html = element_preview[0]
             screenshot = element_preview[1]
@@ -572,6 +627,23 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError("keyboard_input requires element_id parameter")
             if not action.text:
                 raise ValueError("keyboard_input requires text parameter")
+            auto_id = self._auto_confirm_target_id(action.element_id)
+            if auto_id:
+                command = KeyboardInputCommand(
+                    element_id=auto_id,
+                    text=action.text,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                if not result_dict or not result_dict.get("success"):
+                    ext_error = self._extract_result_error(result_dict)
+                    raise RuntimeError(f"Failed to input text: {ext_error}")
+                return self._build_observation_from_result(
+                    result_dict,
+                    f"Auto-confirmed and input text to element: {auto_id}",
+                    element_id=auto_id,
+                )
             element_preview = self._get_element_full_html(
                 action.element_id, "keyboard_input"
             )
@@ -622,6 +694,25 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 raise ValueError("select requires element_id parameter")
             if action.value is None:
                 raise ValueError("select requires value parameter")
+            auto_id = self._auto_confirm_target_id(action.element_id)
+            if auto_id:
+                command = SelectElementCommand(
+                    element_id=auto_id,
+                    value=action.value,
+                    conversation_id=self.conversation_id,
+                    tab_id=action.tab_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                if not result_dict or not result_dict.get("success"):
+                    ext_error = self._extract_result_error(result_dict)
+                    raise RuntimeError(f"Failed to select option: {ext_error}")
+                value_preview = self._format_select_value_preview(action.value)
+                return self._build_observation_from_result(
+                    result_dict,
+                    f"Auto-confirmed and selected option {value_preview} in element: "
+                    f"{auto_id}",
+                    element_id=auto_id,
+                )
             element_preview = self._get_element_full_html(action.element_id, "select")
             full_html = element_preview[0]
             screenshot = element_preview[1]
