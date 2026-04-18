@@ -77,6 +77,130 @@ function hasCallableMethod(value, methodNames) {
   );
 }
 
+// Layout reads (getBoundingClientRect, getComputedStyle) and elementsFromPoint
+// are the single biggest cost in collectHighlightCandidates: every visibility
+// predicate re-reads them for the same element. Within one synchronous
+// Runtime.evaluate task no page JS runs concurrently, so the values cannot
+// change mid-scan. We monkey-patch the prototypes for the duration of one
+// scan, populate a per-element WeakMap, and restore originals at the end.
+const SCAN_NON_INTERACTIVE_TAGS = new Set([
+  'script',
+  'style',
+  'link',
+  'meta',
+  'head',
+  'title',
+  'noscript',
+  'br',
+  'hr',
+  'source',
+  'track',
+  'template',
+  'param',
+  'col',
+  'colgroup',
+]);
+
+function isScanSkippableTag(el) {
+  if (!el || !el.tagName) return false;
+  return SCAN_NON_INTERACTIVE_TAGS.has(el.tagName.toLowerCase());
+}
+
+// Per-scan memoization caches for pure-function classifiers that get hit many
+// times for the same element during the resolve phase (each candidate walks
+// up to 5 ancestors, each ancestor calls hasExplicitClickableAncestor which
+// walks ALL ancestors, etc.). Reset at the start of each scan, leak nothing
+// outside it. WeakMap so any GC'd nodes drop out automatically.
+let _scanSemanticSignalCache = null;
+let _scanClickableCandidateCache = null;
+let _scanBaseClickableSignalCache = null;
+let _scanTextContentCache = null;
+let _scanSearchTextCache = null;
+let _scanExplicitAncestorCache = null;
+
+function withScanLayoutCache(fn) {
+  const rectCache = new WeakMap();
+  const styleCache = new WeakMap();
+  // elementsFromPoint dedup keyed by rounded "x:y"
+  const efpCache = new Map();
+  _scanSemanticSignalCache = new WeakMap();
+  _scanClickableCandidateCache = new WeakMap();
+  _scanBaseClickableSignalCache = new WeakMap();
+  _scanTextContentCache = new WeakMap();
+  _scanSearchTextCache = new WeakMap();
+  _scanExplicitAncestorCache = new WeakMap();
+
+  const origElementRect = Element.prototype.getBoundingClientRect;
+  const SVGGraphicsProto =
+    typeof SVGGraphicsElement !== 'undefined'
+      ? SVGGraphicsElement.prototype
+      : null;
+  const origSVGRect =
+    SVGGraphicsProto && SVGGraphicsProto.getBoundingClientRect;
+  const origGetComputedStyle = window.getComputedStyle;
+  // Patch Document.prototype rather than the document instance so we don't
+  // leave an own-property shadowing the prototype after the scan finishes.
+  const DocumentProto =
+    typeof Document !== 'undefined' ? Document.prototype : null;
+  const origElementsFromPoint =
+    DocumentProto && DocumentProto.elementsFromPoint;
+
+  function patchedRect() {
+    let r = rectCache.get(this);
+    if (r === undefined) {
+      r = origElementRect.call(this);
+      rectCache.set(this, r);
+    }
+    return r;
+  }
+
+  Element.prototype.getBoundingClientRect = patchedRect;
+  if (SVGGraphicsProto && origSVGRect) {
+    SVGGraphicsProto.getBoundingClientRect = patchedRect;
+  }
+
+  window.getComputedStyle = function (el, pseudo) {
+    if (pseudo) return origGetComputedStyle.call(window, el, pseudo);
+    let s = styleCache.get(el);
+    if (s === undefined) {
+      s = origGetComputedStyle.call(window, el);
+      styleCache.set(el, s);
+    }
+    return s;
+  };
+
+  if (DocumentProto && origElementsFromPoint) {
+    DocumentProto.elementsFromPoint = function (x, y) {
+      const key = Math.round(x) + ':' + Math.round(y);
+      let stack = efpCache.get(key);
+      if (stack === undefined) {
+        stack = origElementsFromPoint.call(this, x, y);
+        efpCache.set(key, stack);
+      }
+      return stack;
+    };
+  }
+
+  try {
+    return fn();
+  } finally {
+    Element.prototype.getBoundingClientRect = origElementRect;
+    if (SVGGraphicsProto && origSVGRect) {
+      SVGGraphicsProto.getBoundingClientRect = origSVGRect;
+    }
+    window.getComputedStyle = origGetComputedStyle;
+    if (DocumentProto && origElementsFromPoint) {
+      DocumentProto.elementsFromPoint = origElementsFromPoint;
+    }
+    _scanSemanticSignalCache = null;
+    _scanClickableCandidateCache = null;
+    _scanBaseClickableSignalCache = null;
+    _scanTextContentCache = null;
+    _scanSearchTextCache = null;
+    _scanExplicitAncestorCache = null;
+  }
+}
+
 function createHighlightTrace() {
   const traceStart = performance.now();
 
@@ -305,6 +429,15 @@ function getSwipeMarkerText(el) {
 }
 
 function getElementTextForDetection(el) {
+  if (_scanTextContentCache && _scanTextContentCache.has(el)) {
+    return _scanTextContentCache.get(el);
+  }
+  const r = getElementTextForDetectionImpl(el);
+  if (_scanTextContentCache) _scanTextContentCache.set(el, r);
+  return r;
+}
+
+function getElementTextForDetectionImpl(el) {
   if (el instanceof HTMLInputElement) {
     const inputType = (el.type || '').toLowerCase();
     if (
@@ -316,10 +449,22 @@ function getElementTextForDetection(el) {
     }
   }
 
+  // textContent on a deep node walks the entire subtree of text nodes — for
+  // a table row with hundreds of descendants this is expensive enough to
+  // dominate the resolve phase. Cache so each candidate pays at most once.
   return normalizeWhitespace(el.textContent || '', 240);
 }
 
 function getElementSearchText(el) {
+  if (_scanSearchTextCache && _scanSearchTextCache.has(el)) {
+    return _scanSearchTextCache.get(el);
+  }
+  const r = getElementSearchTextImpl(el);
+  if (_scanSearchTextCache) _scanSearchTextCache.set(el, r);
+  return r;
+}
+
+function getElementSearchTextImpl(el) {
   const tokens = [
     el.tagName.toLowerCase(),
     ...getAttributeTextTokens(el, [
@@ -480,6 +625,15 @@ function hasPointerCursor(el) {
 }
 
 function getBaseClickableSignal(el) {
+  if (_scanBaseClickableSignalCache && _scanBaseClickableSignalCache.has(el)) {
+    return _scanBaseClickableSignalCache.get(el);
+  }
+  const r = getBaseClickableSignalImpl(el);
+  if (_scanBaseClickableSignalCache) _scanBaseClickableSignalCache.set(el, r);
+  return r;
+}
+
+function getBaseClickableSignalImpl(el) {
   const semanticSignal = getSemanticClickableSignal(el);
   if (semanticSignal) {
     return semanticSignal;
@@ -573,6 +727,15 @@ function getControlAffinityScore(el) {
 }
 
 function getSemanticClickableSignal(el) {
+  if (_scanSemanticSignalCache && _scanSemanticSignalCache.has(el)) {
+    return _scanSemanticSignalCache.get(el);
+  }
+  const r = getSemanticClickableSignalImpl(el);
+  if (_scanSemanticSignalCache) _scanSemanticSignalCache.set(el, r);
+  return r;
+}
+
+function getSemanticClickableSignalImpl(el) {
   const tag = el.tagName.toLowerCase();
   const role = (el.getAttribute('role') || '').toLowerCase();
 
@@ -769,18 +932,30 @@ function countDirectClickableChildren(el) {
 }
 
 function hasExplicitClickableAncestor(el) {
+  if (_scanExplicitAncestorCache && _scanExplicitAncestorCache.has(el)) {
+    return _scanExplicitAncestorCache.get(el);
+  }
+  // Per-call top-level memoization only. A previous version tried to
+  // walk-and-memoize each visited ancestor too, but that's incorrect —
+  // a node's own `hasExplicitClickableAncestor` is about ITS ancestors,
+  // not about its own signal, and it's also influenced by its own signal
+  // when answering the same question for *its* descendants. Doing the full
+  // walk per unique element (with getSemanticClickableSignal cached) is
+  // already cheap enough thanks to the upstream caches.
   let current = el.parentElement;
-
+  let answer = false;
   while (current && current !== document.body) {
     const signal = getSemanticClickableSignal(current);
     if (signal === 'semantic' || signal === 'attribute') {
-      return true;
+      answer = true;
+      break;
     }
-
     current = current.parentElement;
   }
-
-  return false;
+  if (_scanExplicitAncestorCache) {
+    _scanExplicitAncestorCache.set(el, answer);
+  }
+  return answer;
 }
 
 function isInputableCandidate(el) {
@@ -911,6 +1086,15 @@ function hasStructuredInteractiveDescendant(el) {
 }
 
 function isClickableCandidate(el) {
+  if (_scanClickableCandidateCache && _scanClickableCandidateCache.has(el)) {
+    return _scanClickableCandidateCache.get(el);
+  }
+  const r = isClickableCandidateImpl(el);
+  if (_scanClickableCandidateCache) _scanClickableCandidateCache.set(el, r);
+  return r;
+}
+
+function isClickableCandidateImpl(el) {
   if (isDisabledForDetection(el)) {
     return null;
   }
@@ -2473,6 +2657,12 @@ function collectUploadableCandidates(trace) {
 }
 
 function collectHighlightCandidates(config, trace, layoutStability) {
+  return withScanLayoutCache(() =>
+    collectHighlightCandidatesImpl(config, trace, layoutStability),
+  );
+}
+
+function collectHighlightCandidatesImpl(config, trace, layoutStability) {
   const activeTopLayerRoot = getActiveTopLayerRoot();
   const registry = new Map();
 
@@ -2519,6 +2709,27 @@ function collectHighlightCandidates(config, trace, layoutStability) {
   );
 
   let scannedCount = 0;
+  // Per-phase reject counters and timings — gated behind the trace, helps
+  // identify where the scan budget is spent without per-element console spam.
+  const phaseStats = {
+    tagSkip: 0,
+    notInViewport: 0,
+    notVisible: 0,
+    scrollParentClipped: 0,
+    notInActiveTopLayer: 0,
+    hitTestOccluded: 0,
+    notResolvable: 0,
+    matched: 0,
+  };
+  const phaseTimes = {
+    tag: 0,
+    viewport: 0,
+    visible: 0,
+    scrollParent: 0,
+    topLayer: 0,
+    hitTest: 0,
+    resolve: 0,
+  };
   for (const element of allElements) {
     scannedCount += 1;
 
@@ -2529,34 +2740,65 @@ function collectHighlightCandidates(config, trace, layoutStability) {
       );
     }
 
-    if (!isElementInViewportForDetection(element)) {
+    let t = performance.now();
+    if (isScanSkippableTag(element)) {
+      phaseStats.tagSkip += 1;
+      phaseTimes.tag += performance.now() - t;
+      continue;
+    }
+    phaseTimes.tag += performance.now() - t;
+
+    t = performance.now();
+    const inViewport = isElementInViewportForDetection(element);
+    phaseTimes.viewport += performance.now() - t;
+    if (!inViewport) {
+      phaseStats.notInViewport += 1;
       continue;
     }
 
-    if (!isElementVisibleForDetection(element)) {
+    t = performance.now();
+    const visible = isElementVisibleForDetection(element);
+    phaseTimes.visible += performance.now() - t;
+    if (!visible) {
+      phaseStats.notVisible += 1;
       continue;
     }
 
-    if (!isElementVisibleInScrollParent(element)) {
+    t = performance.now();
+    const scrollOk = isElementVisibleInScrollParent(element);
+    phaseTimes.scrollParent += performance.now() - t;
+    if (!scrollOk) {
+      phaseStats.scrollParentClipped += 1;
       continue;
     }
 
-    if (!isElementInActiveTopLayer(element, activeTopLayerRoot)) {
+    t = performance.now();
+    const topLayerOk = isElementInActiveTopLayer(element, activeTopLayerRoot);
+    phaseTimes.topLayer += performance.now() - t;
+    if (!topLayerOk) {
+      phaseStats.notInActiveTopLayer += 1;
       continue;
     }
 
+    t = performance.now();
     const hitTestVisibility = getElementHitTestVisibility(element);
+    phaseTimes.hitTest += performance.now() - t;
     if (!hitTestVisibility.visible) {
+      phaseStats.hitTestOccluded += 1;
       continue;
     }
 
+    t = performance.now();
     const resolvedCandidate = resolveElementCandidate(
       element,
       config.elementType,
     );
+    phaseTimes.resolve += performance.now() - t;
     if (!resolvedCandidate) {
+      phaseStats.notResolvable += 1;
       continue;
     }
+    phaseStats.matched += 1;
 
     const candidate = {
       element: resolvedCandidate.element,
@@ -2605,14 +2847,20 @@ function collectHighlightCandidates(config, trace, layoutStability) {
     return element;
   });
 
+  const roundedTimes = {};
+  for (const k of Object.keys(phaseTimes)) {
+    roundedTimes[k] = Math.round(phaseTimes[k]);
+  }
   trace(
     'scan:done',
-    `processed=${scannedCount} matched=${elements.length} counts=${JSON.stringify(counts)}`,
+    `processed=${scannedCount} matched=${elements.length} counts=${JSON.stringify(counts)} reject=${JSON.stringify(phaseStats)} ms=${JSON.stringify(roundedTimes)}`,
   );
 
   return {
     elements,
     counts,
+    _scan_stats: phaseStats,
+    _scan_times: roundedTimes,
   };
 }
 
@@ -2625,11 +2873,10 @@ async function runOpenBrowserHighlightDetection(config) {
 
   const layoutStability = evaluateReadinessSnapshot(trace);
 
-  const { elements, counts } = collectHighlightCandidates(
-    config,
-    trace,
-    layoutStability,
-  );
+  const scanStart = performance.now();
+  const scanResult = collectHighlightCandidates(config, trace, layoutStability);
+  const { elements, counts } = scanResult;
+  const scanMs = Math.round(performance.now() - scanStart);
 
   trace('return', `elements=${elements.length}`);
   return {
@@ -2640,6 +2887,11 @@ async function runOpenBrowserHighlightDetection(config) {
     viewport: {
       width: window.innerWidth,
       height: window.innerHeight,
+    },
+    _perf: {
+      scan_ms: scanMs,
+      scan_stats: scanResult._scan_stats || {},
+      scan_times: scanResult._scan_times || {},
     },
   };
 }
