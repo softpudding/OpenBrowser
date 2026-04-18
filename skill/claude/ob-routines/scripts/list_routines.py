@@ -37,8 +37,7 @@ def list_routines(base_url: str, query: str | None) -> int:
     if query:
         q = query.lower()
         items = [
-            r for r in items
-            if q in r["name"].lower() or q in r.get("goal", "").lower()
+            r for r in items if q in r["name"].lower() or q in r.get("goal", "").lower()
         ]
 
     if not items:
@@ -68,10 +67,7 @@ def list_recordings(base_url: str, query: str | None) -> int:
     items = data.get("recordings", [])
     if query:
         q = query.lower()
-        items = [
-            r for r in items
-            if q in (r.get("name") or "").lower()
-        ]
+        items = [r for r in items if q in (r.get("name") or "").lower()]
 
     if not items:
         suffix = f" matching {query!r}" if query else ""

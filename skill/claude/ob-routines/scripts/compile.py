@@ -29,7 +29,6 @@ import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
@@ -90,10 +89,11 @@ def _format_compiler_event(event_type: str, data: dict) -> None:
             else:
                 # FileEditorTool, TraceViewerTool, SubmitWorkflowTool, etc.
                 extras = {
-                    k: v for k, v in action.items()
-                    if k != "action" and v is not None
+                    k: v for k, v in action.items() if k != "action" and v is not None
                 }
-                suffix = (" " + json.dumps(extras, ensure_ascii=False)) if extras else ""
+                suffix = (
+                    (" " + json.dumps(extras, ensure_ascii=False)) if extras else ""
+                )
                 print(f"[compiler:action] {action_name}{suffix}", flush=True)
         else:
             print(f"[compiler:action] {action}", flush=True)
@@ -173,7 +173,10 @@ def _stream_sse(url: str, body: dict) -> dict | None:
 
     except HTTPError as exc:
         body_text = exc.read().decode("utf-8", errors="replace")
-        print(f"[compiler:http_error] {exc.code} {exc.reason}: {body_text}", file=sys.stderr)
+        print(
+            f"[compiler:http_error] {exc.code} {exc.reason}: {body_text}",
+            file=sys.stderr,
+        )
         return None
 
     return complete_result
@@ -207,8 +210,10 @@ def compile_recording(base_url: str, recording_id: str, model_alias: str | None)
         if status == "asking":
             question = result.get("question", "")
             print(f"\n[compiler:question] {question}", flush=True)
-            print("[compiler:waiting_for_answer] Type your answer and press Enter:",
-                  flush=True)
+            print(
+                "[compiler:waiting_for_answer] Type your answer and press Enter:",
+                flush=True,
+            )
             try:
                 answer = input().strip()
             except (EOFError, KeyboardInterrupt):
@@ -258,7 +263,9 @@ def compile_recording(base_url: str, recording_id: str, model_alias: str | None)
             goal = result.get("goal", "")
             step_count = result.get("step_count", "?")
             routine_markdown = result.get("routine_markdown", "")
-            print(f"\n[compiler:complete] goal={goal!r}  steps={step_count}", flush=True)
+            print(
+                f"\n[compiler:complete] goal={goal!r}  steps={step_count}", flush=True
+            )
             if routine_markdown:
                 print(f"[compiler:routine_draft]\n{routine_markdown}", flush=True)
             print(
@@ -335,8 +342,7 @@ def compile_recording(base_url: str, recording_id: str, model_alias: str | None)
 
     print(f"[compiler:saved] name={name!r}  id={routine_id}  steps={steps}", flush=True)
     print(
-        f"\nRoutine saved. To replay it, run:\n\n"
-        f"  python3 replay.py {name!r}\n",
+        f"\nRoutine saved. To replay it, run:\n\n" f"  python3 replay.py {name!r}\n",
         flush=True,
     )
     return 0
@@ -345,6 +351,7 @@ def compile_recording(base_url: str, recording_id: str, model_alias: str | None)
 def _slugify(text: str) -> str:
     """Turn a goal string into a short, lowercase, hyphenated slug."""
     import re
+
     # Lowercase, keep only alnum and spaces, collapse and replace with hyphens
     slug = re.sub(r"[^\w\s]", "", text.lower())
     slug = re.sub(r"\s+", "-", slug.strip())

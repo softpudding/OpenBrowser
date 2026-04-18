@@ -20,7 +20,6 @@ import sys
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
@@ -77,8 +76,7 @@ def find_routine(base_url: str, query: str) -> dict | None:
 
     # 4. Substring match on name or goal
     sub = [
-        r for r in routines
-        if q in r["name"].lower() or q in r.get("goal", "").lower()
+        r for r in routines if q in r["name"].lower() or q in r.get("goal", "").lower()
     ]
     if len(sub) == 1:
         return sub[0]
@@ -191,11 +189,13 @@ def stream_replay(
 ) -> None:
     req = Request(
         f"{base_url}/agent/conversations/{conversation_id}/messages",
-        data=json.dumps({
-            "text": task,
-            "cwd": cwd,
-            "browser_id": chrome_uuid,
-        }).encode("utf-8"),
+        data=json.dumps(
+            {
+                "text": task,
+                "cwd": cwd,
+                "browser_id": chrome_uuid,
+            }
+        ).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
@@ -272,7 +272,9 @@ def main() -> int:
             print(f"{'NAME':<30}  {'STEPS':>5}  GOAL")
             print("-" * 72)
             for r in routines:
-                print(f"{r['name']:<30}  {r.get('step_count', '?'):>5}  {r.get('goal', '')}")
+                print(
+                    f"{r['name']:<30}  {r.get('step_count', '?'):>5}  {r.get('goal', '')}"
+                )
             return 0
 
         if not args.chrome_uuid:
