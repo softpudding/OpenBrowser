@@ -7645,21 +7645,13 @@
         }
 
         function buildRoutinePrompt(routine) {
-            // The agent receives the Routine markdown verbatim plus a one-line
-            // instruction. Keeping the Routine fully visible in the prompt is
-            // intentional: the OpenBrowser agent's tools (highlight/click/etc)
-            // are exactly the vocabulary the Routine was compiled in.
-            const goal = (routine.goal || routine.name || '').trim();
-            const goalLine = goal
-                ? `Goal: ${goal}`
-                : `Goal: run the saved routine "${routine.name}".`;
-            return [
-                `Run the saved routine "${routine.name}".`,
-                goalLine,
-                'Follow this Routine step by step:',
-                '',
-                routine.routine_markdown || '',
-            ].join('\n');
+            // In routine_replay mode the user message carries only the SOP
+            // markdown verbatim. The routine name, goal, and "follow step
+            // by step" framing live in the routine-replay system prompt
+            // block, not here — repeating them in the user message gave the
+            // model a redundant identifier to lose track of when long
+            // contexts decayed (session d1395b5d).
+            return routine.routine_markdown || '';
         }
 
         async function refreshRoutines() {
