@@ -92,9 +92,11 @@ def _validate_images(
                 "data_uri": data_uri,
                 "mime_type": mime_type or entry.get("mime_type"),
                 "name": entry.get("name") or f"image-{i + 1}",
-                "size_bytes": entry.get("size_bytes")
-                if isinstance(entry.get("size_bytes"), int)
-                else decoded_size,
+                "size_bytes": (
+                    entry.get("size_bytes")
+                    if isinstance(entry.get("size_bytes"), int)
+                    else decoded_size
+                ),
             }
         )
     return normalized

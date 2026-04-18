@@ -458,9 +458,7 @@ class CommandProcessor:
         """Highlight inner elements of a drop container for drag-and-drop 2PC"""
         return await self._send_prepared_command(command)
 
-    async def _execute_upload_file(
-        self, command: UploadFileCommand
-    ) -> CommandResponse:
+    async def _execute_upload_file(self, command: UploadFileCommand) -> CommandResponse:
         """Attach a local file to an <input type=file> via CDP.
 
         Validates the path server-side before dispatching to the extension,

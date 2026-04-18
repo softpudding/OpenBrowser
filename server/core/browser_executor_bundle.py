@@ -282,9 +282,7 @@ class BrowserExecutorBundle:
             if images:
                 from openhands.sdk.llm import Message, TextContent, ImageContent
 
-                image_urls = [
-                    img["data_uri"] for img in images if img.get("data_uri")
-                ]
+                image_urls = [img["data_uri"] for img in images if img.get("data_uri")]
                 content: list[Any] = [TextContent(text=message_text)]
                 if image_urls:
                     content.append(ImageContent(image_urls=image_urls))

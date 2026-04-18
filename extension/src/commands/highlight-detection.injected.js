@@ -2498,10 +2498,7 @@ function collectHighlightCandidates(config, trace, layoutStability) {
       droppable: 0,
       uploadable: uploadableElements.length,
     };
-    trace(
-      'scan:done',
-      `mode=uploadable matched=${uploadableElements.length}`,
-    );
+    trace('scan:done', `mode=uploadable matched=${uploadableElements.length}`);
     return { elements: uploadableElements, counts: uploadableCounts };
   }
 
