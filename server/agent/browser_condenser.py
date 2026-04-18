@@ -11,9 +11,38 @@ logger = get_logger(__name__)
 DEFAULT_BROWSER_CONDENSER_MAX_SIZE = 1000
 DEFAULT_BROWSER_CONDENSER_TOKEN_RATIO = 0.7
 
+# Per-model token caps for models with known long-context attention decay.
+# Matched by case-insensitive substring against llm.model so provider
+# prefixes (e.g. "dashscope/qwen3.5-flash") and variant suffixes still
+# trigger the cap. Session d1395b5d saw qwen3.5-flash lose the original
+# user message after ~100 browser events because the condenser's
+# context-window-ratio threshold (~700k for a 1M-token model) never fired.
+SMALL_MODEL_TOKEN_OVERRIDES: dict[str, int] = {
+    "qwen3.5-flash": 100_000,
+}
+
+
+def _small_model_token_override(model: str | None) -> int | None:
+    if not model:
+        return None
+    needle = model.lower()
+    for fragment, token_cap in SMALL_MODEL_TOKEN_OVERRIDES.items():
+        if fragment.lower() in needle:
+            return token_cap
+    return None
+
 
 def derive_browser_condenser_max_tokens(llm: LLM) -> int | None:
-    """Derive a token threshold for browser-heavy conversations."""
+    """Derive a token threshold for browser-heavy conversations.
+
+    For models listed in ``SMALL_MODEL_TOKEN_OVERRIDES`` the cap is
+    returned directly, regardless of the model's advertised context
+    window. Otherwise the threshold is a fraction of the context window.
+    """
+
+    override = _small_model_token_override(llm.model)
+    if override is not None:
+        return override
 
     max_input_tokens = llm.max_input_tokens
     if not max_input_tokens or max_input_tokens <= 0:
