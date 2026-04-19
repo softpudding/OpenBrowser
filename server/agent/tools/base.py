@@ -18,9 +18,7 @@ def _format_display_id(el: Dict[str, Any]) -> str:
     el_id = el.get("id", "unknown")
     el_type = el.get("type")
     raw_hints = el.get("interactionHints") or el.get("interaction_hints") or []
-    hints = [
-        h for h in raw_hints if isinstance(h, str) and h and h != el_type
-    ]
+    hints = [h for h in raw_hints if isinstance(h, str) and h and h != el_type]
     suffix_parts: List[str] = []
     if isinstance(el_type, str) and el_type:
         suffix_parts.append(el_type)
@@ -41,9 +39,7 @@ def _clean(value: Any, limit: int) -> Optional[str]:
     return stripped[: max(1, limit - 1)] + "…"
 
 
-def _format_highlighted_element_lines(
-    display_id: str, el: Dict[str, Any]
-) -> List[str]:
+def _format_highlighted_element_lines(display_id: str, el: Dict[str, Any]) -> List[str]:
     """Render one highlighted element as one header line plus option lines.
 
     Reads the element's structured ``descriptor`` (populated by the extension
@@ -52,11 +48,7 @@ def _format_highlighted_element_lines(
     calling the ``select`` action.
     """
     descriptor = el.get("descriptor") or {}
-    tag = (
-        descriptor.get("tag")
-        or (el.get("tagName") or "").lower()
-        or "unknown"
-    )
+    tag = descriptor.get("tag") or (el.get("tagName") or "").lower() or "unknown"
     role = descriptor.get("role")
 
     # Descriptor.text is the primary source; fall back to the element-level
@@ -301,9 +293,7 @@ class OpenBrowserObservation(Observation):
                 text_parts.append("")
                 for el in inner_elements:
                     display_id = _format_display_id(el)
-                    text_parts.extend(
-                        _format_highlighted_element_lines(display_id, el)
-                    )
+                    text_parts.extend(_format_highlighted_element_lines(display_id, el))
                 text_parts.append("")
             text_parts.append("**Drop at end of container:**")
             text_parts.append('```json\n{"action": "confirm_drag_and_drop"}\n```')
@@ -569,9 +559,7 @@ class OpenBrowserObservation(Observation):
             element_lines: List[str] = []
             for el in self.highlighted_elements:
                 display_id = _format_display_id(el)
-                element_lines.extend(
-                    _format_highlighted_element_lines(display_id, el)
-                )
+                element_lines.extend(_format_highlighted_element_lines(display_id, el))
             text_parts.append("\n".join(element_lines))
             text_parts.append("")
 

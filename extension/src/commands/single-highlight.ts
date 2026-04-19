@@ -67,16 +67,24 @@ export async function cropScreenshotAroundElement(
   }
 
   const [header, base64Data] = screenshotDataUrl.split(',');
-  const mimeType = header.substring(header.indexOf(':') + 1, header.indexOf(';'));
+  const mimeType = header.substring(
+    header.indexOf(':') + 1,
+    header.indexOf(';'),
+  );
   const binaryString = atob(base64Data);
   const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-  const imageBitmap = await createImageBitmap(new Blob([bytes], { type: mimeType }));
+  for (let i = 0; i < binaryString.length; i++)
+    bytes[i] = binaryString.charCodeAt(i);
+  const imageBitmap = await createImageBitmap(
+    new Blob([bytes], { type: mimeType }),
+  );
 
   const viewportWidth = options?.viewportWidth ?? 0;
   const viewportHeight = options?.viewportHeight ?? 0;
-  const actualScaleX = viewportWidth > 0 ? imageBitmap.width / viewportWidth : 1;
-  const actualScaleY = viewportHeight > 0 ? imageBitmap.height / viewportHeight : 1;
+  const actualScaleX =
+    viewportWidth > 0 ? imageBitmap.width / viewportWidth : 1;
+  const actualScaleY =
+    viewportHeight > 0 ? imageBitmap.height / viewportHeight : 1;
   const actualScale = (actualScaleX + actualScaleY) / 2;
   const providedScale = options?.scale ?? 1;
   const scale =

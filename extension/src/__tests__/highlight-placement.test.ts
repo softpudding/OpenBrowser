@@ -168,9 +168,7 @@ describe('Smart Label Placement', () => {
         'below',
       );
       // 'flexible' has plenty of space above → 'above'.
-      expect(findBySelector(result, '#flexible')?.labelPosition).toBe(
-        'above',
-      );
+      expect(findBySelector(result, '#flexible')?.labelPosition).toBe('above');
     });
 
     test('should place label above when space available (default)', () => {

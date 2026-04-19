@@ -217,8 +217,7 @@ const PARTIAL_OVERLAP_TOLERANCE_PX = 3;
 function bboxesPartiallyOverlap(a: BBox, b: BBox): boolean {
   if (!bboxesIntersect(a, b)) return false;
   if (bboxContains(a, b) || bboxContains(b, a)) return false;
-  const overlapW =
-    Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const overlapW = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
   const overlapH =
     Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
   return (

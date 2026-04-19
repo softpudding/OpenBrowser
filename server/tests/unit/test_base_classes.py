@@ -188,9 +188,7 @@ class TestOpenBrowserObservation:
     def test_selectable_descriptor_emits_all_options_without_truncation(
         self,
     ) -> None:
-        options = [
-            {"value": str(i), "label": f"Option {i}"} for i in range(12)
-        ]
+        options = [{"value": str(i), "label": f"Option {i}"} for i in range(12)]
         options[0]["selected"] = True
         observation = OpenBrowserObservation(
             success=True,

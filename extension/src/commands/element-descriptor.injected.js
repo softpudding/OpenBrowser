@@ -78,8 +78,7 @@ function openbrowserShortenHref(href) {
   try {
     const url = new URL(
       trimmed,
-      (typeof location !== 'undefined' && location.href) ||
-        'http://localhost/',
+      (typeof location !== 'undefined' && location.href) || 'http://localhost/',
     );
     const base = (url.origin || '') + url.pathname;
     if (url.search) {
@@ -211,9 +210,7 @@ function openbrowserIconHint(element) {
     const use = element.querySelector('use');
     if (use) {
       const href =
-        use.getAttribute('xlink:href') ||
-        use.getAttribute('href') ||
-        '';
+        use.getAttribute('xlink:href') || use.getAttribute('href') || '';
       const trimmed = href.trim();
       if (trimmed) {
         return openbrowserTruncate(trimmed.replace(/^#/, ''), 40);
@@ -259,7 +256,11 @@ function openbrowserPrecedingHeading(element) {
 }
 
 function openbrowserCollectOptions(selectEl) {
-  if (!selectEl || !selectEl.tagName || selectEl.tagName.toLowerCase() !== 'select')
+  if (
+    !selectEl ||
+    !selectEl.tagName ||
+    selectEl.tagName.toLowerCase() !== 'select'
+  )
     return undefined;
   const options = [];
   try {
@@ -274,7 +275,11 @@ function openbrowserCollectOptions(selectEl) {
       if (opt.selected) entry.selected = true;
       if (opt.disabled) entry.disabled = true;
       const parent = opt.parentElement;
-      if (parent && parent.tagName && parent.tagName.toLowerCase() === 'optgroup') {
+      if (
+        parent &&
+        parent.tagName &&
+        parent.tagName.toLowerCase() === 'optgroup'
+      ) {
         const groupLabel = parent.getAttribute('label');
         if (groupLabel) entry.group = openbrowserCollapseWhitespace(groupLabel);
       }
@@ -326,7 +331,8 @@ function openbrowserBuildElementDescriptor(element) {
     const inputType = (getAttr('type') || 'text').toLowerCase();
     descriptor.inputType = inputType;
     const placeholder = getAttr('placeholder');
-    if (placeholder) descriptor.placeholder = openbrowserTruncate(placeholder, 80);
+    if (placeholder)
+      descriptor.placeholder = openbrowserTruncate(placeholder, 80);
     if (inputType === 'checkbox' || inputType === 'radio') {
       descriptor.checked = Boolean(element.checked);
     } else if (inputType === 'password') {
@@ -339,7 +345,8 @@ function openbrowserBuildElementDescriptor(element) {
     }
   } else if (tagName === 'textarea') {
     const placeholder = getAttr('placeholder');
-    if (placeholder) descriptor.placeholder = openbrowserTruncate(placeholder, 80);
+    if (placeholder)
+      descriptor.placeholder = openbrowserTruncate(placeholder, 80);
     const raw = typeof element.value === 'string' ? element.value : '';
     const truncated = openbrowserTruncate(raw, 120);
     if (truncated) descriptor.value = truncated;
@@ -398,7 +405,8 @@ function openbrowserBuildElementDescriptor(element) {
 // Legacy page-world globals so the inlined script can reach the helpers
 // from both highlight detection and drop detection.
 if (typeof window !== 'undefined') {
-  window.__openbrowserBuildElementDescriptor = openbrowserBuildElementDescriptor;
+  window.__openbrowserBuildElementDescriptor =
+    openbrowserBuildElementDescriptor;
 }
 
 // Also expose via globalThis so the helper is reachable from unit tests that

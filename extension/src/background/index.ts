@@ -489,10 +489,7 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
 // highlight runs on the same tab before the prior one is flushed.
 const pendingHighlightCleanups = new Map<number, () => Promise<void>>();
 
-function scheduleHighlightCleanup(
-  tabId: number,
-  conversationId: string,
-): void {
+function scheduleHighlightCleanup(tabId: number, conversationId: string): void {
   pendingHighlightCleanups.set(tabId, async () => {
     await javascript.executeJavaScript(
       tabId,

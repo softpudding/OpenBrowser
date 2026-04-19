@@ -98,7 +98,16 @@ class MockElement {
   }
 
   getBoundingClientRect() {
-    return { x: 0, y: 0, width: 10, height: 10, top: 0, bottom: 0, left: 0, right: 0 };
+    return {
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+    };
   }
 
   remove() {
@@ -289,12 +298,7 @@ describe('buildElementDescriptor', () => {
   test('class fallback skips Vue scope hashes and utility noise', () => {
     const span = el({
       tagName: 'span',
-      classList: [
-        'data-v-9403e00c',
-        'wrapper',
-        'mt-2',
-        'js-like-toggle',
-      ],
+      classList: ['data-v-9403e00c', 'wrapper', 'mt-2', 'js-like-toggle'],
       attrs: {},
     });
     const descriptor = buildElementDescriptor(span) as {
