@@ -13,6 +13,141 @@ from pydantic import Field
 from pydantic.json_schema import SkipJsonSchema
 
 
+def _format_display_id(el: Dict[str, Any]) -> str:
+    """Return the `id(type[, hint...])` display string for one highlighted element."""
+    el_id = el.get("id", "unknown")
+    el_type = el.get("type")
+    raw_hints = el.get("interactionHints") or el.get("interaction_hints") or []
+    hints = [
+        h for h in raw_hints if isinstance(h, str) and h and h != el_type
+    ]
+    suffix_parts: List[str] = []
+    if isinstance(el_type, str) and el_type:
+        suffix_parts.append(el_type)
+    suffix_parts.extend(hints)
+    if suffix_parts:
+        return f"{el_id}({', '.join(suffix_parts)})"
+    return str(el_id)
+
+
+def _clean(value: Any, limit: int) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    stripped = " ".join(value.split())
+    if not stripped:
+        return None
+    if len(stripped) <= limit:
+        return stripped
+    return stripped[: max(1, limit - 1)] + "…"
+
+
+def _format_highlighted_element_lines(
+    display_id: str, el: Dict[str, Any]
+) -> List[str]:
+    """Render one highlighted element as one header line plus option lines.
+
+    Reads the element's structured ``descriptor`` (populated by the extension
+    from the live DOM). For ``<select>`` elements, every ``<option>`` is
+    emitted in full — no truncation — so the agent can pick a value before
+    calling the ``select`` action.
+    """
+    descriptor = el.get("descriptor") or {}
+    tag = (
+        descriptor.get("tag")
+        or (el.get("tagName") or "").lower()
+        or "unknown"
+    )
+    role = descriptor.get("role")
+
+    # Descriptor.text is the primary source; fall back to the element-level
+    # text field in case a legacy producer skipped the descriptor.
+    text = _clean(descriptor.get("text"), 120) or _clean(el.get("text"), 120)
+    name = _clean(descriptor.get("name"), 120)
+    if name and name == text:
+        name = None
+
+    opening = f"<{tag} role={role}>" if role else f"<{tag}>"
+    segments: List[str] = [opening]
+    if text:
+        segments.append(f'"{text}"')
+
+    attrs: List[str] = []
+    input_type = descriptor.get("inputType")
+    if isinstance(input_type, str) and input_type and tag in ("input", "button"):
+        attrs.append(f"type={input_type}")
+    if name:
+        attrs.append(f'name="{name}"')
+    placeholder = _clean(descriptor.get("placeholder"), 80)
+    if placeholder:
+        attrs.append(f'placeholder="{placeholder}"')
+    value = _clean(descriptor.get("value"), 120)
+    if value:
+        attrs.append(f'value="{value}"')
+    href = _clean(descriptor.get("href"), 120)
+    if href:
+        attrs.append(f'href="{href}"')
+    if not text and not name:
+        context = _clean(descriptor.get("context"), 120)
+        if context:
+            attrs.append(f'context="{context}"')
+        class_hint = descriptor.get("classHint")
+        if isinstance(class_hint, list) and class_hint:
+            tokens = [
+                token
+                for token in (
+                    _clean(item, 40) for item in class_hint if isinstance(item, str)
+                )
+                if token
+            ]
+            if tokens:
+                attrs.append(f'class="{" ".join(tokens[:3])}"')
+        icon_hint = _clean(descriptor.get("icon"), 40)
+        if icon_hint:
+            attrs.append(f"icon={icon_hint}")
+    if attrs:
+        segments.append("· " + " · ".join(attrs))
+
+    flags: List[str] = []
+    if descriptor.get("disabled"):
+        flags.append("disabled")
+    if descriptor.get("checked"):
+        flags.append("checked")
+    expanded = descriptor.get("expanded")
+    if expanded is True:
+        flags.append("expanded=true")
+    elif expanded is False:
+        flags.append("expanded=false")
+    if descriptor.get("selected"):
+        flags.append("selected")
+    if descriptor.get("multiple"):
+        flags.append("multiple")
+    if flags:
+        segments.append(" ".join(flags))
+
+    header = f"{display_id}: " + " ".join(segments)
+    lines: List[str] = [header]
+
+    options = descriptor.get("options")
+    if tag == "select" and isinstance(options, list) and options:
+        lines.append("  options:")
+        for opt in options:
+            if not isinstance(opt, dict):
+                continue
+            opt_value = opt.get("value", "")
+            opt_label = opt.get("label", "")
+            opt_flags: List[str] = []
+            if opt.get("selected"):
+                opt_flags.append("selected")
+            if opt.get("disabled"):
+                opt_flags.append("disabled")
+            flag_str = f" ({', '.join(opt_flags)})" if opt_flags else ""
+            group = opt.get("group")
+            prefix = f"[{group}] " if isinstance(group, str) and group else ""
+            lines.append(f'    {prefix}"{opt_value}"="{opt_label}"{flag_str}')
+
+    return lines
+
+
 class OpenBrowserAction(Action):
     """Base class for all OpenBrowser actions.
 
@@ -165,26 +300,10 @@ class OpenBrowserObservation(Observation):
                 text_parts.append(f"**Inner Elements** ({len(inner_elements)}):")
                 text_parts.append("")
                 for el in inner_elements:
-                    el_id = el.get("id", "unknown")
-                    raw_hints = (
-                        el.get("interactionHints") or el.get("interaction_hints") or []
+                    display_id = _format_display_id(el)
+                    text_parts.extend(
+                        _format_highlighted_element_lines(display_id, el)
                     )
-                    el_type = el.get("type", "")
-                    hints = [
-                        h
-                        for h in raw_hints
-                        if isinstance(h, str) and h and h != el_type
-                    ]
-                    suffix = f"({', '.join([el_type] + hints)})" if el_type else ""
-                    display_id = f"{el_id}{suffix}"
-                    html = (el.get("html") or "").strip()
-                    if len(html) > 200:
-                        html = html[:190] + "...(Truncated)"
-                    if html:
-                        text_parts.append(f"{display_id}: {html}")
-                    else:
-                        tag = el.get("tagName", "").upper()
-                        text_parts.append(f"{display_id} ({tag})")
                 text_parts.append("")
             text_parts.append("**Drop at end of container:**")
             text_parts.append('```json\n{"action": "confirm_drag_and_drop"}\n```')
@@ -445,36 +564,15 @@ class OpenBrowserObservation(Observation):
                 f"**Total Elements**: {self.total_elements if self.total_elements is not None else len(self.highlighted_elements)}"
             )
             text_parts.append("")
-            # Format: id: <html> for each element
-            element_descriptions = []
+            # Format: id(type): <tag> "text" · attr=val … flags, with
+            # multi-line option blocks for <select>.
+            element_lines: List[str] = []
             for el in self.highlighted_elements:
-                el_id = el.get("id", "unknown")
-                el_type = el.get("type")
-                raw_hints = (
-                    el.get("interactionHints") or el.get("interaction_hints") or []
+                display_id = _format_display_id(el)
+                element_lines.extend(
+                    _format_highlighted_element_lines(display_id, el)
                 )
-                interaction_hints = [
-                    hint
-                    for hint in raw_hints
-                    if isinstance(hint, str) and len(hint) > 0 and hint != el_type
-                ]
-                suffix_parts = []
-                if isinstance(el_type, str) and el_type:
-                    suffix_parts.append(el_type)
-                suffix_parts.extend(interaction_hints)
-                display_id = (
-                    f"{el_id}({', '.join(suffix_parts)})" if suffix_parts else el_id
-                )
-                html = (el.get("html") or "").strip()
-                # Skip truncation for selectable elements (show full options)
-                if len(html) > 200 and self.element_type != "selectable":
-                    html = html[:190] + "...(Truncated)"
-                if html:
-                    element_descriptions.append(f"{display_id}: {html}")
-                else:
-                    tag = el.get("tagName", "").upper()
-                    element_descriptions.append(f"{display_id} ({tag})")
-            text_parts.append("\n".join(element_descriptions))
+            text_parts.append("\n".join(element_lines))
             text_parts.append("")
 
         if self.element_id:

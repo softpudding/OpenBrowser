@@ -138,7 +138,7 @@ def test_build_observation_marks_small_model_from_session_metadata(
                     {
                         "id": "abc123",
                         "type": "clickable",
-                        "html": "<button>Submit</button>",
+                        "descriptor": {"tag": "button", "text": "Submit"},
                     }
                 ],
                 "totalElements": 1,
@@ -149,7 +149,7 @@ def test_build_observation_marks_small_model_from_session_metadata(
             {
                 "id": "abc123",
                 "type": "clickable",
-                "html": "<button>Submit</button>",
+                "descriptor": {"tag": "button", "text": "Submit"},
             }
         ],
         total_elements=1,
@@ -157,7 +157,7 @@ def test_build_observation_marks_small_model_from_session_metadata(
     )
 
     assert observation.small_model is True
-    assert "<button>Submit</button>" in observation.to_llm_content[0].text
+    assert '<button> "Submit"' in observation.to_llm_content[0].text
 
 
 def test_build_observation_extracts_highlight_pagination_from_nested_data() -> None:
@@ -172,7 +172,10 @@ def test_build_observation_extracts_highlight_pagination_from_nested_data() -> N
                     {
                         "id": "abc123",
                         "type": "inputable",
-                        "html": '<input id="search-input" />',
+                        "descriptor": {
+                            "tag": "input",
+                            "inputType": "search",
+                        },
                     }
                 ],
                 "page": 2,
@@ -204,7 +207,10 @@ def test_highlight_action_message_does_not_repeat_pagination(monkeypatch) -> Non
                     {
                         "id": "abc123",
                         "type": "inputable",
-                        "html": '<input id="search-input" />',
+                        "descriptor": {
+                            "tag": "input",
+                            "inputType": "search",
+                        },
                     }
                 ],
                 "page": 2,

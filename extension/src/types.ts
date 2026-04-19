@@ -378,6 +378,34 @@ export type InteractionHint =
   | 'droppable'
   | 'slidable';
 
+export interface ElementDescriptorOption {
+  value: string;
+  label: string;
+  selected?: boolean;
+  disabled?: boolean;
+  group?: string;
+}
+
+export interface ElementDescriptor {
+  tag: string;
+  role?: string;
+  name?: string;
+  text?: string;
+  context?: string;
+  inputType?: string;
+  placeholder?: string;
+  value?: string;
+  checked?: boolean;
+  multiple?: boolean;
+  options?: ElementDescriptorOption[];
+  href?: string;
+  disabled?: boolean;
+  expanded?: boolean;
+  selected?: boolean;
+  classHint?: string[]; // Up to 3 semantic class tokens, populated only when text/name are both empty.
+  icon?: string; // Icon hint (svg use xlink:href, img alt) when text/name are both empty.
+}
+
 export interface InteractiveElement {
   id: string; // Element ID: short opaque visual-safe string for the current highlighted document (e.g. "A1H", "Q7M", "X4Y")
   type: ElementType; // Type of interactive element
@@ -385,7 +413,8 @@ export interface InteractiveElement {
   tagName: string; // HTML tag name
   selector: string; // CSS selector to find element
   overlaySelector?: string; // Optional: selector of a visible anchor element used only for overlay rendering (used for hidden <input type=file> anchored on a label/button)
-  html?: string; // Optional: full HTML of the element (captured at highlight time)
+  html?: string; // Optional: full HTML of the element (captured at highlight time). Used internally for identity/fingerprint/search; not forwarded to the server LLM payload.
+  descriptor?: ElementDescriptor; // Structured, compact element summary used by the server-side formatter.
   text?: string; // Visible text content
   searchText?: string; // Normalized semantic search text used by keyword filtering
   fingerprint?: string; // Stable-ish identity fingerprint used to detect stale snapshot matches

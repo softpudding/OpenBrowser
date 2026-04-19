@@ -406,8 +406,9 @@ class SelectElementCommand(BaseCommand):
             "(3) case-insensitive substring of the visible label. Prefer "
             "the `value` attribute — it is what the recorder captures from "
             "<select> change events. If unsure, run `highlight` with "
-            "element_type=selectable first; the response shows the full "
-            '<select> outerHTML including every <option value="...">. '
+            "element_type=selectable first; the response renders every "
+            'option as `"value"="label"` inside an indented `options:` block '
+            "under the select's descriptor line. "
             "Pass a string for single select, a list for multi-select."
         )
     )

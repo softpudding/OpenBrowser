@@ -32,6 +32,7 @@ import { buildElementCacheMissMessage } from '../commands/element-cache';
 import {
   buildHighlightDetectionScript,
   filterHighlightElementsByKeywords,
+  getElementDescriptorScript,
 } from '../commands/highlight-detection';
 import {
   performElementClick,
@@ -185,6 +186,16 @@ const LABEL_POSITION_FALLBACK_ORDER: LabelPosition[] = [
   'left',
   'right',
 ];
+
+// Strip fields that exist for extension-internal use (identity, cache,
+// inspect_element) from the response payload sent to the server. The LLM
+// consumes `descriptor` instead of raw outerHTML.
+function toServerHighlightElement(
+  element: InteractiveElement,
+): InteractiveElement {
+  const { html: _html, ...rest } = element;
+  return rest;
+}
 
 // Keyword-mode bypasses the collision planner (it must show all matches on
 // one page), but the renderer still needs a labelPosition that fits in the
@@ -1014,7 +1025,7 @@ async function captureHighlightedPageState(
     );
 
     return {
-      elements: storedPage.elements,
+      elements: storedPage.elements.map(toServerHighlightElement),
       totalElements: filteredElements.length,
       totalPages,
       page: currentPage,
@@ -3106,6 +3117,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           .replace(/"/g, '\\"');
         const dropDetectionScript = `
           (function() {
+            ${getElementDescriptorScript()}
             const container = document.querySelector("${targetSelector}");
             if (!container) {
               return { ok: false, error: "Drop target container not found in DOM" };
@@ -3182,10 +3194,14 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                   selector += ':nth-child(' + idx + ')';
                 }
                 const rect = child.getBoundingClientRect();
+                const descriptor =
+                  typeof window.__openbrowserBuildElementDescriptor === 'function'
+                    ? window.__openbrowserBuildElementDescriptor(child)
+                    : undefined;
                 innerElements.push({
                   tagName: child.tagName,
                   text: (child.textContent || '').trim().slice(0, 200),
-                  html: child.outerHTML.slice(0, 2000),
+                  descriptor: descriptor,
                   selector: selector,
                   bbox: {
                     x: rect.x,
