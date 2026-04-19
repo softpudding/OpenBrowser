@@ -147,7 +147,11 @@ describe('Smart Label Placement', () => {
   });
 
   describe('Position priority - Greedy algorithm', () => {
-    test('should prioritize more constrained elements before flexible ones', () => {
+    test('viewport-top element uses "below" while interior element uses "above"', () => {
+      // Label binding invariant: labels ALWAYS sit at the top-left of
+      // their element's bbox ('above'), except when the element is so
+      // close to the viewport top that 'above' would be clipped. Only
+      // that specific viewport-clip case may fall back to 'below'.
       const flexible = createElement('flexible', 100, 100, 50, 30);
       const constrained = createElement('constrained', 10, 10, 20, 14);
 
@@ -159,10 +163,14 @@ describe('Smart Label Placement', () => {
       );
 
       expect(result).toHaveLength(2);
-      expect(result[0]?.selector).toBe('#constrained');
-      expect(result[0]?.id).toMatch(/^[0-9A-Z]{3}$/);
-      expect(result[1]?.selector).toBe('#flexible');
-      expect(result[1]?.id).toMatch(/^[0-9A-Z]{3}$/);
+      // 'constrained' is at y=10 — 'above' clips the viewport top.
+      expect(findBySelector(result, '#constrained')?.labelPosition).toBe(
+        'below',
+      );
+      // 'flexible' has plenty of space above → 'above'.
+      expect(findBySelector(result, '#flexible')?.labelPosition).toBe(
+        'above',
+      );
     });
 
     test('should place label above when space available (default)', () => {
@@ -174,22 +182,24 @@ describe('Smart Label Placement', () => {
       expect(result[0].labelPosition).toBe('above');
     });
 
-    test('should place one label below when two identical elements would both prefer above', () => {
-      // Element A at (100, 100) - label above at y=74-100
-      // Element B at (100, 100) - same position as A, label above would collide
-      // The layout should split them across above/below instead of dropping one.
+    test('colliding "above" labels defer one element to a later page (no side-flip)', () => {
+      // Two elements at the same position both prefer 'above'. The
+      // label binding invariant forbids side-flipping on collision —
+      // only one element may take 'above' on this page; the other is
+      // deferred rather than placed 'below'. This keeps the rule
+      // "label is directly above the element it labels" universally
+      // readable.
       const elemA = createElement('a', 100, 100, 50, 30);
       const elemB = createElement('b', 100, 100, 50, 30);
       const elements = [elemA, elemB];
 
-      const result = selectCollisionFreePage(elements, 1);
+      const page1 = selectCollisionFreePage(elements, 1);
+      const page2 = selectCollisionFreePage(elements, 2);
 
-      // Both elements should be on page 1 with different label positions.
-      expect(result).toHaveLength(2);
-      expect(result.map((element) => element.labelPosition).sort()).toEqual([
-        'above',
-        'below',
-      ]);
+      expect(page1).toHaveLength(1);
+      expect(page1[0].labelPosition).toBe('above');
+      expect(page2).toHaveLength(1);
+      expect(page2[0].labelPosition).toBe('above');
     });
 
     test('should only ever place labels above or below (corner-badge model)', () => {
@@ -249,12 +259,15 @@ describe('Smart Label Placement', () => {
       }
     });
 
-    test('should defer the center element to page 2 when surrounded', () => {
-      // The center element is boxed in: 'above' is blocked by #above's
-      // element, 'below' is blocked by #below's element. Under the old
-      // 4-side model the algorithm would place the center label 'left'.
-      // Under the corner-badge model, the center is deferred to page 2
-      // rather than placed sideways and ambiguously.
+    test('center element surrounded above and below eventually gets placed', () => {
+      // Under the corner-badge model:
+      //   - 'left' / 'right' sideways placements are disabled.
+      //   - 'above' collides with the `above` element via bbox-vs-label check
+      //     when the above element is already selected on the same page.
+      //   - 'below' likewise collides with `below`.
+      // Result: center is deferred to a later page where the vertical
+      // neighbors no longer share the same page, letting it take one of
+      // 'above' or 'below'.
       const center = createElement('center', 200, 100, 50, 30);
       const above = createElement('above', 200, 64, 50, 30);
       const below = createElement('below', 200, 140, 50, 30);
@@ -264,17 +277,19 @@ describe('Smart Label Placement', () => {
       const elements = [above, below, left, right, center];
 
       const page1 = selectCollisionFreePage(elements, 1);
-      const centerOnPage1 = findBySelector(page1, '#center');
-      if (centerOnPage1) {
-        expect(['above', 'below']).toContain(centerOnPage1.labelPosition);
-      } else {
-        // Center didn't fit on page 1 — must land on a later page.
-        const page2 = selectCollisionFreePage(elements, 2);
-        expect(findBySelector(page2, '#center')).toBeDefined();
-      }
+      const page2 = selectCollisionFreePage(elements, 2);
+      const page3 = selectCollisionFreePage(elements, 3);
 
-      // Regardless, no element on any page may use a sideways label.
-      for (const el of page1) {
+      // Center lands on some page (not necessarily page 1).
+      const centerPlaced =
+        findBySelector(page1, '#center') ??
+        findBySelector(page2, '#center') ??
+        findBySelector(page3, '#center');
+      expect(centerPlaced).toBeDefined();
+      expect(['above', 'below']).toContain(centerPlaced?.labelPosition);
+
+      // Every placed element uses a corner-badge (above/below) placement.
+      for (const el of [...page1, ...page2, ...page3]) {
         expect(['above', 'below']).toContain(el.labelPosition);
       }
     });

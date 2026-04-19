@@ -281,16 +281,23 @@ describe('Highlight Integration', () => {
       expect(result[0].labelPosition).toBe('above');
     });
 
-    test('should try "below" when "above" is blocked', () => {
-      // Element at top blocks above position for element below it
+    test('"above" blocked by a neighbor defers the element to a later page', () => {
+      // Label binding invariant: 'above' is the only permitted position
+      // except for viewport-top cases. When an element's 'above' is
+      // blocked by a same-page neighbor's bbox, the element is deferred
+      // to a later highlight page — it does NOT flip to 'below'.
       const elemTop = createElement('top', 'clickable', 100, 50, 80, 30);
       const elemBottom = createElement('bottom', 'clickable', 100, 80, 80, 30);
 
-      const result = selectCollisionFreePage([elemTop, elemBottom], 1);
+      const page1 = selectCollisionFreePage([elemTop, elemBottom], 1);
+      const page2 = selectCollisionFreePage([elemTop, elemBottom], 2);
 
-      // Bottom element should have a different position (not 'above' if blocked)
-      const bottomElem = findBySelector(result, '#bottom');
-      expect(bottomElem?.labelPosition).toBeDefined();
+      // Top lands on page 1 with 'above'.
+      expect(findBySelector(page1, '#top')?.labelPosition).toBe('above');
+      // Bottom is deferred (its 'above' would cover top's bbox).
+      expect(findBySelector(page1, '#bottom')).toBeUndefined();
+      // Bottom lands on page 2, still using 'above' — no side-flip.
+      expect(findBySelector(page2, '#bottom')?.labelPosition).toBe('above');
     });
 
     test('should try "left" and "right" when vertical positions blocked', () => {
