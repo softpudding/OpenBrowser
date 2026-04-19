@@ -291,16 +291,22 @@ function buildHighlightConsistencyScript(
   `;
 }
 
+// Border = bright outline around the element (minimal content occlusion).
+// Bg = OPAQUE darker shade used as the label fill. Using a darker opaque
+// fill (not the border color at reduced alpha) makes the label read as a
+// distinct filled badge rather than a part of the bbox's outline — so
+// when the label's bottom edge touches the bbox's top edge, the two
+// shapes remain visually separable.
 const IN_PAGE_HIGHLIGHT_COLORS: Record<string, { border: string; bg: string }> =
   {
-    clickable: { border: '#0066FF', bg: 'rgba(0,102,255,0.7)' },
-    scrollable: { border: '#00CC66', bg: 'rgba(0,204,102,0.7)' },
-    inputable: { border: '#FF9900', bg: 'rgba(255,153,0,0.7)' },
-    selectable: { border: '#FF6B6B', bg: 'rgba(255,107,107,0.7)' },
-    draggable: { border: '#FF6600', bg: 'rgba(255,102,0,0.7)' },
-    droppable: { border: '#339966', bg: 'rgba(51,153,102,0.7)' },
-    uploadable: { border: '#AA66FF', bg: 'rgba(170,102,255,0.7)' },
-    any: { border: '#00CCCC', bg: 'rgba(0,204,204,0.7)' },
+    clickable: { border: '#0066FF', bg: '#003D99' },
+    scrollable: { border: '#00CC66', bg: '#007A3D' },
+    inputable: { border: '#FF9900', bg: '#995C00' },
+    selectable: { border: '#FF6B6B', bg: '#993333' },
+    draggable: { border: '#FF6600', bg: '#993D00' },
+    droppable: { border: '#339966', bg: '#1F5C3D' },
+    uploadable: { border: '#AA66FF', bg: '#663D99' },
+    any: { border: '#00CCCC', bg: '#007A7A' },
   };
 
 const OB_HIGHLIGHT_OVERLAY_ID = '__ob_highlight_overlay__';
@@ -441,12 +447,17 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
           const labelW = labelRect.width;
           const labelH = labelRect.height;
 
+          // Label sits fully outside the element, touching its edge at
+          // the top-left corner. Element content is never occluded.
+          // Visual binding comes from (a) the shared touching edge and
+          // (b) a darker opaque label fill — distinct from the bright
+          // bbox outline — so the two read as separable shapes.
           let lx, ly;
           switch (item.labelPos) {
-            case 'below': lx = rect.left + scrollX;            ly = rect.bottom + scrollY;       break;
-            case 'left':  lx = rect.left + scrollX - labelW;   ly = rect.top + scrollY;          break;
-            case 'right': lx = rect.right + scrollX;           ly = rect.top + scrollY;          break;
-            default:      lx = rect.left + scrollX;            ly = rect.top + scrollY - labelH; break;
+            case 'below': lx = rect.left + scrollX;           ly = rect.bottom + scrollY;        break;
+            case 'left':  lx = rect.left + scrollX - labelW;  ly = rect.top + scrollY;           break;
+            case 'right': lx = rect.right + scrollX;          ly = rect.top + scrollY;           break;
+            default:      lx = rect.left + scrollX;           ly = rect.top + scrollY - labelH;  break;
           }
 
           label.style.left = lx + 'px';

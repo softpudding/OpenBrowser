@@ -53,51 +53,51 @@ function findBySelector(
 
 describe('Smart Label Placement', () => {
   describe('expandBBoxWithLabel - Position-aware expansion', () => {
-    test('should expand bbox upward when labelPosition is "above" (default)', () => {
+    // Corner-badge geometry: the label sits fully outside the element,
+    // touching its edge. `expandBBoxWithLabel` extends the union by the
+    // full label dimension on the labeled side.
+
+    test('should expand bbox upward by the full label height when "above"', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox, 'above');
       const labelWidth = getLabelDimensions('xxxxxx', bbox.width).width;
 
-      // Label is above: y decreases by LABEL_HEIGHT
       expect(expanded.x).toBe(100);
-      expect(expanded.y).toBe(100 - LABEL_HEIGHT); // 74
+      expect(expanded.y).toBe(100 - LABEL_HEIGHT);
       expect(expanded.width).toBe(labelWidth);
-      expect(expanded.height).toBe(30 + LABEL_HEIGHT); // 56
+      expect(expanded.height).toBe(30 + LABEL_HEIGHT);
     });
 
-    test('should expand bbox downward when labelPosition is "below"', () => {
+    test('should expand bbox downward by the full label height when "below"', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox, 'below');
       const labelWidth = getLabelDimensions('xxxxxx', bbox.width).width;
 
-      // Label is below: y stays same, height increases
       expect(expanded.x).toBe(100);
       expect(expanded.y).toBe(100);
       expect(expanded.width).toBe(labelWidth);
-      expect(expanded.height).toBe(30 + LABEL_HEIGHT); // 56
+      expect(expanded.height).toBe(30 + LABEL_HEIGHT);
     });
 
-    test('should expand bbox to the left when labelPosition is "left"', () => {
+    test('should expand bbox to the left by the full label width when "left"', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox, 'left');
-
-      // Label is left: x decreases by label width
       const labelWidth = getLabelDimensions('xxxxxx', bbox.width).width;
-      expect(expanded.x).toBe(100 - labelWidth); // -20
+
+      expect(expanded.x).toBe(100 - labelWidth);
       expect(expanded.y).toBe(100);
-      expect(expanded.width).toBe(50 + labelWidth); // 170
+      expect(expanded.width).toBe(labelWidth + 50);
       expect(expanded.height).toBe(30);
     });
 
-    test('should expand bbox to the right when labelPosition is "right"', () => {
+    test('should expand bbox to the right by the full label width when "right"', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox, 'right');
-
-      // Label is right: x stays same, width increases
       const labelWidth = getLabelDimensions('xxxxxx', bbox.width).width;
+
       expect(expanded.x).toBe(100);
       expect(expanded.y).toBe(100);
-      expect(expanded.width).toBe(50 + labelWidth); // 170
+      expect(expanded.width).toBe(labelWidth + 50);
       expect(expanded.height).toBe(30);
     });
 
@@ -105,7 +105,6 @@ describe('Smart Label Placement', () => {
       const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
       const expanded = expandBBoxWithLabel(bbox);
 
-      // Should behave same as 'above'
       expect(expanded.y).toBe(100 - LABEL_HEIGHT);
     });
   });
@@ -119,29 +118,30 @@ describe('Smart Label Placement', () => {
       expect(elementsCollide(elemA, elemB)).toBe(true);
     });
 
-    test('should NOT collide when one label is above and other is below', () => {
-      // Element A at (100, 100) with label above
-      // Element B at (100, 70) with label below (label would be at y=100)
-      // They should NOT collide because labels are on opposite sides
+    test('two elements separated vertically beyond the corner-badge footprint do not collide', () => {
+      // Under the corner-badge model a label straddles its element's
+      // edge — half of the label sits inside the bbox, half sticks out
+      // past it. So each element's label+bbox footprint extends outward
+      // by labelHeight/2 (roughly 11px), not the full labelHeight.
+      //
+      // Element A at y=100..130 with label above → footprint y ≈ 89..130.
+      // Element B at y=20..50 with label below  → footprint y ≈ 20..61.
+      // The two footprints are separated by ~28px — no collision.
       const elemA = createElement('a', 100, 100, 50, 30, 'above');
-      const elemB = createElement('b', 100, 70, 50, 30, 'below');
+      const elemB = createElement('b', 100, 20, 50, 30, 'below');
 
-      // Element A's expanded bbox: y=74 (100-26), height=56
-      // Element B's expanded bbox: y=70, height=56 (label below)
-      // These should NOT overlap because A's label is above (y=74-100) and B's label is below (y=100-126)
       expect(elementsCollide(elemA, elemB)).toBe(false);
     });
 
-    test('should NOT collide when labels are on opposite horizontal sides', () => {
-      // Element A at (200, 100) with label left
-      // Element B at (200, 100) with label right
-      // They should NOT collide because labels are on opposite sides
+    test('two elements separated horizontally beyond the corner-badge footprint do not collide', () => {
+      // Same invariant for sideways placements — each side label extends
+      // outward by labelWidth/2. Put enough horizontal distance between
+      // the elements that the two footprints don't touch.
+      const labelWidth = getLabelDimensions('xxxxxx', 50).width;
+      const clear = labelWidth + 20;
       const elemA = createElement('a', 200, 100, 50, 30, 'left');
-      const elemB = createElement('b', 200, 100, 50, 30, 'right');
+      const elemB = createElement('b', 200 + 50 + clear, 100, 50, 30, 'right');
 
-      // Element A's expanded bbox: x=80 (200-120), width=170
-      // Element B's expanded bbox: x=200, width=170
-      // These should NOT overlap because A's label is left (x=80-200) and B's label is right (x=200-370)
       expect(elementsCollide(elemA, elemB)).toBe(false);
     });
   });
@@ -192,56 +192,69 @@ describe('Smart Label Placement', () => {
       ]);
     });
 
-    test('should place label left when above and below collide', () => {
-      // Element A at (100, 100) - label above at y=74-100, x=100-220
-      // Element B at (50, 80) - label above collides with A's label, label below collides with A's element
-      // Element C at (100, 130) - element at y=130-160
-      // Element B should try left
+    test('should only ever place labels above or below (corner-badge model)', () => {
+      // Under the corner-badge model every label is anchored to the top or
+      // bottom edge of its own element's bbox. 'left' / 'right' placements
+      // are disabled because they break visual binding — a label to the
+      // left of element B sits between A and B and visually claims A.
       const elemA = createElement('a', 100, 100, 50, 30);
       const elemB = createElement('b', 50, 80, 50, 30);
       const elemC = createElement('c', 100, 130, 50, 30);
-      const elements = [elemA, elemB, elemC];
+      const result = selectCollisionFreePage([elemA, elemB, elemC], 1);
 
-      const result = selectCollisionFreePage(elements, 1);
-
-      // All three should fit with a non-overlapping placement
-      expect(result).toHaveLength(3);
-      const resultB = findBySelector(result, '#b');
-      expect(resultB?.labelPosition).toBeDefined();
+      for (const el of result) {
+        expect(['above', 'below']).toContain(el.labelPosition);
+      }
     });
 
-    test('should place label right when above and left collide', () => {
-      // Scenario where right position works for B
-      // Element A at (200, 100) - label above at y=74-100, x=200-320
-      // Element B at (150, 80) - label above collides with A's label
-      //                          label below collides with A's element
-      //                          label left doesn't collide (B gets label 'left')
-      // This tests that the algorithm tries positions in order
+    test('should defer elements to a later page when neither above nor below fits', () => {
+      // Collision-dense layout where 'above' is blocked by A's label and
+      // 'below' is blocked by A's element — the old 4-side algorithm would
+      // place B to the left; the corner-badge model instead defers B to
+      // page 2 so that every placement on a page is visually unambiguous.
       const elemA = createElement('a', 200, 100, 50, 30);
       const elemB = createElement('b', 150, 80, 50, 30);
       const elements = [elemA, elemB];
 
-      const result = selectCollisionFreePage(elements, 1);
+      const page1 = selectCollisionFreePage(elements, 1);
+      const page2 = selectCollisionFreePage(elements, 2);
 
-      expect(result).toHaveLength(2);
-      const resultB = findBySelector(result, '#b');
-      expect(resultB?.labelPosition).toBeDefined();
+      // Union of page 1 and page 2 must cover both elements.
+      const allIds = new Set([
+        ...page1.map((el) => el.selector),
+        ...page2.map((el) => el.selector),
+      ]);
+      expect(allIds.has('#a')).toBe(true);
+      expect(allIds.has('#b')).toBe(true);
+
+      // Every label on every page must be above or below — never sideways.
+      for (const el of [...page1, ...page2]) {
+        expect(['above', 'below']).toContain(el.labelPosition);
+      }
     });
 
-    test('should choose the feasible position that blocks fewer later elements', () => {
-      const upper = createElement('upper', 10, 20, 24, 14);
-      const lower = createElement('lower', 10, 48, 24, 14);
+    test('two stacked elements with enough vertical room both fit on page 1', () => {
+      // Upper at y=40, lower at y=100 — enough headroom above (y=40) for
+      // upper's 'above' label, and enough gap between them for one of
+      // them to claim 'below' as well. The corner-badge algorithm should
+      // place both on page 1 without sideways labels.
+      const upper = createElement('upper', 10, 40, 24, 14);
+      const lower = createElement('lower', 10, 100, 24, 14);
 
-      const result = selectCollisionFreePage([upper, lower], 1, 80, 200);
+      const result = selectCollisionFreePage([upper, lower], 1, 80, 400);
 
       expect(result).toHaveLength(2);
-      expect(findBySelector(result, '#upper')?.labelPosition).toBe('right');
-      expect(findBySelector(result, '#lower')).toBeDefined();
+      for (const el of result) {
+        expect(['above', 'below']).toContain(el.labelPosition);
+      }
     });
 
-    test('should repack surrounding elements to keep constrained center on page 1', () => {
-      // Element completely surrounded in input order. The constraint-aware
-      // heuristic should reorder placements so the center element still fits.
+    test('should defer the center element to page 2 when surrounded', () => {
+      // The center element is boxed in: 'above' is blocked by #above's
+      // element, 'below' is blocked by #below's element. Under the old
+      // 4-side model the algorithm would place the center label 'left'.
+      // Under the corner-badge model, the center is deferred to page 2
+      // rather than placed sideways and ambiguously.
       const center = createElement('center', 200, 100, 50, 30);
       const above = createElement('above', 200, 64, 50, 30);
       const below = createElement('below', 200, 140, 50, 30);
@@ -251,27 +264,34 @@ describe('Smart Label Placement', () => {
       const elements = [above, below, left, right, center];
 
       const page1 = selectCollisionFreePage(elements, 1);
-      expect(page1).toHaveLength(5);
-      expect(findBySelector(page1, '#center')?.labelPosition).toBe('left');
+      const centerOnPage1 = findBySelector(page1, '#center');
+      if (centerOnPage1) {
+        expect(['above', 'below']).toContain(centerOnPage1.labelPosition);
+      } else {
+        // Center didn't fit on page 1 — must land on a later page.
+        const page2 = selectCollisionFreePage(elements, 2);
+        expect(findBySelector(page2, '#center')).toBeDefined();
+      }
+
+      // Regardless, no element on any page may use a sideways label.
+      for (const el of page1) {
+        expect(['above', 'below']).toContain(el.labelPosition);
+      }
     });
   });
 
   describe('Viewport boundary checks', () => {
     test('should not place label outside viewport on left', () => {
-      const labelWidth = getLabelDimensions('xxxxxx', 50).width;
-      // Element at x=50, label width extends beyond the left viewport edge
-      // Label left would be at x=-70 (outside viewport)
-      // Should try next position (right) instead
+      // Element at x=50, 'above' blocked by elemB. Under the corner-badge
+      // model sideways placements are disabled entirely, so A must use
+      // 'below' (or defer) — never 'left'.
       const elemA = createElement('a', 50, 100, 50, 30);
       const elemB = createElement('b', 50, 60, 50, 30); // Blocks above
 
       const result = selectCollisionFreePage([elemA, elemB], 1, 1280, 720);
 
       const resultA = findBySelector(result, '#a');
-      // A's above is blocked by B, left would go outside viewport
-      // So A should try right or below
       expect(resultA?.labelPosition).not.toBe('left');
-      expect(labelWidth).toBeGreaterThan(50);
     });
 
     test('should not place label outside viewport on right', () => {

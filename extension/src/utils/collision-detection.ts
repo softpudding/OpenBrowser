@@ -29,7 +29,15 @@ const VISUAL_ROW_TOLERANCE_PX = 12;
 // Keep label-to-label and label-to-bbox spacing visibly separated in the
 // rendered screenshot, not just geometrically non-overlapping.
 const VISUAL_LABEL_CLEARANCE_PX = 6;
-const POSITION_PRIORITY: LabelPosition[] = ['above', 'below', 'left', 'right'];
+// Corner-badge placement: labels are anchored to the top or bottom edge of
+// their element's bbox only. Side placements ('left' / 'right') were removed
+// because they break visual binding — a label to the left of element B sits
+// between A and B and reads as belonging to A (session 444122cb: "UHT"
+// between Fundamental and Technical looked like it labeled Fundamental).
+// When neither 'above' nor 'below' fits, the element is deferred to a later
+// highlight page rather than placed ambiguously. `total_pages` absorbs the
+// overflow; the system prompt now tells the agent to sweep all pages.
+const POSITION_PRIORITY: LabelPosition[] = ['above', 'below'];
 
 interface RemainingCandidate {
   sourceIndex: number;
@@ -187,6 +195,11 @@ function bboxesPartiallyOverlap(a: BBox, b: BBox): boolean {
  * Get the bounding box of just the label (not including the element)
  * Used for label-label collision detection
  */
+// Corner-badge placement: the label sits fully outside the element,
+// touching one of its edges (typically the top-left corner, above edge).
+// Element content is never occluded by the label. The "binding" between
+// label and element comes from (a) the touching edge and (b) a darker
+// opaque label fill that visually separates it from the bbox outline.
 export function getLabelBBox(
   bbox: BBox,
   position: LabelPosition = 'above',
