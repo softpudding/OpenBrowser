@@ -76,5 +76,5 @@ override-dependencies = [
 ]
 
 [tool.uv.sources]
-openhands-sdk = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-sdk", rev = "bf7ffb96da892105a089115b2879ede5fdb18691" }
-openhands-tools = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-tools", rev = "bf7ffb96da892105a089115b2879ede5fdb18691" }
+openhands-sdk = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-sdk", rev = "df0056f1df4916abb54bc73a585a964911512e4b" }
+openhands-tools = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-tools", rev = "df0056f1df4916abb54bc73a585a964911512e4b" }
