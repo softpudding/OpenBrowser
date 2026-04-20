@@ -180,12 +180,7 @@ async function runRawScreenshotPrime(options: {
   );
 }
 
-const LABEL_POSITION_FALLBACK_ORDER: LabelPosition[] = [
-  'above',
-  'below',
-  'left',
-  'right',
-];
+const LABEL_POSITION_FALLBACK_ORDER: LabelPosition[] = ['above', 'below'];
 
 // Strip fields that exist for extension-internal use (identity, cache,
 // inspect_element) from the response payload sent to the server. The LLM
@@ -336,6 +331,7 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
       borderColor: colors.border,
       bgColor: colors.bg,
       labelPos: el.labelPosition || 'above',
+      labelXOffset: el.labelXOffset || 0,
     };
   });
 
@@ -458,18 +454,20 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
           const labelW = labelRect.width;
           const labelH = labelRect.height;
 
-          // Label sits fully outside the element, touching its edge at
-          // the top-left corner. Element content is never occluded.
-          // Visual binding comes from (a) the shared touching edge and
-          // (b) a darker opaque label fill — distinct from the bright
-          // bbox outline — so the two read as separable shapes.
-          let lx, ly;
-          switch (item.labelPos) {
-            case 'below': lx = rect.left + scrollX;           ly = rect.bottom + scrollY;        break;
-            case 'left':  lx = rect.left + scrollX - labelW;  ly = rect.top + scrollY;           break;
-            case 'right': lx = rect.right + scrollX;          ly = rect.top + scrollY;           break;
-            default:      lx = rect.left + scrollX;           ly = rect.top + scrollY - labelH;  break;
-          }
+          // Label sits fully outside the element, touching its top or
+          // bottom edge. Horizontal placement is shifted by
+          // labelXOffset (planner-chosen, clamped within the element
+          // x-range). Element content is never occluded. Visual binding
+          // comes from (a) the shared touching edge, (b) the label
+          // x-range staying within the element x-range when the element
+          // is wide enough, and (c) a darker opaque label fill.
+          const slack = Math.max(0, rect.width - labelW);
+          const xOffset = Math.max(0, Math.min(slack, item.labelXOffset || 0));
+          const lx = rect.left + scrollX + xOffset;
+          const ly =
+            item.labelPos === 'below'
+              ? rect.bottom + scrollY
+              : rect.top + scrollY - labelH;
 
           label.style.left = lx + 'px';
           label.style.top = ly + 'px';

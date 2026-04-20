@@ -88,9 +88,7 @@ describe('Highlight Integration', () => {
       expect(result.length).toBeGreaterThan(0);
       for (const elem of result) {
         expect(elem.labelPosition).toBeDefined();
-        expect(['above', 'below', 'left', 'right']).toContain(
-          elem.labelPosition,
-        );
+        expect(['above', 'below']).toContain(elem.labelPosition);
       }
     });
 
@@ -136,30 +134,25 @@ describe('Highlight Integration', () => {
     });
 
     test('should distribute elements across multiple pages when needed', () => {
-      // Create many elements that will collide
-      // At the same position, up to 4 elements can fit (above, below, left, right)
+      // Many elements stacked at the same position. Their bboxes are
+      // nested (identical), so only the label-to-label clearance rule
+      // applies. Horizontal shift along the top edge lets a couple of
+      // labels coexist per page (left-aligned + right-aligned), but 20
+      // elements still require multiple pages.
       const elements: InteractiveElement[] = [];
       for (let i = 0; i < 20; i++) {
-        // All at same position - each group of 4 will use different label positions
         elements.push(createElement(`elem${i}`, 'clickable', 100, 100, 80, 30));
       }
 
-      // Calculate total pages
       const totalPages = calculateTotalPages(elements);
-
-      // Should have multiple pages (20 elements / 4 positions per location = 5 pages)
       expect(totalPages).toBeGreaterThan(1);
 
-      // Verify page 1 has elements with different label positions
       const page1 = selectCollisionFreePage(elements, 1);
       expect(page1.length).toBeGreaterThan(0);
-      expect(page1.length).toBeLessThanOrEqual(4);
+      for (const elem of page1) {
+        expect(elem.labelPosition).toBe('above');
+      }
 
-      // Verify all elements on page 1 have different label positions
-      const positions = new Set(page1.map((e) => e.labelPosition));
-      expect(positions.size).toBe(page1.length);
-
-      // Verify elements on different pages while preserving each element's ID.
       const page1Selectors = new Set(page1.map((e) => e.selector));
       const expectedIdsBySelector = Object.fromEntries(
         elements.map((element) => [element.selector, element.id]),
@@ -232,18 +225,6 @@ describe('Highlight Integration', () => {
       expect(elementsCollide(elemA, elemB)).toBe(false);
     });
 
-    test('should not collide when labels are on left and right', () => {
-      const elemA = createElement('a', 'clickable', 200, 100, 80, 30, {
-        labelPosition: 'left',
-      });
-      const elemB = createElement('b', 'clickable', 200, 100, 80, 30, {
-        labelPosition: 'right',
-      });
-
-      // Labels on opposite horizontal sides should not collide
-      expect(elementsCollide(elemA, elemB)).toBe(false);
-    });
-
     test('should detect collision between label and element', () => {
       // Element A at (100, 100) with label above (y: 74-100)
       const elemA = createElement('a', 'clickable', 100, 100, 80, 30, {
@@ -300,18 +281,19 @@ describe('Highlight Integration', () => {
       expect(findBySelector(page2, '#bottom')?.labelPosition).toBe('above');
     });
 
-    test('should try "left" and "right" when vertical positions blocked', () => {
-      // Create a scenario where above and below are blocked
+    test('center element surrounded above and below is deferred to a later page', () => {
+      // Under the corner-badge model 'left'/'right' placements are
+      // disabled. If 'above' is blocked by the element directly above
+      // and 'below' is blocked by the element directly below, center
+      // must be deferred — never flipped sideways.
       const center = createElement('center', 'clickable', 200, 100, 80, 30);
       const above = createElement('above', 'clickable', 200, 74, 80, 30);
       const below = createElement('below', 'clickable', 200, 130, 80, 30);
 
-      const result = selectCollisionFreePage([above, below, center], 1);
+      const page1 = selectCollisionFreePage([above, below, center], 1);
 
-      // Center should try left or right
-      const centerElem = findBySelector(result, '#center');
-      if (centerElem) {
-        expect(['left', 'right']).toContain(centerElem.labelPosition);
+      for (const el of page1) {
+        expect(['above', 'below']).toContain(el.labelPosition);
       }
     });
 
@@ -370,21 +352,24 @@ describe('Highlight Integration', () => {
       expect(bboxContains(page1[0].bbox, page1[2].bbox)).toBe(true);
     });
 
-    test('should handle element near left edge', () => {
-      // Element near left edge - left position would go outside
-      const elemLeft = createElement('left', 'clickable', 50, 100, 80, 30);
-      const elemAbove = createElement('above', 'clickable', 50, 60, 80, 30); // Blocks above
+    test('element near left edge with above-blocker is deferred (no sideways flip)', () => {
+      // Under the corner-badge model there is no 'left' placement to
+      // fall back to. If a neighbor blocks 'above' and the element is
+      // not at the viewport top (so 'below' is not allowed), the
+      // element is deferred to a later page.
+      const elemNear = createElement('near', 'clickable', 50, 100, 80, 30);
+      const elemAbove = createElement('above', 'clickable', 50, 60, 80, 30);
 
       const result = selectCollisionFreePage(
-        [elemAbove, elemLeft],
+        [elemAbove, elemNear],
         1,
         1280,
         720,
       );
 
-      const leftElem = findBySelector(result, '#left');
-      // Should not use 'left' position (would be outside viewport)
-      expect(leftElem?.labelPosition).not.toBe('left');
+      for (const el of result) {
+        expect(['above', 'below']).toContain(el.labelPosition);
+      }
     });
 
     test('tight label-to-element proximity under the corner-badge geometry is blocked', () => {
@@ -404,7 +389,7 @@ describe('Highlight Integration', () => {
 
       const positions = result
         .map((el) => el.labelPosition)
-        .filter((p): p is 'above' | 'below' | 'left' | 'right' => p != null);
+        .filter((p): p is 'above' | 'below' => p != null);
       for (const p of positions) {
         expect(['above', 'below']).toContain(p);
       }
@@ -434,14 +419,14 @@ describe('Highlight Integration', () => {
 
       const positions = result
         .map((el) => el.labelPosition)
-        .filter((p): p is 'above' | 'below' | 'left' | 'right' => p != null);
+        .filter((p): p is 'above' | 'below' => p != null);
       // Every placement is top/bottom — never sideways.
       for (const p of positions) {
         expect(['above', 'below']).toContain(p);
       }
       // The two labels cannot both be 'above' once the 1px gap has been
-      // counted as a collision; at least one is 'below' (or an element
-      // was deferred to page 2).
+      // counted as a collision; at least one was deferred (or is 'below'
+      // for the viewport-top case, but these elements are interior).
       expect(positions.filter((p) => p === 'above').length).toBeLessThanOrEqual(
         1,
       );

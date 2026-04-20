@@ -6,6 +6,7 @@ import {
   BBox,
   expandBBoxWithLabel,
   elementsCollide,
+  getLabelBBox,
   selectCollisionFreePage,
 } from '../utils/collision-detection';
 import type { InteractiveElement } from '../types';
@@ -13,13 +14,18 @@ import { generateShortHash } from '../commands/element-id';
 import { getLabelDimensions } from '../utils/label-geometry';
 
 /**
- * TDD Tests for Smart Label Placement
+ * Tests for corner-badge label placement.
  *
- * Feature: 4-position greedy algorithm for label placement
- * Priority: above → below → left → right
- *
- * Current behavior: Labels are always placed above the element
- * Target behavior: Labels try positions in priority order, skipping elements when all positions collide
+ * Invariants:
+ *   - Labels are anchored to the top edge of the element (or bottom edge
+ *     when 'above' would leave the viewport).
+ *   - Labels may shift horizontally within the element's x-range to
+ *     avoid collisions, but MUST stay inside [bbox.x, bbox.x+bbox.width
+ *     - labelWidth] whenever the element is wide enough. Narrow
+ *     elements (labelWidth > bbox.width) always use xOffset=0 and may
+ *     extend past the element edges.
+ *   - When no horizontal offset on 'above' fits, the element is
+ *     deferred to a later highlight page rather than flipping sides.
  */
 
 // Helper to create a minimal InteractiveElement
@@ -29,7 +35,7 @@ function createElement(
   y: number,
   width: number,
   height: number,
-  labelPosition?: 'above' | 'below' | 'left' | 'right',
+  labelPosition?: 'above' | 'below',
 ): InteractiveElement {
   const selector = `#${selectorName}`;
   return {
@@ -64,7 +70,8 @@ describe('Smart Label Placement', () => {
 
       expect(expanded.x).toBe(100);
       expect(expanded.y).toBe(100 - LABEL_HEIGHT);
-      expect(expanded.width).toBe(labelWidth);
+      // Expanded footprint spans the union of bbox and label x-ranges.
+      expect(expanded.width).toBe(Math.max(bbox.width, labelWidth));
       expect(expanded.height).toBe(30 + LABEL_HEIGHT);
     });
 
@@ -75,30 +82,45 @@ describe('Smart Label Placement', () => {
 
       expect(expanded.x).toBe(100);
       expect(expanded.y).toBe(100);
-      expect(expanded.width).toBe(labelWidth);
+      expect(expanded.width).toBe(Math.max(bbox.width, labelWidth));
       expect(expanded.height).toBe(30 + LABEL_HEIGHT);
     });
 
-    test('should expand bbox to the left by the full label width when "left"', () => {
-      const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
-      const expanded = expandBBoxWithLabel(bbox, 'left');
+    test('xOffset shifts the label horizontally within the element x-range', () => {
+      // A wide element with slack between labelWidth and bbox.width can
+      // take a non-zero xOffset. The shifted label's x-range must stay
+      // within the element's x-range.
+      const bbox: BBox = { x: 100, y: 100, width: 300, height: 30 };
       const labelWidth = getLabelDimensions('xxxxxx', bbox.width).width;
+      const slack = bbox.width - labelWidth;
+      const expanded = expandBBoxWithLabel(bbox, 'above', 'xxxxxx', slack);
 
-      expect(expanded.x).toBe(100 - labelWidth);
-      expect(expanded.y).toBe(100);
-      expect(expanded.width).toBe(labelWidth + 50);
-      expect(expanded.height).toBe(30);
+      // Expanded footprint still starts at bbox.x (element x-range anchor)
+      // and widths out to at most bbox.width.
+      expect(expanded.x).toBe(bbox.x);
+      expect(expanded.width).toBe(bbox.width);
     });
 
-    test('should expand bbox to the right by the full label width when "right"', () => {
-      const bbox: BBox = { x: 100, y: 100, width: 50, height: 30 };
-      const expanded = expandBBoxWithLabel(bbox, 'right');
+    test('label never drifts past element x-range when element is wide enough', () => {
+      // Even if the caller asks for an xOffset past the slack, getLabelBBox
+      // clamps so the label x-range stays inside [bbox.x, bbox.x+bbox.width].
+      const bbox: BBox = { x: 100, y: 100, width: 300, height: 30 };
       const labelWidth = getLabelDimensions('xxxxxx', bbox.width).width;
+      const overshot = getLabelBBox(bbox, 'above', 'xxxxxx', 9999);
 
-      expect(expanded.x).toBe(100);
-      expect(expanded.y).toBe(100);
-      expect(expanded.width).toBe(labelWidth + 50);
-      expect(expanded.height).toBe(30);
+      expect(overshot.x).toBe(bbox.x + (bbox.width - labelWidth));
+      expect(overshot.x + overshot.width).toBe(bbox.x + bbox.width);
+    });
+
+    test('narrow element (label wider than bbox) forces xOffset=0', () => {
+      // When labelWidth > bbox.width, the label unavoidably extends past
+      // the element's edge; the clamp forces xOffset=0 regardless of
+      // what the caller requests. This is the only scenario in which the
+      // label is allowed outside the element x-range.
+      const bbox: BBox = { x: 100, y: 100, width: 10, height: 14 };
+      const attempted = getLabelBBox(bbox, 'above', 'xxxxxx', 500);
+
+      expect(attempted.x).toBe(bbox.x);
     });
 
     test('should default to "above" when labelPosition is undefined', () => {
@@ -133,14 +155,13 @@ describe('Smart Label Placement', () => {
       expect(elementsCollide(elemA, elemB)).toBe(false);
     });
 
-    test('two elements separated horizontally beyond the corner-badge footprint do not collide', () => {
-      // Same invariant for sideways placements — each side label extends
-      // outward by labelWidth/2. Put enough horizontal distance between
-      // the elements that the two footprints don't touch.
+    test('two horizontally-adjacent elements with room between labels do not collide', () => {
+      // Place two elements far enough apart horizontally that their
+      // 'above' labels (left-aligned, xOffset=0) do not touch.
       const labelWidth = getLabelDimensions('xxxxxx', 50).width;
-      const clear = labelWidth + 20;
-      const elemA = createElement('a', 200, 100, 50, 30, 'left');
-      const elemB = createElement('b', 200 + 50 + clear, 100, 50, 30, 'right');
+      const gap = labelWidth + 20;
+      const elemA = createElement('a', 0, 100, 50, 30, 'above');
+      const elemB = createElement('b', labelWidth + gap, 100, 50, 30, 'above');
 
       expect(elementsCollide(elemA, elemB)).toBe(false);
     });
@@ -294,94 +315,69 @@ describe('Smart Label Placement', () => {
   });
 
   describe('Viewport boundary checks', () => {
-    test('should not place label outside viewport on left', () => {
-      // Element at x=50, 'above' blocked by elemB. Under the corner-badge
-      // model sideways placements are disabled entirely, so A must use
-      // 'below' (or defer) — never 'left'.
-      const elemA = createElement('a', 50, 100, 50, 30);
-      const elemB = createElement('b', 50, 60, 50, 30); // Blocks above
-
-      const result = selectCollisionFreePage([elemA, elemB], 1, 1280, 720);
-
-      const resultA = findBySelector(result, '#a');
-      expect(resultA?.labelPosition).not.toBe('left');
-    });
-
-    test('should not place label outside viewport on right', () => {
-      // Element at x=1200, width=50, viewport width=1280
-      // Label right would extend to x=1370 (outside viewport)
-      // Should try next position instead
-      const elemA = createElement('a', 1200, 100, 50, 30);
-      const elemB = createElement('b', 1200, 60, 50, 30); // Blocks above
-      const elemC = createElement('c', 1200, 130, 50, 30); // Blocks below
-
-      const result = selectCollisionFreePage(
-        [elemA, elemB, elemC],
-        1,
-        1280,
-        720,
-      );
-
-      const resultA = findBySelector(result, '#a');
-      // Right placement should be rejected because it would leave the viewport.
-      expect(resultA?.labelPosition).not.toBe('right');
-    });
-
     test('should not place label above viewport (y < 0)', () => {
-      // Element at y=10, label height=26
-      // Label above would be at y=-16 (outside viewport)
-      // Should try below instead
+      // Element at y=10, label height=LABEL_HEIGHT.
+      // Label above would be at y=10-LABEL_HEIGHT (outside viewport).
+      // Should use 'below' instead.
       const elemA = createElement('a', 100, 10, 50, 30);
 
       const result = selectCollisionFreePage([elemA], 1, 1280, 720);
 
-      // Label above would go outside viewport, should try below
       expect(result[0]?.labelPosition).toBe('below');
     });
+  });
 
-    test('should not place label below viewport bottom', () => {
-      // Element at y=700, height=30, viewport height=720
-      // Label below would extend to y=756 (outside viewport)
-      // Should try left or right instead
-      const elemA = createElement('a', 100, 700, 50, 30);
-      const elemB = createElement('b', 100, 660, 50, 30); // Blocks above
+  describe('Horizontal shift to clear collisions', () => {
+    test('adjacent elements with tight label clearance both fit via xOffset shift', () => {
+      // Adjacent bboxes (touching at a shared edge) where default
+      // left-aligned labels would fail the VISUAL_LABEL_CLEARANCE_PX
+      // check. Each element has just enough slack (bbox.width -
+      // labelWidth) that shifting one label right along its top edge
+      // opens the required clearance gap — so both fit on page 1
+      // without deferring, and each label's x-range stays strictly
+      // inside its own element's x-range.
+      const longId = 'AAAAAAAAAAA'; // caps labelWidth at MAX_LABEL_WIDTH=80
+      const labelWidth = getLabelDimensions(longId, 83).width;
+      // Pick bbox.width = labelWidth + 3 so slack=3 is exactly enough
+      // to clear the 3px clearance deficit at offset=0.
+      const bboxWidth = labelWidth + 3;
+      const elemA: InteractiveElement = {
+        ...createElement('a', 0, 100, bboxWidth, 30),
+        id: longId,
+      };
+      const elemB: InteractiveElement = {
+        ...createElement('b', bboxWidth, 100, bboxWidth, 30),
+        id: longId,
+      };
 
-      const result = selectCollisionFreePage([elemA, elemB], 1, 1280, 720);
+      const page1 = selectCollisionFreePage([elemA, elemB], 1, 1280, 720);
 
-      const resultA = findBySelector(result, '#a');
-      // A's above blocked by B, below outside viewport
-      // So A should try left or right
-      expect(resultA?.labelPosition).not.toBe('below');
+      expect(page1).toHaveLength(2);
+      for (const el of page1) {
+        expect(el.labelPosition).toBe('above');
+        // Label x-range must stay within the element's x-range.
+        const lbl = getLabelBBox(el.bbox, 'above', el.id, el.labelXOffset ?? 0);
+        expect(lbl.x).toBeGreaterThanOrEqual(el.bbox.x);
+        expect(lbl.x + lbl.width).toBeLessThanOrEqual(el.bbox.x + el.bbox.width);
+      }
+      // At least one label was shifted off the default left-aligned
+      // origin; otherwise the clearance check would still fail.
+      const shiftedCount = page1.filter(
+        (el) => (el.labelXOffset ?? 0) > 0,
+      ).length;
+      expect(shiftedCount).toBeGreaterThanOrEqual(1);
     });
   });
 
   describe('Edge cases', () => {
     test('should handle element at viewport corner (top-left)', () => {
-      // Element at (10, 10) - near top-left corner
-      // Above would go outside (y=-16)
-      // Left would go outside (x=-110)
-      // Should try below or right
+      // Element near top-left. 'above' would leave the viewport, so
+      // 'below' must be used.
       const elem = createElement('corner', 10, 10, 50, 30);
 
       const result = selectCollisionFreePage([elem], 1, 1280, 720);
 
-      // Should not be above or left
-      expect(result[0]?.labelPosition).not.toBe('above');
-      expect(result[0]?.labelPosition).not.toBe('left');
-    });
-
-    test('should handle element at viewport corner (bottom-right)', () => {
-      // Element at (1220, 690) - near bottom-right corner
-      // Below would go outside (y=746)
-      // Right would go outside (x=1340)
-      // Should try above or left
-      const elem = createElement('corner', 1220, 690, 50, 30);
-
-      const result = selectCollisionFreePage([elem], 1, 1280, 720);
-
-      // Should not be below or right
-      expect(result[0]?.labelPosition).not.toBe('below');
-      expect(result[0]?.labelPosition).not.toBe('right');
+      expect(result[0]?.labelPosition).toBe('below');
     });
 
     test('should handle empty elements array', () => {

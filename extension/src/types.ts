@@ -426,7 +426,8 @@ export interface InteractiveElement {
   };
   isVisible: boolean; // Is element visible
   isInViewport: boolean; // Is element in viewport
-  labelPosition?: 'above' | 'below' | 'left' | 'right'; // Position of element label
+  labelPosition?: 'above' | 'below'; // Vertical edge the label attaches to
+  labelXOffset?: number; // Horizontal shift (px) from bbox.x, clamped within element's x-range
 }
 
 export interface HighlightOptions {
