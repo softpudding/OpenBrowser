@@ -268,17 +268,26 @@ Routine runs always start a fresh conversation in `routine_replay` mode so repla
 
 ### Try OpenBrowser with SKILL - install to your local agents
 
-OpenBrowser ships with skills for both `Codex` and `OpenClaw`:
+OpenBrowser ships with skills for `Claude Code`, `Codex`, and `OpenClaw`:
 
+- `skill/claude/open-browser` — browser control for Claude Code
+- `skill/claude/ob-routines` — record/compile/replay Browser Routines
 - `skill/codex/open-browser`
 - `skill/openclaw/open-browser`
 
-They are similar in purpose, but slightly different in workflow:
+**Claude Code** skills install to user scope (`~/.claude/skills/`) so they're available across all projects:
+
+```bash
+cp -r skill/claude/open-browser ~/.claude/skills/
+cp -r skill/claude/ob-routines ~/.claude/skills/
+```
+
+The `Codex` and `OpenClaw` skills are tuned for their respective agent environments:
 
 - The `Codex` skill is tuned for Codex-style repo workflows and supports either foreground or background task execution.
 - The `OpenClaw` skill is tuned for OpenClaw usage, emphasizes background execution, and frames OpenBrowser as the stronger option for rendered-page and multi-step browser tasks.
 
-Install the one that matches your local agent environment.
+Install the one(s) that match your local agent environment.
 
 ## Why Qwen3.5 Family Right Now?
 
