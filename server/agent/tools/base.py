@@ -39,13 +39,26 @@ def _clean(value: Any, limit: int) -> Optional[str]:
     return stripped[: max(1, limit - 1)] + "…"
 
 
-def _format_highlighted_element_lines(display_id: str, el: Dict[str, Any]) -> List[str]:
+# Default cap on rendered <option>s per <select> in the mixed inventory.
+# Passes through all options when the caller explicitly requested
+# element_type="selectable", so the agent can still see the full option set
+# by narrowing the highlight.
+SELECT_OPTIONS_DEFAULT_CAP = 20
+
+
+def _format_highlighted_element_lines(
+    display_id: str,
+    el: Dict[str, Any],
+    element_type: Optional[str] = None,
+) -> List[str]:
     """Render one highlighted element as one header line plus option lines.
 
     Reads the element's structured ``descriptor`` (populated by the extension
-    from the live DOM). For ``<select>`` elements, every ``<option>`` is
-    emitted in full — no truncation — so the agent can pick a value before
-    calling the ``select`` action.
+    from the live DOM). For ``<select>`` elements, options are capped at
+    ``SELECT_OPTIONS_DEFAULT_CAP`` unless the caller requested
+    ``element_type="selectable"``, in which case every ``<option>`` is
+    emitted so the agent can pick a value before calling the ``select``
+    action.
     """
     descriptor = el.get("descriptor") or {}
     tag = descriptor.get("tag") or (el.get("tagName") or "").lower() or "unknown"
@@ -122,7 +135,17 @@ def _format_highlighted_element_lines(display_id: str, el: Dict[str, Any]) -> Li
     options = descriptor.get("options")
     if tag == "select" and isinstance(options, list) and options:
         lines.append("  options:")
-        for opt in options:
+        show_all = element_type == "selectable"
+        visible = options if show_all else options[:SELECT_OPTIONS_DEFAULT_CAP]
+        # Always render the currently-selected option, even if it falls
+        # outside the cap, so the agent can see the present value.
+        if not show_all:
+            visible_ids = {id(o) for o in visible}
+            for opt in options[SELECT_OPTIONS_DEFAULT_CAP:]:
+                if isinstance(opt, dict) and opt.get("selected") and id(opt) not in visible_ids:
+                    visible = list(visible) + [opt]
+                    break
+        for opt in visible:
             if not isinstance(opt, dict):
                 continue
             opt_value = opt.get("value", "")
@@ -136,6 +159,12 @@ def _format_highlighted_element_lines(display_id: str, el: Dict[str, Any]) -> Li
             group = opt.get("group")
             prefix = f"[{group}] " if isinstance(group, str) and group else ""
             lines.append(f'    {prefix}"{opt_value}"="{opt_label}"{flag_str}')
+        remaining = len(options) - SELECT_OPTIONS_DEFAULT_CAP
+        if not show_all and remaining > 0:
+            lines.append(
+                f"    …{SELECT_OPTIONS_DEFAULT_CAP} shown, {remaining} more — "
+                "re-highlight with `element_type: \"selectable\"` to see all."
+            )
 
     return lines
 
@@ -156,6 +185,18 @@ class OpenBrowserAction(Action):
     conversation_id: SkipJsonSchema[Optional[str]] = Field(
         default=None,
         description="Internal: conversation ID for session isolation. Set by the executor, never by the LLM.",
+        exclude=True,
+    )
+
+    # `summary` is the self-annotation convention the agent emits on most
+    # action calls ("Summary: <one-line why>"). The openhands-sdk surfaces
+    # it as ActionEvent.summary, but the tool Action subclass must also
+    # accept it — otherwise Schema(extra="forbid") rejects the whole call
+    # and the agent wastes turns recovering. Hidden from the JSON schema
+    # so the LLM doesn't see it as a parameter to fill.
+    summary: SkipJsonSchema[Optional[str]] = Field(
+        default=None,
+        description="Internal: LLM self-annotation; accepted but ignored.",
         exclude=True,
     )
 
@@ -293,7 +334,11 @@ class OpenBrowserObservation(Observation):
                 text_parts.append("")
                 for el in inner_elements:
                     display_id = _format_display_id(el)
-                    text_parts.extend(_format_highlighted_element_lines(display_id, el))
+                    text_parts.extend(
+                        _format_highlighted_element_lines(
+                            display_id, el, element_type=self.element_type
+                        )
+                    )
                 text_parts.append("")
             text_parts.append("**Drop at end of container:**")
             text_parts.append('```json\n{"action": "confirm_drag_and_drop"}\n```')
@@ -559,7 +604,11 @@ class OpenBrowserObservation(Observation):
             element_lines: List[str] = []
             for el in self.highlighted_elements:
                 display_id = _format_display_id(el)
-                element_lines.extend(_format_highlighted_element_lines(display_id, el))
+                element_lines.extend(
+                    _format_highlighted_element_lines(
+                        display_id, el, element_type=self.element_type
+                    )
+                )
             text_parts.append("\n".join(element_lines))
             text_parts.append("")
 

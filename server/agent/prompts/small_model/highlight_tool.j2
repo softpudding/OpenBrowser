@@ -7,13 +7,11 @@ Build or extend the interactive-element inventory for the current page state.
 1. Outside of `tab view`, completed browser actions already return the default `highlight` `element_type: "any"` page 1 observation for the current page state.
 2. Treat that current observation as the working inventory for the current page state.
 3. If a likely target is already partly visible, clipped by the viewport edge, or crowded by sticky UI, scroll first to reposition it.
-4. Call `highlight` when you need page 2+, a narrower `element_type`, or a fresh inventory after a command that did not return an interactive observation.
+4. **If the exact target id is not in the current page and `current_page < total_pages`, call `highlight` with `{"page": current_page + 1}` on the same `element_type` before picking any id.** Sweep pages 2, 3, …, `total_pages` on the same mode. Do not pick an approximate match from page 1 when later pages have not been checked.
 5. `element_type: "any"` is the default mixed inventory for each page state.
-6. On the same unchanged page state, keep the same `element_type` and increment `page` only when the target is not already partly visible.
-7. If dense UI, a sidebar, a tab strip, or collision-aware label placement may have split the target across pages, keep the same `element_type` and continue pagination before changing strategy.
-8. Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`.
-9. Do not guess an `element_id`. Use one from the current observation only.
-10. If you need a clean screenshot without overlays, use `tab view`.
+6. Keep generic controls, buttons, links, dense toolbars, and icon-only targets inside `any`.
+7. Do not guess an `element_id`. Use one from the current observation only.
+8. If you need a clean screenshot without overlays, use `tab view`.
 
 ## Command
 
@@ -34,11 +32,9 @@ Build or extend the interactive-element inventory for the current page state.
 - Treat returned `element_id` values as short opaque labels such as `A1H`, `Q7M`, `X4Y`
 - These labels use a visual-safe uppercase alphabet. Lowercase letters never appear, and confusable characters such as `0`, `o`, `I`, `l`, `B/8`, `S/5`, `Z/2`, and `G/6` are excluded. Copy the label exactly as shown.
 - If the current observation already contains the right `element_id`, act on it instead of calling `highlight` again.
-- If the likely target is already partly visible or clipped, fix geometry with `scroll` before more pagination.
-- If page 1 missed the target on the same unchanged page state and it is not already partly visible, your default next step is the next page in the same mode.
-- If dense UI or collision-aware label placement may have split nearby controls across pages, keep paginating the same mode before narrowing or switching strategies.
-- Narrow to `inputable`, `scrollable`, `selectable`, `draggable`, `droppable`, or `uploadable` only when the task directly targets that affordance and `any` was not enough.
-- If a control is icon-only or the text is not clearly readable, continue pagination instead of guessing labels such as `settings`, `gear`, `bell`, `next`, `prev`, or `close`.
+- If the likely target is already partly visible or clipped, fix geometry with `scroll` before paginating.
+- Narrow to `inputable`, `scrollable`, `selectable`, `draggable`, `droppable`, or `uploadable` only after sweeping all pages on the current mode and the task directly targets that affordance.
+- If a control is icon-only or the text is not clearly readable, paginate instead of guessing labels such as `settings`, `gear`, `bell`, `next`, `prev`, or `close`.
 - If highlight shows `swipable`, use `swipe`.
 - If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`. To find valid drop targets, use `element_type: "droppable"`.
 - If a returned element is marked `slidable`, use `set_slider` — do not click or drag the slider.
@@ -50,6 +46,14 @@ Build or extend the interactive-element inventory for the current page state.
 
 ## After Highlight
 
-- Pick one `element_id`
-- Use the matching action in `element_interaction`
-- If the chosen element is wrong or stale, highlight again instead of guessing
+- Pick one `element_id` whose descriptor matches the task word-for-word.
+- Use the matching action in `element_interaction`.
+- If the chosen element is wrong or stale, highlight again instead of guessing.
+
+### Paginate before picking: example
+
+Task asks for an action verb on a specific target (e.g. open X, reply to Y).
+
+Current page is 1/2. No descriptor's text matches the target exactly. One descriptor matches an adjacent action on the same container (e.g. a like or vote button next to the target).
+
+Correct next step: call `highlight` with `{"page": 2}` before acting. An adjacent affordance is a different verb than the task; the real target descriptor is still unseen on page 2.

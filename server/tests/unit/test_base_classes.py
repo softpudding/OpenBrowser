@@ -55,6 +55,31 @@ class TestOpenBrowserAction:
         schema = OpenBrowserAction.model_json_schema()
         assert "conversation_id" not in schema.get("properties", {})
 
+    def test_summary_is_accepted_but_hidden_from_schema(self) -> None:
+        """The agent emits `summary` on most tool calls as a self-annotation.
+
+        The openhands-sdk wraps Action in an ActionEvent that exposes
+        ActionEvent.summary, but Schema(extra="forbid") means the Action
+        subclass itself must also accept the field — otherwise the whole
+        call is rejected and the agent wastes turns recovering (seen on
+        every flash+gmail run as an AgentErrorEvent at turn 3).
+
+        We accept-and-ignore rather than reject, and keep the field out of
+        the JSON schema so the LLM doesn't see it as a parameter to fill.
+        """
+        # Should NOT raise.
+        action = OpenBrowserAction(summary="Opening gmail inbox to find thread")
+
+        assert action.summary == "Opening gmail inbox to find thread"
+
+        # Excluded from serialization.
+        dumped = action.model_dump()
+        assert "summary" not in dumped
+
+        # Excluded from the JSON schema exposed to the LLM tool spec.
+        schema = OpenBrowserAction.model_json_schema()
+        assert "summary" not in schema.get("properties", {})
+
 
 class TestOpenBrowserObservation:
     def test_javascript_result_truncates_large_payload_and_hides_script_source(
@@ -188,7 +213,13 @@ class TestOpenBrowserObservation:
     def test_selectable_descriptor_emits_all_options_without_truncation(
         self,
     ) -> None:
-        options = [{"value": str(i), "label": f"Option {i}"} for i in range(12)]
+        """With element_type='selectable', all options render regardless of count.
+
+        The agent narrows to 'selectable' specifically to inspect a full option
+        list before calling `select`, so the cap that protects the mixed
+        inventory must not apply here.
+        """
+        options = [{"value": str(i), "label": f"Option {i}"} for i in range(30)]
         options[0]["selected"] = True
         observation = OpenBrowserObservation(
             success=True,
@@ -211,10 +242,76 @@ class TestOpenBrowserObservation:
 
         assert "sel999(selectable): <select>" in text
         assert "options:" in text
-        for i in range(12):
+        for i in range(30):
             assert f'"{i}"="Option {i}"' in text
-        assert "...(Truncated)" not in text
+        assert "more — re-highlight" not in text
         assert '"0"="Option 0" (selected)' in text
+
+    def test_select_options_capped_in_mixed_inventory(self) -> None:
+        """In the 'any'/mixed inventory, a <select> with many options is capped.
+
+        Pre-regression behavior (main): HTML truncation at 200 chars. On this
+        branch the descriptor format emits every option unconditionally, which
+        inflates token cost on state-picker-like widgets. Cap at 20 by default,
+        with a trailer telling the agent how to see the rest.
+        """
+        options = [{"value": str(i), "label": f"Option {i}"} for i in range(50)]
+        options[0]["selected"] = True
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="any",
+            highlighted_elements=[
+                {
+                    "id": "selMANY",
+                    "type": "selectable",
+                    "descriptor": {
+                        "tag": "select",
+                        "options": options,
+                        "value": "0",
+                    },
+                }
+            ],
+            total_elements=1,
+        )
+
+        text = _text_content(observation)
+
+        # First 20 rendered
+        for i in range(20):
+            assert f'"{i}"="Option {i}"' in text
+        # Option 20+ omitted except the trailer
+        assert '"25"="Option 25"' not in text
+        # Trailer present
+        assert "20 shown, 30 more" in text
+        assert "re-highlight with `element_type: \"selectable\"`" in text
+
+    def test_select_capped_inventory_still_shows_selected_option(self) -> None:
+        """Even when the selected option is past the cap, the agent must see
+        which option is currently selected so it can decide whether to change
+        it. The capped renderer appends the selected option at the end."""
+        options = [{"value": str(i), "label": f"Option {i}"} for i in range(40)]
+        options[35]["selected"] = True  # selected beyond the 20-item cap
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="any",
+            highlighted_elements=[
+                {
+                    "id": "selSEL",
+                    "type": "selectable",
+                    "descriptor": {
+                        "tag": "select",
+                        "options": options,
+                        "value": "35",
+                    },
+                }
+            ],
+            total_elements=1,
+        )
+
+        text = _text_content(observation)
+
+        assert '"35"="Option 35" (selected)' in text
+        assert "20 shown, 20 more" in text
 
     def test_highlighted_elements_include_detected_type_suffix(self) -> None:
         observation = OpenBrowserObservation(

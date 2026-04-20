@@ -63,17 +63,35 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
         "Treat that current observation as the working inventory for the current "
         "page state." in description
     )
+    # Canonical pagination rule (Core Rule #4). Rewritten after the 20260420
+    # eval, where flash picked an approximate match from page 1 instead of
+    # paginating to page 2 to find the real target. The bolded sentence is
+    # the load-bearing instruction; the follow-up sweep and no-approximate-
+    # match clauses close the loophole the model exploited previously.
     assert (
-        "Call `highlight` when you need page 2+, a narrower `element_type`, "
-        "or a fresh inventory after a command that did not return an "
-        "interactive observation." in description
+        '**If the exact target id is not in the current page and '
+        '`current_page < total_pages`, call `highlight` with '
+        '`{"page": current_page + 1}` on the same `element_type` before '
+        "picking any id.**" in description
+    )
+    assert (
+        "Do not pick an approximate match from page 1 when later pages have "
+        "not been checked." in description
     )
     assert "scroll first to reposition it" in description
     assert '`element_type: "any"` is the default mixed inventory' in description
+    # Narrowing-by-type is now downstream of the full sweep (Selection
+    # Strategy), not intermixed with pagination guidance.
     assert (
-        "collision-aware label placement may have split the target across pages"
-        in description
+        "Narrow to `inputable`, `scrollable`, `selectable`, `draggable`, "
+        "`droppable`, or `uploadable` only after sweeping all pages on the "
+        "current mode" in description
     )
+    # Concrete positive example is the key lever from Anthropic's guide.
+    # Must stay generic so the model cannot memorize a benchmark task.
+    assert "Paginate before picking: example" in description
+    assert "Arigato" not in description
+    assert "bluebook" not in description.lower()
     assert "If highlight shows `swipable`, use `swipe`." in description
     assert (
         "If a returned element is marked `draggable`, prefer `drag_and_drop` over `click`."
