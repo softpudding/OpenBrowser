@@ -161,6 +161,14 @@
   color: var(--mock-accent);
 }
 
+.github-file-tree button {
+  white-space: normal;
+  word-break: break-all;
+  text-align: left;
+  justify-content: flex-start;
+  line-height: 1.35;
+}
+
 .github-hunk {
   padding: 12px;
   border-radius: 14px;
