@@ -19,7 +19,7 @@ dependencies = [
     "requests>=2.31.0",
     "openhands-sdk",
     "openhands-tools",
-    "litellm @ git+https://github.com/softpudding/litellm.git@2eb7db59461e9117b1e3e0519616b39f1497c0f9",
+    "litellm @ git+https://github.com/softpudding/litellm.git@363075400d97a5252fd2eb60c4f8d44bb529057c",
 ]
 
 [project.optional-dependencies]
@@ -76,5 +76,5 @@ override-dependencies = [
 ]
 
 [tool.uv.sources]
-openhands-sdk = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-sdk", rev = "7e7766fa203be8ce29eb2ed3adf2fec0262f5fb3" }
-openhands-tools = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-tools", rev = "7e7766fa203be8ce29eb2ed3adf2fec0262f5fb3" }
+openhands-sdk = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-sdk", rev = "bf7ffb96da892105a089115b2879ede5fdb18691" }
+openhands-tools = { git = "https://github.com/softpudding/agent-sdk.git", subdirectory = "openhands-tools", rev = "bf7ffb96da892105a089115b2879ede5fdb18691" }
