@@ -376,8 +376,14 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
         el.removeAttribute(SAVED_ATTR);
       };
 
-      // Remove any previous highlights
-      document.getElementById(OVERLAY_ID)?.remove();
+      // Remove any previous highlights (including resize listener).
+      const prevOverlay = document.getElementById(OVERLAY_ID);
+      if (prevOverlay) {
+        if (prevOverlay.__obResizeHandler) {
+          window.removeEventListener('resize', prevOverlay.__obResizeHandler);
+        }
+        prevOverlay.remove();
+      }
       document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
         restoreOverrides(el);
         el.removeAttribute(HL_ATTR);
@@ -392,8 +398,6 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
       document.documentElement.appendChild(overlay);
 
       const bboxes = [];
-      const scrollX = window.scrollX || window.pageXOffset || 0;
-      const scrollY = window.scrollY || window.pageYOffset || 0;
       // box-sizing:border-box so max-width caps the total rendered width
       // (matching the collision planner's MAX_LABEL_WIDTH, which is the full
       // label width including padding).
@@ -402,6 +406,9 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
         + 'color:#fff;padding:' + LABEL_PADDING + 'px;border-radius:2px;'
         + 'white-space:nowrap;pointer-events:none;overflow:hidden;text-overflow:ellipsis;'
         + 'max-width:' + MAX_LABEL_WIDTH + 'px;';
+
+      // Track element→label pairs so we can reposition on resize.
+      const labelEntries = [];
 
       for (const item of items) {
         try {
@@ -450,31 +457,40 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
           label.textContent = item.id;
           overlay.appendChild(label);
 
-          const labelRect = label.getBoundingClientRect();
-          const labelW = labelRect.width;
-          const labelH = labelRect.height;
-
-          // Label sits fully outside the element, touching its top or
-          // bottom edge. Horizontal placement is shifted by
-          // labelXOffset (planner-chosen, clamped within the element
-          // x-range). Element content is never occluded. Visual binding
-          // comes from (a) the shared touching edge, (b) the label
-          // x-range staying within the element x-range when the element
-          // is wide enough, and (c) a darker opaque label fill.
-          const slack = Math.max(0, rect.width - labelW);
-          const xOffset = Math.max(0, Math.min(slack, item.labelXOffset || 0));
-          const lx = rect.left + scrollX + xOffset;
-          const ly =
-            item.labelPos === 'below'
-              ? rect.bottom + scrollY
-              : rect.top + scrollY - labelH;
-
-          label.style.left = lx + 'px';
-          label.style.top = ly + 'px';
+          labelEntries.push({ el, label, item });
 
           bboxes.push({ id: item.id, bbox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } });
         } catch (e) { /* skip */ }
       }
+
+      // Position all labels. Extracted so we can re-run on resize.
+      function positionLabels() {
+        const sx = window.scrollX || window.pageXOffset || 0;
+        const sy = window.scrollY || window.pageYOffset || 0;
+        for (const entry of labelEntries) {
+          const rect = entry.el.getBoundingClientRect();
+          const labelRect = entry.label.getBoundingClientRect();
+          const labelW = labelRect.width;
+          const labelH = labelRect.height;
+          const slack = Math.max(0, rect.width - labelW);
+          const xOffset = Math.max(0, Math.min(slack, entry.item.labelXOffset || 0));
+          entry.label.style.left = (rect.left + sx + xOffset) + 'px';
+          entry.label.style.top = (
+            entry.item.labelPos === 'below'
+              ? rect.bottom + sy
+              : rect.top + sy - labelH
+          ) + 'px';
+        }
+      }
+      positionLabels();
+
+      // Reposition labels when the page layout changes (window resize,
+      // zoom, DevTools panel toggle, etc.) so they stay attached to
+      // their highlighted elements instead of drifting.
+      const _obResizeHandler = () => { positionLabels(); };
+      window.addEventListener('resize', _obResizeHandler);
+      // Stash reference so cleanup can remove it.
+      overlay.__obResizeHandler = _obResizeHandler;
 
       return { bboxes };
     })();
@@ -645,7 +661,13 @@ function buildHighlightCleanupScript(): string {
       const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
       const SAVED_ATTR = HL_ATTR + '-saved';
       const OVERRIDES = ['transition', 'outline', 'outline-offset'];
-      document.getElementById(${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)})?.remove();
+      const overlayEl = document.getElementById(${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)});
+      if (overlayEl) {
+        if (overlayEl.__obResizeHandler) {
+          window.removeEventListener('resize', overlayEl.__obResizeHandler);
+        }
+        overlayEl.remove();
+      }
       document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
         let snap = {};
         try { snap = JSON.parse(el.getAttribute(SAVED_ATTR) || '{}'); } catch (_) {}
@@ -802,9 +824,19 @@ async function captureHighlightedPageState(
       continue;
     }
 
+    // Filter out elements too small to produce a visible highlight outline.
+    // Without this, tiny decorative dots (e.g. bullet indicators) enter the
+    // collision planner, occupy label slots, and block adjacent meaningful
+    // elements like links from being placed on page 1.
+    const MIN_HIGHLIGHT_DIM = 8;
+    const sizeFilteredElements = allElements.filter(
+      (el) =>
+        el.bbox.width >= MIN_HIGHLIGHT_DIM || el.bbox.height >= MIN_HIGHLIGHT_DIM,
+    );
+
     const keywordFilterStart = Date.now();
     const keywordFiltering = filterHighlightElementsByKeywords(
-      allElements,
+      sizeFilteredElements,
       keywords,
     );
     const keywordList = keywordFiltering.keywords;
