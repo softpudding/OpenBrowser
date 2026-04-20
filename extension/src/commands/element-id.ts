@@ -38,20 +38,46 @@ function encodeFixedVisualId(value: number): string {
 }
 
 /**
- * Generate a short stable hash from a selector and optional HTML content.
+ * Derive the stable hash input for an element.
+ *
+ * Prefers the detection-time ``fingerprint`` (tag + semantic attrs + text;
+ * see ``getElementFingerprint`` in highlight-detection.injected.js) because
+ * it does not change when an element gains a runtime ``:focus``, when an
+ * ``<input>``'s ``value`` attribute updates on each keystroke, when
+ * ``aria-expanded`` flips, or when the app toggles state classes. Falls
+ * back to the raw ``outerHTML`` for call sites or legacy tests that have
+ * not populated ``fingerprint`` yet, then to the empty string for elements
+ * with neither.
+ *
+ * Without this, ``<select>``, ``<details>``, and input-typing flows all
+ * churn their element_id between highlight refreshes, breaking the agent's
+ * expectation that a just-clicked element keeps its short label.
+ */
+export function getStableIdentityInput(element: InteractiveElement): string {
+  if (typeof element.fingerprint === 'string' && element.fingerprint.length > 0) {
+    return element.fingerprint;
+  }
+  return element.html ?? '';
+}
+
+/**
+ * Generate a short stable hash from a selector and optional identity input.
  *
  * Uses FNV-1a for speed and reasonable distribution, then projects into the
- * fixed 3-character visual-safe ID space used by highlight labels.
+ * fixed 3-character visual-safe ID space used by highlight labels. The
+ * second positional argument is historically called ``html`` for backward
+ * compatibility; callers with an ``InteractiveElement`` should pass
+ * ``getStableIdentityInput(element)`` so the hash survives state changes.
  */
 export function generateShortHash(
   cssPath: string,
-  html?: string,
+  identity?: string,
   salt: number = 0,
 ): string {
   const FNV_PRIME = 0x01000193;
   const FNV_OFFSET = 0x811c9dc5;
 
-  let input = html ? `${cssPath}:${html}` : cssPath;
+  let input = identity ? `${cssPath}:${identity}` : cssPath;
   if (salt > 0) {
     input = `${input}:${salt}`;
   }
@@ -68,13 +94,13 @@ export function generateShortHash(
 export function generateUniqueHash(
   cssPath: string,
   existingHashes: Set<string>,
-  html?: string,
+  identity?: string,
   maxAttempts: number = 512,
 ): { hash: string; salt: number } {
   let salt = 0;
 
   while (salt < maxAttempts) {
-    const hash = generateShortHash(cssPath, html, salt);
+    const hash = generateShortHash(cssPath, identity, salt);
     if (!existingHashes.has(hash)) {
       return { hash, salt };
     }
@@ -83,7 +109,7 @@ export function generateUniqueHash(
 
   const fallbackSalt = Date.now();
   return {
-    hash: generateShortHash(cssPath, html, fallbackSalt),
+    hash: generateShortHash(cssPath, identity, fallbackSalt),
     salt: fallbackSalt,
   };
 }
@@ -112,7 +138,7 @@ export function normalizeVisualElementIdInput(value: string): string {
 }
 
 export function buildElementIdentityKey(element: InteractiveElement): string {
-  return `${element.selector}\u0000${element.html ?? ''}`;
+  return `${element.selector}\u0000${getStableIdentityInput(element)}`;
 }
 
 /**
@@ -144,7 +170,7 @@ export function assignHashedElementIds(
     const { hash } = generateUniqueHash(
       element.selector,
       existingHashes,
-      element.html,
+      getStableIdentityInput(element),
     );
     existingHashes.add(hash);
     assignedIds[index] = hash;
