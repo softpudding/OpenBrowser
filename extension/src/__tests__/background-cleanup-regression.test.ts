@@ -77,4 +77,21 @@ describe('Background cleanup regressions', () => {
       'const viewScreenshotResult = await captureScreenshot(',
     );
   });
+
+  test('pending highlight cleanup flush is scoped to the command tab_id', () => {
+    expect(backgroundSource).toContain(
+      'async function flushPendingHighlightCleanups(tabId?: number)',
+    );
+    expect(backgroundSource).toContain(
+      'const cleanup = pendingHighlightCleanups.get(tabId);',
+    );
+    expect(backgroundSource).toContain(
+      'pendingHighlightCleanups.delete(tabId);',
+    );
+    expect(backgroundSource).toContain(
+      'await flushPendingHighlightCleanups(\n      (command as { tab_id?: number }).tab_id,\n    );',
+    );
+    // Must not wipe every tab's pending cleanup on a single command.
+    expect(backgroundSource).not.toContain('pendingHighlightCleanups.clear();');
+  });
 });

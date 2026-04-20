@@ -522,21 +522,19 @@ function scheduleHighlightCleanup(tabId: number, conversationId: string): void {
 // would wipe the highlights we just injected on a tab init.
 const HIGHLIGHT_PRESERVING_COMMAND_TYPES = new Set<string>(['get_tabs']);
 
-async function flushPendingHighlightCleanups(): Promise<void> {
+async function flushPendingHighlightCleanups(tabId?: number): Promise<void> {
   if (pendingHighlightCleanups.size === 0) return;
-  const entries = Array.from(pendingHighlightCleanups.entries());
-  pendingHighlightCleanups.clear();
-  await Promise.all(
-    entries.map(async ([tabId, cleanup]) => {
-      try {
-        await cleanup();
-      } catch (e) {
-        console.warn(
-          `⚠️ [HighlightCleanup] Deferred cleanup failed for tab ${tabId}: ${e}`,
-        );
-      }
-    }),
-  );
+  if (tabId === undefined) return;
+  const cleanup = pendingHighlightCleanups.get(tabId);
+  if (!cleanup) return;
+  pendingHighlightCleanups.delete(tabId);
+  try {
+    await cleanup();
+  } catch (e) {
+    console.warn(
+      `⚠️ [HighlightCleanup] Deferred cleanup failed for tab ${tabId}: ${e}`,
+    );
+  }
 }
 
 // Inject a yellow confirmation outline + "Is this the element you wanted
@@ -1608,7 +1606,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
   console.log(`📨 Handling command: ${command.type}`, command);
 
   if (!HIGHLIGHT_PRESERVING_COMMAND_TYPES.has(command.type)) {
-    await flushPendingHighlightCleanups();
+    await flushPendingHighlightCleanups(
+      (command as { tab_id?: number }).tab_id,
+    );
   }
 
   try {
