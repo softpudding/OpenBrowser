@@ -157,10 +157,38 @@ python3 ~/.claude/skills/ob-routines/scripts/stop_recording.py <recording_id>
 interactive shell. Never invoke it directly via the Bash tool — it will block
 and then be killed, losing the compiler session.**
 
+### Pick the compiler model before launching
+
+The Compiler Agent benefits from a large model. Before launching `compile.py`:
+
+```bash
+curl -s http://127.0.0.1:8765/api/config | jq '.config'
+```
+
+- **If `default_compiler_alias` is set** → launch `compile.py` with no
+  `--model-alias` flag; the server uses that alias.
+- **If `default_compiler_alias` is `null`** → pick the best alias from
+  `llm_configs` (only entries with `has_api_key: true`) and pass it via
+  `--model-alias <alias>`. Prefer `*-plus` over `*-flash`, and prefer the
+  regular `dashscope.aliyuncs.com/compatible-mode/v1` endpoint over
+  `coding.dashscope.aliyuncs.com` (the coding endpoint has tighter quota
+  semantics — see project memory).
+
+Always tell the user which model the compiler is using, in one line, before
+launching — whether it came from the server default or your pick.
+
 ### Launch in tmux
+
+Default (compiler alias configured on server, or no override needed):
 ```bash
 tmux new-window -n "compile" \
   "python3 ~/.claude/skills/ob-routines/scripts/compile.py <recording_id>; echo '[compile-done]'"
+```
+
+With an explicit override (when you picked a model automatically):
+```bash
+tmux new-window -n "compile" \
+  "python3 ~/.claude/skills/ob-routines/scripts/compile.py <recording_id> --model-alias <alias>; echo '[compile-done]'"
 ```
 
 ### Monitor output

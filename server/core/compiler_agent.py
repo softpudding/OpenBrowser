@@ -1117,7 +1117,10 @@ async def compile_with_agent(
         except Exception:
             pass
 
-    llm_config = llm_config_manager.get_llm_config(model_alias)
+    if model_alias is None:
+        llm_config = llm_config_manager.get_compiler_llm_config()
+    else:
+        llm_config = llm_config_manager.get_llm_config(model_alias)
     if not llm_config.api_key:
         raise ValueError("LLM API key is not configured")
 

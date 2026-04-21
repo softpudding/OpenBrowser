@@ -5646,6 +5646,14 @@
                         <small class="help-text">Each model config includes alias, model name, base URL, and API key. One alias must be marked as default.</small>
                     </div>
 
+                    <div class="form-group">
+                        <label for="config-default-compiler-alias">Compiler default model:</label>
+                        <select id="config-default-compiler-alias">
+                            <option value="">— use agent default —</option>
+                        </select>
+                        <small class="help-text">Model used by the Compiler Agent when turning recordings into routines. Leave unset to fall back to the agent default above.</small>
+                    </div>
+
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" onclick="addModelConfigCard()">+ Add Model</button>
                         <button type="submit" class="btn-primary">Save Model Configs</button>
@@ -9426,7 +9434,7 @@
                 </div>
                 <div class="form-group">
                     <label>Alias:</label>
-                    <input type="text" class="config-model-alias" placeholder="default" value="${config.alias || ''}">
+                    <input type="text" class="config-model-alias" placeholder="default" value="${config.alias || ''}" oninput="syncCompilerDefaultSelect()">
                 </div>
                 <div class="form-group">
                     <label>Model:</label>
@@ -9464,6 +9472,7 @@
                 config ? !!config.is_default : shouldBeDefault
             );
             list.appendChild(card);
+            syncCompilerDefaultSelect();
         }
 
         function removeModelConfigCard(button) {
@@ -9479,6 +9488,32 @@
             if (radios.length > 0 && !Array.from(radios).some(radio => radio.checked)) {
                 radios[0].checked = true;
             }
+
+            syncCompilerDefaultSelect();
+        }
+
+        function syncCompilerDefaultSelect() {
+            const select = document.getElementById('config-default-compiler-alias');
+            if (!select) {
+                return;
+            }
+
+            const aliases = Array.from(document.querySelectorAll('#config-llm-list .config-model-alias'))
+                .map(input => input.value.trim())
+                .filter(alias => alias.length > 0);
+
+            const previous = select.dataset.currentValue ?? select.value ?? '';
+            select.innerHTML = '<option value="">— use agent default —</option>';
+            aliases.forEach(alias => {
+                const option = document.createElement('option');
+                option.value = alias;
+                option.textContent = alias;
+                select.appendChild(option);
+            });
+
+            const desired = aliases.includes(previous) ? previous : '';
+            select.value = desired;
+            select.dataset.currentValue = desired;
         }
 
         function renderModelConfigCards() {
@@ -9490,14 +9525,20 @@
             list.innerHTML = '';
             const models = getConfiguredModels();
 
-            if (models.length === 0) {
-                addModelConfigCard();
-                return;
+            const select = document.getElementById('config-default-compiler-alias');
+            if (select) {
+                select.dataset.currentValue = appConfig?.default_compiler_alias || '';
             }
 
-            models.forEach(config => {
-                addModelConfigCard(config);
-            });
+            if (models.length === 0) {
+                addModelConfigCard();
+            } else {
+                models.forEach(config => {
+                    addModelConfigCard(config);
+                });
+            }
+
+            syncCompilerDefaultSelect();
         }
 
         function collectModelConfigsFromForm() {
@@ -9512,9 +9553,12 @@
             });
 
             const defaultIndex = cards.findIndex(card => card.querySelector('.config-default-radio').checked);
+            const compilerSelect = document.getElementById('config-default-compiler-alias');
+            const compilerDefaultAlias = (compilerSelect?.value || '').trim() || null;
             return {
                 configs,
-                defaultAlias: defaultIndex >= 0 ? configs[defaultIndex].alias : null
+                defaultAlias: defaultIndex >= 0 ? configs[defaultIndex].alias : null,
+                compilerDefaultAlias,
             };
         }
         
@@ -11522,7 +11566,7 @@
         async function saveLLMConfig(event) {
             event.preventDefault();
 
-            const { configs, defaultAlias } = collectModelConfigsFromForm();
+            const { configs, defaultAlias, compilerDefaultAlias } = collectModelConfigsFromForm();
             if (configs.length === 0) {
                 alert('At least one model config is required');
                 return;
@@ -11573,7 +11617,8 @@
                     },
                     body: JSON.stringify({
                         configs: configs,
-                        default_alias: defaultAlias
+                        default_alias: defaultAlias,
+                        default_compiler_alias: compilerDefaultAlias
                     })
                 });
                 
@@ -11588,6 +11633,9 @@
                 if (!appConfig) appConfig = { default_cwd: '/tmp' };
                 appConfig.llm_configs = data.configs;
                 appConfig.default_llm_alias = data.default_alias;
+                if ('default_compiler_alias' in data) {
+                    appConfig.default_compiler_alias = data.default_compiler_alias;
+                }
                 appConfig.is_configured = data.configs.some(config => config.has_api_key);
                 if (!selectedModelAlias || !data.configs.some(config => config.alias === selectedModelAlias)) {
                     selectedModelAlias = data.default_alias;
