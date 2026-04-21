@@ -54,7 +54,10 @@ function encodeFixedVisualId(value: number): string {
  * expectation that a just-clicked element keeps its short label.
  */
 export function getStableIdentityInput(element: InteractiveElement): string {
-  if (typeof element.fingerprint === 'string' && element.fingerprint.length > 0) {
+  if (
+    typeof element.fingerprint === 'string' &&
+    element.fingerprint.length > 0
+  ) {
     return element.fingerprint;
   }
   return element.html ?? '';

@@ -829,7 +829,8 @@ async function captureHighlightedPageState(
     const MIN_HIGHLIGHT_DIM = 8;
     const sizeFilteredElements = allElements.filter(
       (el) =>
-        el.bbox.width >= MIN_HIGHLIGHT_DIM || el.bbox.height >= MIN_HIGHLIGHT_DIM,
+        el.bbox.width >= MIN_HIGHLIGHT_DIM ||
+        el.bbox.height >= MIN_HIGHLIGHT_DIM,
     );
 
     const keywordFilterStart = Date.now();

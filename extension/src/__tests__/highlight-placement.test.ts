@@ -358,7 +358,9 @@ describe('Smart Label Placement', () => {
         // Label x-range must stay within the element's x-range.
         const lbl = getLabelBBox(el.bbox, 'above', el.id, el.labelXOffset ?? 0);
         expect(lbl.x).toBeGreaterThanOrEqual(el.bbox.x);
-        expect(lbl.x + lbl.width).toBeLessThanOrEqual(el.bbox.x + el.bbox.width);
+        expect(lbl.x + lbl.width).toBeLessThanOrEqual(
+          el.bbox.x + el.bbox.width,
+        );
       }
       // At least one label was shifted off the default left-aligned
       // origin; otherwise the clearance check would still fail.

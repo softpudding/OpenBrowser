@@ -13,7 +13,9 @@ import type { InteractiveElement } from '../types';
 // placeholder, data-testid) + text, which do NOT change when the
 // element gains focus, when `value` updates per keystroke, or when
 // `aria-expanded` flips on a disclosure.
-function makeElement(overrides: Partial<InteractiveElement>): InteractiveElement {
+function makeElement(
+  overrides: Partial<InteractiveElement>,
+): InteractiveElement {
   return {
     id: '',
     type: 'clickable',
@@ -48,7 +50,9 @@ describe('element-id stability across volatile outerHTML mutations', () => {
       html: '<input id="file-filter-input" class="focused" type="text" placeholder="Filter changed files">',
     });
 
-    expect(buildElementIdentityKey(before)).toBe(buildElementIdentityKey(after));
+    expect(buildElementIdentityKey(before)).toBe(
+      buildElementIdentityKey(after),
+    );
 
     const [assignedBefore] = assignHashedElementIds([before]);
     const [assignedAfter] = assignHashedElementIds([after]);
@@ -93,7 +97,9 @@ describe('element-id stability across volatile outerHTML mutations', () => {
       html: '<select id="sort-by" aria-expanded="true"><option>A</option></select>',
     });
 
-    expect(buildElementIdentityKey(collapsed)).toBe(buildElementIdentityKey(expanded));
+    expect(buildElementIdentityKey(collapsed)).toBe(
+      buildElementIdentityKey(expanded),
+    );
     const [c] = assignHashedElementIds([collapsed]);
     const [e] = assignHashedElementIds([expanded]);
     expect(c.id).toBe(e.id);
@@ -113,7 +119,9 @@ describe('element-id stability across volatile outerHTML mutations', () => {
       fingerprint: 'button | reset | reset form',
     });
 
-    expect(buildElementIdentityKey(submit)).not.toBe(buildElementIdentityKey(reset));
+    expect(buildElementIdentityKey(submit)).not.toBe(
+      buildElementIdentityKey(reset),
+    );
     const [a, b] = assignHashedElementIds([submit, reset]);
     expect(a.id).not.toBe(b.id);
   });

@@ -265,8 +265,7 @@ export function getLabelBBox(
     bbox.width,
   );
   const clampedXOffset = clampLabelXOffset(xOffset, bbox.width, labelWidth);
-  const y =
-    position === 'above' ? bbox.y - labelHeight : bbox.y + bbox.height;
+  const y = position === 'above' ? bbox.y - labelHeight : bbox.y + bbox.height;
   return {
     x: bbox.x + clampedXOffset,
     y,
