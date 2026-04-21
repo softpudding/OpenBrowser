@@ -88,7 +88,7 @@ The primary evaluation signal in this repo is the latest checked-in report:
 
 The test set is a series of local mock websites in [`eval/`](eval/) that simulate realistic browser tasks and record structured interaction events.
 
-That snapshot was generated on `2026-03-30 11:17:06` and evaluates OpenBrowser on `12` tracked browser tasks across two models. We care about three things first:
+That snapshot was generated on `2026-04-21 02:09:48` and evaluates OpenBrowser on `35` tracked browser tasks across four models from both the Qwen3.5 and Qwen3.6 families. We care about three things first:
 
 - Correctness: pass/fail plus task-score coverage
 - Efficiency: average execution time
@@ -96,16 +96,20 @@ That snapshot was generated on `2026-03-30 11:17:06` and evaluates OpenBrowser o
 
 Current snapshot:
 
-- Overall: `24/24` runs passed, `100%` pass rate
-- `dashscope/qwen3.5-flash`: `12/12` passed, `68.5/68.5` task score, `114.89s` average duration, `0.075442 RMB` average cost
-- `dashscope/qwen3.5-plus`: `12/12` passed, `67.5/68.5` task score, `149.63s` average duration, `0.291952 RMB` average cost
+- Overall: `111/140` runs passed, `79.3%` pass rate
+- `dashscope/qwen3.5-plus`: `30/35` passed, `276.2/304.8` task score, `309.51s` average duration, `0.598152 RMB` average cost
+- `dashscope/qwen3.6-flash`: `29/35` passed, `273.0/304.8` task score, `252.27s` average duration, `0.804474 RMB` average cost
+- `dashscope/qwen3.6-plus`: `28/35` passed, `262.4/304.8` task score, `337.59s` average duration, `1.605398 RMB` average cost
+- `dashscope/qwen3.5-flash`: `24/35` passed, `243.1/304.8` task score, `308.84s` average duration, `0.144029 RMB` average cost
 
 | Model | Correctness | Avg. Time | Avg. Cost (RMB) | Composite Score |
 |-------|-------------|-----------|------------------|-----------------|
-| `dashscope/qwen3.5-flash` | `12/12` passed, `68.5/68.5` | `114.89s` | `0.075442` | `0.9358` |
-| `dashscope/qwen3.5-plus` | `12/12` passed, `67.5/68.5` | `149.63s` | `0.291952` | `0.8774` |
+| `dashscope/qwen3.5-plus` | `30/35` passed, `276.2/304.8` | `309.51s` | `0.598152` | `0.7425` |
+| `dashscope/qwen3.6-flash` | `29/35` passed, `273.0/304.8` | `252.27s` | `0.804474` | `0.7191` |
+| `dashscope/qwen3.6-plus` | `28/35` passed, `262.4/304.8` | `337.59s` | `1.605398` | `0.6040` |
+| `dashscope/qwen3.5-flash` | `24/35` passed, `243.1/304.8` | `308.84s` | `0.144029` | `0.6938` |
 
-On the current suite, `qwen3.5-flash` is the better efficiency-cost point: it keeps the same `100%` pass rate, while being about `23.2%` faster and `74.2%` cheaper than `qwen3.5-plus`. `qwen3.5-plus` still remains useful as a stronger fallback profile for harder visual workflows, but the repo's current default evaluation story is no longer "benchmark comparison against OpenClaw"; it is "how well our latest stack scores on correctness, speed, and cost."
+The current 35-task suite is substantially harder than the earlier 12-task snapshot — it includes multi-step bookings, inbox triage with label dialogs, auto-hiding video controls, drag-and-drop boards, and noisy retail flows. On this suite `qwen3.5-plus` is the strongest overall, while `qwen3.6-flash` is the best correctness-per-second point (fastest model of the four and a close second on pass rate). `qwen3.5-flash` stays useful as the cheapest tier for simpler flows; `qwen3.6-plus` is still the most expensive and does not dominate either speed or correctness on this test set. The repo's current default evaluation story is no longer "benchmark comparison against OpenClaw"; it is "how well our latest stack scores on correctness, speed, and cost across both Qwen generations."
 
 Older side-by-side comparisons with OpenClaw are kept only as archived context:
 
