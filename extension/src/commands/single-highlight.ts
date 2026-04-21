@@ -37,6 +37,95 @@ interface ConfirmationPreviewLayout {
 }
 
 /**
+ * Crop a screenshot to a zoomed window around the target element, without
+ * drawing any annotations on top. Used when the yellow border + confirmation
+ * label are already baked into the screenshot via in-page DOM injection.
+ */
+export async function cropScreenshotAroundElement(
+  screenshotDataUrl: string,
+  element: InteractiveElement,
+  options?: {
+    scale?: number;
+    viewportWidth?: number;
+    viewportHeight?: number;
+  },
+): Promise<string> {
+  if (typeof OffscreenCanvas === 'undefined') {
+    throw new Error(
+      '[SingleHighlight] OffscreenCanvas is not available for cropping.',
+    );
+  }
+  if (typeof createImageBitmap === 'undefined') {
+    throw new Error(
+      '[SingleHighlight] createImageBitmap is not available for cropping.',
+    );
+  }
+  if (!screenshotDataUrl || !screenshotDataUrl.startsWith('data:')) {
+    throw new Error(
+      '[SingleHighlight] Invalid screenshot data URL for cropping.',
+    );
+  }
+
+  const [header, base64Data] = screenshotDataUrl.split(',');
+  const mimeType = header.substring(
+    header.indexOf(':') + 1,
+    header.indexOf(';'),
+  );
+  const binaryString = atob(base64Data);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++)
+    bytes[i] = binaryString.charCodeAt(i);
+  const imageBitmap = await createImageBitmap(
+    new Blob([bytes], { type: mimeType }),
+  );
+
+  const viewportWidth = options?.viewportWidth ?? 0;
+  const viewportHeight = options?.viewportHeight ?? 0;
+  const actualScaleX =
+    viewportWidth > 0 ? imageBitmap.width / viewportWidth : 1;
+  const actualScaleY =
+    viewportHeight > 0 ? imageBitmap.height / viewportHeight : 1;
+  const actualScale = (actualScaleX + actualScaleY) / 2;
+  const providedScale = options?.scale ?? 1;
+  const scale =
+    Math.abs(actualScale - providedScale) > 0.1 ? actualScale : providedScale;
+
+  const layout = calculateConfirmationPreviewLayout(
+    imageBitmap.width,
+    imageBitmap.height,
+    element,
+    scale,
+  );
+
+  const canvas = new OffscreenCanvas(layout.crop.width, layout.crop.height);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('[SingleHighlight] Failed to get 2d context for cropping.');
+  }
+  ctx.drawImage(
+    imageBitmap,
+    layout.crop.x,
+    layout.crop.y,
+    layout.crop.width,
+    layout.crop.height,
+    0,
+    0,
+    layout.crop.width,
+    layout.crop.height,
+  );
+  imageBitmap.close();
+
+  const resultBlob = await canvas.convertToBlob({ type: 'image/png' });
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () =>
+      reject(new Error('[SingleHighlight] Failed to read cropped blob.'));
+    reader.readAsDataURL(resultBlob);
+  });
+}
+
+/**
  * Draw a single highlighted element on a focused confirmation preview.
  *
  * @param screenshotDataUrl - Base64 data URL of the screenshot

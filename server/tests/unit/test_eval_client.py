@@ -295,7 +295,7 @@ def test_cleanup_managed_tabs_closes_all_tabs() -> None:
     }
 
 
-def test_run_test_cleans_managed_tabs_before_delete(tmp_path) -> None:
+def test_run_test_cleans_managed_tabs_before_delete(tmp_path, monkeypatch) -> None:
     """Test teardown should close managed tabs before deleting the conversation."""
     evaluator = Evaluator(chrome_uuid="browser-uuid-123")
     evaluator.output_dir = tmp_path
@@ -305,14 +305,24 @@ def test_run_test_cleans_managed_tabs_before_delete(tmp_path) -> None:
         alias="plus",
         model_name="dashscope/qwen3.5-plus",
     )
-    evaluator.eval_server = MagicMock()
-    evaluator.eval_server.clear_events.return_value = True
-    evaluator.eval_server.get_events.return_value = []
     evaluator._save_track_events = MagicMock(return_value=None)
     evaluator._extract_images = MagicMock(return_value=[])
     evaluator._save_sse_events = MagicMock(return_value=None)
     evaluator._extract_cost_from_sse_events = MagicMock(return_value=0.0)
     evaluator._evaluate_criteria = MagicMock(return_value=(True, 1.0, 1.0))
+
+    # Stub the per-test eval server so we don't actually spawn a subprocess.
+    fake_proc = MagicMock()
+    fake_proc.start.return_value = 17000
+    fake_proc.stop.return_value = None
+    monkeypatch.setattr(
+        eval_module, "EvalServerProcess", MagicMock(return_value=fake_proc)
+    )
+    fake_client = MagicMock()
+    fake_client.get_events.return_value = []
+    monkeypatch.setattr(
+        eval_module, "EvalServerClient", MagicMock(return_value=fake_client)
+    )
 
     teardown_calls: list[str] = []
 
@@ -341,3 +351,4 @@ def test_run_test_cleans_managed_tabs_before_delete(tmp_path) -> None:
 
     assert result.conversation_id == "conv-123"
     assert teardown_calls == ["cleanup:conv-123", "delete:conv-123"]
+    fake_proc.stop.assert_called_once()

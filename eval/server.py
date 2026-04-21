@@ -13,6 +13,7 @@ The server will:
 4. Export events via /api/events endpoint
 """
 
+import argparse
 import html
 import http.server
 import json
@@ -943,15 +944,48 @@ def print_startup_info(port):
     print("=" * 60 + "\n")
 
 
+def _parse_args(argv):
+    """Parse CLI args. Supports --port and a positional fallback."""
+    parser = argparse.ArgumentParser(description="Mock eval server")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Port to bind. Use 0 to let the OS pick a free port. "
+        "Falls back to MOCK_EVAL_PORT/PORT env vars then DEFAULT_PORT.",
+    )
+    parser.add_argument(
+        "port_positional",
+        nargs="?",
+        type=int,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    args = parser.parse_args(argv)
+    if args.port is None:
+        args.port = args.port_positional
+    return args
+
+
 def main():
     """Main entry point"""
+    args = _parse_args(sys.argv[1:])
     env_port = os.environ.get("MOCK_EVAL_PORT") or os.environ.get("PORT")
-    cli_port = sys.argv[1] if len(sys.argv) > 1 else None
-    port = int(cli_port or env_port or DEFAULT_PORT)
+    if args.port is not None:
+        port = args.port
+    else:
+        port = int(env_port) if env_port else DEFAULT_PORT
 
     with ReusableThreadingTCPServer(("", port), MockWebsiteHandler) as httpd:
         httpd.daemon_threads = True
-        print_startup_info(port)
+        bound_port = httpd.server_address[1]
+
+        # Machine-readable handshake: a parent process spawning this server
+        # with --port=0 reads this line to learn which port the OS picked.
+        # Must be the first stdout line and flushed immediately.
+        print(f"EVAL_SERVER_LISTENING_PORT={bound_port}", flush=True)
+
+        print_startup_info(bound_port)
 
         try:
             httpd.serve_forever()

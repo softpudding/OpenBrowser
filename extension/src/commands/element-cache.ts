@@ -12,6 +12,7 @@ import type { ElementType, InteractiveElement } from '../types';
 import {
   buildElementIdentityKey,
   generateUniqueHash,
+  getStableIdentityInput,
   normalizeVisualElementIdInput,
 } from './element-id';
 
@@ -180,7 +181,7 @@ class ElementCacheImpl {
           const { hash } = generateUniqueHash(
             element.selector,
             entry.usedIds,
-            element.html,
+            getStableIdentityInput(element),
           );
           elementId = hash;
         }

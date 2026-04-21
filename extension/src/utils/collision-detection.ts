@@ -23,13 +23,35 @@ export interface BBox {
   height: number;
 }
 
-export type LabelPosition = 'above' | 'below' | 'left' | 'right';
+export type LabelPosition = 'above' | 'below';
+
+export interface Placement {
+  position: LabelPosition;
+  // Pixels shifted to the right from bbox.x. Always clamped to
+  // [0, max(0, bbox.width - labelWidth)] so the label never drifts past
+  // the element's x-range when the element is wide enough to contain it.
+  // Narrow elements (labelWidth > bbox.width) always use xOffset=0 and
+  // may extend past the element edges — unavoidable and unchanged from
+  // pre-shift behavior.
+  xOffset: number;
+}
 
 const VISUAL_ROW_TOLERANCE_PX = 12;
 // Keep label-to-label and label-to-bbox spacing visibly separated in the
 // rendered screenshot, not just geometrically non-overlapping.
 const VISUAL_LABEL_CLEARANCE_PX = 6;
-const POSITION_PRIORITY: LabelPosition[] = ['above', 'below', 'left', 'right'];
+// Corner-badge placement: labels are anchored to the top or bottom edge of
+// their element's bbox only. Side placements ('left' / 'right') were removed
+// because they break visual binding — a label to the left of element B sits
+// between A and B and reads as belonging to A (session 444122cb: "UHT"
+// between Fundamental and Technical looked like it labeled Fundamental).
+// Horizontal shift along the top/bottom edge is allowed (and searched by
+// the planner) but the label's x-range must stay within the element's
+// x-range, so the "directly above me" binding cue remains unambiguous.
+// When no placement fits, the element is deferred to a later highlight
+// page. `total_pages` absorbs the overflow; the system prompt tells the
+// agent to sweep all pages.
+const POSITION_PRIORITY: LabelPosition[] = ['above', 'below'];
 
 interface RemainingCandidate {
   sourceIndex: number;
@@ -50,6 +72,7 @@ class SelectedSpatialIndex {
       element.bbox,
       element.labelPosition ?? 'above',
       element.id,
+      element.labelXOffset ?? 0,
     );
     const union = unionBBox(element.bbox, labelBBox);
     this.forEachCell(union, (key) => {
@@ -61,6 +84,23 @@ class SelectedSpatialIndex {
       // Avoid duplicate registration when a single element straddles cells we
       // visit out of order — the per-call dedup Set in queryNear handles dup
       // results across cells.
+      if (bucket[bucket.length - 1] !== element) {
+        bucket.push(element);
+      }
+    });
+  }
+
+  // Register an element by its bbox only (no label). Used to index ALL
+  // input elements so label placement can check against non-selected
+  // neighbors too — a label covering an element that will appear on a
+  // later highlight page still looks like an occlusion to the viewer.
+  addBBoxOnly(element: InteractiveElement): void {
+    this.forEachCell(element.bbox, (key) => {
+      let bucket = this.cells.get(key);
+      if (!bucket) {
+        bucket = [];
+        this.cells.set(key, bucket);
+      }
       if (bucket[bucket.length - 1] !== element) {
         bucket.push(element);
       }
@@ -140,6 +180,7 @@ function inflateBBox(rect: BBox, padding: number): BBox {
 
 interface PlacementEvaluation {
   position: LabelPosition;
+  xOffset: number;
   blockedCandidateCount: number;
   totalFutureOptions: number;
 }
@@ -179,117 +220,141 @@ export function bboxContains(outer: BBox, inner: BBox): boolean {
   );
 }
 
+// Pixels of overlap on BOTH axes that count as a "real" partial overlap.
+// Adjacent UI elements frequently share a 1-2 pixel border at their edges
+// (tab strips, button groups, segmented controls) which produces a
+// single-pixel bbox intersection that is a rendering artifact, not an
+// occlusion. Without tolerance, such neighbors are marked mutually
+// exclusive per highlight page — e.g. on finviz, Fundamental (x=754..852)
+// and Technical (x=851..928) share 1px at x=851..852 and the planner
+// used to defer Fundamental across multiple pages purely because of that.
+const PARTIAL_OVERLAP_TOLERANCE_PX = 3;
+
 function bboxesPartiallyOverlap(a: BBox, b: BBox): boolean {
-  return bboxesIntersect(a, b) && !bboxContains(a, b) && !bboxContains(b, a);
+  if (!bboxesIntersect(a, b)) return false;
+  if (bboxContains(a, b) || bboxContains(b, a)) return false;
+  const overlapW = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const overlapH =
+    Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  return (
+    overlapW >= PARTIAL_OVERLAP_TOLERANCE_PX &&
+    overlapH >= PARTIAL_OVERLAP_TOLERANCE_PX
+  );
 }
 
 /**
  * Get the bounding box of just the label (not including the element)
- * Used for label-label collision detection
+ * Used for label-label collision detection.
+ *
+ * Corner-badge placement: the label sits fully outside the element,
+ * touching one of its edges (typically the top edge). Element content is
+ * never occluded by the label. The "binding" between label and element
+ * comes from (a) the touching edge, (b) horizontal containment (the
+ * label's x-range stays within the element's x-range whenever the
+ * element is wide enough), and (c) a darker opaque label fill that
+ * visually separates it from the bbox outline.
  */
 export function getLabelBBox(
   bbox: BBox,
   position: LabelPosition = 'above',
   text?: string,
+  xOffset: number = 0,
 ): BBox {
   const { width: labelWidth, height: labelHeight } = getLabelDimensions(
     text,
     bbox.width,
   );
-
-  switch (position) {
-    case 'above':
-      return {
-        x: bbox.x,
-        y: bbox.y - labelHeight,
-        width: labelWidth,
-        height: labelHeight,
-      };
-    case 'below':
-      return {
-        x: bbox.x,
-        y: bbox.y + bbox.height,
-        width: labelWidth,
-        height: labelHeight,
-      };
-    case 'left':
-      return {
-        x: bbox.x - labelWidth,
-        y: bbox.y,
-        width: labelWidth,
-        height: labelHeight,
-      };
-    case 'right':
-      return {
-        x: bbox.x + bbox.width,
-        y: bbox.y,
-        width: labelWidth,
-        height: labelHeight,
-      };
-  }
+  const clampedXOffset = clampLabelXOffset(xOffset, bbox.width, labelWidth);
+  const y = position === 'above' ? bbox.y - labelHeight : bbox.y + bbox.height;
+  return {
+    x: bbox.x + clampedXOffset,
+    y,
+    width: labelWidth,
+    height: labelHeight,
+  };
 }
 
 /**
- * Expand bbox to include label area based on label position
- * This returns the combined bbox of element + label
+ * Expand bbox to include label area based on label position + offset.
+ * Returns the combined bbox of element + label. Width is the union of
+ * the element's x-range and the label's (shifted) x-range.
  */
 export function expandBBoxWithLabel(
   bbox: BBox,
   position: LabelPosition = 'above',
   text?: string,
+  xOffset: number = 0,
 ): BBox {
-  const { width: labelWidth, height: labelHeight } = getLabelDimensions(
-    text,
-    bbox.width,
-  );
-
-  switch (position) {
-    case 'above':
-      return {
-        x: bbox.x,
-        y: bbox.y - labelHeight,
-        width: labelWidth,
-        height: bbox.height + labelHeight,
-      };
-    case 'below':
-      return {
-        x: bbox.x,
-        y: bbox.y,
-        width: labelWidth,
-        height: bbox.height + labelHeight,
-      };
-    case 'left':
-      return {
-        x: bbox.x - labelWidth,
-        y: bbox.y,
-        width: labelWidth + bbox.width,
-        height: bbox.height,
-      };
-    case 'right':
-      return {
-        x: bbox.x,
-        y: bbox.y,
-        width: labelWidth + bbox.width,
-        height: bbox.height,
-      };
-  }
+  const labelBBox = getLabelBBox(bbox, position, text, xOffset);
+  return unionBBox(bbox, labelBBox);
 }
 
 /**
- * Check if two elements' labels collide
- * Uses each element's labelPosition if set, defaults to 'above'
+ * Clamp a proposed horizontal offset to the element's x-range.
+ * Label MUST stay within the element's x-range whenever the element is
+ * wide enough (labelWidth <= bbox.width). Narrow elements
+ * (labelWidth > bbox.width) are forced to xOffset=0 — the label
+ * extends past the element edges, unavoidable, same as pre-shift behavior.
+ */
+function clampLabelXOffset(
+  xOffset: number,
+  bboxWidth: number,
+  labelWidth: number,
+): number {
+  const slack = bboxWidth - labelWidth;
+  if (slack <= 0) {
+    return 0;
+  }
+  if (xOffset < 0) return 0;
+  if (xOffset > slack) return slack;
+  return xOffset;
+}
+
+/**
+ * Candidate horizontal offsets to try when placing a label. Order matters:
+ * the planner prefers earlier entries, so xOffset=0 (left-aligned,
+ * historical default) is always tried first, and the right-aligned
+ * fallback is only used when left-aligned is blocked.
+ */
+function getCandidateXOffsets(bboxWidth: number, labelWidth: number): number[] {
+  const slack = bboxWidth - labelWidth;
+  if (slack <= 0) {
+    return [0];
+  }
+  // Two discrete offsets are sufficient for the target collision case
+  // (adjacent-row neighbors whose left-aligned labels collide): sliding
+  // to right-aligned moves the label away from the left neighbor.
+  // Keeping the set small also keeps the planner O(positions × offsets)
+  // per candidate, i.e. 2 × 2 = 4.
+  return [0, slack];
+}
+
+/**
+ * Check if two elements' labels collide.
+ * Uses each element's labelPosition and labelXOffset if set, defaulting
+ * to above + xOffset=0.
  */
 export function elementsCollide(
   a: InteractiveElement,
   b: InteractiveElement,
 ): boolean {
-  const labelA = getLabelBBox(a.bbox, a.labelPosition ?? 'above', a.id);
-  const labelB = getLabelBBox(b.bbox, b.labelPosition ?? 'above', b.id);
+  const labelA = getLabelBBox(
+    a.bbox,
+    a.labelPosition ?? 'above',
+    a.id,
+    a.labelXOffset ?? 0,
+  );
+  const labelB = getLabelBBox(
+    b.bbox,
+    b.labelPosition ?? 'above',
+    b.id,
+    b.labelXOffset ?? 0,
+  );
   return bboxesIntersect(labelA, labelB);
 }
 
 /**
- * Check if label would be within viewport bounds for given position
+ * Check if label would be within viewport bounds for given position + offset.
  */
 export function isLabelWithinViewport(
   bbox: BBox,
@@ -297,8 +362,9 @@ export function isLabelWithinViewport(
   viewportWidth: number,
   viewportHeight: number,
   text?: string,
+  xOffset: number = 0,
 ): boolean {
-  const labelBBox = getLabelBBox(bbox, position, text);
+  const labelBBox = getLabelBBox(bbox, position, text, xOffset);
 
   return (
     labelBBox.x >= 0 &&
@@ -386,11 +452,22 @@ function buildCollisionFreePages(
     return [];
   }
 
+  // Index of all input element bboxes (not labels). Used so label
+  // placement can avoid occluding non-selected interactive elements —
+  // e.g. on a dense table, row N's 'above' label would land on row N-1's
+  // bbox; if row N-1 is deferred to a later page, it would still be
+  // visible in the screenshot and the label would visibly cover it.
+  const allElementsIndex = new SelectedSpatialIndex();
+  for (const el of elements) {
+    allElementsIndex.addBBoxOnly(el);
+  }
+
   const allAbovePage = tryBuildUniformPositionPage(
     elements,
     'above',
     viewportWidth,
     viewportHeight,
+    allElementsIndex,
   );
   if (allAbovePage) {
     return [allAbovePage];
@@ -414,6 +491,7 @@ function buildCollisionFreePages(
         selectedIndex,
         viewportWidth,
         viewportHeight,
+        allElementsIndex,
       );
 
       if (!nextSelection) {
@@ -423,6 +501,7 @@ function buildCollisionFreePages(
       const placed: InteractiveElement = {
         ...nextSelection.candidate.element,
         labelPosition: nextSelection.position,
+        labelXOffset: nextSelection.xOffset,
       };
       selected.push(placed);
       selectedIndex.add(placed);
@@ -451,20 +530,23 @@ function tryBuildUniformPositionPage(
   position: LabelPosition,
   viewportWidth?: number,
   viewportHeight?: number,
+  allElementsIndex?: SelectedSpatialIndex,
 ): InteractiveElement[] | null {
   const selected: InteractiveElement[] = [];
   const index = new SelectedSpatialIndex();
 
   for (const element of elements) {
-    const nearby = nearbySelectedFor(element, position, element.id, index);
+    const nearby = nearbySelectedFor(element, position, element.id, 0, index);
     if (
       !isPlacementFeasible(
         element,
         element.id,
         position,
+        0,
         nearby,
         viewportWidth,
         viewportHeight,
+        allElementsIndex,
       )
     ) {
       return null;
@@ -473,6 +555,7 @@ function tryBuildUniformPositionPage(
     const placed: InteractiveElement = {
       ...element,
       labelPosition: position,
+      labelXOffset: 0,
     };
     selected.push(placed);
     index.add(placed);
@@ -487,31 +570,33 @@ function chooseNextCandidate(
   selectedIndex: SelectedSpatialIndex,
   viewportWidth?: number,
   viewportHeight?: number,
+  allElementsIndex?: SelectedSpatialIndex,
 ): (PlacementEvaluation & { candidate: RemainingCandidate }) | null {
-  let minFeasiblePositions = Number.POSITIVE_INFINITY;
+  let minFeasibleCount = Number.POSITIVE_INFINITY;
   let constrainedCandidate: {
     candidate: RemainingCandidate;
-    feasiblePositions: LabelPosition[];
+    feasiblePlacements: Placement[];
   } | null = null;
 
   for (const candidate of remaining) {
-    const feasiblePositions = getFeasiblePositions(
+    const feasiblePlacements = getFeasiblePlacements(
       candidate.element,
       candidate.element.id,
       selected,
       selectedIndex,
       viewportWidth,
       viewportHeight,
+      allElementsIndex,
     );
 
     if (
-      feasiblePositions.length > 0 &&
-      feasiblePositions.length < minFeasiblePositions
+      feasiblePlacements.length > 0 &&
+      feasiblePlacements.length < minFeasibleCount
     ) {
-      minFeasiblePositions = feasiblePositions.length;
+      minFeasibleCount = feasiblePlacements.length;
       constrainedCandidate = {
         candidate,
-        feasiblePositions,
+        feasiblePlacements,
       };
     }
   }
@@ -524,24 +609,26 @@ function chooseNextCandidate(
     candidate: constrainedCandidate.candidate,
     ...chooseLeastBlockingPlacement(
       constrainedCandidate.candidate,
-      constrainedCandidate.feasiblePositions,
+      constrainedCandidate.feasiblePlacements,
       remaining,
       selected,
       selectedIndex,
       viewportWidth,
       viewportHeight,
+      allElementsIndex,
     ),
   };
 }
 
 function chooseLeastBlockingPlacement(
   candidate: RemainingCandidate,
-  feasiblePositions: LabelPosition[],
+  feasiblePlacements: Placement[],
   remaining: RemainingCandidate[],
   selected: InteractiveElement[],
   selectedIndex: SelectedSpatialIndex,
   viewportWidth?: number,
   viewportHeight?: number,
+  allElementsIndex?: SelectedSpatialIndex,
 ): PlacementEvaluation {
   const futureCandidates = remaining.filter(
     (remainingCandidate) =>
@@ -549,39 +636,47 @@ function chooseLeastBlockingPlacement(
   );
   let bestPlacement: PlacementEvaluation | null = null;
 
-  // Pre-compute each future candidate's baseline feasible positions against
+  // Pre-compute each future candidate's baseline feasible placements against
   // the current `selected` set. When we test a hypothetical placement of
-  // `candidate@position`, only future candidates whose bbox/label is
-  // geometrically near that placement can have their feasibility change. The
-  // rest keep their baseline feasibility — saving the O(|future|×4×|selected|)
-  // recomputation per position.
+  // `candidate@{position,xOffset}`, only future candidates whose bbox/label
+  // footprint is geometrically near that placement can have their
+  // feasibility change. The rest keep their baseline feasibility.
   interface FutureBaseline {
     candidate: RemainingCandidate;
-    elementUnion: BBox; // bbox ∪ all four label rects
+    elementUnion: BBox; // bbox ∪ all candidate placements' label rects
     feasibleCount: number;
-    totalLength: number;
   }
   const futureBaselines: FutureBaseline[] = futureCandidates.map((fc) => {
-    const baseline = getFeasiblePositions(
+    const baseline = getFeasiblePlacements(
       fc.element,
       fc.element.id,
       selected,
       selectedIndex,
       viewportWidth,
       viewportHeight,
+      allElementsIndex,
     );
+    // Footprint = bbox ∪ every label rect this element could take across
+    // positions and candidate offsets. The shifted label's x-range is
+    // [bbox.x, bbox.x + max(bbox.width, labelWidth)], so a single
+    // getLabelBBox at offset=0 plus offset=slack captures the full span.
     let union = fc.element.bbox;
+    const offsets = getCandidateXOffsets(
+      fc.element.bbox.width,
+      getLabelDimensions(fc.element.id, fc.element.bbox.width).width,
+    );
     for (const pos of POSITION_PRIORITY) {
-      union = unionBBox(
-        union,
-        getLabelBBox(fc.element.bbox, pos, fc.element.id),
-      );
+      for (const off of offsets) {
+        union = unionBBox(
+          union,
+          getLabelBBox(fc.element.bbox, pos, fc.element.id, off),
+        );
+      }
     }
     return {
       candidate: fc,
       elementUnion: union,
       feasibleCount: baseline.length,
-      totalLength: baseline.length,
     };
   });
 
@@ -590,23 +685,22 @@ function chooseLeastBlockingPlacement(
     0,
   );
   const baselineTotalOptions = futureBaselines.reduce(
-    (acc, fb) => acc + fb.totalLength,
+    (acc, fb) => acc + fb.feasibleCount,
     0,
   );
 
-  for (const position of feasiblePositions) {
+  for (const { position, xOffset } of feasiblePlacements) {
     const hypotheticalElement: InteractiveElement = {
       ...candidate.element,
       labelPosition: position,
+      labelXOffset: xOffset,
     };
     const hypotheticalLabelBBox = getLabelBBox(
       candidate.element.bbox,
       position,
       candidate.element.id,
+      xOffset,
     );
-    // Influence rect: anything whose elementUnion does NOT intersect this
-    // (inflated by clearance) cannot be affected by adding the hypothetical
-    // candidate. We only need to recompute for future candidates inside it.
     const influenceRect = inflateBBox(
       unionBBox(candidate.element.bbox, hypotheticalLabelBBox),
       VISUAL_LABEL_CLEARANCE_PX,
@@ -621,36 +715,24 @@ function chooseLeastBlockingPlacement(
       }
       // Feasibility can change for this future candidate. Re-test against
       // the spatially-near selected set plus the hypothetical candidate.
-      let updatedFeasibleLen = 0;
-      for (const pos of POSITION_PRIORITY) {
-        const nearby = nearbySelectedFor(
-          fb.candidate.element,
-          pos,
-          fb.candidate.element.id,
-          selectedIndex,
-          [hypotheticalElement],
-        );
-        if (
-          isPlacementFeasible(
-            fb.candidate.element,
-            fb.candidate.element.id,
-            pos,
-            nearby,
-            viewportWidth,
-            viewportHeight,
-          )
-        ) {
-          updatedFeasibleLen++;
-        }
-      }
+      const updatedFeasible = getFeasiblePlacements(
+        fb.candidate.element,
+        fb.candidate.element.id,
+        selected,
+        selectedIndex,
+        viewportWidth,
+        viewportHeight,
+        allElementsIndex,
+        [hypotheticalElement],
+      );
+      const updatedFeasibleLen = updatedFeasible.length;
 
-      // Adjust baseline aggregates for the delta on this single future.
       if (fb.feasibleCount === 0 && updatedFeasibleLen > 0) {
         blockedCandidateCount--;
       } else if (fb.feasibleCount > 0 && updatedFeasibleLen === 0) {
         blockedCandidateCount++;
       }
-      totalFutureOptions += updatedFeasibleLen - fb.totalLength;
+      totalFutureOptions += updatedFeasibleLen - fb.feasibleCount;
     }
 
     if (
@@ -660,11 +742,15 @@ function chooseLeastBlockingPlacement(
         totalFutureOptions > bestPlacement.totalFutureOptions) ||
       (blockedCandidateCount === bestPlacement.blockedCandidateCount &&
         totalFutureOptions === bestPlacement.totalFutureOptions &&
-        POSITION_PRIORITY.indexOf(position) <
-          POSITION_PRIORITY.indexOf(bestPlacement.position))
+        // Tie-break: prefer 'above' over 'below', then xOffset=0 over shifted.
+        (POSITION_PRIORITY.indexOf(position) <
+          POSITION_PRIORITY.indexOf(bestPlacement.position) ||
+          (position === bestPlacement.position &&
+            xOffset < bestPlacement.xOffset)))
     ) {
       bestPlacement = {
         position,
+        xOffset,
         blockedCandidateCount,
         totalFutureOptions,
       };
@@ -674,56 +760,121 @@ function chooseLeastBlockingPlacement(
   return (
     bestPlacement ?? {
       position: POSITION_PRIORITY[0],
+      xOffset: 0,
       blockedCandidateCount: Number.POSITIVE_INFINITY,
       totalFutureOptions: Number.NEGATIVE_INFINITY,
     }
   );
 }
 
-function getFeasiblePositions(
+function getFeasiblePlacements(
   element: InteractiveElement,
   labelText: string,
   selected: InteractiveElement[],
   selectedIndex: SelectedSpatialIndex | null,
   viewportWidth?: number,
   viewportHeight?: number,
-): LabelPosition[] {
-  const feasiblePositions: LabelPosition[] = [];
+  allElementsIndex?: SelectedSpatialIndex,
+  extras: InteractiveElement[] = [],
+): Placement[] {
+  // Label binding rule: labels ALWAYS sit on the top edge of their
+  // element's bbox (above), shifted horizontally within the element's
+  // x-range if needed to avoid collision. The only exception is when the
+  // element is so close to the top of the viewport that 'above' would be
+  // clipped, in which case we fall back to 'below'. Collision with an
+  // already-placed element is NOT a reason to fall back to 'below' — if
+  // no horizontal offset on 'above' fits, the element is deferred to a
+  // later highlight page, preserving the "directly above me" invariant.
 
-  for (const position of POSITION_PRIORITY) {
-    const nearby = selectedIndex
-      ? nearbySelectedFor(element, position, labelText, selectedIndex)
-      : selected;
-    if (
-      isPlacementFeasible(
-        element,
-        labelText,
-        position,
-        nearby,
-        viewportWidth,
-        viewportHeight,
-      )
-    ) {
-      feasiblePositions.push(position);
+  const labelWidth = getLabelDimensions(labelText, element.bbox.width).width;
+  const offsets = getCandidateXOffsets(element.bbox.width, labelWidth);
+
+  const tryPlacements = (position: LabelPosition): Placement[] => {
+    const positionWithinViewport =
+      viewportWidth !== undefined && viewportHeight !== undefined
+        ? isLabelWithinViewport(
+            element.bbox,
+            position,
+            viewportWidth,
+            viewportHeight,
+            labelText,
+            0,
+          )
+        : true;
+    if (!positionWithinViewport) {
+      return [];
     }
+
+    const results: Placement[] = [];
+    for (const xOffset of offsets) {
+      const nearby = selectedIndex
+        ? nearbySelectedFor(
+            element,
+            position,
+            labelText,
+            xOffset,
+            selectedIndex,
+            extras,
+          )
+        : selected.concat(extras);
+      if (
+        isPlacementFeasible(
+          element,
+          labelText,
+          position,
+          xOffset,
+          nearby,
+          viewportWidth,
+          viewportHeight,
+          allElementsIndex,
+        )
+      ) {
+        results.push({ position, xOffset });
+      }
+    }
+    return results;
+  };
+
+  const abovePlacements = tryPlacements('above');
+  if (abovePlacements.length > 0) {
+    return abovePlacements;
   }
 
-  return feasiblePositions;
+  // 'above' fits the viewport horizontally/vertically but is blocked at
+  // every allowed xOffset. Only fall back to 'below' if 'above' would
+  // leave the viewport vertically; otherwise defer to a later page.
+  const aboveWithinViewport =
+    viewportWidth !== undefined && viewportHeight !== undefined
+      ? isLabelWithinViewport(
+          element.bbox,
+          'above',
+          viewportWidth,
+          viewportHeight,
+          labelText,
+          0,
+        )
+      : true;
+  if (aboveWithinViewport) {
+    return [];
+  }
+
+  return tryPlacements('below');
 }
 
 // Returns the subset of `selected` that could plausibly collide with the
 // candidate placement. The query rect is the union of the candidate's bbox
-// and its label rect for the requested position, inflated by the visible
-// clearance threshold. Optional `extras` are appended (e.g. a hypothetical
-// candidate not yet inserted into the index).
+// and its label rect for the requested position+offset, inflated by the
+// visible clearance threshold. Optional `extras` are appended (e.g. a
+// hypothetical candidate not yet inserted into the index).
 function nearbySelectedFor(
   element: InteractiveElement,
   position: LabelPosition,
   labelText: string,
+  xOffset: number,
   index: SelectedSpatialIndex,
   extras: InteractiveElement[] = [],
 ): InteractiveElement[] {
-  const labelBBox = getLabelBBox(element.bbox, position, labelText);
+  const labelBBox = getLabelBBox(element.bbox, position, labelText, xOffset);
   const query = inflateBBox(
     unionBBox(element.bbox, labelBBox),
     VISUAL_LABEL_CLEARANCE_PX,
@@ -737,9 +888,12 @@ function isPlacementFeasible(
   element: InteractiveElement,
   labelText: string,
   position: LabelPosition,
+  xOffset: number,
   selected: InteractiveElement[],
   viewportWidth?: number,
   viewportHeight?: number,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _allElementsIndex?: SelectedSpatialIndex,
 ): boolean {
   const withinViewport =
     viewportWidth !== undefined && viewportHeight !== undefined
@@ -749,6 +903,7 @@ function isPlacementFeasible(
           viewportWidth,
           viewportHeight,
           labelText,
+          xOffset,
         )
       : true;
 
@@ -756,13 +911,14 @@ function isPlacementFeasible(
     return false;
   }
 
-  const labelBBox = getLabelBBox(element.bbox, position, labelText);
+  const labelBBox = getLabelBBox(element.bbox, position, labelText, xOffset);
 
   for (const selectedElement of selected) {
     const selectedLabelBBox = getLabelBBox(
       selectedElement.bbox,
       selectedElement.labelPosition ?? 'above',
       selectedElement.id,
+      selectedElement.labelXOffset ?? 0,
     );
     const nested =
       bboxContains(selectedElement.bbox, element.bbox) ||
@@ -782,25 +938,19 @@ function isPlacementFeasible(
       return false;
     }
 
-    if (
-      !nested &&
-      bboxesIntersectWithClearance(
-        labelBBox,
-        selectedElement.bbox,
-        VISUAL_LABEL_CLEARANCE_PX,
-      )
-    ) {
+    // Label-vs-neighbor-bbox and bbox-vs-neighbor-label: use strict
+    // intersection (no clearance). Under the corner-badge model, a
+    // label sits flush against its own element's edge, so the label
+    // of a horizontally-adjacent element will physically touch the
+    // element's bbox at the shared row edge. That touch is NOT a real
+    // overlap — `bboxesIntersect` uses `<=`, treating shared-edge as
+    // non-intersecting. A positive pixel intrusion (label actually
+    // covering the neighbor's interior) still blocks placement.
+    if (!nested && bboxesIntersect(labelBBox, selectedElement.bbox)) {
       return false;
     }
 
-    if (
-      !nested &&
-      bboxesIntersectWithClearance(
-        element.bbox,
-        selectedLabelBBox,
-        VISUAL_LABEL_CLEARANCE_PX,
-      )
-    ) {
+    if (!nested && bboxesIntersect(element.bbox, selectedLabelBBox)) {
       return false;
     }
   }

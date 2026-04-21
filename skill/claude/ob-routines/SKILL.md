@@ -80,7 +80,7 @@ error.** Do not finalize. Instead:
 
 ## Preconditions
 
-**First time?** Complete the full setup in `skill/claude/open-browser/references/setup.md`
+**First time?** Complete the full setup in `~/.claude/skills/open-browser/references/setup.md`
 before using this skill. That guide covers: loading the Chrome extension, connecting
 it to the server, and obtaining a valid `OPENBROWSER_CHROME_UUID`. Without that,
 recording and replay will fail immediately.
@@ -92,7 +92,7 @@ For subsequent uses, confirm:
 
 Quick check:
 ```bash
-python3 skill/claude/open-browser/scripts/check_status.py --chrome-uuid "$OPENBROWSER_CHROME_UUID"
+python3 ~/.claude/skills/open-browser/scripts/check_status.py --chrome-uuid "$OPENBROWSER_CHROME_UUID"
 ```
 
 Start the server if needed:
@@ -100,16 +100,16 @@ Start the server if needed:
 cd /Users/yangxiao/git/OpenBrowser && uv run local-chrome-server serve
 ```
 
-Scripts path: `skill/claude/ob-routines/scripts/` (run from repo root).
+Scripts path: `~/.claude/skills/ob-routines/scripts/`.
 
 ---
 
 ## List & search routines
 
 ```bash
-python3 skill/claude/ob-routines/scripts/list_routines.py
-python3 skill/claude/ob-routines/scripts/list_routines.py "login"
-python3 skill/claude/ob-routines/scripts/list_routines.py --recordings
+python3 ~/.claude/skills/ob-routines/scripts/list_routines.py
+python3 ~/.claude/skills/ob-routines/scripts/list_routines.py "login"
+python3 ~/.claude/skills/ob-routines/scripts/list_routines.py --recordings
 ```
 
 ---
@@ -133,7 +133,7 @@ defeats the pipeline and wastes the user's time. If the user's goal is vague
 
 ### Step 1 — start recording
 ```bash
-python3 skill/claude/ob-routines/scripts/start_recording.py \
+python3 ~/.claude/skills/ob-routines/scripts/start_recording.py \
   --chrome-uuid "$OPENBROWSER_CHROME_UUID" \
   --name "xiaohongshu-messages" \
   --intent "check messages on Xiaohongshu"
@@ -146,7 +146,7 @@ Do NOT proceed until the user confirms.
 
 ### Step 2 — stop recording
 ```bash
-python3 skill/claude/ob-routines/scripts/stop_recording.py <recording_id>
+python3 ~/.claude/skills/ob-routines/scripts/stop_recording.py <recording_id>
 ```
 
 ---
@@ -160,7 +160,7 @@ and then be killed, losing the compiler session.**
 ### Launch in tmux
 ```bash
 tmux new-window -n "compile" \
-  "cd /Users/yangxiao/git/OpenBrowser && python3 skill/claude/ob-routines/scripts/compile.py <recording_id>; echo '[compile-done]'"
+  "python3 ~/.claude/skills/ob-routines/scripts/compile.py <recording_id>; echo '[compile-done]'"
 ```
 
 ### Monitor output
@@ -206,11 +206,11 @@ goes directly to the routine name field, not the compiler.
 ## Replay a routine
 
 ```bash
-python3 skill/claude/ob-routines/scripts/replay.py "routine-name" \
+python3 ~/.claude/skills/ob-routines/scripts/replay.py "routine-name" \
   --chrome-uuid "$OPENBROWSER_CHROME_UUID"
 
 # List without replaying
-python3 skill/claude/ob-routines/scripts/replay.py --list
+python3 ~/.claude/skills/ob-routines/scripts/replay.py --list
 ```
 
 Name matching: exact → ID → prefix → substring.

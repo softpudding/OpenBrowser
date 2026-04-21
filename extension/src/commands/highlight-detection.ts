@@ -1,7 +1,12 @@
 import injectedHighlightDetectionSource from './highlight-detection.injected.js?raw';
+import injectedElementDescriptorSource from './element-descriptor.injected.js?raw';
 import { buildHitTestVisibilityHelpersScript } from '../utils/hit-test-visibility';
 import { buildLayoutStabilityHelpersScript } from '../utils/layout-stability';
 import type { ElementType, InteractiveElement } from '../types';
+
+export function getElementDescriptorScript(): string {
+  return injectedElementDescriptorSource;
+}
 
 export interface HighlightDetectionScriptConfig {
   elementType: ElementType;
@@ -25,6 +30,7 @@ export function buildHighlightDetectionScript(
       const highlightDetectionConfig = ${JSON.stringify(config)};
       ${buildHitTestVisibilityHelpersScript()}
       ${buildLayoutStabilityHelpersScript()}
+      ${injectedElementDescriptorSource}
       ${injectedHighlightDetectionSource}
       return await runOpenBrowserHighlightDetection(highlightDetectionConfig);
     })();

@@ -55,6 +55,31 @@ class TestOpenBrowserAction:
         schema = OpenBrowserAction.model_json_schema()
         assert "conversation_id" not in schema.get("properties", {})
 
+    def test_summary_is_accepted_but_hidden_from_schema(self) -> None:
+        """The agent emits `summary` on most tool calls as a self-annotation.
+
+        The openhands-sdk wraps Action in an ActionEvent that exposes
+        ActionEvent.summary, but Schema(extra="forbid") means the Action
+        subclass itself must also accept the field — otherwise the whole
+        call is rejected and the agent wastes turns recovering (seen on
+        every flash+gmail run as an AgentErrorEvent at turn 3).
+
+        We accept-and-ignore rather than reject, and keep the field out of
+        the JSON schema so the LLM doesn't see it as a parameter to fill.
+        """
+        # Should NOT raise.
+        action = OpenBrowserAction(summary="Opening gmail inbox to find thread")
+
+        assert action.summary == "Opening gmail inbox to find thread"
+
+        # Excluded from serialization.
+        dumped = action.model_dump()
+        assert "summary" not in dumped
+
+        # Excluded from the JSON schema exposed to the LLM tool spec.
+        schema = OpenBrowserAction.model_json_schema()
+        assert "summary" not in schema.get("properties", {})
+
 
 class TestOpenBrowserObservation:
     def test_javascript_result_truncates_large_payload_and_hides_script_source(
@@ -95,7 +120,7 @@ class TestOpenBrowserObservation:
         assert llm_content[0].image_urls == ["data:image/png;base64,abc123"]
         assert "**[99]** Example" in llm_content[1].text
 
-    def test_highlighted_clickable_elements_include_html(self) -> None:
+    def test_highlighted_clickable_elements_include_descriptor(self) -> None:
         observation = OpenBrowserObservation(
             success=True,
             element_type="clickable",
@@ -103,7 +128,7 @@ class TestOpenBrowserObservation:
                 {
                     "id": "abc123",
                     "type": "clickable",
-                    "html": "<button>Submit</button>",
+                    "descriptor": {"tag": "button", "text": "Submit"},
                 }
             ],
             total_elements=1,
@@ -112,7 +137,7 @@ class TestOpenBrowserObservation:
         text = _text_content(observation)
 
         assert "1 clickable element" not in text
-        assert "abc123(clickable): <button>Submit</button>" in text
+        assert 'abc123(clickable): <button> "Submit"' in text
 
     def test_highlighted_elements_render_page_metadata(self) -> None:
         observation = OpenBrowserObservation(
@@ -122,7 +147,11 @@ class TestOpenBrowserObservation:
                 {
                     "id": "abc123",
                     "type": "inputable",
-                    "html": '<input id="search-input" />',
+                    "descriptor": {
+                        "tag": "input",
+                        "inputType": "search",
+                        "placeholder": "Search",
+                    },
                 }
             ],
             page=2,
@@ -135,7 +164,7 @@ class TestOpenBrowserObservation:
         assert "**Page**: 2/4" in text
         assert "**Total Elements**: 9" in text
 
-    def test_small_model_highlighted_clickable_elements_still_include_html(
+    def test_small_model_highlighted_clickable_elements_use_descriptor(
         self,
     ) -> None:
         observation = OpenBrowserObservation(
@@ -146,7 +175,7 @@ class TestOpenBrowserObservation:
                 {
                     "id": "abc123",
                     "type": "clickable",
-                    "html": "<button>Submit</button>",
+                    "descriptor": {"tag": "button", "text": "Submit"},
                 }
             ],
             total_elements=1,
@@ -155,17 +184,21 @@ class TestOpenBrowserObservation:
         text = _text_content(observation)
 
         assert "1 clickable element" not in text
-        assert "abc123(clickable): <button>Submit</button>" in text
+        assert 'abc123(clickable): <button> "Submit"' in text
 
-    def test_highlighted_elements_truncate_long_html_for_non_selectable_results(
-        self,
-    ) -> None:
-        long_html = "<button>" + ("x" * 220) + "</button>"
+    def test_descriptor_collapses_long_text(self) -> None:
         observation = OpenBrowserObservation(
             success=True,
             element_type="inputable",
             highlighted_elements=[
-                {"id": "abc123", "type": "inputable", "html": long_html}
+                {
+                    "id": "abc123",
+                    "type": "inputable",
+                    "descriptor": {
+                        "tag": "button",
+                        "text": "x" * 220,
+                    },
+                }
             ],
             total_elements=1,
         )
@@ -173,27 +206,112 @@ class TestOpenBrowserObservation:
         text = _text_content(observation)
 
         assert "abc123(inputable):" in text
-        assert "...(Truncated)" in text
+        # 120-char cap with ellipsis
+        assert "…" in text
+        assert "x" * 220 not in text
 
-    def test_selectable_elements_keep_full_html_so_options_remain_visible(self) -> None:
-        select_html = (
-            "<select>"
-            + "".join(f"<option value='{i}'>Option {i}</option>" for i in range(12))
-            + "</select>"
-        )
+    def test_selectable_descriptor_emits_all_options_without_truncation(
+        self,
+    ) -> None:
+        """With element_type='selectable', all options render regardless of count.
+
+        The agent narrows to 'selectable' specifically to inspect a full option
+        list before calling `select`, so the cap that protects the mixed
+        inventory must not apply here.
+        """
+        options = [{"value": str(i), "label": f"Option {i}"} for i in range(30)]
+        options[0]["selected"] = True
         observation = OpenBrowserObservation(
             success=True,
             element_type="selectable",
             highlighted_elements=[
-                {"id": "sel999", "type": "selectable", "html": select_html}
+                {
+                    "id": "sel999",
+                    "type": "selectable",
+                    "descriptor": {
+                        "tag": "select",
+                        "options": options,
+                        "value": "0",
+                    },
+                }
             ],
             total_elements=1,
         )
 
         text = _text_content(observation)
 
-        assert select_html in text
-        assert "...(Truncated)" not in text
+        assert "sel999(selectable): <select>" in text
+        assert "options:" in text
+        for i in range(30):
+            assert f'"{i}"="Option {i}"' in text
+        assert "more — re-highlight" not in text
+        assert '"0"="Option 0" (selected)' in text
+
+    def test_select_options_capped_in_mixed_inventory(self) -> None:
+        """In the 'any'/mixed inventory, a <select> with many options is capped.
+
+        Pre-regression behavior (main): HTML truncation at 200 chars. On this
+        branch the descriptor format emits every option unconditionally, which
+        inflates token cost on state-picker-like widgets. Cap at 20 by default,
+        with a trailer telling the agent how to see the rest.
+        """
+        options = [{"value": str(i), "label": f"Option {i}"} for i in range(50)]
+        options[0]["selected"] = True
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="any",
+            highlighted_elements=[
+                {
+                    "id": "selMANY",
+                    "type": "selectable",
+                    "descriptor": {
+                        "tag": "select",
+                        "options": options,
+                        "value": "0",
+                    },
+                }
+            ],
+            total_elements=1,
+        )
+
+        text = _text_content(observation)
+
+        # First 20 rendered
+        for i in range(20):
+            assert f'"{i}"="Option {i}"' in text
+        # Option 20+ omitted except the trailer
+        assert '"25"="Option 25"' not in text
+        # Trailer present
+        assert "20 shown, 30 more" in text
+        assert 're-highlight with `element_type: "selectable"`' in text
+
+    def test_select_capped_inventory_still_shows_selected_option(self) -> None:
+        """Even when the selected option is past the cap, the agent must see
+        which option is currently selected so it can decide whether to change
+        it. The capped renderer appends the selected option at the end."""
+        options = [{"value": str(i), "label": f"Option {i}"} for i in range(40)]
+        options[35]["selected"] = True  # selected beyond the 20-item cap
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="any",
+            highlighted_elements=[
+                {
+                    "id": "selSEL",
+                    "type": "selectable",
+                    "descriptor": {
+                        "tag": "select",
+                        "options": options,
+                        "value": "35",
+                    },
+                }
+            ],
+            total_elements=1,
+        )
+
+        text = _text_content(observation)
+
+        assert '"35"="Option 35" (selected)' in text
+        assert "20 shown, 20 more" in text
 
     def test_highlighted_elements_include_detected_type_suffix(self) -> None:
         observation = OpenBrowserObservation(
@@ -203,12 +321,18 @@ class TestOpenBrowserObservation:
                 {
                     "id": "vrtbj5",
                     "type": "clickable",
-                    "html": '<div class="search-icon"></div>',
+                    "descriptor": {
+                        "tag": "div",
+                        "name": "Search",
+                    },
                 },
                 {
                     "id": "q4w08w",
                     "type": "inputable",
-                    "html": '<input id="search-input" />',
+                    "descriptor": {
+                        "tag": "input",
+                        "inputType": "search",
+                    },
                 },
             ],
             total_elements=2,
@@ -216,8 +340,8 @@ class TestOpenBrowserObservation:
 
         text = _text_content(observation)
 
-        assert 'vrtbj5(clickable): <div class="search-icon"></div>' in text
-        assert "q4w08w(inputable):" in text
+        assert 'vrtbj5(clickable): <div> · name="Search"' in text
+        assert "q4w08w(inputable): <input> · type=search" in text
         assert "clickable element" not in text
 
     def test_small_model_mixed_highlighted_elements_match_default_rendering(
@@ -231,12 +355,15 @@ class TestOpenBrowserObservation:
                 {
                     "id": "vrtbj5",
                     "type": "clickable",
-                    "html": '<div class="search-icon"></div>',
+                    "descriptor": {"tag": "div", "name": "Search"},
                 },
                 {
                     "id": "q4w08w",
                     "type": "inputable",
-                    "html": '<input id="search-input" />',
+                    "descriptor": {
+                        "tag": "input",
+                        "inputType": "search",
+                    },
                 },
             ],
             total_elements=2,
@@ -244,9 +371,34 @@ class TestOpenBrowserObservation:
 
         text = _text_content(observation)
 
-        assert 'vrtbj5(clickable): <div class="search-icon"></div>' in text
-        assert "q4w08w(inputable):" in text
+        assert 'vrtbj5(clickable): <div> · name="Search"' in text
+        assert "q4w08w(inputable): <input> · type=search" in text
         assert "clickable element" not in text
+
+    def test_anonymous_span_renders_class_and_icon_hints(self) -> None:
+        observation = OpenBrowserObservation(
+            success=True,
+            element_type="clickable",
+            highlighted_elements=[
+                {
+                    "id": "TD6",
+                    "type": "clickable",
+                    "descriptor": {
+                        "tag": "span",
+                        "classHint": ["like-wrapper", "like-active"],
+                        "icon": "like",
+                    },
+                }
+            ],
+            total_elements=1,
+        )
+
+        text = _text_content(observation)
+
+        assert (
+            'TD6(clickable): <span> · class="like-wrapper like-active" · icon=like'
+            in text
+        )
 
     def test_highlighted_elements_include_interaction_hints_in_suffix(self) -> None:
         observation = OpenBrowserObservation(
@@ -257,7 +409,7 @@ class TestOpenBrowserObservation:
                     "id": "swp123",
                     "type": "scrollable",
                     "interactionHints": ["swipable"],
-                    "html": '<div class="swiper-slide"></div>',
+                    "descriptor": {"tag": "div", "text": "Slides"},
                 }
             ],
             total_elements=1,
@@ -276,13 +428,13 @@ class TestOpenBrowserObservation:
                     "id": "drg456",
                     "type": "clickable",
                     "interactionHints": ["draggable"],
-                    "html": '<div class="card">Task 1</div>',
+                    "descriptor": {"tag": "div", "text": "Task 1"},
                 },
                 {
                     "id": "drp789",
                     "type": "clickable",
                     "interactionHints": ["droppable"],
-                    "html": '<div class="column">Done</div>',
+                    "descriptor": {"tag": "div", "text": "Done"},
                 },
             ],
             total_elements=2,
@@ -449,13 +601,13 @@ class TestOpenBrowserObservation:
                         {
                             "id": "C3F",
                             "type": "draggable",
-                            "html": '<div class="card">Task 1</div>',
+                            "descriptor": {"tag": "div", "text": "Task 1"},
                             "tagName": "div",
                         },
                         {
                             "id": "D4G",
                             "type": "draggable",
-                            "html": '<div class="card">Task 2</div>',
+                            "descriptor": {"tag": "div", "text": "Task 2"},
                             "tagName": "div",
                         },
                     ],

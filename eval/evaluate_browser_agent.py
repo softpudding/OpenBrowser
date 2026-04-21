@@ -17,6 +17,7 @@ import os
 import shutil
 import signal
 import sqlite3
+import subprocess
 import sys
 import threading
 import time
@@ -41,9 +42,16 @@ logger = logging.getLogger(__name__)
 # Configuration
 OPENBROWSER_API_URL = "http://localhost:8765"
 OPENBROWSER_WS_URL = "ws://localhost:8766"
-EVAL_SERVER_URL = "http://localhost:16605"
+# Canonical port the YAML test cases reference. Each test now spawns its own
+# eval server on an OS-assigned port; URLs in the test case are rewritten to
+# point at that per-test port, so this constant is only used for substitution.
 EVAL_SERVER_PORT = 16605
+EVAL_SERVER_URL = f"http://localhost:{EVAL_SERVER_PORT}"
 OPENBROWSER_PORT = 8765
+EVAL_SERVER_SCRIPT = Path(__file__).resolve().parent / "server.py"
+EVAL_SERVER_BOOT_TIMEOUT = float(
+    os.environ.get("OPENBROWSER_EVAL_SERVER_BOOT_TIMEOUT", "10")
+)
 
 # SSE streaming timeouts for the agent channel at :8765.
 # (connect_timeout, read_timeout) in seconds.
@@ -710,10 +718,23 @@ class OpenBrowserClient:
 
 
 class EvalServerClient:
-    """Client for evaluation server tracking API"""
+    """Client for one eval server's tracking API.
 
-    def __init__(self, base_url: str = EVAL_SERVER_URL):
-        self.base_url = base_url
+    Each test spawns its own eval server on a unique port; instantiate one
+    client per server and pass the bound port (or full base URL).
+    """
+
+    def __init__(
+        self,
+        port: Optional[int] = None,
+        base_url: Optional[str] = None,
+    ):
+        if base_url is not None:
+            self.base_url = base_url
+        elif port is not None:
+            self.base_url = f"http://localhost:{port}"
+        else:
+            self.base_url = EVAL_SERVER_URL
         self.session = requests.Session()
         self.session.trust_env = False
 
@@ -725,24 +746,14 @@ class EvalServerClient:
         except requests.exceptions.RequestException:
             return False
 
-    def clear_events(self, site: Optional[str] = None) -> bool:
-        """Clear tracked events, optionally scoped to one mock site."""
-        try:
-            params = {"site": site} if site else None
-            response = self.session.get(
-                f"{self.base_url}/api/events/clear", params=params, timeout=2
-            )
-            return response.status_code == 200
-        except Exception:
-            return False
+    def get_events(self) -> List[Dict[str, Any]]:
+        """Get tracked events from this server.
 
-    def get_events(self, site: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get tracked events, optionally scoped to one mock site."""
+        Per-test isolation makes the previous ?site= filter unnecessary —
+        a dedicated server holds exactly one test's events.
+        """
         try:
-            params = {"site": site} if site else None
-            response = self.session.get(
-                f"{self.base_url}/api/events", params=params, timeout=5
-            )
+            response = self.session.get(f"{self.base_url}/api/events", timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 return data.get("events", [])
@@ -761,12 +772,162 @@ class EvalServerClient:
             return []
 
 
+class EvalServerProcess:
+    """Spawn a single isolated eval server on an OS-assigned port.
+
+    One server per test. The handshake on stdout
+    (``EVAL_SERVER_LISTENING_PORT=<n>``) tells us which port the OS picked;
+    we then build a per-test client against it. The process group is killed
+    on stop() and at interpreter exit so no orphans survive a crash.
+    """
+
+    _ALL_INSTANCES: "set[EvalServerProcess]" = set()
+    _ATEXIT_REGISTERED = False
+    _LOCK = threading.Lock()
+
+    def __init__(self, boot_timeout: float = EVAL_SERVER_BOOT_TIMEOUT):
+        self.boot_timeout = boot_timeout
+        self.proc: Optional[subprocess.Popen] = None
+        self.port: Optional[int] = None
+        self._reader: Optional[threading.Thread] = None
+        self._stderr_tail: List[str] = []
+
+    @classmethod
+    def _ensure_atexit(cls) -> None:
+        with cls._LOCK:
+            if not cls._ATEXIT_REGISTERED:
+                atexit.register(cls._kill_all)
+                cls._ATEXIT_REGISTERED = True
+
+    @classmethod
+    def _kill_all(cls) -> None:
+        with cls._LOCK:
+            instances = list(cls._ALL_INSTANCES)
+        for inst in instances:
+            try:
+                inst.stop()
+            except Exception:
+                pass
+
+    def start(self) -> int:
+        """Spawn the server and block until the bound port is reported."""
+        if self.proc is not None:
+            assert self.port is not None
+            return self.port
+
+        env = dict(os.environ)
+        # Defensive: prevent inherited PORT env from overriding --port=0.
+        env.pop("PORT", None)
+        env.pop("MOCK_EVAL_PORT", None)
+
+        cmd = [sys.executable, str(EVAL_SERVER_SCRIPT), "--port=0"]
+        # New session so we can SIGTERM the whole process group on stop.
+        self.proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            start_new_session=True,
+            env=env,
+        )
+        EvalServerProcess._ensure_atexit()
+        with EvalServerProcess._LOCK:
+            EvalServerProcess._ALL_INSTANCES.add(self)
+
+        deadline = time.time() + self.boot_timeout
+        port: Optional[int] = None
+        assert self.proc.stdout is not None
+        while time.time() < deadline:
+            line = self.proc.stdout.readline()
+            if not line:
+                if self.proc.poll() is not None:
+                    break
+                continue
+            line = line.strip()
+            if line.startswith("EVAL_SERVER_LISTENING_PORT="):
+                try:
+                    port = int(line.split("=", 1)[1])
+                except ValueError:
+                    pass
+                break
+
+        if port is None:
+            stderr_tail = ""
+            try:
+                if self.proc.stderr is not None:
+                    stderr_tail = self.proc.stderr.read() or ""
+            except Exception:
+                pass
+            self.stop()
+            raise RuntimeError(
+                "eval server did not report a port within "
+                f"{self.boot_timeout:.1f}s. stderr: {stderr_tail[:500]}"
+            )
+
+        self.port = port
+        # Drain remaining stdout/stderr in the background to prevent the
+        # child from blocking on a full pipe over a long-running test.
+        self._reader = threading.Thread(target=self._drain_streams, daemon=True)
+        self._reader.start()
+        return port
+
+    def _drain_streams(self) -> None:
+        proc = self.proc
+        if proc is None:
+            return
+        try:
+            if proc.stdout is not None:
+                for _ in iter(proc.stdout.readline, ""):
+                    pass
+        except Exception:
+            pass
+
+    def stop(self) -> None:
+        """Terminate the server and its child group."""
+        proc = self.proc
+        if proc is None:
+            return
+        try:
+            try:
+                pgid = os.getpgid(proc.pid)
+                os.killpg(pgid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                try:
+                    pgid = os.getpgid(proc.pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    proc.kill()
+                proc.wait(timeout=2)
+        except Exception:
+            pass
+        finally:
+            self.proc = None
+            self.port = None
+            with EvalServerProcess._LOCK:
+                EvalServerProcess._ALL_INSTANCES.discard(self)
+
+    def __enter__(self) -> "EvalServerProcess":
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.stop()
+
+
 class ServiceManager:
-    """Manage OpenBrowser and eval server processes"""
+    """Manage the OpenBrowser server process.
+
+    The eval mock-site server is now spawned per-test by EvalServerProcess,
+    so this class only owns OpenBrowser lifecycle.
+    """
 
     def __init__(self):
         self.openbrowser_proc = None
-        self.eval_server_proc = None
 
     def start_openbrowser(self) -> bool:
         """Check if OpenBrowser server is running, prompt user to start if not"""
@@ -793,35 +954,6 @@ class ServiceManager:
             logger.error(f"Failed to check OpenBrowser server status: {e}")
             return False
 
-    def start_eval_server(self) -> bool:
-        """Check if eval server is running, prompt user to start if not"""
-        try:
-            client = EvalServerClient()
-            if client.health_check():
-                logger.info("Eval server is running ✓")
-                return True
-
-            eval_dir = EVAL_DIR
-            root_dir = EVAL_DIR.parent
-            logger.error(f"""
-❌ Eval server is not running!
-   Please start the eval server manually with:
-
-   cd {eval_dir}
-   python server.py
-
-   Or in another terminal:
-   cd {root_dir}
-   uv run python eval/server.py
-
-   The server should start on port 16605.
-""")
-            return False
-
-        except Exception as e:
-            logger.error(f"Failed to check eval server status: {e}")
-            return False
-
     def stop_services(self):
         """Stop all services"""
         if self.openbrowser_proc:
@@ -832,15 +964,6 @@ class ServiceManager:
             except Exception as e:
                 logger.error(f"Error stopping OpenBrowser server: {e}")
             self.openbrowser_proc = None
-
-        if self.eval_server_proc:
-            try:
-                os.killpg(os.getpgid(self.eval_server_proc.pid), signal.SIGTERM)
-                self.eval_server_proc.wait(timeout=5)
-                logger.info("Eval server stopped")
-            except Exception as e:
-                logger.error(f"Error stopping eval server: {e}")
-            self.eval_server_proc = None
 
 
 class EvaluationRunLock(AbstractContextManager["EvaluationRunLock"]):
@@ -905,12 +1028,20 @@ class Evaluator:
     def __init__(self, chrome_uuid: Optional[str] = None):
         self.chrome_uuid = chrome_uuid
         self.openbrowser = OpenBrowserClient(chrome_uuid=chrome_uuid)
-        self.eval_server = EvalServerClient()
         self.service_manager = ServiceManager()
         self.results: List[TestResult] = []
         self.output_dir: Optional[Path] = None  # Will be set per run
         self.current_model: Optional[str] = None  # Current model being tested
         self.current_target: Optional[LLMTarget] = None  # Current CLI target
+
+    @staticmethod
+    def _rewrite_eval_server_urls(text: str, port: int) -> str:
+        """Rewrite localhost:16605 references to the per-test eval-server port."""
+        if not text or port == EVAL_SERVER_PORT:
+            return text
+        return text.replace(
+            f"localhost:{EVAL_SERVER_PORT}", f"localhost:{port}"
+        ).replace(f"127.0.0.1:{EVAL_SERVER_PORT}", f"127.0.0.1:{port}")
 
     @staticmethod
     def _sanitize_model_name(model_name: str) -> str:
@@ -1094,11 +1225,15 @@ class Evaluator:
     def ensure_services(
         self, skip_services: bool = False, manual: bool = False
     ) -> bool:
-        """Ensure required services are running, or skip check if requested
+        """Ensure required services are running, or skip check if requested.
+
+        The mock-site eval server is now spawned per test (see
+        EvalServerProcess), so we no longer health-check a global one. Only
+        OpenBrowser must be reachable up front.
 
         Args:
             skip_services: If True, skip all service checks
-            manual: If True, only check eval server (manual mode doesn't need OpenBrowser)
+            manual: If True, skip OpenBrowser check (manual mode doesn't drive it)
         """
         if skip_services:
             logger.info("Skipping service checks (--no-services flag used)")
@@ -1106,13 +1241,6 @@ class Evaluator:
 
         logger.info("Checking services...")
 
-        # Check eval server
-        if not self.eval_server.health_check():
-            if not self.service_manager.start_eval_server():
-                logger.error("Eval server check failed")
-                return False
-
-        # Check OpenBrowser server (skip in manual mode)
         if not manual:
             if not self.openbrowser.health_check():
                 if not self.service_manager.start_openbrowser():
@@ -1120,7 +1248,7 @@ class Evaluator:
                     return False
             logger.info("All services are running ✓")
         else:
-            logger.info("Eval server is running (manual mode) ✓")
+            logger.info("Manual mode: per-test eval servers will be spawned on demand")
 
         return True
 
@@ -1213,8 +1341,28 @@ class Evaluator:
                     f"Routine file is empty: {routine_path}",
                 )
 
-        # Clear only the current mock-site event bucket.
-        self.eval_server.clear_events(site=site_bucket)
+        # Per-test isolation: spawn a dedicated mock-site server on an
+        # OS-assigned port, then rewrite the YAML's localhost:16605 references
+        # to that port. Each conversation has its own events_store, so the
+        # ?site= filter and "clear before run" dance are no longer needed.
+        try:
+            eval_server_proc = EvalServerProcess()
+            eval_port = eval_server_proc.start()
+        except Exception as exc:
+            logger.error("Failed to start per-test eval server: %s", exc)
+            return self._build_error_result(
+                test_case,
+                active_model_name,
+                f"Failed to start per-test eval server: {exc}",
+            )
+
+        eval_server = EvalServerClient(port=eval_port)
+        rewritten_start_url = self._rewrite_eval_server_urls(
+            test_case.start_url, eval_port
+        )
+        rewritten_instruction = self._rewrite_eval_server_urls(
+            test_case.instruction, eval_port
+        )
 
         # Create new conversation with current model. When replaying a
         # routine, tag the conversation with mode="routine_replay" so the
@@ -1230,6 +1378,7 @@ class Evaluator:
             logger.warning(
                 f"Failed to create conversation for model {active_model_name}"
             )
+            eval_server_proc.stop()
             return self._build_error_result(
                 test_case,
                 active_model_name,
@@ -1248,8 +1397,8 @@ class Evaluator:
 
         try:
             # Initialize with start URL if provided
-            if test_case.start_url:
-                init_message = f"Open {test_case.start_url}"
+            if rewritten_start_url:
+                init_message = f"Open {rewritten_start_url}"
                 init_result = self.openbrowser.send_message(
                     conversation_id,
                     init_message,
@@ -1280,11 +1429,12 @@ class Evaluator:
             # the agent treats it as ground truth per the ROUTINE_REPLAY
             # system-prompt block.
             if not timed_out:
-                message_text = (
-                    routine_markdown
-                    if routine_markdown is not None
-                    else test_case.instruction
-                )
+                if routine_markdown is not None:
+                    message_text = self._rewrite_eval_server_urls(
+                        routine_markdown, eval_port
+                    )
+                else:
+                    message_text = rewritten_instruction
                 instruction_result = self.openbrowser.send_message(
                     conversation_id,
                     message_text,
@@ -1312,8 +1462,8 @@ class Evaluator:
             pending_event_wait = 1.0 if timed_out else 3.0
             time.sleep(min(pending_event_wait, max(0.0, deadline - time.time())))
 
-            # Get tracking events
-            track_events = self.eval_server.get_events(site=site_bucket)
+            # Get tracking events from this conversation's dedicated server.
+            track_events = eval_server.get_events()
 
             # Save track events to file
             track_events_file = self._save_track_events(
@@ -1378,6 +1528,7 @@ class Evaluator:
             )
         finally:
             self._cleanup_openbrowser_conversation(conversation_id)
+            eval_server_proc.stop()
 
     def _extract_images(
         self,
@@ -1999,7 +2150,6 @@ class Evaluator:
     def run_manual_test(self, test_case: TestCase) -> TestResult:
         """Run a test case in manual mode with human performing the same task as OpenBrowser"""
         logger.info(f"Running manual test: {test_case.name}")
-        site_bucket = self._get_test_site_bucket(test_case)
 
         # Ensure output directory exists
         if self.output_dir is None:
@@ -2008,111 +2158,131 @@ class Evaluator:
             self.output_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Created output directory: {self.output_dir}")
 
-        # Clear previous events for the current mock site only.
-        self.eval_server.clear_events(site=site_bucket)
-
-        # Print test information
-        print("\n" + "=" * 60)
-        print(f"MANUAL TEST: {test_case.name}")
-        print(f"Start URL: {test_case.start_url}")
-        print("=" * 60)
-
-        if test_case.start_url:
-            print("\n📋 Please open your browser and navigate to:")
-            print(f"   {test_case.start_url}")
-            print("Make sure the eval server is running (localhost:16605).")
-            print("The browser should load the test page.")
-            input("\nPress Enter when ready to continue...")
-
-        # Show the SAME instruction that would be given to OpenBrowser
-        print("\n📝 Task Instruction (same as given to OpenBrowser):")
-        print(f"   {test_case.instruction}")
-        print(
-            "\nPerform this task in the browser. Events will be tracked from this moment."
-        )
-        print("Complete the task using the website's own controls.")
-        print("After you finish in the browser, return here and enter 'ok' below.")
-
-        # Start timing when instruction is shown (same as automated test)
-        start_time = time.time()
-
-        # Wait for user to complete the entire task
-        while True:
-            response = (
-                input("\nAfter finishing in the browser, enter 'ok' here > ")
-                .strip()
-                .lower()
+        # Spawn a dedicated eval server for this manual run.
+        eval_server_proc = EvalServerProcess()
+        try:
+            eval_port = eval_server_proc.start()
+        except Exception as exc:
+            logger.error("Failed to start per-test eval server: %s", exc)
+            return self._build_error_result(
+                test_case, "manual", f"Failed to start eval server: {exc}"
             )
-            if response == "ok":
-                break
-            else:
-                print("Please finish the browser task first, then enter 'ok' here.")
 
-        end_time = time.time()
-        duration = end_time - start_time
-
-        # Wait a moment for any pending events to be tracked
-        time.sleep(2)
-
-        # Get tracking events
-        track_events = self.eval_server.get_events(site=site_bucket)
-
-        # Save track events to file (no conversation_id for manual mode, use "manual")
-        track_events_file = self._save_track_events(
-            track_events, test_case.id, "manual", self.output_dir
+        eval_server = EvalServerClient(port=eval_port)
+        rewritten_start_url = self._rewrite_eval_server_urls(
+            test_case.start_url, eval_port
+        )
+        rewritten_instruction = self._rewrite_eval_server_urls(
+            test_case.instruction, eval_port
         )
 
-        # Evaluate against criteria (no SSE events in manual mode)
-        passed, score, max_score = self._evaluate_criteria(test_case, track_events, [])
+        try:
+            # Print test information
+            print("\n" + "=" * 60)
+            print(f"MANUAL TEST: {test_case.name}")
+            print(f"Start URL: {rewritten_start_url}")
+            print("=" * 60)
 
-        # Calculate efficiency score (skip usage score for manual mode)
-        efficiency_score = self._calculate_efficiency_score(
-            duration, test_case.time_limit
-        )
-        usage_score = 1.0  # Manual mode gets full usage score (no cost)
-        total_score = score + efficiency_score + usage_score
+            if rewritten_start_url:
+                print("\n📋 Please open your browser and navigate to:")
+                print(f"   {rewritten_start_url}")
+                print(f"This run's eval server is on port {eval_port}.")
+                print("The browser should load the test page.")
+                input("\nPress Enter when ready to continue...")
 
-        # No images or SSE events in manual mode
-        images = []
-        sse_events = []
-        sse_events_file = None
+            # Show the SAME instruction that would be given to OpenBrowser
+            print("\n📝 Task Instruction (same as given to OpenBrowser):")
+            print(f"   {rewritten_instruction}")
+            print(
+                "\nPerform this task in the browser. Events will be tracked from this moment."
+            )
+            print("Complete the task using the website's own controls.")
+            print("After you finish in the browser, return here and enter 'ok' below.")
 
-        result = TestResult(
-            test_case=test_case,
-            passed=passed,
-            score=score,
-            max_score=max_score,
-            events=[],
-            sse_events=sse_events,
-            track_events=track_events,
-            images=images,
-            conversation_id="manual",
-            start_time=start_time,
-            end_time=end_time,
-            duration=duration,
-            cost=None,  # No cost in manual mode
-            efficiency_score=efficiency_score,
-            usage_score=usage_score,
-            total_score=total_score,
-            sse_events_file=sse_events_file,
-            track_events_file=track_events_file,
-            model="manual",
-        )
+            # Start timing when instruction is shown (same as automated test)
+            start_time = time.time()
 
-        # Print completion message
-        print(f"\n{'=' * 60}")
-        print("Manual test completed!")
-        print(f"Duration: {duration:.1f}s")
-        print(f"Track events recorded: {len(track_events)}")
-        print(f"Task score: {score:.1f}/{max_score:.1f}")
-        print(f"Efficiency score: {efficiency_score:.2f}/1.0")
-        print(f"Usage score: {usage_score:.2f}/1.0 (manual)")
-        print(f"Total score: {total_score:.1f}")
-        print(f"Passed: {'YES' if passed else 'NO'}")
-        print(f"Track events saved to: {track_events_file}")
-        print("=" * 60)
+            # Wait for user to complete the entire task
+            while True:
+                response = (
+                    input("\nAfter finishing in the browser, enter 'ok' here > ")
+                    .strip()
+                    .lower()
+                )
+                if response == "ok":
+                    break
+                else:
+                    print("Please finish the browser task first, then enter 'ok' here.")
 
-        return result
+            end_time = time.time()
+            duration = end_time - start_time
+
+            # Wait a moment for any pending events to be tracked
+            time.sleep(2)
+
+            # Get tracking events from this manual run's dedicated server.
+            track_events = eval_server.get_events()
+
+            # Save track events to file (no conversation_id for manual mode, use "manual")
+            track_events_file = self._save_track_events(
+                track_events, test_case.id, "manual", self.output_dir
+            )
+
+            # Evaluate against criteria (no SSE events in manual mode)
+            passed, score, max_score = self._evaluate_criteria(
+                test_case, track_events, []
+            )
+
+            # Calculate efficiency score (skip usage score for manual mode)
+            efficiency_score = self._calculate_efficiency_score(
+                duration, test_case.time_limit
+            )
+            usage_score = 1.0  # Manual mode gets full usage score (no cost)
+            total_score = score + efficiency_score + usage_score
+
+            # No images or SSE events in manual mode
+            images = []
+            sse_events = []
+            sse_events_file = None
+
+            result = TestResult(
+                test_case=test_case,
+                passed=passed,
+                score=score,
+                max_score=max_score,
+                events=[],
+                sse_events=sse_events,
+                track_events=track_events,
+                images=images,
+                conversation_id="manual",
+                start_time=start_time,
+                end_time=end_time,
+                duration=duration,
+                cost=None,  # No cost in manual mode
+                efficiency_score=efficiency_score,
+                usage_score=usage_score,
+                total_score=total_score,
+                sse_events_file=sse_events_file,
+                track_events_file=track_events_file,
+                model="manual",
+            )
+
+            # Print completion message
+            print(f"\n{'=' * 60}")
+            print("Manual test completed!")
+            print(f"Duration: {duration:.1f}s")
+            print(f"Track events recorded: {len(track_events)}")
+            print(f"Task score: {score:.1f}/{max_score:.1f}")
+            print(f"Efficiency score: {efficiency_score:.2f}/1.0")
+            print(f"Usage score: {usage_score:.2f}/1.0 (manual)")
+            print(f"Total score: {total_score:.1f}")
+            print(f"Passed: {'YES' if passed else 'NO'}")
+            print(f"Track events saved to: {track_events_file}")
+            print("=" * 60)
+
+            return result
+        finally:
+            eval_server_proc.stop()
 
     def _build_scheduled_jobs(
         self, test_cases: List[TestCase], targets: List[LLMTarget]

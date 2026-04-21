@@ -21,7 +21,10 @@ import { debuggerSessionManager } from '../commands/debugger-manager';
 import { dialogManager } from '../commands/dialog';
 import { clearScreenshotCache } from '../commands/computer';
 
-import { highlightSingleElement } from '../commands/single-highlight';
+import {
+  cropScreenshotAroundElement,
+  getConfirmationPromptText,
+} from '../commands/single-highlight';
 import { highlightDropPreview } from '../commands/drop-preview-highlight';
 import { elementCache } from '../commands/element-cache';
 import { assignHashedElementIds } from '../commands/element-id';
@@ -29,6 +32,7 @@ import { buildElementCacheMissMessage } from '../commands/element-cache';
 import {
   buildHighlightDetectionScript,
   filterHighlightElementsByKeywords,
+  getElementDescriptorScript,
 } from '../commands/highlight-detection';
 import {
   performElementClick,
@@ -176,12 +180,17 @@ async function runRawScreenshotPrime(options: {
   );
 }
 
-const LABEL_POSITION_FALLBACK_ORDER: LabelPosition[] = [
-  'above',
-  'below',
-  'left',
-  'right',
-];
+const LABEL_POSITION_FALLBACK_ORDER: LabelPosition[] = ['above', 'below'];
+
+// Strip fields that exist for extension-internal use (identity, cache,
+// inspect_element) from the response payload sent to the server. The LLM
+// consumes `descriptor` instead of raw outerHTML.
+function toServerHighlightElement(
+  element: InteractiveElement,
+): InteractiveElement {
+  const { html: _html, ...rest } = element;
+  return rest;
+}
 
 // Keyword-mode bypasses the collision planner (it must show all matches on
 // one page), but the renderer still needs a labelPosition that fits in the
@@ -288,16 +297,22 @@ function buildHighlightConsistencyScript(
   `;
 }
 
+// Border = bright outline around the element (minimal content occlusion).
+// Bg = OPAQUE darker shade used as the label fill. Using a darker opaque
+// fill (not the border color at reduced alpha) makes the label read as a
+// distinct filled badge rather than a part of the bbox's outline — so
+// when the label's bottom edge touches the bbox's top edge, the two
+// shapes remain visually separable.
 const IN_PAGE_HIGHLIGHT_COLORS: Record<string, { border: string; bg: string }> =
   {
-    clickable: { border: '#0066FF', bg: 'rgba(0,102,255,0.7)' },
-    scrollable: { border: '#00CC66', bg: 'rgba(0,204,102,0.7)' },
-    inputable: { border: '#FF9900', bg: 'rgba(255,153,0,0.7)' },
-    selectable: { border: '#FF6B6B', bg: 'rgba(255,107,107,0.7)' },
-    draggable: { border: '#FF6600', bg: 'rgba(255,102,0,0.7)' },
-    droppable: { border: '#339966', bg: 'rgba(51,153,102,0.7)' },
-    uploadable: { border: '#AA66FF', bg: 'rgba(170,102,255,0.7)' },
-    any: { border: '#00CCCC', bg: 'rgba(0,204,204,0.7)' },
+    clickable: { border: '#0066FF', bg: '#003D99' },
+    scrollable: { border: '#00CC66', bg: '#007A3D' },
+    inputable: { border: '#FF9900', bg: '#995C00' },
+    selectable: { border: '#FF6B6B', bg: '#993333' },
+    draggable: { border: '#FF6600', bg: '#993D00' },
+    droppable: { border: '#339966', bg: '#1F5C3D' },
+    uploadable: { border: '#AA66FF', bg: '#663D99' },
+    any: { border: '#00CCCC', bg: '#007A7A' },
   };
 
 const OB_HIGHLIGHT_OVERLAY_ID = '__ob_highlight_overlay__';
@@ -316,6 +331,7 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
       borderColor: colors.border,
       bgColor: colors.bg,
       labelPos: el.labelPosition || 'above',
+      labelXOffset: el.labelXOffset || 0,
     };
   });
 
@@ -331,7 +347,11 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
       // Snapshot + restore helpers so we don't leak our overrides onto the
       // page when pre-existing inline styles are present.
       const SAVED_ATTR = HL_ATTR + '-saved';
-      const OVERRIDES = ['transition', 'box-shadow'];
+      // outline is painted AFTER descendants (per CSS paint order), so it
+      // stays visible even when the element has opaque children filling its
+      // content area — e.g. <a class="cover mask ld"> wrapping an <img> that
+      // would fully cover an inset box-shadow.
+      const OVERRIDES = ['transition', 'outline', 'outline-offset'];
       const snapshotOverrides = (el) => {
         const snap = {};
         for (const p of OVERRIDES) {
@@ -356,28 +376,39 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
         el.removeAttribute(SAVED_ATTR);
       };
 
-      // Remove any previous highlights
-      document.getElementById(OVERLAY_ID)?.remove();
+      // Remove any previous highlights (including resize listener).
+      const prevOverlay = document.getElementById(OVERLAY_ID);
+      if (prevOverlay) {
+        if (prevOverlay.__obResizeHandler) {
+          window.removeEventListener('resize', prevOverlay.__obResizeHandler);
+        }
+        prevOverlay.remove();
+      }
       document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
         restoreOverrides(el);
         el.removeAttribute(HL_ATTR);
       });
 
-      // Create overlay for labels only (boxes use inset box-shadow on elements)
+      // Create overlay for labels only (boxes use outline on elements).
+      // Use position:absolute so labels scroll with the document alongside
+      // the outlined elements; fixed would leave them stuck to the viewport.
       const overlay = document.createElement('div');
       overlay.id = OVERLAY_ID;
-      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2147483647;overflow:hidden;';
+      overlay.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:2147483647;';
       document.documentElement.appendChild(overlay);
 
       const bboxes = [];
       // box-sizing:border-box so max-width caps the total rendered width
       // (matching the collision planner's MAX_LABEL_WIDTH, which is the full
       // label width including padding).
-      const LABEL_BASE_CSS = 'position:fixed;box-sizing:border-box;'
+      const LABEL_BASE_CSS = 'position:absolute;box-sizing:border-box;'
         + 'font:bold ' + LABEL_FONT_SIZE + 'px/' + LABEL_FONT_SIZE + 'px Arial,sans-serif;'
         + 'color:#fff;padding:' + LABEL_PADDING + 'px;border-radius:2px;'
         + 'white-space:nowrap;pointer-events:none;overflow:hidden;text-overflow:ellipsis;'
         + 'max-width:' + MAX_LABEL_WIDTH + 'px;';
+
+      // Track element→label pairs so we can reposition on resize.
+      const labelEntries = [];
 
       for (const item of items) {
         try {
@@ -397,12 +428,12 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
             if (hit && hit !== el && !el.contains(hit)) continue;
           }
 
-          // Snapshot any inline transition/box-shadow so cleanup can restore
+          // Snapshot any inline transition/outline so cleanup can restore
           // them exactly (including !important priority) instead of stripping.
           snapshotOverrides(el);
-          // Disable CSS transitions so the page can't animate the shadow in
+          // Disable CSS transitions so the page can't animate the outline in
           // (e.g. sidebar items with "transition: all 0.2s" would cause the
-          // CDP screenshot to catch the box-shadow mid-interpolation and the
+          // CDP screenshot to catch the outline mid-interpolation and the
           // border would render thinner than the specified 3px).
           el.style.setProperty('transition', 'none', 'important');
           // Adapt border thickness to element size: tight targets (small
@@ -411,10 +442,11 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
           // against a bigger empty interior.
           const borderPx = Math.min(rect.width, rect.height) > 32 ? 3 : 2;
           el.style.setProperty(
-            'box-shadow',
-            'inset 0 0 0 ' + borderPx + 'px ' + item.borderColor,
+            'outline',
+            borderPx + 'px solid ' + item.borderColor,
             'important',
           );
+          el.style.setProperty('outline-offset', (-borderPx) + 'px', 'important');
           el.setAttribute(HL_ATTR, item.id);
 
           // Render label off-screen first to measure actual dimensions, then
@@ -425,26 +457,198 @@ function buildInPageHighlightScript(elements: InteractiveElement[]): string {
           label.textContent = item.id;
           overlay.appendChild(label);
 
-          const labelRect = label.getBoundingClientRect();
-          const labelW = labelRect.width;
-          const labelH = labelRect.height;
-
-          let lx, ly;
-          switch (item.labelPos) {
-            case 'below': lx = rect.left;            ly = rect.bottom;       break;
-            case 'left':  lx = rect.left - labelW;   ly = rect.top;          break;
-            case 'right': lx = rect.right;           ly = rect.top;          break;
-            default:      lx = rect.left;            ly = rect.top - labelH; break;
-          }
-
-          label.style.left = lx + 'px';
-          label.style.top = ly + 'px';
+          labelEntries.push({ el, label, item });
 
           bboxes.push({ id: item.id, bbox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } });
         } catch (e) { /* skip */ }
       }
 
+      // Position all labels. Extracted so we can re-run on resize.
+      function positionLabels() {
+        const sx = window.scrollX || window.pageXOffset || 0;
+        const sy = window.scrollY || window.pageYOffset || 0;
+        for (const entry of labelEntries) {
+          const rect = entry.el.getBoundingClientRect();
+          const labelRect = entry.label.getBoundingClientRect();
+          const labelW = labelRect.width;
+          const labelH = labelRect.height;
+          const slack = Math.max(0, rect.width - labelW);
+          const xOffset = Math.max(0, Math.min(slack, entry.item.labelXOffset || 0));
+          entry.label.style.left = (rect.left + sx + xOffset) + 'px';
+          entry.label.style.top = (
+            entry.item.labelPos === 'below'
+              ? rect.bottom + sy
+              : rect.top + sy - labelH
+          ) + 'px';
+        }
+      }
+      positionLabels();
+
+      // Reposition labels when the page layout changes (window resize,
+      // zoom, DevTools panel toggle, etc.) so they stay attached to
+      // their highlighted elements instead of drifting.
+      const _obResizeHandler = () => { positionLabels(); };
+      window.addEventListener('resize', _obResizeHandler);
+      // Stash reference so cleanup can remove it.
+      overlay.__obResizeHandler = _obResizeHandler;
+
       return { bboxes };
+    })();
+  `;
+}
+
+// Cleanup of injected highlight styles is deferred until the next command
+// arrives, so the yellow/colored overlay stays visible on the page between
+// commands. Keyed by tabId; a pending cleanup is overwritten if a new
+// highlight runs on the same tab before the prior one is flushed.
+const pendingHighlightCleanups = new Map<number, () => Promise<void>>();
+
+function scheduleHighlightCleanup(tabId: number, conversationId: string): void {
+  pendingHighlightCleanups.set(tabId, async () => {
+    await javascript.executeJavaScript(
+      tabId,
+      conversationId,
+      buildHighlightCleanupScript(),
+      true,
+      false,
+      2000,
+    );
+  });
+}
+
+// Read-only / metadata commands that should NOT flush pending highlight
+// cleanups. The server sends `get_tabs` immediately after every tab action
+// to refresh its tab list; treating that as a "user-visible next command"
+// would wipe the highlights we just injected on a tab init.
+const HIGHLIGHT_PRESERVING_COMMAND_TYPES = new Set<string>(['get_tabs']);
+
+async function flushPendingHighlightCleanups(tabId?: number): Promise<void> {
+  if (pendingHighlightCleanups.size === 0) return;
+  if (tabId === undefined) return;
+  const cleanup = pendingHighlightCleanups.get(tabId);
+  if (!cleanup) return;
+  pendingHighlightCleanups.delete(tabId);
+  try {
+    await cleanup();
+  } catch (e) {
+    console.warn(
+      `⚠️ [HighlightCleanup] Deferred cleanup failed for tab ${tabId}: ${e}`,
+    );
+  }
+}
+
+// Inject a yellow confirmation outline + "Is this the element you wanted
+// to ..." banner on a single live DOM element. Shares OVERLAY_ID / HL_ATTR
+// with the broad highlight path so buildHighlightCleanupScript reverses it.
+function buildInPageSingleHighlightScript(
+  element: InteractiveElement,
+  intendedAction: 'click' | 'keyboard_input' | 'select' | undefined,
+): string {
+  const selector = element.overlaySelector || element.selector;
+  const promptText = getConfirmationPromptText(intendedAction);
+  const borderColor = '#FFD400';
+  const bannerBg = 'rgba(255,212,0,0.95)';
+
+  return `
+    (() => {
+      const OVERLAY_ID = ${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)};
+      const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
+      const SAVED_ATTR = HL_ATTR + '-saved';
+      const OVERRIDES = ['transition', 'outline', 'outline-offset'];
+
+      const snapshotOverrides = (el) => {
+        const snap = {};
+        for (const p of OVERRIDES) {
+          snap[p] = {
+            v: el.style.getPropertyValue(p),
+            i: el.style.getPropertyPriority(p),
+          };
+        }
+        el.setAttribute(SAVED_ATTR, JSON.stringify(snap));
+      };
+      const restoreOverrides = (el) => {
+        let snap = {};
+        try { snap = JSON.parse(el.getAttribute(SAVED_ATTR) || '{}'); } catch (_) {}
+        for (const p of OVERRIDES) {
+          const saved = snap[p];
+          if (saved && saved.v) {
+            el.style.setProperty(p, saved.v, saved.i || '');
+          } else {
+            el.style.removeProperty(p);
+          }
+        }
+        el.removeAttribute(SAVED_ATTR);
+      };
+
+      document.getElementById(OVERLAY_ID)?.remove();
+      document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
+        restoreOverrides(el);
+        el.removeAttribute(HL_ATTR);
+      });
+
+      const overlay = document.createElement('div');
+      overlay.id = OVERLAY_ID;
+      overlay.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:2147483647;';
+      document.documentElement.appendChild(overlay);
+
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return { bbox: null };
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return { bbox: null };
+
+      const scrollX = window.scrollX || window.pageXOffset || 0;
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+
+      snapshotOverrides(el);
+      el.style.setProperty('transition', 'none', 'important');
+      const borderPx = Math.min(rect.width, rect.height) > 32 ? 4 : 3;
+      el.style.setProperty(
+        'outline',
+        borderPx + 'px solid ' + ${JSON.stringify(borderColor)},
+        'important',
+      );
+      el.style.setProperty('outline-offset', (-borderPx) + 'px', 'important');
+      el.setAttribute(HL_ATTR, 'single');
+
+      const label = document.createElement('div');
+      const fontSize = 16;
+      const paddingX = 14;
+      const paddingY = 8;
+      label.style.cssText = 'position:absolute;box-sizing:border-box;'
+        + 'font:600 ' + fontSize + 'px/' + (fontSize + 4) + 'px '
+          + '-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;'
+        + 'color:#111;background:' + ${JSON.stringify(bannerBg)} + ';'
+        + 'padding:' + paddingY + 'px ' + paddingX + 'px;border-radius:6px;'
+        + 'border:1px solid rgba(17,17,17,0.18);'
+        + 'white-space:nowrap;pointer-events:none;'
+        + 'box-shadow:0 4px 12px rgba(0,0,0,0.18);left:-9999px;top:0;';
+      label.textContent = ${JSON.stringify(promptText)};
+      overlay.appendChild(label);
+
+      const labelRect = label.getBoundingClientRect();
+      const labelW = labelRect.width;
+      const labelH = labelRect.height;
+
+      const MARGIN = 10;
+      const elCenterX = rect.left + rect.width / 2;
+      let lx = elCenterX - labelW / 2;
+      lx = Math.max(MARGIN, Math.min(lx, innerWidth - labelW - MARGIN));
+
+      let ly;
+      if (rect.top - labelH - MARGIN >= 0) {
+        ly = rect.top - labelH - MARGIN;
+      } else if (rect.bottom + labelH + MARGIN <= innerHeight) {
+        ly = rect.bottom + MARGIN;
+      } else {
+        ly = Math.max(MARGIN, rect.top - labelH - MARGIN);
+      }
+
+      label.style.left = (lx + scrollX) + 'px';
+      label.style.top = (ly + scrollY) + 'px';
+
+      return {
+        bbox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      };
     })();
   `;
 }
@@ -454,8 +658,14 @@ function buildHighlightCleanupScript(): string {
     (() => {
       const HL_ATTR = ${JSON.stringify(OB_HIGHLIGHT_ATTR)};
       const SAVED_ATTR = HL_ATTR + '-saved';
-      const OVERRIDES = ['transition', 'box-shadow'];
-      document.getElementById(${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)})?.remove();
+      const OVERRIDES = ['transition', 'outline', 'outline-offset'];
+      const overlayEl = document.getElementById(${JSON.stringify(OB_HIGHLIGHT_OVERLAY_ID)});
+      if (overlayEl) {
+        if (overlayEl.__obResizeHandler) {
+          window.removeEventListener('resize', overlayEl.__obResizeHandler);
+        }
+        overlayEl.remove();
+      }
       document.querySelectorAll('[' + HL_ATTR + ']').forEach(el => {
         let snap = {};
         try { snap = JSON.parse(el.getAttribute(SAVED_ATTR) || '{}'); } catch (_) {}
@@ -612,9 +822,20 @@ async function captureHighlightedPageState(
       continue;
     }
 
+    // Filter out elements too small to produce a visible highlight outline.
+    // Without this, tiny decorative dots (e.g. bullet indicators) enter the
+    // collision planner, occupy label slots, and block adjacent meaningful
+    // elements like links from being placed on page 1.
+    const MIN_HIGHLIGHT_DIM = 8;
+    const sizeFilteredElements = allElements.filter(
+      (el) =>
+        el.bbox.width >= MIN_HIGHLIGHT_DIM ||
+        el.bbox.height >= MIN_HIGHLIGHT_DIM,
+    );
+
     const keywordFilterStart = Date.now();
     const keywordFiltering = filterHighlightElementsByKeywords(
-      allElements,
+      sizeFilteredElements,
       keywords,
     );
     const keywordList = keywordFiltering.keywords;
@@ -685,19 +906,9 @@ async function captureHighlightedPageState(
       highlightScript,
     );
 
-    // Clean up injected highlights from the DOM
-    try {
-      await javascript.executeJavaScript(
-        tabId,
-        conversationId,
-        buildHighlightCleanupScript(),
-        true,
-        false,
-        2000,
-      );
-    } catch (e) {
-      console.warn(`⚠️ [${logLabel}] highlight cleanup failed: ${e}`);
-    }
+    // Keep injected highlights in the DOM until the next command runs.
+    // Flushed from handleCommand via flushPendingHighlightCleanups().
+    scheduleHighlightCleanup(tabId, conversationId);
 
     if (!screenshotResult?.success || !screenshotResult?.imageData) {
       throw new Error(
@@ -840,7 +1051,7 @@ async function captureHighlightedPageState(
     );
 
     return {
-      elements: storedPage.elements,
+      elements: storedPage.elements.map(toServerHighlightElement),
       totalElements: filteredElements.length,
       totalPages,
       page: currentPage,
@@ -1394,6 +1605,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
  */
 async function handleCommand(command: Command): Promise<CommandResponse> {
   console.log(`📨 Handling command: ${command.type}`, command);
+
+  if (!HIGHLIGHT_PRESERVING_COMMAND_TYPES.has(command.type)) {
+    await flushPendingHighlightCleanups(
+      (command as { tab_id?: number }).tab_id,
+    );
+  }
 
   try {
     switch (command.type) {
@@ -2764,13 +2981,25 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         // Brief pause for CSS transitions triggered by hover event handlers
         await new Promise((r) => setTimeout(r, 150));
 
-        // Capture screenshot
+        // Inject yellow outline + confirmation banner on the real DOM
+        // element, capture, then crop around the element for the zoom-in
+        // preview. Cleanup is deferred to the next user-visible command
+        // so the confirmation highlight stays on the live page.
+        const singleHighlightScript = buildInPageSingleHighlightScript(
+          { ...element.element, bbox: freshBbox },
+          command.intended_action,
+        );
         const screenshotResult = await captureScreenshot(
           activeTabId,
           conversationId,
           true,
           90,
+          false,
+          0,
+          undefined,
+          singleHighlightScript,
         );
+        scheduleHighlightCleanup(activeTabId, conversationId);
 
         // ============================================================
         // Check if element is visible in viewport
@@ -2816,18 +3045,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           };
         }
 
-        // Create element with fresh bbox for drawing
+        // Border + banner are already baked into the screenshot via the
+        // in-page injection; just crop it to a zoomed window around the
+        // element for the confirmation preview.
         const elementWithFreshBbox = {
           ...element.element,
           bbox: freshBbox,
         };
-
-        // Draw single element highlight
-        const highlightedScreenshot = await highlightSingleElement(
+        const highlightedScreenshot = await cropScreenshotAroundElement(
           screenshotResult.imageData,
           elementWithFreshBbox,
           {
-            intendedAction: command.intended_action,
             scale:
               screenshotResult.metadata?.imageScale ||
               screenshotResult.metadata?.devicePixelRatio ||
@@ -2917,6 +3145,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           .replace(/"/g, '\\"');
         const dropDetectionScript = `
           (function() {
+            ${getElementDescriptorScript()}
             const container = document.querySelector("${targetSelector}");
             if (!container) {
               return { ok: false, error: "Drop target container not found in DOM" };
@@ -2993,10 +3222,14 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                   selector += ':nth-child(' + idx + ')';
                 }
                 const rect = child.getBoundingClientRect();
+                const descriptor =
+                  typeof window.__openbrowserBuildElementDescriptor === 'function'
+                    ? window.__openbrowserBuildElementDescriptor(child)
+                    : undefined;
                 innerElements.push({
                   tagName: child.tagName,
                   text: (child.textContent || '').trim().slice(0, 200),
-                  html: child.outerHTML.slice(0, 2000),
+                  descriptor: descriptor,
                   selector: selector,
                   bbox: {
                     x: rect.x,

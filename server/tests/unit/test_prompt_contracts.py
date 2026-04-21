@@ -75,7 +75,12 @@ class TestPromptContracts:
 
         assert "icon-only" in description
         assert "stay on the same `element_type` across pages" in description
-        assert "your default next step is the next page in the same mode" in description
+        # Canonical pagination rule lives in the Workflow section as step 4;
+        # the previous shorter phrasing was removed to eliminate redundancy.
+        assert (
+            "call `highlight` with `page: current + 1` on the same "
+            "`element_type` before picking anything" in description
+        )
         assert (
             "If a likely target is already partly visible, clipped, or crowded by sticky UI, use `scroll` to improve geometry before paginating."
             in description
@@ -85,6 +90,24 @@ class TestPromptContracts:
             in description
         )
         assert "`clickable`" not in description
+
+    def test_highlight_prompt_carries_pagination_example(self) -> None:
+        """A concrete positive example is the key lever from Anthropic's guide
+        (positive examples > negative instructions). The example must warn
+        against picking an approximate id (e.g. a like/vote button adjacent
+        to the real target) as a stand-in when later pages exist. The
+        example must stay generic — it names no specific benchmark task or
+        site, so the model cannot memorize a pattern."""
+        description = get_highlight_tool_description()
+
+        assert "Pagination example" in description
+        assert '{"page": 2}' in description
+        assert '"close enough"' in description
+        # Guardrail: do not leak benchmark-specific task names into the
+        # prompt. The 20260420 eval's bluebook_simple task was written into
+        # an earlier draft of this example and must not come back.
+        assert "Arigato" not in description
+        assert "bluebook" not in description.lower()
 
     def test_highlight_prompt_treats_partly_visible_targets_as_geometry_problem(
         self,

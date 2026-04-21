@@ -2223,6 +2223,12 @@ function toInteractiveElement(candidate) {
       ? candidate.rect
       : getElementRect(candidate.element);
 
+  const descriptor =
+    typeof globalThis !== 'undefined' &&
+    typeof globalThis.__openbrowserBuildElementDescriptor === 'function'
+      ? globalThis.__openbrowserBuildElementDescriptor(candidate.element)
+      : undefined;
+
   const base = {
     id: '',
     type: displayType,
@@ -2232,6 +2238,7 @@ function toInteractiveElement(candidate) {
     html: candidate.element.outerHTML
       ? candidate.element.outerHTML.trim()
       : undefined,
+    ...(descriptor ? { descriptor } : {}),
     text,
     searchText: getElementSearchText(candidate.element),
     fingerprint: getElementFingerprint(candidate.element),
