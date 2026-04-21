@@ -142,7 +142,11 @@ def _format_highlighted_element_lines(
         if not show_all:
             visible_ids = {id(o) for o in visible}
             for opt in options[SELECT_OPTIONS_DEFAULT_CAP:]:
-                if isinstance(opt, dict) and opt.get("selected") and id(opt) not in visible_ids:
+                if (
+                    isinstance(opt, dict)
+                    and opt.get("selected")
+                    and id(opt) not in visible_ids
+                ):
                     visible = list(visible) + [opt]
                     break
         for opt in visible:
@@ -163,7 +167,7 @@ def _format_highlighted_element_lines(
         if not show_all and remaining > 0:
             lines.append(
                 f"    …{SELECT_OPTIONS_DEFAULT_CAP} shown, {remaining} more — "
-                "re-highlight with `element_type: \"selectable\"` to see all."
+                're-highlight with `element_type: "selectable"` to see all.'
             )
 
     return lines

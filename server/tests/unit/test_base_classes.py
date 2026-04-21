@@ -283,7 +283,7 @@ class TestOpenBrowserObservation:
         assert '"25"="Option 25"' not in text
         # Trailer present
         assert "20 shown, 30 more" in text
-        assert "re-highlight with `element_type: \"selectable\"`" in text
+        assert 're-highlight with `element_type: "selectable"`' in text
 
     def test_select_capped_inventory_still_shows_selected_option(self) -> None:
         """Even when the selected option is past the cap, the agent must see

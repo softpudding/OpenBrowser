@@ -69,8 +69,8 @@ def test_small_model_highlight_prompt_stays_compact_and_actionable() -> None:
     # the load-bearing instruction; the follow-up sweep and no-approximate-
     # match clauses close the loophole the model exploited previously.
     assert (
-        '**If the exact target id is not in the current page and '
-        '`current_page < total_pages`, call `highlight` with '
+        "**If the exact target id is not in the current page and "
+        "`current_page < total_pages`, call `highlight` with "
         '`{"page": current_page + 1}` on the same `element_type` before '
         "picking any id.**" in description
     )
