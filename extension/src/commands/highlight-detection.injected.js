@@ -805,7 +805,12 @@ function isSemanticControlElement(el) {
 }
 
 function isMeaningfulPointerCandidate(el) {
-  if (!(el instanceof HTMLElement)) {
+  // SVG graphics elements (circle/rect/path/polygon used as map pins,
+  // canvas-drawn icon toggles, chart nodes, etc.) can be click targets
+  // in their own right when styled with cursor:pointer. They never have
+  // text content of their own in the HTML-text sense, and they're always
+  // small — so the 80px box fallback below accepts them.
+  if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) {
     return false;
   }
 
@@ -1182,6 +1187,30 @@ function compareClickableRootCandidates(a, b) {
 }
 
 function resolveClickableCandidate(el) {
+  // SVG leaves (map pins, icon toggles drawn directly in SVG, chart
+  // markers) can have their own cursor:pointer + click listener without
+  // an HTML wrapper. If this element is an SVG graphics element that
+  // classifies as clickable on its own, return it directly — otherwise
+  // fall through to the HTML-ancestor walk used for SVGs that are
+  // decorative children of an interactive HTML wrapper (`<button><svg>…`).
+  if (el instanceof SVGElement && !(el instanceof SVGSVGElement)) {
+    const signalSource = isClickableCandidate(el);
+    if (signalSource) {
+      const rect = getElementRect(el);
+      return {
+        element: el,
+        signalSource,
+        signalScore: getCandidateSignal('clickable', signalSource, el),
+        quality:
+          getCandidateSignal('clickable', signalSource, el) +
+          getControlAffinityScore(el),
+        rect,
+        area: getElementArea(rect),
+        depth: getDomDepth(el),
+      };
+    }
+  }
+
   let current =
     el instanceof HTMLElement
       ? el
