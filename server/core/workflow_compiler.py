@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from html.parser import HTMLParser
 from typing import Any, Literal
 
 AmbientEventType = Literal[
@@ -183,6 +184,54 @@ def _build_navigation_step(
     }
 
 
+class _VisibleTextExtractor(HTMLParser):
+    _SKIP_TAGS = {"script", "style"}
+    _BLOCK_TAGS = {"p", "div", "br", "li", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "section"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._parts: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in self._SKIP_TAGS:
+            self._skip_depth += 1
+        if tag in self._BLOCK_TAGS:
+            self._parts.append(" ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in self._SKIP_TAGS and self._skip_depth > 0:
+            self._skip_depth -= 1
+        if tag in self._BLOCK_TAGS:
+            self._parts.append(" ")
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth == 0:
+            self._parts.append(data)
+
+    def text(self) -> str:
+        return "".join(self._parts)
+
+
+def _extract_visible_text_from_html(html: Any) -> str | None:
+    """Extract visible text from an HTML snapshot, or None if nothing usable.
+
+    Used as a fallback for contenteditable edits where per-keystroke `input`
+    events don't fire (the old extension filter ignored contenteditables).
+    The final HTML of the target element is often captured on the surrounding
+    keydown event and contains the full typed content.
+    """
+    if not isinstance(html, str) or not html:
+        return None
+    parser = _VisibleTextExtractor()
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception:
+        return None
+    return _normalize_text(parser.text())
+
+
 def _extract_input_value(event_data: dict[str, Any]) -> tuple[str | None, bool]:
     element = _element_payload(event_data)
     is_sensitive = bool(element.get("isSensitive"))
@@ -191,6 +240,15 @@ def _extract_input_value(event_data: dict[str, Any]) -> tuple[str | None, bool]:
     normalized_value = _normalize_text(value)
     if normalized_value:
         return normalized_value, is_sensitive
+
+    if not is_sensitive:
+        html_text = _extract_visible_text_from_html(element.get("html"))
+        if html_text:
+            return html_text, is_sensitive
+
+        text_fallback = _normalize_text(element.get("text"))
+        if text_fallback:
+            return text_fallback, is_sensitive
 
     placeholder = _normalize_text(element.get("placeholder"))
     if placeholder and is_sensitive:
@@ -819,3 +877,125 @@ def compile_recording_trace(
     steps = normalize_trace_events(events)
     workflow = build_workflow_ir(recording_id, steps, recording_name)
     return CompiledWorkflowDraft(normalized_steps=steps, workflow=workflow)
+
+
+_TYPING_EVENT_TYPES: frozenset[str] = frozenset(
+    {"input", "change", "beforeinput"}
+)
+
+
+def _stable_element_identity(event_data: dict[str, Any]) -> str:
+    """Identity that stays constant as the user types into an element.
+
+    :func:`_element_identity` folds ``element.text`` into the hash because
+    downstream form-step logic wants to detect *which field* changed even
+    when users reuse a selector. That's the wrong shape for coalescing
+    consecutive keystrokes on the *same* field, where ``element.text`` is
+    exactly what changes on every event. This variant drops the mutating
+    pieces (``text``, any ``value`` snapshot) and keeps only the stable
+    anchors: selector, ARIA label, placeholder, and container selector.
+    """
+    element = _element_payload(event_data)
+    container = element.get("container")
+    if not isinstance(container, dict):
+        container = {}
+
+    parts = [
+        _normalize_text(element.get("selector")) or "",
+        _normalize_text(element.get("ariaLabel")) or "",
+        _normalize_text(element.get("placeholder")) or "",
+        _normalize_text(container.get("selector")) or "",
+    ]
+    return "|".join(parts)
+
+
+def coalesce_typing_events(
+    events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Fold runs of consecutive typing events on the same element into one.
+
+    Raw recordings emit one ``input`` event per keystroke on text fields and
+    one per intra-IME-composition slice on contenteditable editors, so a
+    single typed phrase can produce 100+ near-identical events. For the
+    compiler-agent's trace view the only useful snapshot per typing burst is
+    the *last* one (it already carries the final text/html of the element);
+    every prior keystroke is noise that blows up the event list and hides
+    meaningful actions (clicks, navigations) in between.
+
+    Rule: walk events in order; whenever the next event's type is in
+    ``_TYPING_EVENT_TYPES`` and its element identity (via
+    :func:`_element_identity`) matches the *immediately previous surviving*
+    event, keep the newer event and drop the prior one from the output list.
+    The surviving event picks up two annotations on its ``event_data``:
+
+    - ``coalescedEventIndexes``: list of every absorbed ``event_index``
+      (including the surviving event's own) so the agent can still drill
+      into any individual keystroke via ``event_detail``.
+    - ``coalescedCount``: convenience count, mirrors ``len(...Indexes)``.
+
+    If the surviving event lacks a ``keyframe`` but a prior one in the same
+    run had one (typical: the first keystroke fires a pre-action capture),
+    that keyframe is promoted forward so the agent still has a before-state
+    screenshot for the typing burst.
+
+    The returned list preserves input ordering and object identity for every
+    non-absorbed event; only the surviving event of a merged run is a new
+    dict with merged ``event_data``.
+    """
+
+    coalesced: list[dict[str, Any]] = []
+
+    for event in events:
+        event_type = _event_type(event)
+        if event_type not in _TYPING_EVENT_TYPES:
+            coalesced.append(event)
+            continue
+
+        if not coalesced:
+            coalesced.append(event)
+            continue
+
+        prior = coalesced[-1]
+        prior_type = _event_type(prior)
+        if prior_type not in _TYPING_EVENT_TYPES:
+            coalesced.append(event)
+            continue
+
+        prior_data = _event_data(prior)
+        curr_data = _event_data(event)
+        prior_id = _stable_element_identity(prior_data)
+        curr_id = _stable_element_identity(curr_data)
+        if not prior_id or prior_id != curr_id:
+            coalesced.append(event)
+            continue
+
+        # Absorb the prior event into the current one.
+        merged_data = dict(curr_data)
+
+        # Promote the earliest keyframe in the run if the survivor doesn't
+        # already have one. The before-state screenshot of the first
+        # keystroke is a useful anchor for the whole burst.
+        if not merged_data.get("keyframe") and prior_data.get("keyframe"):
+            merged_data["keyframe"] = prior_data["keyframe"]
+
+        prior_indexes = prior_data.get("coalescedEventIndexes")
+        absorbed: list[Any]
+        if isinstance(prior_indexes, list) and prior_indexes:
+            absorbed = list(prior_indexes)
+        else:
+            prior_idx = prior.get("event_index")
+            absorbed = [prior_idx] if prior_idx is not None else []
+
+        curr_idx = event.get("event_index")
+        if curr_idx is not None and curr_idx not in absorbed:
+            absorbed.append(curr_idx)
+
+        if absorbed:
+            merged_data["coalescedEventIndexes"] = absorbed
+            merged_data["coalescedCount"] = len(absorbed)
+
+        merged_event = dict(event)
+        merged_event["event_data"] = merged_data
+        coalesced[-1] = merged_event
+
+    return coalesced

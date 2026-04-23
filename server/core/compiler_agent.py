@@ -53,7 +53,10 @@ from openhands.tools.file_editor import FileEditorTool
 from server.agent.visualizer import QueueVisualizer
 from server.api.sse import SSEEvent
 from server.core.llm_config import llm_config_manager
-from server.core.workflow_compiler import normalize_trace_events
+from server.core.workflow_compiler import (
+    coalesce_typing_events,
+    normalize_trace_events,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -133,12 +136,18 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
         intent_note: str | None,
         recording_name: str | None,
     ) -> None:
-        self.events = events
+        # Present a coalesced event list to the agent so a 100-keystroke
+        # typing burst on a single input shows up as one event instead of
+        # burying every click and navigation in noise. ``event_detail`` on
+        # any absorbed event_index still works — _events_by_index maps over
+        # the FULL raw list below, not the coalesced view.
+        self._all_events = events
+        self.events = coalesce_typing_events(events)
         self.normalized_steps = normalized_steps
         self.intent_note = intent_note
         self.recording_name = recording_name
         self._events_by_index: dict[int, dict[str, Any]] = {
-            e.get("event_index", i): e for i, e in enumerate(events)
+            e.get("event_index", i): e for i, e in enumerate(self._all_events)
         }
 
     def __call__(
@@ -174,7 +183,15 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
                 keyframe_count += 1
 
         lines: list[str] = []
-        lines.append(f"Total events: {len(self.events)}")
+        lines.append(
+            f"Total events: {len(self.events)}"
+            + (
+                f" (coalesced from {len(self._all_events)} raw;"
+                " contiguous typing events on the same element were merged)"
+                if len(self._all_events) != len(self.events)
+                else ""
+            )
+        )
         lines.append(f"Normalized steps: {len(self.normalized_steps)}")
         lines.append(f"Keyframes available: {keyframe_count}")
         if self.intent_note:
@@ -309,6 +326,13 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
                 parts.append("[has keyframe]")
             if has_keyframe_after:
                 parts.append("[has after]")
+
+            coalesced_count = event_data.get("coalescedCount")
+            if (
+                isinstance(coalesced_count, int)
+                and coalesced_count > 1
+            ):
+                parts.append(f"[coalesced ×{coalesced_count}]")
 
             value = element.get("value")
             if isinstance(value, str) and value and event_type != "set_slider":
