@@ -22,6 +22,171 @@ function escapeForDoubleQuotedJavaScriptString(value: string): string {
 }
 
 // ============================================================
+// Keyboard typing helpers
+//
+// Sites such as zhihu.com run hot-topic carousels that overwrite
+// the search input's value on a timer, pausing only when they see
+// real keystroke events (keydown/keyup). A bulk `el.value = text`
+// from content-script JS never fires those, so the rotator keeps
+// ticking over typed text.
+//
+// `typeTextViaCdp` below uses CDP `Input.dispatchKeyEvent` so each
+// character flows through Chromium's native input pipeline — the
+// same path a human keyboard uses — firing keydown, keypress (when
+// applicable), input, and keyup in the correct order.
+// ============================================================
+
+interface CdpKeyParams {
+  key: string;
+  code: string;
+  keyCode: number;
+  modifiers: number;
+}
+
+// US keyboard layout map for ASCII punctuation and shifted symbols.
+// Each entry gives the DOM `code`, the unshifted Windows virtual key
+// code, and whether Shift is required to produce the character.
+// Without this table, symbols would emit a keydown with `code: ''`
+// and a raw ASCII code point, which breaks sites that listen for
+// `event.code === 'Period'` / `event.key === '@'` semantics.
+const US_SYMBOL_KEYS: Record<
+  string,
+  { code: string; keyCode: number; shift: boolean; key: string }
+> = {
+  '`': { code: 'Backquote', keyCode: 192, shift: false, key: '`' },
+  '~': { code: 'Backquote', keyCode: 192, shift: true, key: '~' },
+  '-': { code: 'Minus', keyCode: 189, shift: false, key: '-' },
+  _: { code: 'Minus', keyCode: 189, shift: true, key: '_' },
+  '=': { code: 'Equal', keyCode: 187, shift: false, key: '=' },
+  '+': { code: 'Equal', keyCode: 187, shift: true, key: '+' },
+  '[': { code: 'BracketLeft', keyCode: 219, shift: false, key: '[' },
+  '{': { code: 'BracketLeft', keyCode: 219, shift: true, key: '{' },
+  ']': { code: 'BracketRight', keyCode: 221, shift: false, key: ']' },
+  '}': { code: 'BracketRight', keyCode: 221, shift: true, key: '}' },
+  '\\': { code: 'Backslash', keyCode: 220, shift: false, key: '\\' },
+  '|': { code: 'Backslash', keyCode: 220, shift: true, key: '|' },
+  ';': { code: 'Semicolon', keyCode: 186, shift: false, key: ';' },
+  ':': { code: 'Semicolon', keyCode: 186, shift: true, key: ':' },
+  "'": { code: 'Quote', keyCode: 222, shift: false, key: "'" },
+  '"': { code: 'Quote', keyCode: 222, shift: true, key: '"' },
+  ',': { code: 'Comma', keyCode: 188, shift: false, key: ',' },
+  '<': { code: 'Comma', keyCode: 188, shift: true, key: '<' },
+  '.': { code: 'Period', keyCode: 190, shift: false, key: '.' },
+  '>': { code: 'Period', keyCode: 190, shift: true, key: '>' },
+  '/': { code: 'Slash', keyCode: 191, shift: false, key: '/' },
+  '?': { code: 'Slash', keyCode: 191, shift: true, key: '?' },
+  '!': { code: 'Digit1', keyCode: 49, shift: true, key: '!' },
+  '@': { code: 'Digit2', keyCode: 50, shift: true, key: '@' },
+  '#': { code: 'Digit3', keyCode: 51, shift: true, key: '#' },
+  $: { code: 'Digit4', keyCode: 52, shift: true, key: '$' },
+  '%': { code: 'Digit5', keyCode: 53, shift: true, key: '%' },
+  '^': { code: 'Digit6', keyCode: 54, shift: true, key: '^' },
+  '&': { code: 'Digit7', keyCode: 55, shift: true, key: '&' },
+  '*': { code: 'Digit8', keyCode: 56, shift: true, key: '*' },
+  '(': { code: 'Digit9', keyCode: 57, shift: true, key: '(' },
+  ')': { code: 'Digit0', keyCode: 48, shift: true, key: ')' },
+};
+
+function keyParamsForChar(ch: string): CdpKeyParams | null {
+  if (ch.length !== 1) return null;
+  const codePoint = ch.charCodeAt(0);
+  // Only map plain ASCII printable to full key events. Non-ASCII
+  // (CJK, emoji, etc.) is inserted via keyDown+text without a
+  // meaningful virtual key code.
+  if (codePoint > 0x7e || codePoint < 0x20) return null;
+
+  if (ch >= 'a' && ch <= 'z') {
+    return {
+      key: ch,
+      code: `Key${ch.toUpperCase()}`,
+      keyCode: ch.toUpperCase().charCodeAt(0),
+      modifiers: 0,
+    };
+  }
+  if (ch >= 'A' && ch <= 'Z') {
+    return {
+      key: ch,
+      code: `Key${ch}`,
+      keyCode: ch.charCodeAt(0),
+      modifiers: 8, // Shift
+    };
+  }
+  if (ch >= '0' && ch <= '9') {
+    return {
+      key: ch,
+      code: `Digit${ch}`,
+      keyCode: ch.charCodeAt(0),
+      modifiers: 0,
+    };
+  }
+  if (ch === ' ') {
+    return { key: ' ', code: 'Space', keyCode: 32, modifiers: 0 };
+  }
+  const sym = US_SYMBOL_KEYS[ch];
+  if (sym) {
+    return {
+      key: sym.key,
+      code: sym.code,
+      keyCode: sym.keyCode,
+      modifiers: sym.shift ? 8 : 0,
+    };
+  }
+  // Unknown printable ASCII (tab etc.) — let the browser insert via
+  // `text` but skip the key-code metadata.
+  return null;
+}
+
+async function typeTextViaCdp(
+  cdp: CdpCommander,
+  text: string,
+): Promise<void> {
+  // Iterate by Unicode code points so surrogate pairs (emoji etc.)
+  // go through as single `char` inserts instead of two lone halves.
+  for (const ch of text) {
+    const params = keyParamsForChar(ch);
+    if (params) {
+      await cdp.sendCommand(
+        'Input.dispatchKeyEvent',
+        {
+          type: 'keyDown',
+          key: params.key,
+          code: params.code,
+          text: ch,
+          unmodifiedText: ch,
+          windowsVirtualKeyCode: params.keyCode,
+          nativeVirtualKeyCode: params.keyCode,
+          modifiers: params.modifiers,
+        },
+        3000,
+        0,
+      );
+      await cdp.sendCommand(
+        'Input.dispatchKeyEvent',
+        {
+          type: 'keyUp',
+          key: params.key,
+          code: params.code,
+          windowsVirtualKeyCode: params.keyCode,
+          nativeVirtualKeyCode: params.keyCode,
+          modifiers: params.modifiers,
+        },
+        3000,
+        0,
+      );
+    } else {
+      // Non-ASCII / composed chars: use `char` type which inserts
+      // via the text input pipeline without a virtual key.
+      await cdp.sendCommand(
+        'Input.dispatchKeyEvent',
+        { type: 'char', text: ch, key: ch, unmodifiedText: ch },
+        3000,
+        0,
+      );
+    }
+  }
+}
+
+// ============================================================
 // Hover State Store — remembers the last hovered element per
 // conversation+tab so hover-revealed UI can be re-activated
 // before confirmation screenshots.
@@ -3516,19 +3681,23 @@ export async function performKeyboardInput(
   const escapedFingerprint = escapeForDoubleQuotedJavaScriptString(
     element.fingerprint || '',
   );
-  const escapedText = escapeForDoubleQuotedJavaScriptString(text);
 
-  const script = `
+  // ============================================================
+  // STEP 2a: Focus the element and clear existing content via JS.
+  // We keep this in JS (not CDP) because activation/focus semantics
+  // depend on element-specific helpers (labels, shadow roots, etc.)
+  // that already live in content-script space.
+  // ============================================================
+  const focusScript = `
     (function() {
       const selector = "${escapedSelector}";
       const expectedDocumentId = "${escapedDocumentId}";
       const expectedFingerprint = "${escapedFingerprint}";
-      const text = "${escapedText}";
       ${buildEditableActivationHelpersScript()}
       const el = document.querySelector(selector);
 
       if (!el) {
-        return { input: false, error: "Element not found in DOM", stale: true };
+        return { prepared: false, error: "Element not found in DOM", stale: true };
       }
 
       const snapshotValidation = validateCachedElement(
@@ -3538,19 +3707,17 @@ export async function performKeyboardInput(
       );
       if (!snapshotValidation.ok) {
         return {
-          input: false,
+          prepared: false,
           error: snapshotValidation.error,
           stale: snapshotValidation.stale,
         };
       }
 
-      // Check if element is still visible
       const style = window.getComputedStyle(el);
       if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
-        return { input: false, error: "Element is not visible", stale: false };
+        return { prepared: false, error: "Element is not visible", stale: false };
       }
 
-      // Scroll element into view if needed
       const rect = el.getBoundingClientRect();
       if (rect.top < 0 || rect.bottom > window.innerHeight ||
           rect.left < 0 || rect.right > window.innerWidth) {
@@ -3573,64 +3740,75 @@ export async function performKeyboardInput(
         if (!alreadyFocused) {
           dispatchActivationPress(activationTarget, activation.point);
         }
-
         focusInteractionTarget(
           el instanceof HTMLElement ? el : activationTarget,
         );
-
         if (!alreadyFocused) {
           dispatchActivationRelease(activationTarget, activation.point);
         }
 
-        // Set value based on element type
         const tagName = el.tagName.toLowerCase();
         const isContentEditable = el.isContentEditable || el.contentEditable === 'true';
-
-        const beforeInputEvent = new InputEvent('beforeinput', {
-          bubbles: true,
-          cancelable: true,
-          inputType: text.length === 0 ? 'deleteContentBackward' : 'insertText',
-          data: text,
-        });
-        el.dispatchEvent(beforeInputEvent);
-
-        if (tagName === 'input' || tagName === 'textarea') {
-          // For input and textarea, use value property
-          el.value = text;
-        } else if (isContentEditable) {
-          // For contenteditable elements, use textContent
-          el.textContent = text;
-        } else {
-          return { input: false, error: "Element is not an input, textarea, or contenteditable" };
+        const isTextField = tagName === 'input' || tagName === 'textarea';
+        if (!isTextField && !isContentEditable) {
+          return { prepared: false, error: "Element is not an input, textarea, or contenteditable" };
         }
 
-        // Dispatch input event for React/Vue compatibility
-        const inputEvent = new InputEvent('input', {
-          bubbles: true,
-          cancelable: true,
-          inputType: 'insertText',
-          data: text,
-        });
-        el.dispatchEvent(inputEvent);
+        // CDP keystrokes route to document.activeElement, so if focus
+        // didn't land on (or inside) the target we'd silently type
+        // into whatever else had focus. Verify before handing off.
+        const focused = document.activeElement;
+        const focusOk =
+          focused === el ||
+          (el instanceof Element && el.contains(focused)) ||
+          (focused instanceof Element && focused.contains(el));
+        if (!focusOk) {
+          return {
+            prepared: false,
+            error: "Failed to focus target editable; document.activeElement is " + (focused ? focused.tagName : 'null'),
+          };
+        }
 
-        // Dispatch change event
-        const changeEvent = new Event('change', {
-          bubbles: true,
-          cancelable: true,
-        });
-        el.dispatchEvent(changeEvent);
+        // Clear existing content so the subsequent CDP keystrokes
+        // produce the requested value (not appended to whatever was
+        // already there). We notify frameworks via input event so
+        // their reactive bindings stay in sync.
+        const hadContent =
+          (isTextField && el.value.length > 0) ||
+          (isContentEditable && el.textContent && el.textContent.length > 0);
+        if (hadContent) {
+          el.dispatchEvent(new InputEvent('beforeinput', {
+            bubbles: true,
+            cancelable: true,
+            inputType: 'deleteContentBackward',
+            data: '',
+          }));
+          if (isTextField) {
+            el.value = '';
+          } else {
+            el.textContent = '';
+          }
+          el.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            cancelable: true,
+            inputType: 'deleteContentBackward',
+            data: null,
+          }));
+        }
 
-        // Return the actual value set
-        const finalValue = tagName === 'input' || tagName === 'textarea' ? el.value : el.textContent;
-        return { input: true, value: finalValue };
+        return {
+          prepared: true,
+          isTextField,
+          isContentEditable,
+        };
       } catch (e) {
-        return { input: false, error: e.message || String(e) };
+        return { prepared: false, error: e.message || String(e) };
       }
     })();
   `;
 
   // ============================================================
-  // STEP 3: Execute JavaScript with dialog detection
+  // STEP 2b: Execute focus/clear script
   // ============================================================
   let jsResult: JavaScriptResult;
 
@@ -3638,13 +3816,136 @@ export async function performKeyboardInput(
     jsResult = await executeJavaScript(
       tabId,
       conversationId,
-      script,
+      focusScript,
       true,
       false,
       timeout,
     );
   } catch (error) {
-    console.error(`❌ [KeyboardInput] JavaScript execution error:`, error);
+    console.error(`❌ [KeyboardInput] Focus script execution error:`, error);
+    return {
+      success: false,
+      ...resolvedElementFields,
+      input: false,
+      staleElement: false,
+    };
+  }
+
+  // Bail out before the CDP typing loop if focus/clear failed.
+  const focusResult = jsResult.result?.value as
+    | {
+        prepared: boolean;
+        error?: string;
+        stale?: boolean;
+        isTextField?: boolean;
+        isContentEditable?: boolean;
+      }
+    | undefined;
+
+  if (!jsResult.success || !focusResult?.prepared) {
+    const isStale = focusResult?.stale === true;
+    console.log(
+      `❌ [KeyboardInput] Focus/clear failed: ${focusResult?.error || jsResult.error || 'Unknown error'}, stale=${isStale}`,
+    );
+    if (jsResult.dialog_opened && jsResult.dialog) {
+      const result: InputResult = {
+        success: true,
+        ...resolvedElementFields,
+        input: true,
+        value: undefined,
+        new_tabs_created: jsResult.new_tabs_created,
+        dialogOpened: true,
+        dialog: {
+          type: jsResult.dialog.type as
+            | 'alert'
+            | 'confirm'
+            | 'prompt'
+            | 'beforeunload',
+          message: jsResult.dialog.message,
+        },
+      };
+      return result;
+    }
+    return {
+      success: false,
+      ...resolvedElementFields,
+      input: false,
+      staleElement: isStale,
+    };
+  }
+
+  // ============================================================
+  // STEP 2c: Type each character via CDP Input.dispatchKeyEvent so
+  // keydown/keyup fire through the native pipeline. This is what
+  // lets sites with "user is typing" guards (e.g. Zhihu's hot-topic
+  // rotator) pause their timers correctly.
+  // ============================================================
+  const cdp = new CdpCommander(tabId);
+  try {
+    await typeTextViaCdp(cdp, text);
+  } catch (error) {
+    console.error(`❌ [KeyboardInput] CDP typing error:`, error);
+    return {
+      success: false,
+      ...resolvedElementFields,
+      input: false,
+      staleElement: false,
+    };
+  }
+
+  // ============================================================
+  // STEP 2d: Fire `change` and read back the final value. CDP
+  // keystrokes naturally fire input events, but `change` only fires
+  // on blur for text inputs — surface it eagerly for framework
+  // listeners expecting it right after typing.
+  // ============================================================
+  const readbackScript = `
+    (function() {
+      const selector = "${escapedSelector}";
+      const expectedDocumentId = "${escapedDocumentId}";
+      const expectedFingerprint = "${escapedFingerprint}";
+      ${buildEditableActivationHelpersScript()}
+      const el = document.querySelector(selector);
+      if (!el) {
+        return { input: false, error: "Element disappeared after typing", stale: true };
+      }
+      // Re-run cached-element validation. If the input was rerendered
+      // into a new DOM node mid-type, the selector may still match but
+      // the identity is different — surface that as stale rather than
+      // reporting a phantom success.
+      const snapshotValidation = validateCachedElement(
+        expectedDocumentId,
+        expectedFingerprint,
+        el,
+      );
+      if (!snapshotValidation.ok) {
+        return {
+          input: false,
+          error: snapshotValidation.error,
+          stale: snapshotValidation.stale,
+        };
+      }
+      try {
+        el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+      } catch (_) {}
+      const tagName = el.tagName.toLowerCase();
+      const isTextField = tagName === 'input' || tagName === 'textarea';
+      const value = isTextField ? el.value : (el.textContent || '');
+      return { input: true, value };
+    })();
+  `;
+
+  try {
+    jsResult = await executeJavaScript(
+      tabId,
+      conversationId,
+      readbackScript,
+      true,
+      false,
+      timeout,
+    );
+  } catch (error) {
+    console.error(`❌ [KeyboardInput] Readback script execution error:`, error);
     return {
       success: false,
       ...resolvedElementFields,
