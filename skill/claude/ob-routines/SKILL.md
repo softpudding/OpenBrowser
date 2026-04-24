@@ -182,18 +182,49 @@ launching — whether it came from the server default or your pick.
 Default (compiler alias configured on server, or no override needed):
 ```bash
 tmux new-window -n "compile" \
-  "python3 ~/.claude/skills/ob-routines/scripts/compile.py <recording_id>; echo '[compile-done]'"
+  "python3 ~/.claude/skills/ob-routines/scripts/compile.py <recording_id>; echo '[compile-done]'; exec zsh"
 ```
 
 With an explicit override (when you picked a model automatically):
 ```bash
 tmux new-window -n "compile" \
-  "python3 ~/.claude/skills/ob-routines/scripts/compile.py <recording_id> --model-alias <alias>; echo '[compile-done]'"
+  "python3 ~/.claude/skills/ob-routines/scripts/compile.py <recording_id> --model-alias <alias>; echo '[compile-done]'; exec zsh"
 ```
+
+> **Why `exec zsh`:** Without it, the tmux window closes the instant compile.py
+> exits — the final `[compiler:saved]` / `[compile-done]` markers can land
+> between monitor polls and be lost, leaving you unable to capture confirmation.
+> The trailing shell keeps the window alive so the last lines of the pane are
+> always readable. Close it manually with `tmux kill-window -t compile` after
+> confirming the routine saved.
 
 ### Monitor output
 ```bash
 tmux capture-pane -t "compile" -p
+```
+
+For long runs, stream markers via the Monitor tool instead of polling by hand.
+**The script MUST detect pane-gone and emit a terminal event** — otherwise, if
+the window exits between polls, the monitor silently runs forever on a dead
+pane and you never learn the routine finished. Template:
+
+```bash
+rm -f /tmp/ob_compile_seen
+while true; do
+  if ! tmux list-windows -F '#{window_name}' | grep -qx compile; then
+    echo "[tmux:pane-gone] compile window exited"
+    break
+  fi
+  cur=$(tmux capture-pane -t compile -p -S -400 2>/dev/null)
+  echo "$cur" | grep -E --line-buffered \
+    "\[compiler:question\]|\[compiler:stalled\]|\[compiler:gate_check\]|\[compiler:name_prompt\]|\[compiler:saved\]|\[compile-done\]|\[compiler:error\]|Traceback" \
+    | while read -r line; do
+      grep -qxF "$line" /tmp/ob_compile_seen 2>/dev/null && continue
+      echo "$line" >> /tmp/ob_compile_seen
+      echo "$line"
+    done
+  sleep 3
+done
 ```
 
 ### Send an answer
@@ -212,15 +243,25 @@ tmux send-keys -t "compile" "the answer" Enter
 | `[compiler:routine_draft]` | Full routine markdown printed for inspection |
 | `[compiler:gate_check]` | **Run both quality gates here.** Send feedback or press Enter |
 | `[compiler:name_prompt]` | Gates passed — help user pick slug |
-| `[compiler:saved]` | Done — report name and id |
+| `[compiler:saved]` | Run `list_routines.py <name>` to verify, then report name + id to user |
 
 ### Quality gate checkpoint
 When `[compiler:gate_check]` appears in the pane, compile.py is explicitly
-paused waiting for your review of `[compiler:routine_draft]`. Run Gate 1 and Gate 2:
+paused waiting for **your** review of `[compiler:routine_draft]`. The gate
+check is Claude's judgment, not the compiler's — the compiler's own "Let me
+know if I misread your intent" message in `[compiler:message:assistant]` is
+not a substitute. You must:
 
-- **Gates pass** → send an empty Enter: `tmux send-keys -t main:compile "" Enter`
+1. Read the `[compiler:routine_draft]` markdown in the pane capture.
+2. Write out Gate 1 and Gate 2 reasoning **as user-visible text** before
+   sending any input — one or two lines per gate, stating what passed or
+   failed and why. This makes the judgment inspectable by the user instead
+   of hidden inside an empty Enter.
+3. Then either pass or fail:
+
+- **Gates pass** → send an empty Enter: `tmux send-keys -t compile "" Enter`
 - **Gate fails** → send corrective feedback:
-  `tmux send-keys -t main:compile "Please add a delivery step: summarise results in chat as a structured list of tickers with metrics." Enter`
+  `tmux send-keys -t compile "Please add a delivery step: summarise results in chat as a structured list of tickers with metrics." Enter`
 
 compile.py forwards non-empty input back to the compiler, streams the revision,
 and loops back to another `[compiler:gate_check]`. Only an empty Enter advances
@@ -261,7 +302,8 @@ Name matching: exact → ID → prefix → substring.
    → wait for next [compiler:complete]
 8. Gates pass → [compiler:name_prompt] → user picks slug
 9. [compiler:saved] name='…' id=…
-10. /ob-routines execute <name>  →  streams [action] … [complete]
+10. list_routines.py <name> to verify, then report saved + verified to user
+11. /ob-routines execute <name>  →  streams [action] … [complete]
 ```
 
 ---

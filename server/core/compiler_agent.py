@@ -129,6 +129,29 @@ class TraceViewerObservation(Observation):
 class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation]):
     """Executor that serves recording trace data to the compiler agent."""
 
+    @staticmethod
+    def _format_value_with_tail(value: str, head: int = 200, tail: int = 200) -> str:
+        """Render a long string with both ends visible and the middle elided.
+
+        Inputs typed into a rich-text editor body often look like
+        ``<URL or pasted content> ... <user-typed instructions>``. Showing
+        only the head (the original 80-char `value[:80]` rendering) hid the
+        instructions; showing only the tail would hide the URL anchor.
+        Showing both ends with an explicit elision gives the LLM enough
+        signal to call ``event_detail`` for the full string when it
+        matters.
+        """
+        if not isinstance(value, str):
+            return ""
+        if len(value) <= head + tail:
+            return value
+        omitted = len(value) - head - tail
+        return (
+            f"{value[:head]}"
+            f" …({omitted} more chars; use event_detail)… "
+            f"{value[-tail:]}"
+        )
+
     def __init__(
         self,
         events: list[dict[str, Any]],
@@ -336,11 +359,15 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
 
             value = element.get("value")
             if isinstance(value, str) and value and event_type != "set_slider":
-                parts.append(f'value="{value[:80]}"')
+                parts.append(
+                    f'value="{self._format_value_with_tail(value)}"'
+                )
 
             selected_text = element.get("selectedText")
             if isinstance(selected_text, str) and selected_text:
-                parts.append(f'selectedText="{selected_text[:80]}"')
+                parts.append(
+                    f'selectedText="{self._format_value_with_tail(selected_text)}"'
+                )
 
             lines.append(" | ".join(parts))
 
@@ -413,6 +440,53 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
             desc = step.get("description", "")
             source = step.get("source_event_indexes", [])
             lines.append(f"{step_id} [{step_type}] {desc}  (events: {source})")
+
+            # For form-fill steps, surface the final value typed into each
+            # anchor so the agent can see the user's actual input without
+            # drilling into individual events. Critical for contenteditable
+            # body editors where the trailing characters of a value can
+            # carry user instructions to the replay agent (not just paste).
+            if step_type == "form":
+                target = step.get("target") or {}
+                fields = target.get("fields") if isinstance(target, dict) else None
+                if isinstance(fields, list):
+                    final_by_anchor: dict[str, dict[str, Any]] = {}
+                    for fld in fields:
+                        if not isinstance(fld, dict):
+                            continue
+                        anchor = fld.get("anchor") or {}
+                        selector = anchor.get("selector") if isinstance(anchor, dict) else None
+                        if not isinstance(selector, str) or not selector:
+                            continue
+                        value_block = fld.get("value") or {}
+                        if not isinstance(value_block, dict):
+                            continue
+                        default = value_block.get("default")
+                        if not isinstance(default, str) or not default:
+                            continue
+                        # Take the LATEST snapshot per anchor in event order
+                        # (target.fields is built in event-order by the
+                        # form-step normalizer). Picking max-length would
+                        # surface stale text for paste-then-trim,
+                        # backspace-heavy edits, or clear-and-rewrite flows.
+                        final_by_anchor[selector] = {
+                            "value": default,
+                            "placeholder": anchor.get("placeholder"),
+                        }
+                    for selector, entry in final_by_anchor.items():
+                        rendered = self._format_value_with_tail(entry["value"])
+                        sel_short = selector[-60:]
+                        placeholder = entry.get("placeholder")
+                        if isinstance(placeholder, str) and placeholder:
+                            lines.append(
+                                f'    field …{sel_short} '
+                                f'(placeholder="{placeholder}") '
+                                f'final_value="{rendered}"'
+                            )
+                        else:
+                            lines.append(
+                                f'    field …{sel_short} final_value="{rendered}"'
+                            )
 
         return TraceViewerObservation(success=True, text_result="\n".join(lines))
 
