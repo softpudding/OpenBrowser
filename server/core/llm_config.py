@@ -71,8 +71,8 @@ class LLMConfigManager:
         config.default_llm_alias = normalized_default_alias
 
         normalized_compiler_alias = (
-            (config.default_compiler_alias or "").strip() or None
-        )
+            config.default_compiler_alias or ""
+        ).strip() or None
         if (
             normalized_compiler_alias is not None
             and normalized_compiler_alias not in configs_by_alias

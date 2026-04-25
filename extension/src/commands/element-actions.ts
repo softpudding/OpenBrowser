@@ -136,10 +136,7 @@ function keyParamsForChar(ch: string): CdpKeyParams | null {
   return null;
 }
 
-async function typeTextViaCdp(
-  cdp: CdpCommander,
-  text: string,
-): Promise<void> {
+async function typeTextViaCdp(cdp: CdpCommander, text: string): Promise<void> {
   // Iterate by Unicode code points so surrogate pairs (emoji etc.)
   // go through as single `char` inserts instead of two lone halves.
   for (const ch of text) {

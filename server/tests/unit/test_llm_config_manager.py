@@ -27,8 +27,18 @@ def test_get_compiler_llm_config_uses_configured_alias(tmp_path: Path) -> None:
         tmp_path,
         {
             "llm_configs": [
-                {"alias": "flash", "model": "m1", "base_url": "http://x", "api_key": "a"},
-                {"alias": "plus", "model": "m2", "base_url": "http://y", "api_key": "b"},
+                {
+                    "alias": "flash",
+                    "model": "m1",
+                    "base_url": "http://x",
+                    "api_key": "a",
+                },
+                {
+                    "alias": "plus",
+                    "model": "m2",
+                    "base_url": "http://y",
+                    "api_key": "b",
+                },
             ],
             "default_llm_alias": "flash",
             "default_compiler_alias": "plus",
@@ -43,7 +53,12 @@ def test_get_compiler_llm_config_falls_back_when_unset(tmp_path: Path) -> None:
         tmp_path,
         {
             "llm_configs": [
-                {"alias": "flash", "model": "m1", "base_url": "http://x", "api_key": "a"},
+                {
+                    "alias": "flash",
+                    "model": "m1",
+                    "base_url": "http://x",
+                    "api_key": "a",
+                },
             ],
             "default_llm_alias": "flash",
         },
@@ -57,7 +72,12 @@ def test_compiler_alias_reset_when_pointing_at_removed_alias(tmp_path: Path) -> 
         tmp_path,
         {
             "llm_configs": [
-                {"alias": "flash", "model": "m1", "base_url": "http://x", "api_key": "a"},
+                {
+                    "alias": "flash",
+                    "model": "m1",
+                    "base_url": "http://x",
+                    "api_key": "a",
+                },
             ],
             "default_llm_alias": "flash",
             "default_compiler_alias": "ghost",

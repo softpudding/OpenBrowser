@@ -186,7 +186,20 @@ def _build_navigation_step(
 
 class _VisibleTextExtractor(HTMLParser):
     _SKIP_TAGS = {"script", "style"}
-    _BLOCK_TAGS = {"p", "div", "br", "li", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "section"}
+    _BLOCK_TAGS = {
+        "p",
+        "div",
+        "br",
+        "li",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "tr",
+        "section",
+    }
 
     def __init__(self) -> None:
         super().__init__()
@@ -879,9 +892,7 @@ def compile_recording_trace(
     return CompiledWorkflowDraft(normalized_steps=steps, workflow=workflow)
 
 
-_TYPING_EVENT_TYPES: frozenset[str] = frozenset(
-    {"input", "change", "beforeinput"}
-)
+_TYPING_EVENT_TYPES: frozenset[str] = frozenset({"input", "change", "beforeinput"})
 
 
 def _stable_element_identity(event_data: dict[str, Any]) -> str:

@@ -20,7 +20,6 @@ from __future__ import annotations
 
 from server.core.compiler_agent import TraceViewerExecutor
 
-
 YUQUE_BODY_FINAL_VALUE = (
     "https://github.com/huggingface/ml-intern 🤗 ml-intern: "
     "an open-source ML engineer that reads papers, trains models, "
@@ -49,9 +48,7 @@ def test_format_value_with_tail_keeps_head_and_tail_visible() -> None:
 
 def test_format_value_with_tail_omitted_count_matches_actual_omission() -> None:
     value = "x" * 1000
-    rendered = TraceViewerExecutor._format_value_with_tail(
-        value, head=100, tail=100
-    )
+    rendered = TraceViewerExecutor._format_value_with_tail(value, head=100, tail=100)
     assert "(800 more chars; use event_detail)" in rendered
 
 

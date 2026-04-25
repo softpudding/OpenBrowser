@@ -16,18 +16,17 @@ from server.core.workflow_compiler import (
     _extract_visible_text_from_html,
 )
 
-
 YUQUE_BODY_HTML = (
     '<div class="ne-engine ne-typography-classic" contenteditable="true">'
-    '<ne-p><ne-link><ne-link-content><ne-text>'
-    'https://github.com/zilliztech/claude-context'
-    '</ne-text></ne-link-content></ne-link>'
-    '<ne-text> </ne-text>'
-    '<ne-link><ne-link-content><ne-text>'
-    'https://github.com/KeygraphHQ/shannon'
-    '</ne-text></ne-link-content></ne-link>'
-    '<ne-text> Why these projects are trending? '
-    'What does each of them do?</ne-text>'
+    "<ne-p><ne-link><ne-link-content><ne-text>"
+    "https://github.com/zilliztech/claude-context"
+    "</ne-text></ne-link-content></ne-link>"
+    "<ne-text> </ne-text>"
+    "<ne-link><ne-link-content><ne-text>"
+    "https://github.com/KeygraphHQ/shannon"
+    "</ne-text></ne-link-content></ne-link>"
+    "<ne-text> Why these projects are trending? "
+    "What does each of them do?</ne-text>"
     '<span class="ne-b-filler"><br></span></ne-p></div>'
 )
 

@@ -69,7 +69,9 @@ function isElement(target: EventTarget | null): target is Element {
   return target instanceof Element;
 }
 
-function isContentEditableElement(target: EventTarget | null): target is HTMLElement {
+function isContentEditableElement(
+  target: EventTarget | null,
+): target is HTMLElement {
   return (
     target instanceof HTMLElement &&
     target.isContentEditable &&
@@ -780,7 +782,8 @@ function installRecordingListeners(): void {
       const target = event.target;
       const beforeInput = event as InputEvent;
       const inputType = beforeInput.inputType ?? null;
-      const data = typeof beforeInput.data === 'string' ? beforeInput.data : null;
+      const data =
+        typeof beforeInput.data === 'string' ? beforeInput.data : null;
 
       queueMicrotask(() => {
         if (!target.isConnected) {

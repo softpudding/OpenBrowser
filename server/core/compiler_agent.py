@@ -351,17 +351,12 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
                 parts.append("[has after]")
 
             coalesced_count = event_data.get("coalescedCount")
-            if (
-                isinstance(coalesced_count, int)
-                and coalesced_count > 1
-            ):
+            if isinstance(coalesced_count, int) and coalesced_count > 1:
                 parts.append(f"[coalesced ×{coalesced_count}]")
 
             value = element.get("value")
             if isinstance(value, str) and value and event_type != "set_slider":
-                parts.append(
-                    f'value="{self._format_value_with_tail(value)}"'
-                )
+                parts.append(f'value="{self._format_value_with_tail(value)}"')
 
             selected_text = element.get("selectedText")
             if isinstance(selected_text, str) and selected_text:
@@ -455,7 +450,9 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
                         if not isinstance(fld, dict):
                             continue
                         anchor = fld.get("anchor") or {}
-                        selector = anchor.get("selector") if isinstance(anchor, dict) else None
+                        selector = (
+                            anchor.get("selector") if isinstance(anchor, dict) else None
+                        )
                         if not isinstance(selector, str) or not selector:
                             continue
                         value_block = fld.get("value") or {}
@@ -479,7 +476,7 @@ class TraceViewerExecutor(ToolExecutor[TraceViewerAction, TraceViewerObservation
                         placeholder = entry.get("placeholder")
                         if isinstance(placeholder, str) and placeholder:
                             lines.append(
-                                f'    field …{sel_short} '
+                                f"    field …{sel_short} "
                                 f'(placeholder="{placeholder}") '
                                 f'final_value="{rendered}"'
                             )

@@ -26,7 +26,7 @@ def _mk_input(
             "tagName": "textarea",
             "selector": selector,
             "text": text,
-            "html": f'<textarea>{text}</textarea>',
+            "html": f"<textarea>{text}</textarea>",
             "ariaLabel": None,
             "placeholder": None,
         },
