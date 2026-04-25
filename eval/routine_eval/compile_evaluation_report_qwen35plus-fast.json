@@ -1,19 +1,19 @@
 {
   "compile_evaluation": {
-    "timestamp": "2026-04-24 13:48:49",
-    "unix_timestamp": 1777009729.818323,
+    "timestamp": "2026-04-25 14:54:04",
+    "unix_timestamp": 1777100044.99177,
     "summary": {
       "fixture_count": 3,
       "judged_count": 3,
-      "passed_count": 1,
-      "pass_rate": 33.33,
+      "passed_count": 2,
+      "pass_rate": 66.67,
       "compile_model": "qwen35plus-fast",
       "judge_model": "qwen36plus-fast",
-      "mean_intent_match": 0.7667,
-      "mean_keyword_placement": 0.6333,
-      "mean_asking_behavior": 0.5,
-      "total_proxy_cost": 0.109654,
-      "total_proxy_tokens": 19997
+      "mean_intent_match": 0.9333,
+      "mean_keyword_placement": 1.0,
+      "mean_asking_behavior": 0.8333,
+      "total_proxy_cost": 0.10594,
+      "total_proxy_tokens": 21900
     },
     "fixture_results": {
       "finviz_filter_clear": {
@@ -21,17 +21,17 @@
         "final_status": "review",
         "error": null,
         "asked_questions_count": 1,
-        "compile_duration": 109.53,
-        "proxy_cost": 0.03834,
-        "proxy_tokens": 6445,
+        "compile_duration": 144.13,
+        "proxy_cost": 0.033144,
+        "proxy_tokens": 6632,
         "overall_pass": true,
-        "intent_match": 1.0,
-        "keyword_placement": 0.9,
+        "intent_match": 0.9,
+        "keyword_placement": 1.0,
         "asking_behavior": 1.0,
         "reasoning": {
-          "intent_match": "The compiled routine faithfully reproduces all 5 filter settings across both tabs (Market Cap smallover, Dividend Yield o3, Relative Volume o1, P/E u20, P/B u2), switches to the Performance view, sorts by Perf Month, and opens the top 3 rows by position rather than specific tickers. This exactly matches the user's stated goal of finding stocks that dropped 20% in the month and inspecting whatever stocks match the criterion. No required steps are missing and no extra unrelated actions are included.",
-          "keyword_placement": "All 8 steps from must_have_for_steps carry Keywords lines with valid tokens except Step 7, which uses \"Performance\" instead of the fixture's acceptable token \"view-tab\" for the Performance view tab. The other seven steps correctly use fs_cap, fs_fa_div, fs_sh_relvol, fundamental, fs_fa_pe, fs_fa_pb, and perf4w, all matching their respective acceptable token lists.",
-          "asking_behavior": "The compiler asked exactly the required question about whether the 3 clicked stocks should be the top 3 by position or specific tickers (UISA, SHXD, NRGB), which directly covers the required topic. The compiler asked zero forbidden questions about market-cap threshold, dividend yield, or P/E ratio values, which is correct since those values were clearly visible in the recording's change events."
+          "intent_match": "The routine faithfully reproduces all 5 filter settings across both tabs, switches to Performance view, sorts by Perf Month, and clicks the top 3 rows as intended. The only minor deviation is Step 12 (summarize results), which adds an action not present in the user's recorded trace. Additionally, the Keywords for steps 9-11 use the specific tickers UISA, SHXD, NRGB even though the user wanted generic \"top rows\" behavior — though the step descriptions correctly say \"first/second/third row\" so execution is fine, the keywords are slightly misleading.",
+          "keyword_placement": "All 8 must_have targets from the fixture are covered with appropriate Keywords lines: fs_cap (step 1), fs_fa_div (step 2), fs_sh_relvol (step 3), fundamental (step 4), fs_fa_pe (step 5), fs_fa_pb (step 6), Performance (step 7), and perf4w is covered by the Perf Month header description in step 8. Each token is a valid acceptable_token from the fixture's list and correctly targets the described element.",
+          "asking_behavior": "The compiler asked the single required topic: whether the 3 clicked stocks are the top 3 or specific tickers. Question 1 directly covers this. The additional question about result delivery is extra and not penalized per the rubric. No required topics were missed."
         }
       },
       "github-trending-contenteditable-question": {
@@ -39,35 +39,35 @@
         "final_status": "review",
         "error": null,
         "asked_questions_count": 2,
-        "compile_duration": 230.15,
-        "proxy_cost": 0.054836,
-        "proxy_tokens": 10423,
+        "compile_duration": 142.5,
+        "proxy_cost": 0.035022,
+        "proxy_tokens": 7901,
         "overall_pass": false,
         "intent_match": 1.0,
-        "keyword_placement": 0.0,
+        "keyword_placement": 1.0,
         "asking_behavior": 0.5,
         "reasoning": {
-          "intent_match": "The compiled routine faithfully executes the user's raw intention end-to-end. It correctly opens the top-1 repository by position (Step 2 specifies \"the #1 result at the top of the page\"), creates a document in the AI专用 knowledge base (Step 6), templates the date in the title (Step 7 uses \"{today's date}\"), and critically contains explicit steps (Step 12) for the replay agent to visit the repo page and write the three required sections: brief intro, what's special, and why it's trending. The routine does NOT compile the typed instruction sentence as literal text to paste, which is the core requirement. All required actions are present and no extraneous unrelated actions are included.",
-          "keyword_placement": "The compiled routine contains zero **Keywords:** lines anywhere in the markdown. The fixture's expected_keywords.must_have_for_steps explicitly requires Keywords lines on two steps: (1) the Yuque document title input (acceptable token: \"lake-title\") and (2) the Yuque new-document button/menu trigger (acceptable tokens: \"新建文档\" or \"文档\"). Neither Step 7 (title input) nor Step 5 (new document creation) carries a Keywords line. Since the fixture marks these identifiers as available and the compiler placed no Keywords at all, this is a complete failure on this axis.",
-          "asking_behavior": "The compiler missed the one required topic: it never asked whether the top-1 selection should be by position or by the specific repo from the recording. Additionally, the compiler asked a forbidden question: \"Did you intend to complete this as 'Why's it trending', or was the incomplete word intentional?\" directly asks about what text the user typed into the document body, which matches the forbidden topic \"What text the user typed into the document body.\" The third question about content instructions (paste vs. generate) touches on the same forbidden area. One required miss and at least one forbidden hit warrant a 0.5 score."
+          "intent_match": "The compiled routine faithfully executes the user's raw intention end-to-end. It correctly opens the top-1 trending repository by position (Step 1 explicitly reasons about this), navigates to Yuque, creates a new document in the \"AI专用\" knowledge base (Steps 3-5), sets a dynamic date title (Step 6), pastes the repo URL and About description (Steps 8-9), and includes explicit agent-investigation steps for writing a brief intro, what's special, and why it's trending (Steps 10-12). All three required content items are mentioned, and the routine correctly frames the investigation task rather than ending at paste.",
+          "keyword_placement": "The fixture requires a Keywords line for the Yuque new-document button or menu trigger, with acceptable tokens \"新建文档\" or \"文档\". Step 4 (\"Select document type\") covers the interaction where the user clicks the \"文档\" (Document) option from the dropdown menu — this is the new-document menu trigger. Step 4 carries a Keywords line with \"文档\", which exactly matches one of the acceptable_tokens. The token correctly addresses the described target.",
+          "asking_behavior": "The fixture lists one required topic: \"Whether the top-1 selection should be by position or by the specific repo opened in the recording.\" The compiler did NOT ask this question — instead, it assumed position-based selection in Step 1's reasoning without seeking user confirmation. The compiler did ask two other questions (about the typed instructions interpretation and the dynamic date), which are acceptable extras, but the single genuinely ambiguous choice identified by the user was not covered. One missed required topic lowers the score."
         }
       },
       "techforum_count_ambiguous": {
         "success": true,
         "final_status": "review",
         "error": null,
-        "asked_questions_count": 0,
-        "compile_duration": 80.38,
-        "proxy_cost": 0.016478,
-        "proxy_tokens": 3129,
-        "overall_pass": false,
-        "intent_match": 0.3,
+        "asked_questions_count": 2,
+        "compile_duration": 168.94,
+        "proxy_cost": 0.037774,
+        "proxy_tokens": 7367,
+        "overall_pass": true,
+        "intent_match": 0.9,
         "keyword_placement": 1.0,
-        "asking_behavior": 0.0,
+        "asking_behavior": 1.0,
         "reasoning": {
-          "intent_match": "The routine correctly searches for \"AI\" but then hardcodes 5 specific posts to upvote, whereas the user's true intent was to upvote only posts specifically about AI agents. Of the 5 upvoted posts, only 2 (Steps 5 and 6 about UI agents and browser agents) match the agent criterion. Steps 2, 3, and 4 upvote posts about AI trends, evaluation infrastructure, and Kubernetes migration — which the user explicitly stated should NOT be upvoted. The routine fails to implement the conditional \"upvote posts about agents\" logic and instead blindly upvotes the wrong posts.",
-          "keyword_placement": "The fixture requires a Keywords line for the search input field step with acceptable token \"main-search\". Step 1 carries \"**Keywords:** main-search\", which matches exactly. All other steps also carry valid Keywords lines with \"upvote\". No violations of the keyword placement requirements.",
-          "asking_behavior": "The fixture's expected_questions.required list includes \"What is the selection criterion for which posts to upvote\" — a critical ambiguity the compiler MUST have asked about. The compiler asked zero clarification questions (the log shows \"(none)\"). This is a complete miss on the required topic. No forbidden questions were asked, but the failure to ask the required question drops the score to 0.0."
+          "intent_match": "The routine faithfully executes the user's core intent: it searches for \"AI\" (Step 1-2) and then upvotes posts specifically about AI agents by checking for \"agent\" or \"agents\" in the title or answer preview (Step 3). This correctly implements interpretation #3 (topical criterion) rather than upvoting a fixed set of posts or all results. The routine appropriately omits the incidental collect/favorite and comment-icon clicks from the trace. The only minor limitation is that filtering by the presence of \"agent\"/\"agents\" text is a heuristic approximation of \"specifically about AI agents,\" but given the constraints of automated replay, this is a reasonable and faithful implementation.",
+          "keyword_placement": "The fixture's expected_keywords.must_have_for_steps is an empty array, so there are no required keyword targets to satisfy. The routine does include two Keywords lines: \"main-search\" for the search input and \"upvote\" for the upvote button. Both tokens are valid, distinctive identifiers that plausibly match their respective target elements and do not violate any priority-list disqualifications. With no required entries and valid optional keywords present, this scores 1.0.",
+          "asking_behavior": "The required topic was \"What is the selection criterion for which posts to upvote.\" The compiler's first question directly addressed this by asking whether to upvote the same 5 specific posts by title (identity-based) or the first 5 posts regardless of title (position-based). After the user clarified they wanted content-based selection for agent-related posts, the compiler followed up to confirm the scope. The required topic was clearly covered, so this scores 1.0. The forbidden topic (\"What search query to use\") was not asked about, which is correct."
         }
       }
     }
