@@ -1,0 +1,75 @@
+{
+  "compile_evaluation": {
+    "timestamp": "2026-04-24 13:48:49",
+    "unix_timestamp": 1777009729.818323,
+    "summary": {
+      "fixture_count": 3,
+      "judged_count": 3,
+      "passed_count": 1,
+      "pass_rate": 33.33,
+      "compile_model": "qwen35plus-fast",
+      "judge_model": "qwen36plus-fast",
+      "mean_intent_match": 0.7667,
+      "mean_keyword_placement": 0.6333,
+      "mean_asking_behavior": 0.5,
+      "total_proxy_cost": 0.109654,
+      "total_proxy_tokens": 19997
+    },
+    "fixture_results": {
+      "finviz_filter_clear": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 1,
+        "compile_duration": 109.53,
+        "proxy_cost": 0.03834,
+        "proxy_tokens": 6445,
+        "overall_pass": true,
+        "intent_match": 1.0,
+        "keyword_placement": 0.9,
+        "asking_behavior": 1.0,
+        "reasoning": {
+          "intent_match": "The compiled routine faithfully reproduces all 5 filter settings across both tabs (Market Cap smallover, Dividend Yield o3, Relative Volume o1, P/E u20, P/B u2), switches to the Performance view, sorts by Perf Month, and opens the top 3 rows by position rather than specific tickers. This exactly matches the user's stated goal of finding stocks that dropped 20% in the month and inspecting whatever stocks match the criterion. No required steps are missing and no extra unrelated actions are included.",
+          "keyword_placement": "All 8 steps from must_have_for_steps carry Keywords lines with valid tokens except Step 7, which uses \"Performance\" instead of the fixture's acceptable token \"view-tab\" for the Performance view tab. The other seven steps correctly use fs_cap, fs_fa_div, fs_sh_relvol, fundamental, fs_fa_pe, fs_fa_pb, and perf4w, all matching their respective acceptable token lists.",
+          "asking_behavior": "The compiler asked exactly the required question about whether the 3 clicked stocks should be the top 3 by position or specific tickers (UISA, SHXD, NRGB), which directly covers the required topic. The compiler asked zero forbidden questions about market-cap threshold, dividend yield, or P/E ratio values, which is correct since those values were clearly visible in the recording's change events."
+        }
+      },
+      "github-trending-contenteditable-question": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 2,
+        "compile_duration": 230.15,
+        "proxy_cost": 0.054836,
+        "proxy_tokens": 10423,
+        "overall_pass": false,
+        "intent_match": 1.0,
+        "keyword_placement": 0.0,
+        "asking_behavior": 0.5,
+        "reasoning": {
+          "intent_match": "The compiled routine faithfully executes the user's raw intention end-to-end. It correctly opens the top-1 repository by position (Step 2 specifies \"the #1 result at the top of the page\"), creates a document in the AI专用 knowledge base (Step 6), templates the date in the title (Step 7 uses \"{today's date}\"), and critically contains explicit steps (Step 12) for the replay agent to visit the repo page and write the three required sections: brief intro, what's special, and why it's trending. The routine does NOT compile the typed instruction sentence as literal text to paste, which is the core requirement. All required actions are present and no extraneous unrelated actions are included.",
+          "keyword_placement": "The compiled routine contains zero **Keywords:** lines anywhere in the markdown. The fixture's expected_keywords.must_have_for_steps explicitly requires Keywords lines on two steps: (1) the Yuque document title input (acceptable token: \"lake-title\") and (2) the Yuque new-document button/menu trigger (acceptable tokens: \"新建文档\" or \"文档\"). Neither Step 7 (title input) nor Step 5 (new document creation) carries a Keywords line. Since the fixture marks these identifiers as available and the compiler placed no Keywords at all, this is a complete failure on this axis.",
+          "asking_behavior": "The compiler missed the one required topic: it never asked whether the top-1 selection should be by position or by the specific repo from the recording. Additionally, the compiler asked a forbidden question: \"Did you intend to complete this as 'Why's it trending', or was the incomplete word intentional?\" directly asks about what text the user typed into the document body, which matches the forbidden topic \"What text the user typed into the document body.\" The third question about content instructions (paste vs. generate) touches on the same forbidden area. One required miss and at least one forbidden hit warrant a 0.5 score."
+        }
+      },
+      "techforum_count_ambiguous": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 0,
+        "compile_duration": 80.38,
+        "proxy_cost": 0.016478,
+        "proxy_tokens": 3129,
+        "overall_pass": false,
+        "intent_match": 0.3,
+        "keyword_placement": 1.0,
+        "asking_behavior": 0.0,
+        "reasoning": {
+          "intent_match": "The routine correctly searches for \"AI\" but then hardcodes 5 specific posts to upvote, whereas the user's true intent was to upvote only posts specifically about AI agents. Of the 5 upvoted posts, only 2 (Steps 5 and 6 about UI agents and browser agents) match the agent criterion. Steps 2, 3, and 4 upvote posts about AI trends, evaluation infrastructure, and Kubernetes migration — which the user explicitly stated should NOT be upvoted. The routine fails to implement the conditional \"upvote posts about agents\" logic and instead blindly upvotes the wrong posts.",
+          "keyword_placement": "The fixture requires a Keywords line for the search input field step with acceptable token \"main-search\". Step 1 carries \"**Keywords:** main-search\", which matches exactly. All other steps also carry valid Keywords lines with \"upvote\". No violations of the keyword placement requirements.",
+          "asking_behavior": "The fixture's expected_questions.required list includes \"What is the selection criterion for which posts to upvote\" — a critical ambiguity the compiler MUST have asked about. The compiler asked zero clarification questions (the log shows \"(none)\"). This is a complete miss on the required topic. No forbidden questions were asked, but the failure to ask the required question drops the score to 0.0."
+        }
+      }
+    }
+  }
+}

@@ -1694,6 +1694,81 @@ export async function startRecording(
   });
 }
 
+async function selectFinalKeyframeTab(
+  recording: ActiveRecording,
+): Promise<chrome.tabs.Tab | null> {
+  // Prefer the currently-active tab within the recording scope; that's
+  // what the user was looking at when they hit stop. Fall back to any
+  // recordable tab in scope.
+  const scopedTabIds = Array.from(recording.scope.tabIds.values());
+  if (scopedTabIds.length === 0) {
+    return null;
+  }
+
+  const queryOptions: chrome.tabs.QueryInfo = { active: true };
+  if (recording.scope.windowId !== null) {
+    queryOptions.windowId = recording.scope.windowId;
+  }
+
+  try {
+    const activeTabs = await chrome.tabs.query(queryOptions);
+    for (const tab of activeTabs) {
+      if (
+        typeof tab.id === 'number' &&
+        recording.scope.tabIds.has(tab.id) &&
+        isRecordableUrl(tab.url)
+      ) {
+        return tab;
+      }
+    }
+  } catch (error) {
+    console.warn(
+      `⚠️ [Recorder] tabs.query failed while choosing final keyframe tab:`,
+      error,
+    );
+  }
+
+  for (const tabId of scopedTabIds) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (isRecordableUrl(tab.url)) {
+        return tab;
+      }
+    } catch {
+      // Tab may have been closed; try the next one.
+    }
+  }
+
+  return null;
+}
+
+async function captureFinalRecordingKeyframe(
+  recording: ActiveRecording,
+): Promise<Record<string, unknown> | null> {
+  // Best-effort final screenshot so the compiler-agent can see the
+  // end-state of the flow (e.g. the success toast or the page the user
+  // landed on after their last action). Failures must not block stop.
+  const tab = await selectFinalKeyframeTab(recording);
+  if (!tab || typeof tab.id !== 'number') {
+    return null;
+  }
+
+  try {
+    const keyframe = await buildRecordingKeyframe(
+      tab.id,
+      recording.recordingId,
+      'recording_stopped',
+    );
+    return keyframe;
+  } catch (error) {
+    console.warn(
+      `⚠️ [Recorder] Failed to capture final keyframe for ${recording.recordingId}:`,
+      error,
+    );
+    return null;
+  }
+}
+
 export async function stopRecording(recordingId?: string): Promise<void> {
   const recording = await getActiveRecording();
   if (!recording) {
@@ -1721,10 +1796,24 @@ export async function stopRecording(recordingId?: string): Promise<void> {
     );
   });
 
-  await postRecordingEventFor(recording, 'recording_stopped', {
+  // Capture the end-state screenshot before we tear the scope down. This
+  // runs while the recording's debugger session is still usable; doing it
+  // after cleanupSession below would fail on a detached target.
+  const finalKeyframe = await captureFinalRecordingKeyframe(recording);
+
+  const stoppedEventData: Record<string, unknown> = {
     stoppedAt: Date.now(),
     scope: serializeRecordingScope(recording.scope),
-  }).catch((error) => {
+  };
+  if (finalKeyframe) {
+    stoppedEventData.keyframe = finalKeyframe;
+  }
+
+  await postRecordingEventFor(
+    recording,
+    'recording_stopped',
+    stoppedEventData,
+  ).catch((error) => {
     console.error('❌ [Recorder] Failed to upload recording_stopped:', error);
   });
 

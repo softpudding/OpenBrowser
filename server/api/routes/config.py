@@ -48,6 +48,7 @@ def _build_full_config_response() -> dict[str, object]:
         "llm": masked_default,
         "llm_configs": masked_configs,
         "default_llm_alias": config.default_llm_alias,
+        "default_compiler_alias": config.default_compiler_alias,
         "default_cwd": config.default_cwd,
         "is_configured": llm_config_manager.is_configured(),
     }
@@ -77,6 +78,7 @@ async def get_llm_config():
             "config": full_config["llm"],
             "configs": full_config["llm_configs"],
             "default_alias": full_config["default_llm_alias"],
+            "default_compiler_alias": full_config["default_compiler_alias"],
         }
     except Exception as e:
         import logging
@@ -100,6 +102,7 @@ async def update_llm_config(request: Request):
 
         raw_configs = data.get("configs")
         default_alias = data.get("default_alias")
+        default_compiler_alias = data.get("default_compiler_alias")
 
         if isinstance(raw_configs, list):
             llm_configs = [
@@ -130,7 +133,30 @@ async def update_llm_config(request: Request):
                     detail=f"default_alias must match one of the configured aliases: {selected_default_alias}",
                 )
 
+            compiler_alias_provided = "default_compiler_alias" in data
+            selected_compiler_alias: str | None = None
+            if compiler_alias_provided:
+                selected_compiler_alias = (
+                    default_compiler_alias.strip()
+                    if isinstance(default_compiler_alias, str)
+                    else None
+                ) or None
+                if (
+                    selected_compiler_alias is not None
+                    and selected_compiler_alias not in aliases
+                ):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "default_compiler_alias must match one of the configured "
+                            f"aliases: {selected_compiler_alias}"
+                        ),
+                    )
+
             llm_config_manager.set_llm_configs(llm_configs, selected_default_alias)
+
+            if compiler_alias_provided:
+                llm_config_manager.set_default_compiler_alias(selected_compiler_alias)
         else:
             raise HTTPException(
                 status_code=400,
@@ -144,6 +170,7 @@ async def update_llm_config(request: Request):
             "config": full_config["llm"],
             "configs": full_config["llm_configs"],
             "default_alias": full_config["default_llm_alias"],
+            "default_compiler_alias": full_config["default_compiler_alias"],
         }
     except HTTPException:
         raise

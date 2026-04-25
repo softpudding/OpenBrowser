@@ -490,7 +490,10 @@ async def compile_recording_with_agent(
     intent_note = (session.metadata or {}).get("intent_note")
 
     # Pre-validate LLM config before starting the stream
-    llm_config = llm_config_manager.get_llm_config(request.model_alias)
+    if request.model_alias is None:
+        llm_config = llm_config_manager.get_compiler_llm_config()
+    else:
+        llm_config = llm_config_manager.get_llm_config(request.model_alias)
     if not llm_config.api_key:
         raise HTTPException(status_code=400, detail="LLM API key is not configured")
 

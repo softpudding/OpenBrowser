@@ -1,0 +1,83 @@
+# Compiler expectations for fixture `github-trending-contenteditable-question`.
+#
+# The recording shows the user navigating to github.com/trending,
+# opening the top-1 repo, switching to Yuque, creating a new document
+# in the "AI专用" knowledge base, setting the title to
+# "Most trending project YYYY-MM-DD", pasting the repo URL and About
+# description into the document body, and then typing the literal
+# sentence:
+#
+#   Write also: 1. A brief intro 2. What's special 3. Why's it trending
+#
+# That sentence is an instruction for the replay agent (visit the repo,
+# investigate, then write three sections into the Yuque doc), NOT
+# static text the routine should paste verbatim.
+#
+# This fixture exercises two layered failure modes:
+#   1. Recorder regression: contenteditable body keystrokes were not
+#      captured at all under the old extension. This is fixed via a
+#      `beforeinput` listener on contenteditable targets.
+#   2. Compiler regression: even with the keystrokes in the trace, the
+#      compiler agent's trace_viewer views truncate input values at 80
+#      chars in the `events` view and omit values entirely from
+#      `normalized_steps`. The user's instruction starts at offset ~135
+#      in the body value and never reaches the LLM.
+#
+# Both regressions must be addressed for this fixture to pass. Failure
+# mode this fixture is designed to catch: a compiled routine that says
+# "paste the URL and the About description" with no mention of the
+# three investigation prompts.
+
+intent_summary: |
+  Find the single top trending GitHub repository (by position on
+  today's trending page), record it in a new Yuque document in the
+  "AI专用" knowledge base titled "Most trending project YYYY-MM-DD",
+  and have the replay agent write three sections about the repo
+  (a brief intro, what's special, why it's trending) into the
+  document body.
+
+expected_questions:
+  required:
+    # The user opened only the top-1 result, so there is no count
+    # ambiguity, but the position-vs-identity ambiguity remains.
+    - "Whether the top-1 selection should be by position or by the specific repo opened in the recording"
+  forbidden:
+    # The knowledge base is explicitly clicked ("AI专用") — don't
+    # ask which one to use.
+    - "Which Yuque knowledge base to create the document in"
+    # The literal text typed into the body is plainly visible in
+    # the trace (and surfaced by the trace_viewer's `final_value`
+    # line on the form-fill step). The compiler must not ask the
+    # user to retype or restate it. Asking about its *intent* —
+    # whether to treat it as agent prompts vs. literal paste — is
+    # legitimate and may appear in `required` instead.
+    - "What text the user typed into the document body"
+
+expected_keywords:
+  must_have_for_steps:
+    - description: "the Yuque document title input"
+      acceptable_tokens:
+        - lake-title
+    - description: "the Yuque new-document button or menu trigger"
+      acceptable_tokens:
+        - 新建文档
+        - 文档
+
+# Routine-content assertions. Currently advisory: the judge will see
+# these and weigh them in the intent_match axis, but there is no
+# Python-level hard assertion path yet.
+expected_routine_content:
+  must_mention:
+    # Either verbatim or paraphrased. Failure here means the body
+    # value never reached the compiler agent (or it dropped it).
+    - "brief intro"
+    - "what's special"
+    - "why it's trending"
+  must_frame_as_investigation:
+    description: |
+      The compiled routine MUST contain explicit steps for the replay
+      agent to visit the repo page and write three additional
+      sections (a brief intro to the project, what's special about
+      it, why it's trending today) into the Yuque document. A
+      routine that ends at "paste the URL + About description" is a
+      failure — it ignores the user's typed instructions.

@@ -1,0 +1,75 @@
+{
+  "compile_evaluation": {
+    "timestamp": "2026-04-24 14:16:17",
+    "unix_timestamp": 1777011377.0485141,
+    "summary": {
+      "fixture_count": 3,
+      "judged_count": 3,
+      "passed_count": 1,
+      "pass_rate": 33.33,
+      "compile_model": "qwen36flash-fast",
+      "judge_model": "qwen36plus-fast",
+      "mean_intent_match": 0.6,
+      "mean_keyword_placement": 0.625,
+      "mean_asking_behavior": 0.3333,
+      "total_proxy_cost": 0.083092,
+      "total_proxy_tokens": 14691
+    },
+    "fixture_results": {
+      "finviz_filter_clear": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 1,
+        "compile_duration": 126.25,
+        "proxy_cost": 0.043604,
+        "proxy_tokens": 7032,
+        "overall_pass": true,
+        "intent_match": 1.0,
+        "keyword_placement": 0.875,
+        "asking_behavior": 1.0,
+        "reasoning": {
+          "intent_match": "The routine faithfully reproduces all required steps: setting all 5 filters (Market Cap smallover, Dividend Yield o3, RelVol o1, P/E u20, P/B u2) across the Descriptive and Fundamental tabs, switching to Performance view, sorting by Perf Month, and opening the top 3 result rows. The compiler correctly resolved the user's intent to click position-based results rather than specific tickers, matching the stated goal of finding stocks that dropped 20% in the past month.",
+          "keyword_placement": "Seven of the eight required steps carry correct Keywords lines matching the acceptable tokens (fs_cap, fs_fa_div, fs_sh_relvol, fundamental, fs_fa_pe, fs_fa_pb, perf4w). Step 7 (Performance view tab) uses \"Performance\" instead of the required stable identifier \"view-tab\" from the fixture's acceptable tokens list, which is an overly generic visible-text label rather than a clean identifier.",
+          "asking_behavior": "The compiler asked the required question about whether the 3 clicked stocks are position-based (top 3) or identity-based (specific tickers UISA, SHXD, NRGB). Zero forbidden questions were asked about filter values (market-cap threshold, dividend yield, P/E ratio). The additional question about result delivery is not in the forbidden list and does not penalize the score."
+        }
+      },
+      "github-trending-contenteditable-question": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 0,
+        "compile_duration": 92.85,
+        "proxy_cost": 0.021186,
+        "proxy_tokens": 4393,
+        "overall_pass": false,
+        "intent_match": 0.4,
+        "keyword_placement": 0.0,
+        "asking_behavior": 0.0,
+        "reasoning": {
+          "intent_match": "The routine captures most steps correctly (goes to trending, clicks top repo by position, creates doc in AI专用, sets dynamic date title, pastes URL and description). However, it critically fails on the core agent-investigation requirement. Step 10 frames the three sections (intro, unique features, reasons for trending) as \"optional\" follow-up notes rather than explicit mandatory instructions for the replay agent. It does not instruct the agent to visit the repo page and write those sections into the document. The fixture explicitly states: \"A routine that ends at 'paste the URL + About description' is a failure — it ignores the user's typed instructions.\" This is exactly the failure mode this fixture is designed to catch.",
+          "keyword_placement": "The compiled routine contains zero **Keywords:** lines on any step. The fixture requires Keywords lines for the Yuque document title input (acceptable token: \"lake-title\") and the Yuque new-document button/menu trigger (acceptable tokens: \"新建文档\", \"文档\"). Steps 4, 5, and 6 target these elements but carry no Keywords lines at all, which is a complete miss on keyword placement.",
+          "asking_behavior": "The compiler asked zero clarification questions. The fixture's expected_questions.required lists one topic: \"Whether the top-1 selection should be by position or by the specific repo opened in the recording.\" This required topic was not asked about at all. While the compiler did avoid all forbidden questions (none were asked), missing the single required topic entirely yields a score of 0.0."
+        }
+      },
+      "techforum_count_ambiguous": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 0,
+        "compile_duration": 61.42,
+        "proxy_cost": 0.018302,
+        "proxy_tokens": 3266,
+        "overall_pass": false,
+        "intent_match": 0.4,
+        "keyword_placement": 1.0,
+        "asking_behavior": 0.0,
+        "reasoning": {
+          "intent_match": "The routine correctly searches for \"AI\" and includes upvoting, but fundamentally misses the user's core intent: upvoting posts specifically about AI agents. Instead, Step 3 instructs upvoting based on subjective usefulness (\"answer preview you find valuable\"), which is a completely different selection criterion that would result in upvoting different posts. Additionally, the routine elevates incidental actions (collecting posts, clicking comments) into explicit workflow steps, whereas the user indicated these were secondary browsing actions, not part of the core intent. The selection criterion mismatch is the most significant flaw since it would cause the routine to upvote the wrong posts.",
+          "keyword_placement": "The fixture requires a Keywords line with \"main-search\" for the search input field step. Step 1 correctly includes **Keywords:** main-search, using the exact acceptable token specified. No other steps are listed in must_have_for_steps, and the single required keyword is properly placed.",
+          "asking_behavior": "The compiler asked zero clarification questions. The fixture explicitly requires asking about the selection criterion for which posts to upvote, which was completely missed. This is a critical omission since the trace was genuinely ambiguous between multiple interpretations (top-5, all results, topical criterion, or specific cherry-picked posts). While no forbidden questions were asked, the total failure to ask the required topic results in a score of 0.0."
+        }
+      }
+    }
+  }
+}

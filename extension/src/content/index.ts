@@ -69,6 +69,25 @@ function isElement(target: EventTarget | null): target is Element {
   return target instanceof Element;
 }
 
+function isContentEditableElement(
+  target: EventTarget | null,
+): target is HTMLElement {
+  return (
+    target instanceof HTMLElement &&
+    target.isContentEditable &&
+    !(target instanceof HTMLInputElement) &&
+    !(target instanceof HTMLTextAreaElement)
+  );
+}
+
+function getContentEditableText(element: HTMLElement): string {
+  const viaInnerText = element.innerText;
+  if (typeof viaInnerText === 'string' && viaInnerText.length > 0) {
+    return viaInnerText;
+  }
+  return element.textContent ?? '';
+}
+
 /**
  * Capture an element's outerHTML for the recording trace, with whitespace
  * collapsed and a hard length cap. The compiler agent uses this to decide
@@ -448,6 +467,18 @@ function serializeElement(element: Element): Record<string, unknown> {
     payload.isSensitive = sensitive;
   }
 
+  if (
+    !(element instanceof HTMLInputElement) &&
+    !(element instanceof HTMLTextAreaElement) &&
+    isContentEditableElement(element)
+  ) {
+    const editableText = getContentEditableText(element);
+    payload.valueLength = editableText.length;
+    payload.value = normalizeText(editableText, 400);
+    payload.isSensitive = false;
+    payload.isContentEditable = true;
+  }
+
   if (element instanceof HTMLSelectElement) {
     payload.value = element.value || null;
     payload.selectedText =
@@ -706,7 +737,8 @@ function installRecordingListeners(): void {
 
       if (
         !(event.target instanceof HTMLInputElement) &&
-        !(event.target instanceof HTMLTextAreaElement)
+        !(event.target instanceof HTMLTextAreaElement) &&
+        !isContentEditableElement(event.target)
       ) {
         return;
       }
@@ -722,6 +754,46 @@ function installRecordingListeners(): void {
 
       sendRecordingEvent('input', {
         element: serializeElement(event.target),
+      });
+    },
+    true,
+  );
+
+  // Rich editors (Lake/Yuque, ProseMirror, Slate, Lexical, TipTap, etc.) often
+  // intercept keystrokes on contenteditable roots and apply changes via their
+  // own DOM model, which means native `input` events never fire for typed
+  // characters. `beforeinput` fires *before* the editor can intercept and is
+  // the reliable primitive for capturing per-character edits in these
+  // editors. We only read it for contenteditable targets so we don't double-
+  // emit for plain form controls (which the `input` listener above already
+  // covers cleanly). The `serializeElement` snapshot is deferred to the next
+  // microtask so it reflects the DOM *after* the editor has applied the edit.
+  document.addEventListener(
+    'beforeinput',
+    (event) => {
+      if (!shouldRecordTrustedEvent(event) || !isElement(event.target)) {
+        return;
+      }
+
+      if (!isContentEditableElement(event.target)) {
+        return;
+      }
+
+      const target = event.target;
+      const beforeInput = event as InputEvent;
+      const inputType = beforeInput.inputType ?? null;
+      const data =
+        typeof beforeInput.data === 'string' ? beforeInput.data : null;
+
+      queueMicrotask(() => {
+        if (!target.isConnected) {
+          return;
+        }
+        sendRecordingEvent('input', {
+          element: serializeElement(target),
+          inputType,
+          data,
+        });
       });
     },
     true,

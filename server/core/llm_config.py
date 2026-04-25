@@ -32,6 +32,7 @@ class AppConfig(BaseModel):
 
     llm_configs: list[LLMConfig] = Field(default_factory=list)
     default_llm_alias: str = DEFAULT_ALIAS
+    default_compiler_alias: str | None = None
     default_cwd: str = "/tmp"
 
 
@@ -62,11 +63,22 @@ class LLMConfigManager:
         ).strip() or DEFAULT_ALIAS
         if not config.llm_configs:
             config.default_llm_alias = normalized_default_alias
+            config.default_compiler_alias = None
             return config
         if normalized_default_alias not in configs_by_alias:
             normalized_default_alias = config.llm_configs[0].alias
 
         config.default_llm_alias = normalized_default_alias
+
+        normalized_compiler_alias = (
+            config.default_compiler_alias or ""
+        ).strip() or None
+        if (
+            normalized_compiler_alias is not None
+            and normalized_compiler_alias not in configs_by_alias
+        ):
+            normalized_compiler_alias = None
+        config.default_compiler_alias = normalized_compiler_alias
         return config
 
     def _load_config(self) -> AppConfig:
@@ -94,6 +106,11 @@ class LLMConfigManager:
                 if "default_llm_alias" in data:
                     config.default_llm_alias = (
                         data["default_llm_alias"] or DEFAULT_ALIAS
+                    )
+
+                if "default_compiler_alias" in data:
+                    config.default_compiler_alias = (
+                        data["default_compiler_alias"] or None
                     )
 
                 if "default_cwd" in data:
@@ -140,6 +157,32 @@ class LLMConfigManager:
                 return llm_config
 
         raise ValueError(f"Unknown LLM config alias: {alias}")
+
+    def get_compiler_llm_config(self) -> LLMConfig:
+        """Get the LLM config used for the Compiler Agent.
+
+        Falls back to the general agent default if no compiler-specific alias
+        is configured or the configured alias no longer exists.
+        """
+        config = self._load_config()
+        compiler_alias = (config.default_compiler_alias or "").strip()
+        if compiler_alias:
+            for llm_config in config.llm_configs:
+                if llm_config.alias == compiler_alias:
+                    return llm_config
+        return self.get_llm_config(None)
+
+    def set_default_compiler_alias(self, alias: str | None) -> AppConfig:
+        """Set (or clear) the alias used as the compiler default."""
+        config = self._load_config()
+        normalized = (alias or "").strip() or None
+        if normalized is not None:
+            known_aliases = {llm_config.alias for llm_config in config.llm_configs}
+            if normalized not in known_aliases:
+                raise ValueError(f"Unknown LLM config alias: {alias}")
+        config.default_compiler_alias = normalized
+        self._save_config(config)
+        return self.get_full_config()
 
     def get_llm_configs(self) -> list[LLMConfig]:
         """Get all configured LLM entries."""
