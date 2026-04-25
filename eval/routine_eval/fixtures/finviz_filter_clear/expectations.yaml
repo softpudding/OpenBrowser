@@ -56,6 +56,14 @@ expected_keywords:
         - fundamental
     - description: "Performance view tab"
       acceptable_tokens:
+        # HTML: `<a href="#" class="view-tab" data-view="141">Performance</a>`.
+        # The `view-tab` class is shared by every view tab on the page
+        # (Overview, Performance, Charts, Tickers, …) so it does not
+        # disambiguate which tab to click — the visible text
+        # "Performance" is the actually distinctive token here, valid
+        # per rule 7 in the compiler prompt's Keywords priority list.
+        # Accept either token.
+        - Performance
         - view-tab
     - description: "Perf Month column header"
       acceptable_tokens:

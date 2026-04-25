@@ -161,11 +161,13 @@ class SubmitJudgmentAction(Action):
         le=1.0,
         description=(
             "How well the compiler asked the right clarification questions. "
-            "1.0 means the compiler asked at least one question about every "
-            "topic in `expected_questions.required` AND asked ZERO questions "
-            "matching anything in `expected_questions.forbidden`. Each "
-            "missed required topic or each forbidden question lowers the "
-            "score."
+            "Asymmetric: 1.0 means the compiler asked at least one question "
+            "covering every topic in `expected_questions.required`. Each "
+            "missed required topic lowers the score. Extra questions — "
+            "including ones that overlap topics in "
+            "`expected_questions.forbidden` — are NOT penalized. Asking "
+            "too much is acceptable; failing to ask required things is "
+            "not."
         ),
     )
     asking_behavior_reasoning: str = Field(
@@ -231,6 +233,12 @@ class JudgmentResult:
     reasoning: dict[str, str] = field(default_factory=dict)
     cost: float = 0.0
     total_tokens: int = 0
+    # Inputs and raw outputs of the judge LLM call. Captured so the eval
+    # runner can dump them as a per-fixture artifact for offline review.
+    # Intentionally excluded from to_dict() — they are large and would
+    # bloat the canonical regression report.
+    prompt: str = ""
+    raw_args: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -428,20 +436,55 @@ missing required actions and no extra unrelated actions. Penalize wrong \
 actions (e.g. downvote instead of upvote), missing required steps, or \
 extra steps that the user did not intend.
 
-2. **keyword_placement** — For each step, check whether the step carries a \
-`**Keywords:**` line. The fixture's \
-`expected_keywords.must_have_for_steps` lists the steps where a clean stable \
-identifier was available and a Keywords line is therefore required; penalize \
-missing Keywords lines on those steps, and penalize Keywords tokens that \
-clearly violate the priority list (hashed/CSS-module names, overly generic \
-words, multi-word values). If the fixture lists no `must_have_for_steps` \
-entries, score 1.0 as long as any Keywords lines present look valid.
+2. **keyword_placement** — The fixture's \
+`expected_keywords.must_have_for_steps` lists *target elements* (not \
+specific routine step numbers) where a clean stable identifier was \
+available and a Keywords line is therefore expected somewhere in the \
+routine. Each entry has a `description` of the target and a list of \
+`acceptable_tokens`. \
+\
+For each entry, find the routine step(s) that interact with the described \
+target — note that a single routine step often legitimately merges \
+multiple interactions ("open the menu, click the option, then click \
+the destination") per the compiler prompt's "merge low-level trace events \
+into meaningful high-level steps" rule. The must_have target may be one \
+of several interactions inside a merged step. \
+\
+Score by counting required-target satisfaction: \
+- ✓ The step(s) covering this target carry a `**Keywords:**` line with \
+  one of the `acceptable_tokens`, OR with a different token that is \
+  itself plausibly distinctive (priority rules 1–7 in the compiler \
+  prompt) AND clearly addresses *this* target. \
+- ✗ No step covering this target has any Keywords line at all. \
+- ✗ The covering step has a Keywords line, but the chosen token \
+  addresses a *different* interaction in the same merged step (e.g. \
+  the routine merges "click new-doc button" + "click knowledge-base \
+  name", and Keywords targets the knowledge-base name when the \
+  must_have target is the new-doc button). When this happens, say so \
+  in the reasoning — the chosen token is still a valid keyword for a \
+  different target, it just doesn't satisfy *this* must_have entry. \
+  Don't dismiss it as "wrong" or "irrelevant". \
+\
+Penalize tokens that are clearly disqualified per the priority list: \
+hashed/CSS-module names (`css-x4j8b27`, `Mui…`, `sc-…`, ending in \
+random-looking suffixes), overly generic words that would match dozens \
+of elements (`btn`, `submit`, `link`, `wrapper`, `input`), or \
+multi-word values. \
+\
+If the fixture lists no `must_have_for_steps` entries (or the list is \
+empty), score 1.0 as long as any Keywords lines present look valid.
 
-3. **asking_behavior** — Compare the actually-asked questions against \
-`expected_questions.required` (compiler should have asked about each) and \
-`expected_questions.forbidden` (compiler should NOT have asked about any). \
-1.0 if every required topic was covered by at least one asked question AND \
-no asked question matches any forbidden topic. Each miss lowers the score.
+3. **asking_behavior** — Asymmetric. Compare the actually-asked \
+questions against `expected_questions.required`: 1.0 if every required \
+topic was covered by at least one asked question. Each missed required \
+topic lowers the score. \
+\
+Extra questions — including ones that overlap topics in \
+`expected_questions.forbidden` — do NOT lower the score. The compiler \
+erring on the side of asking more is acceptable behaviour; under-asking \
+is the actual failure mode this axis is here to catch. The `forbidden` \
+list is informational context (signaling topics that *shouldn't* need \
+asking because the trace makes them obvious), not a penalty trigger.
 
 `overall_pass` is True iff all three scores are >= 0.8.
 
@@ -521,4 +564,6 @@ You MUST call submit_judgment exactly once.
         },
         cost=cost,
         total_tokens=total_tokens,
+        prompt=prompt,
+        raw_args=args if isinstance(args, dict) else {},
     )

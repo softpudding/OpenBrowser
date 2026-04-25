@@ -28,7 +28,10 @@ Per fixture the flow is:
 
 Per-fixture rows plus aggregates (mean intent_match, mean
 keyword_placement, mean asking_behavior, pass count, total proxy cost)
-are written to ``eval/output/routine_compile_<timestamp>/routine_compile_report.json``.
+are written to
+``eval/output/<timestamp>_compiler_eval/<compile_alias>/routine_compile_report.json``,
+alongside per-fixture artifacts under ``traces/`` (full compiler conversation
+dumps) and ``judges/`` (judge prompt + raw tool-call args + parsed scores).
 
 Usage::
 
@@ -192,6 +195,11 @@ class FixtureRunResult:
     compile_duration_seconds: float = 0.0
     recording_id: Optional[str] = None
     agent_events: list[dict[str, Any]] = field(default_factory=list)
+    # Filesystem path of the compiler's full conversation trace dump
+    # (written by the server to ~/.openbrowser/compiler_traces/). Captured
+    # from the SSE complete payload so the eval runner can copy the file
+    # into its own output_dir/traces/ as a per-fixture artifact.
+    trace_path: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -567,6 +575,9 @@ def run_one_fixture(
         result.routine_markdown = routine_markdown
         result.asked_questions = asked_history
         result.compile_duration_seconds = time.time() - start_time
+        trace_path_value = (final_compile_result or {}).get("trace_path")
+        if isinstance(trace_path_value, str) and trace_path_value:
+            result.trace_path = trace_path_value
 
         if result.final_status not in ("review", "completed"):
             result.error = (
@@ -696,6 +707,76 @@ def _write_json_report(report_path: Path, payload: dict[str, Any]) -> None:
         encoding="utf-8",
     )
     tmp_path.replace(report_path)
+
+
+def _dump_per_fixture_artifacts(
+    output_dir: Path,
+    result: FixtureRunResult,
+    compile_alias: Optional[str],
+    judge_alias: Optional[str],
+) -> None:
+    """Copy the compiler's full trace and write the judge's input/output for one fixture.
+
+    Two files per fixture, namespaced under ``output_dir``:
+    - ``traces/<fixture_id>_compiler_trace.json`` — verbatim copy of the
+      conversation dump the server wrote to ``~/.openbrowser/compiler_traces/``.
+    - ``judges/<fixture_id>_judge.json`` — the prompt sent to the judge LLM
+      and the raw tool-call arguments it returned, plus the parsed scores
+      and reasoning. Lets you re-read both sides of a judge call without
+      re-running the eval.
+    """
+    if result.trace_path:
+        try:
+            src = Path(result.trace_path)
+            if src.exists():
+                traces_dir = output_dir / "traces"
+                traces_dir.mkdir(parents=True, exist_ok=True)
+                dst = traces_dir / f"{result.fixture_id}_compiler_trace.json"
+                dst.write_bytes(src.read_bytes())
+            else:
+                logger.warning(
+                    "Compiler trace for %s not found at %s",
+                    result.fixture_id,
+                    result.trace_path,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Failed to copy compiler trace for %s: %s", result.fixture_id, exc
+            )
+
+    if result.judgment is not None:
+        try:
+            judges_dir = output_dir / "judges"
+            judges_dir.mkdir(parents=True, exist_ok=True)
+            j = result.judgment
+            payload = {
+                "fixture_id": result.fixture_id,
+                "compile_alias": compile_alias,
+                "judge_alias": judge_alias,
+                "input": {
+                    "prompt": j.prompt,
+                },
+                "output": {
+                    "raw_args": j.raw_args,
+                    "scores": {
+                        "intent_match": j.intent_match,
+                        "keyword_placement": j.keyword_placement,
+                        "asking_behavior": j.asking_behavior,
+                        "overall_pass": j.overall_pass,
+                    },
+                    "reasoning": j.reasoning,
+                    "cost": j.cost,
+                    "total_tokens": j.total_tokens,
+                },
+            }
+            (judges_dir / f"{result.fixture_id}_judge.json").write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to write judge artifact for %s: %s", result.fixture_id, exc
+            )
 
 
 def _print_summary(results: list[FixtureRunResult], summary: dict[str, Any]) -> None:
@@ -931,7 +1012,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Override output directory. Defaults to "
-            "eval/output/routine_compile_<timestamp>/."
+            "eval/output/<timestamp>_compiler_eval/<compile_alias>/."
         ),
     )
     parser.add_argument(
@@ -997,7 +1078,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     _log("judge LLM ready")
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    output_dir = args.output_dir or (OUTPUT_BASE_DIR / f"routine_compile_{timestamp}")
+    if args.output_dir is not None:
+        output_dir = args.output_dir
+    else:
+        # Default layout mirrors the main OpenBrowser eval:
+        # ``eval/output/<timestamp>_compiler_eval/<compile_alias>/``.
+        # The compile_alias subdirectory keeps multi-model runs from
+        # clobbering each other when launched in a loop.
+        if args.compile_alias:
+            slug = (
+                _ALIAS_SAFE_CHAR_RE.sub("-", args.compile_alias).strip("-") or "default"
+            )
+        else:
+            slug = "default"
+        output_dir = OUTPUT_BASE_DIR / f"{timestamp}_compiler_eval" / slug
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "routine_compile_report.json"
     logger.info("Report directory: %s", output_dir)
@@ -1067,6 +1161,13 @@ def main(argv: Optional[list[str]] = None) -> int:
                 )
             else:
                 logger.error("  failed: %s", result.error)
+
+            _dump_per_fixture_artifacts(
+                output_dir=output_dir,
+                result=result,
+                compile_alias=args.compile_alias,
+                judge_alias=judge_alias,
+            )
 
             _write_json_report(
                 report_path,

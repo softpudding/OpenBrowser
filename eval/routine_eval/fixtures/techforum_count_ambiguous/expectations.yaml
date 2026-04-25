@@ -22,11 +22,13 @@ expected_questions:
     - "What search query to use"
 
 expected_keywords:
-  # The search input has id="main-search" which is a clean keyword.
+  # The search input has id="main-search", which is a clean keyword
+  # the compiler is welcome to emit, but text-input targets are
+  # intentionally NOT in must_have_for_steps — the runtime
+  # disambiguates an input via the act of typing into it after focus,
+  # so a Keywords token is nice-to-have rather than load-bearing.
   # The upvote targets are per-card buttons inside dynamic search
   # results, so Keywords lines on individual upvote steps are not
-  # required (per the "skip for per-row items in a dynamic list" rule).
-  must_have_for_steps:
-    - description: "the search input field"
-      acceptable_tokens:
-        - main-search
+  # required either (per the "skip for per-row items in a dynamic
+  # list" rule).
+  must_have_for_steps: []

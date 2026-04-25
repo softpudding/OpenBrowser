@@ -1,7 +1,7 @@
 {
   "compile_evaluation": {
-    "timestamp": "2026-04-24 14:04:32",
-    "unix_timestamp": 1777010672.993244,
+    "timestamp": "2026-04-25 15:13:46",
+    "unix_timestamp": 1777101226.635335,
     "summary": {
       "fixture_count": 3,
       "judged_count": 3,
@@ -9,11 +9,11 @@
       "pass_rate": 66.67,
       "compile_model": "qwen36plus-fast",
       "judge_model": "qwen36plus-fast",
-      "mean_intent_match": 0.7,
-      "mean_keyword_placement": 0.7917,
+      "mean_intent_match": 1.0,
+      "mean_keyword_placement": 0.6667,
       "mean_asking_behavior": 0.6667,
-      "total_proxy_cost": 0.116686,
-      "total_proxy_tokens": 18593
+      "total_proxy_cost": 0.080164,
+      "total_proxy_tokens": 16137
     },
     "fixture_results": {
       "finviz_filter_clear": {
@@ -21,17 +21,17 @@
         "final_status": "review",
         "error": null,
         "asked_questions_count": 1,
-        "compile_duration": 130.27,
-        "proxy_cost": 0.045702,
-        "proxy_tokens": 7081,
+        "compile_duration": 221.8,
+        "proxy_cost": 0.037458,
+        "proxy_tokens": 6944,
         "overall_pass": true,
         "intent_match": 1.0,
-        "keyword_placement": 0.875,
+        "keyword_placement": 1.0,
         "asking_behavior": 1.0,
         "reasoning": {
-          "intent_match": "The routine faithfully reproduces the user's screening flow: it sets all 5 filters (Market Cap smallover, Dividend Yield o3, Rel Volume o1, P/E u20, P/B u2) across the Descriptive and Fundamental tabs, switches to Performance view, sorts by Perf Month descending, and opens the top 3 stocks by position rather than specific tickers. All required actions are present with no extra unrelated steps.",
-          "keyword_placement": "Seven of the eight required steps carry correct Keywords lines with acceptable tokens (fs_cap, fs_fa_div, fs_sh_relvol, Fundamental, fs_fa_pe, fs_fa_pb, perf4w). Step 7 (Performance view tab) uses \"Performance\" as its keyword, but the fixture's acceptable tokens list only includes \"view-tab\", so this token violates the priority list.",
-          "asking_behavior": "The compiler asked the required question about whether the 3 clicked stocks should be selected position-based (top 3) or identity-based (specific tickers UISA/SHXD/NRGB), and correctly did not ask any forbidden questions about filter values like market-cap threshold, dividend yield, or P/E ratio."
+          "intent_match": "The compiled routine faithfully reproduces the user's entire screening flow: all 5 filters are set correctly across the Descriptive and Fundamental tabs (Market Cap: smallover, Dividend Yield: o3, Relative Volume: o1, P/E: u20, P/B: u2), the view switches to Performance, results are sorted by Perf Month, and the top 3 rows are opened—not specific tickers, but whatever stocks appear at those positions. No required steps are missing and no extra unrelated steps are present.",
+          "keyword_placement": "All 8 required targets from the fixture have correctly placed Keywords lines with acceptable tokens: Step 1 (fs_cap), Step 2 (fs_fa_div), Step 3 (fs_sh_relvol), Step 4 (Fundamental), Step 5 (fs_fa_pe), Step 6 (fs_fa_pb), Step 7 (Performance), and Step 8 (perf4w). Every keyword matches one of the acceptable tokens listed in the fixture's must_have_for_steps entries.",
+          "asking_behavior": "The compiler's second clarification question directly covers the required topic: it asks whether to click the top 3 positions in the sorted table or always click the specific tickers UISA, SHXD, NRGB. The compiler also asked two additional questions (about dividend yield intent and whether filter values should be parameterized), which overlap with forbidden topics but are explicitly not penalized per the asymmetric scoring rule."
         }
       },
       "github-trending-contenteditable-question": {
@@ -39,17 +39,17 @@
         "final_status": "review",
         "error": null,
         "asked_questions_count": 0,
-        "compile_duration": 259.22,
-        "proxy_cost": 0.043962,
-        "proxy_tokens": 6266,
+        "compile_duration": 399.59,
+        "proxy_cost": 0.019786,
+        "proxy_tokens": 4153,
         "overall_pass": false,
-        "intent_match": 0.2,
-        "keyword_placement": 0.5,
+        "intent_match": 1.0,
+        "keyword_placement": 0.0,
         "asking_behavior": 0.0,
         "reasoning": {
-          "intent_match": "The routine correctly handles steps 1-7 (identifying top repo by position, creating Yuque document in AI专用, setting title with today's date). However, it catastrophically fails on the core intent: Step 8 treats the user's typed sentence \"Write also: 1. A brief intro 2. What's special 3. Why's it trending\" as literal text to paste into the document, when the user explicitly intended it as instructions for the replay agent. The routine completely omits the required agent-investigation steps (visit repo page, write brief intro, write what's special, write why it's trending). This is exactly the failure mode the fixture is designed to catch — a routine that ends at pasting URL + description is explicitly called out as a failure.",
-          "keyword_placement": "Of the two must_have keyword requirements, Step 4 correctly uses \"文档\" which matches the acceptable tokens for the new-document menu trigger. However, Step 6 (the Yuque document title input) uses the overly generic keyword \"input\" instead of the expected stable identifier \"lake-title\". The other Keywords lines (HeadNewButton on Step 3, ne-engine on Step 7) were not in the must_have list. Since 1 of 2 required keywords are correctly placed, score is 0.5.",
-          "asking_behavior": "The compiler asked zero clarification questions. The fixture's required topic — \"Whether the top-1 selection should be by position or by the specific repo opened in the recording\" — was not asked about at all. While the compiled routine's Step 1 reasoning does mention targeting by position, the compiler did not ask the required clarification question. No forbidden questions were asked, but the complete miss on the required topic yields a score of 0.0."
+          "intent_match": "The compiled routine faithfully executes the user's raw intention end-to-end. Step 1 opens the top repository by position (not a fixed identity). Step 2 creates a document in the correct \"AI专用\" knowledge base. Step 3 sets the title with the templated YYYY-MM-DD date format using today's date. Step 4 captures the repo URL and About description. Step 5 correctly interprets the typed instruction sentence as agent directions—not literal text to paste—and explicitly instructs the replay agent to visit the repo page, research it, and write the three required sections (brief intro, what's special, why it's trending) into the document. All must-mention phrases are present, and the investigation framing is explicit.",
+          "keyword_placement": "The fixture requires a Keywords line on the step covering the Yuque new-document button/menu trigger, with acceptable tokens \"新建文档\" or \"文档\". Step 2 describes this interaction (\"click the '+' button... then click the '文档' (Document) option\") but contains no Keywords line at all. The only Keywords line in the entire routine appears in Step 3 for the title input field (\"**Keywords:** input\"), which does not address the must_have target. This is a clear miss.",
+          "asking_behavior": "The compiler asked zero clarification questions. The fixture's required topic—\"Whether the top-1 selection should be by position or by the specific repo opened in the recording\"—was not addressed at all. This is the single genuinely ambiguous choice the user identified, and failing to ask about it is a complete miss on the required topic."
         }
       },
       "techforum_count_ambiguous": {
@@ -57,17 +57,17 @@
         "final_status": "review",
         "error": null,
         "asked_questions_count": 1,
-        "compile_duration": 424.82,
-        "proxy_cost": 0.027022,
-        "proxy_tokens": 5246,
+        "compile_duration": 485.71,
+        "proxy_cost": 0.02292,
+        "proxy_tokens": 5040,
         "overall_pass": true,
-        "intent_match": 0.9,
+        "intent_match": 1.0,
         "keyword_placement": 1.0,
         "asking_behavior": 1.0,
         "reasoning": {
-          "intent_match": "The routine correctly implements the core intent: searching for \"AI\" and upvoting posts specifically about AI agents. The content-based selection criterion (agent-related posts) is accurately captured in Step 2. However, the routine also includes a collect/favorite action for each post, which the user explicitly described as \"incidental\" and \"secondary browsing actions\" that should either be asked about or omitted. This extra action slightly detracts from perfect intent alignment, but the primary upvote logic is correct and the search step is accurate.",
-          "keyword_placement": "The fixture requires a Keywords line for the search input field with acceptable token \"main-search\". Step 1 correctly carries `**Keywords:** main-search`, which exactly matches the acceptable token. Step 2 does not have a Keywords line, but the fixture's `must_have_for_steps` only lists the search input, so no penalty applies. All present Keywords lines are valid.",
-          "asking_behavior": "The compiler asked exactly the right clarification question about the selection criterion for which posts to upvote (presenting options A, B, C about selection strategy), which covers the required topic \"What is the selection criterion for which posts to upvote\". The compiler did NOT ask about the search query to use, which is in the forbidden list. All required topics were covered and no forbidden topics were asked."
+          "intent_match": "The routine faithfully executes the user's raw intention end-to-end. Step 1 correctly searches for \"AI\" on TechForum. Step 2 accurately captures the user's actual intent—upvoting posts specifically about AI agents rather than all AI posts—with clear topical criteria (mentions of \"AI agents,\" \"browser agents,\" \"UI agents,\" etc.) and explicit instruction to skip general AI topics. The routine appropriately omits the incidental collect/favorite and comment-click actions that the user identified as secondary. No missing required steps, no wrong actions, no extraneous steps.",
+          "keyword_placement": "The fixture's expected_keywords.must_have_for_steps is an empty array, so per the rubric the score is 1.0 as long as any present Keywords lines look valid. The routine includes two Keywords lines: \"main-search\" for Step 1 (interacting with the search bar) and \"upvote\" for Step 2 (interacting with upvote buttons). Both tokens are valid, distinctive, and appropriately target their respective interactions. No penalty applies.",
+          "asking_behavior": "The required topic \"What is the selection criterion for which posts to upvote\" was covered by the compiler's question asking whether to upvote the top 5 posts (position-based) or those 5 specific posts (identity-based). This question directly addresses the selection criterion ambiguity and would have elicited the user's actual intent (topical criterion: posts about AI agents). The compiler also asked about including collect/bookmark actions, which is an extra but acceptable question. No required topics were missed."
         }
       }
     }
