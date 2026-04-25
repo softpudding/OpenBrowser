@@ -47,6 +47,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import shutil
 import sys
 import time
@@ -741,6 +742,25 @@ def _print_summary(results: list[FixtureRunResult], summary: dict[str, Any]) -> 
 REGRESSION_REPORT_PATH = HERE / "compile_evaluation_report.json"
 
 
+_ALIAS_SAFE_CHAR_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _regression_report_path_for(compile_alias: Optional[str]) -> Path:
+    """Return the version-controlled canonical report path for a given compile alias.
+
+    The default (no alias) keeps the legacy path so existing callers and
+    dashboards continue to work. When a compile alias is given, the path is
+    suffixed with the alias so a multi-model eval loop doesn't have each run
+    clobber its predecessor's canonical report.
+    """
+    if not compile_alias:
+        return REGRESSION_REPORT_PATH
+    slug = _ALIAS_SAFE_CHAR_RE.sub("-", compile_alias).strip("-")
+    if not slug:
+        return REGRESSION_REPORT_PATH
+    return HERE / f"compile_evaluation_report_{slug}.json"
+
+
 def _generate_regression_report(
     results: list[FixtureRunResult],
     summary: dict[str, Any],
@@ -751,8 +771,11 @@ def _generate_regression_report(
     """Write a concise JSON regression report, mirroring eval/evaluation_report.json.
 
     The report is written to *output_dir* and copied to
-    ``eval/routine_eval/compile_evaluation_report.json`` for version control.
-    Agent events are excluded to keep the file small and diffable.
+    ``eval/routine_eval/compile_evaluation_report[_<alias>].json`` for
+    version control. The suffixed filename is used whenever ``compile_alias``
+    is set so a multi-model eval loop preserves one canonical report per
+    model instead of overwriting the same file on every run. Agent events
+    are excluded to keep the file small and diffable.
     """
     try:
         now = time.time()
@@ -821,12 +844,13 @@ def _generate_regression_report(
             json.dump(report, f, indent=2, ensure_ascii=False)
         logger.info("Regression report saved to: %s", report_path)
 
-        # Copy to the stable path for version control
+        # Copy to the stable (per-alias) path for version control
+        canonical_path = _regression_report_path_for(compile_alias)
         try:
-            if REGRESSION_REPORT_PATH.exists():
-                REGRESSION_REPORT_PATH.unlink()
-            shutil.copy2(report_path, REGRESSION_REPORT_PATH)
-            logger.info("Regression report copied to: %s", REGRESSION_REPORT_PATH)
+            if canonical_path.exists():
+                canonical_path.unlink()
+            shutil.copy2(report_path, canonical_path)
+            logger.info("Regression report copied to: %s", canonical_path)
         except Exception as exc:
             logger.warning("Could not copy regression report: %s", exc)
 

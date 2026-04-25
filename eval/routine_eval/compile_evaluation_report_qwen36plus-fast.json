@@ -1,0 +1,75 @@
+{
+  "compile_evaluation": {
+    "timestamp": "2026-04-24 14:04:32",
+    "unix_timestamp": 1777010672.993244,
+    "summary": {
+      "fixture_count": 3,
+      "judged_count": 3,
+      "passed_count": 2,
+      "pass_rate": 66.67,
+      "compile_model": "qwen36plus-fast",
+      "judge_model": "qwen36plus-fast",
+      "mean_intent_match": 0.7,
+      "mean_keyword_placement": 0.7917,
+      "mean_asking_behavior": 0.6667,
+      "total_proxy_cost": 0.116686,
+      "total_proxy_tokens": 18593
+    },
+    "fixture_results": {
+      "finviz_filter_clear": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 1,
+        "compile_duration": 130.27,
+        "proxy_cost": 0.045702,
+        "proxy_tokens": 7081,
+        "overall_pass": true,
+        "intent_match": 1.0,
+        "keyword_placement": 0.875,
+        "asking_behavior": 1.0,
+        "reasoning": {
+          "intent_match": "The routine faithfully reproduces the user's screening flow: it sets all 5 filters (Market Cap smallover, Dividend Yield o3, Rel Volume o1, P/E u20, P/B u2) across the Descriptive and Fundamental tabs, switches to Performance view, sorts by Perf Month descending, and opens the top 3 stocks by position rather than specific tickers. All required actions are present with no extra unrelated steps.",
+          "keyword_placement": "Seven of the eight required steps carry correct Keywords lines with acceptable tokens (fs_cap, fs_fa_div, fs_sh_relvol, Fundamental, fs_fa_pe, fs_fa_pb, perf4w). Step 7 (Performance view tab) uses \"Performance\" as its keyword, but the fixture's acceptable tokens list only includes \"view-tab\", so this token violates the priority list.",
+          "asking_behavior": "The compiler asked the required question about whether the 3 clicked stocks should be selected position-based (top 3) or identity-based (specific tickers UISA/SHXD/NRGB), and correctly did not ask any forbidden questions about filter values like market-cap threshold, dividend yield, or P/E ratio."
+        }
+      },
+      "github-trending-contenteditable-question": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 0,
+        "compile_duration": 259.22,
+        "proxy_cost": 0.043962,
+        "proxy_tokens": 6266,
+        "overall_pass": false,
+        "intent_match": 0.2,
+        "keyword_placement": 0.5,
+        "asking_behavior": 0.0,
+        "reasoning": {
+          "intent_match": "The routine correctly handles steps 1-7 (identifying top repo by position, creating Yuque document in AI专用, setting title with today's date). However, it catastrophically fails on the core intent: Step 8 treats the user's typed sentence \"Write also: 1. A brief intro 2. What's special 3. Why's it trending\" as literal text to paste into the document, when the user explicitly intended it as instructions for the replay agent. The routine completely omits the required agent-investigation steps (visit repo page, write brief intro, write what's special, write why it's trending). This is exactly the failure mode the fixture is designed to catch — a routine that ends at pasting URL + description is explicitly called out as a failure.",
+          "keyword_placement": "Of the two must_have keyword requirements, Step 4 correctly uses \"文档\" which matches the acceptable tokens for the new-document menu trigger. However, Step 6 (the Yuque document title input) uses the overly generic keyword \"input\" instead of the expected stable identifier \"lake-title\". The other Keywords lines (HeadNewButton on Step 3, ne-engine on Step 7) were not in the must_have list. Since 1 of 2 required keywords are correctly placed, score is 0.5.",
+          "asking_behavior": "The compiler asked zero clarification questions. The fixture's required topic — \"Whether the top-1 selection should be by position or by the specific repo opened in the recording\" — was not asked about at all. While the compiled routine's Step 1 reasoning does mention targeting by position, the compiler did not ask the required clarification question. No forbidden questions were asked, but the complete miss on the required topic yields a score of 0.0."
+        }
+      },
+      "techforum_count_ambiguous": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 1,
+        "compile_duration": 424.82,
+        "proxy_cost": 0.027022,
+        "proxy_tokens": 5246,
+        "overall_pass": true,
+        "intent_match": 0.9,
+        "keyword_placement": 1.0,
+        "asking_behavior": 1.0,
+        "reasoning": {
+          "intent_match": "The routine correctly implements the core intent: searching for \"AI\" and upvoting posts specifically about AI agents. The content-based selection criterion (agent-related posts) is accurately captured in Step 2. However, the routine also includes a collect/favorite action for each post, which the user explicitly described as \"incidental\" and \"secondary browsing actions\" that should either be asked about or omitted. This extra action slightly detracts from perfect intent alignment, but the primary upvote logic is correct and the search step is accurate.",
+          "keyword_placement": "The fixture requires a Keywords line for the search input field with acceptable token \"main-search\". Step 1 correctly carries `**Keywords:** main-search`, which exactly matches the acceptable token. Step 2 does not have a Keywords line, but the fixture's `must_have_for_steps` only lists the search input, so no penalty applies. All present Keywords lines are valid.",
+          "asking_behavior": "The compiler asked exactly the right clarification question about the selection criterion for which posts to upvote (presenting options A, B, C about selection strategy), which covers the required topic \"What is the selection criterion for which posts to upvote\". The compiler did NOT ask about the search query to use, which is in the forbidden list. All required topics were covered and no forbidden topics were asked."
+        }
+      }
+    }
+  }
+}

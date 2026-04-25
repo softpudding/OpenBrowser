@@ -1,0 +1,75 @@
+{
+  "compile_evaluation": {
+    "timestamp": "2026-04-24 14:10:03",
+    "unix_timestamp": 1777011003.2591848,
+    "summary": {
+      "fixture_count": 3,
+      "judged_count": 3,
+      "passed_count": 0,
+      "pass_rate": 0.0,
+      "compile_model": "qwen35flash-fast",
+      "judge_model": "qwen36plus-fast",
+      "mean_intent_match": 0.5833,
+      "mean_keyword_placement": 0.4167,
+      "mean_asking_behavior": 0.3333,
+      "total_proxy_cost": 0.080138,
+      "total_proxy_tokens": 14279
+    },
+    "fixture_results": {
+      "finviz_filter_clear": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 0,
+        "compile_duration": 59.39,
+        "proxy_cost": 0.02378,
+        "proxy_tokens": 4165,
+        "overall_pass": false,
+        "intent_match": 0.6,
+        "keyword_placement": 0.75,
+        "asking_behavior": 0.0,
+        "reasoning": {
+          "intent_match": "The routine correctly sets all 5 filters, switches to the Fundamental tab, switches to Performance view, and sorts by Perf Month. However, Steps 9-11 hard-code specific tickers (UISA, SHXD, NRGB) instead of clicking the top matching results as the user explicitly intended (\"I want the routine to open whatever stocks match the criterion, not these specific tickers\"). This is a significant deviation from the user's goal, as the routine would only work if those exact tickers appear at the top again, rather than being reusable for any screening results.",
+          "keyword_placement": "Steps 1-6 correctly carry Keywords lines with acceptable tokens (fs_cap, fs_fa_div, fs_sh_relvol, Fundamental, fs_fa_pe, fs_fa_pb). Step 7 has a Keywords line but uses \"Performance\" instead of the acceptable token \"view-tab\", which is a mismatch. Step 8 (Perf Month column header) is completely missing a Keywords line when the fixture requires one with acceptable tokens [\"perf4w\", \"table-header\"]. 6 of 8 required keyword placements are correct.",
+          "asking_behavior": "The compiler asked zero clarification questions. The fixture's expected_questions.required lists one required topic: \"Whether the 3 clicked stocks are the top 3 or specific tickers.\" The compiler failed to ask this question entirely, which directly led to the hard-coded ticker problem in the compiled routine. Since no required topics were covered, the score is 0.0."
+        }
+      },
+      "github-trending-contenteditable-question": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 0,
+        "compile_duration": 54.03,
+        "proxy_cost": 0.026734,
+        "proxy_tokens": 4842,
+        "overall_pass": false,
+        "intent_match": 0.3,
+        "keyword_placement": 0.5,
+        "asking_behavior": 0.0,
+        "reasoning": {
+          "intent_match": "The routine captures the basic flow (open GitHub trending, navigate to repo, create Yuque doc in AI专用 knowledge base, set dated title, paste URL and description) but completely fails on the core requirement: recognizing the typed sentence \"Write also: 1. A brief intro 2. What's special 3. Why's it trending\" as agent instructions. The fixture explicitly exists to catch this regression. The compiled routine has no steps for the replay agent to visit the repo page and write the three investigation sections (brief intro, what's special, why it's trending) into the Yuque document. This is the primary failure mode the fixture is designed to detect. Additionally, Steps 2-3 reference \"huggingface\" as a keyword and use \"huggingface / ml-intern\" as an example, which hardcodes the specific repo from the recording rather than treating it as a position-based selection.",
+          "keyword_placement": "The fixture requires Keywords lines for two steps: (1) Yuque document title input must use \"lake-title\" — Step 8 instead uses \"input\", which is overly generic and does not match the required token. (2) Yuque new-document button must use \"新建文档\" or \"文档\" — Step 6 correctly uses \"文档\", which is acceptable. Steps 2 and 3 use \"huggingface\" as a keyword, which is the specific repo from the recording, not a stable identifier for \"first trending item\" — this is semantically wrong but not explicitly listed in must_have. One of two required keywords is correct, yielding a 0.5 score.",
+          "asking_behavior": "The compiler asked zero clarification questions. The expected_questions.required list contains one topic: \"Whether the top-1 selection should be by position or by the specific repo opened in the recording.\" This required question was not asked at all. While no forbidden questions were asked (since no questions were asked), the complete absence of the required question results in a 0.0 score."
+        }
+      },
+      "techforum_count_ambiguous": {
+        "success": true,
+        "final_status": "review",
+        "error": null,
+        "asked_questions_count": 1,
+        "compile_duration": 107.2,
+        "proxy_cost": 0.029624,
+        "proxy_tokens": 5272,
+        "overall_pass": false,
+        "intent_match": 0.85,
+        "keyword_placement": 0.0,
+        "asking_behavior": 1.0,
+        "reasoning": {
+          "intent_match": "The routine captures the user's core intent well: it searches for \"AI\" (Step 2) and then upvotes posts specifically about AI agents by identifying agent-related terminology in titles/content (Step 3). This matches the user's actual intent (#3 from the ambiguity list). The routine correctly omits the incidental collect/favorite and comment-click actions. However, Step 4 adds an extra \"Submit final summary\" action that was not part of the user's raw intention—the user only wanted to search and upvote, not submit anything. This extra step slightly detracts from faithfulness but doesn't undermine the core goal.",
+          "keyword_placement": "The fixture's expected_keywords.must_have_for_steps explicitly requires a Keywords line for \"the search input field\" with the acceptable token \"main-search\". Step 2 in the compiled routine describes entering text into the search input field but completely omits a **Keywords:** line. This is a required step where a clean stable identifier was available, and the absence of any Keywords line is a clear violation of the fixture expectations.",
+          "asking_behavior": "The compiler asked question 3 (\"Selection criteria ambiguity\") which directly covers the required topic: \"What is the selection criterion for which posts to upvote\". This question addresses whether to select by identifying criterion or by position, which is exactly the ambiguity the fixture expected the compiler to resolve. The compiler did NOT ask the forbidden question about what search query to use. The two additional questions (about collecting and result delivery) are neither required nor forbidden, so they do not lower the score."
+        }
+      }
+    }
+  }
+}
