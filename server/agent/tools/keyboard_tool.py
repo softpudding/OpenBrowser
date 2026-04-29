@@ -38,14 +38,13 @@ class KeyboardAction(OpenBrowserAction):
 
     action: KeyboardActionKind = Field(
         description=(
-            "'type' — type literal text one character at a time at the "
-            "current focus (click a field first to focus it). "
+            "'type' — type literal text into the focused field (click the "
+            "field first to focus it). "
             "'press' — press a single named key, optionally with modifiers. "
             "Use this for Enter/Tab/Escape/Backspace/Delete/arrows and "
             "shortcuts like Ctrl+A. "
-            "'clear' — convenience wrapper that selects all and deletes "
-            "the contents of the currently focused field (equivalent to "
-            "`press a` with `modifiers: ['Control']` then `press Backspace`)."
+            "'clear' — select all and delete the contents of the focused "
+            "field, then leave it empty for a fresh `type`."
         )
     )
 

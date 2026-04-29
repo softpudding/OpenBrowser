@@ -1,11 +1,15 @@
 # Keyboard Tool
 
-Type text, press named keys, clear a field. Click a field with `mouse` first to focus it.
+Type text and press named keys at the current focus.
+
+## Focus an input first
+
+Keyboard events go to the focused element. Before typing into a text box, search field, or any input area, **`mouse move` to the field and `mouse click` it** to focus it. Then call this tool.
 
 ## Actions
 
 ### type
-Type literal text, one character at a time.
+Type literal text into the focused field.
 ```json
 { "action": "type", "text": "hello world" }
 ```
@@ -31,8 +35,8 @@ Select-all + delete the contents of the focused field. Use before overwriting a 
 
 ## Patterns
 
-- **Fill an empty field**: `mouse click` → `keyboard type`.
-- **Replace text in a field**: `mouse click` on it → `keyboard clear` → `keyboard type`.
+- **Fill an empty field**: `mouse move` → `mouse click` → `keyboard type`.
+- **Replace text in a field**: `mouse move` → `mouse click` → `keyboard clear` → `keyboard type`.
 - **Submit / search**: `keyboard press Enter`.
 - **Erase one char**: `keyboard press Backspace`.
 - **Tab to next field**: `keyboard press Tab`.

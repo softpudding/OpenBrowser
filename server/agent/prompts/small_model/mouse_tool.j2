@@ -10,7 +10,7 @@ Move, click, drag, and scroll a virtual mouse cursor.
 
 A red dot with a pulsing red ring sits inside a white-and-black arrow on the page. **The red dot is the click point.** It appears in every screenshot.
 
-`click` is **in-place**: it commits where the dot is right now. It does not take coordinates. To click a new target: `move` there → check the screenshot → `click`.
+`click` commits at the cursor's current position. To click a new target: `move` there → check the screenshot → `click`.
 
 ## Actions
 
@@ -21,7 +21,7 @@ Slide the cursor to `(x, y)`.
 ```
 
 ### click
-Click where the cursor is now. No coordinates.
+Click at the cursor's current position.
 ```json
 { "action": "click" }
 { "action": "click", "count": 2 }
@@ -30,7 +30,7 @@ Click where the cursor is now. No coordinates.
 - `button`: `"left"` (default), `"right"`, `"middle"`.
 - `count`: 1 (default), 2 for double-click.
 
-Before clicking, verify in the screenshot that the red dot is on top of the target. If not, `move` first.
+Before clicking, verify in the screenshot that the red dot is on top of the target. If not, `move` again first.
 
 ### drag
 Press at `(x, y)`, drag to `(x2, y2)`, release.
@@ -39,7 +39,7 @@ Press at `(x, y)`, drag to `(x2, y2)`, release.
 ```
 
 ### scroll
-Scroll at the cursor by `amount` CSS pixels.
+Scroll at the cursor by `amount` CSS pixels. The wheel event lands on whatever container is under the cursor — to scroll inside a panel, sidebar, or modal, `move` over it first.
 ```json
 { "action": "scroll", "direction": "down", "amount": 600 }
 ```
@@ -57,3 +57,4 @@ Return cursor to viewport center.
 - **Hover**: `move` over the trigger; next screenshot shows the result.
 - **Scroll to find**: `scroll` then check the new screenshot.
 - **Drag**: one `drag` with start and end coordinates.
+- **Type into a field**: `move` to the field → `click` to focus it → `keyboard type` the text.

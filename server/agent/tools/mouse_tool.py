@@ -47,12 +47,11 @@ class MouseAction(OpenBrowserAction):
             "What to do with the mouse. "
             "'move' — slide the cursor to (x, y). The cursor traces an eased "
             "path so hover effects fire naturally along the way. "
-            "'click' — click WHERE THE CURSOR IS NOW. This is an in-place "
-            "action: it does not accept a target coordinate. Move there "
-            "first, verify the cursor is on the intended target in the "
-            "screenshot, then click. Use `count: 2` for double-click, "
-            "`count: 3` for triple-click. `button: 'right'` for context "
-            "menus. "
+            "'click' — click at the cursor's current position. To click a "
+            "different target, 'move' there first, then verify the red dot "
+            "is on the target in the next screenshot, then 'click'. Use "
+            "`count: 2` for double-click, `count: 3` for triple-click. "
+            "`button: 'right'` for context menus. "
             "'drag' — press at (x, y), drag to (x2, y2), release. "
             "'scroll' — scroll at the cursor position by `amount` in "
             "`direction`. "
@@ -63,9 +62,8 @@ class MouseAction(OpenBrowserAction):
     x: Optional[int] = Field(
         default=None,
         description=(
-            "Target X in Qwen-VL [0, 1000] normalized space. Required for "
-            "'move' and 'drag' (start). Ignored by 'click' — click is "
-            "in-place; move first if you need to retarget."
+            "Target X in Qwen-VL [0, 1000] normalized space. Used by 'move' "
+            "and 'drag' (start)."
         ),
         ge=0,
         le=1000,
@@ -73,8 +71,8 @@ class MouseAction(OpenBrowserAction):
     y: Optional[int] = Field(
         default=None,
         description=(
-            "Target Y in Qwen-VL [0, 1000] normalized space. Required for "
-            "'move' and 'drag' (start). Ignored by 'click'."
+            "Target Y in Qwen-VL [0, 1000] normalized space. Used by 'move' "
+            "and 'drag' (start)."
         ),
         ge=0,
         le=1000,
