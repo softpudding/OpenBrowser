@@ -40,6 +40,15 @@ from server.models.commands import (
     SetSliderValueCommand,
     UploadFileCommand,
     HighlightDropPreviewCommand,
+    MouseMoveCommand,
+    MouseClickCommand,
+    MouseDragCommand,
+    MouseScrollCommand,
+    KeyboardTypeCommand,
+    KeyboardPressCommand,
+    ResetMouseCommand,
+    MouseButton,
+    ScrollDirection,
 )
 
 # Import action types for type checking
@@ -47,6 +56,8 @@ from server.agent.tools.tab_tool import TabAction
 from server.agent.tools.highlight_tool import BaseHighlightAction
 from server.agent.tools.element_interaction_tool import ElementInteractionAction
 from server.agent.tools.dialog_tool import DialogHandleAction
+from server.agent.tools.mouse_tool import MouseAction
+from server.agent.tools.keyboard_tool import KeyboardAction
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.core.llm_config import llm_config_manager
@@ -110,6 +121,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         # Used in routine-replay mode to auto-confirm clicks/selects/keyboard_input
         # when the target was just uniquely highlighted.
         self.last_highlight_elements: Dict[str, List[Dict[str, Any]]] = {}
+        # Most recent CSS-pixel viewport per conversation (vw, vh). Captured
+        # from screenshot responses; consumed by the pixel-interaction path to
+        # denormalize Qwen-VL [0,1000] coordinates before dispatching to the
+        # extension. None = no screenshot yet — caller must take one first.
+        self.last_viewport_by_conv: Dict[str, tuple[int, int]] = {}
 
     def _uses_small_model(self) -> bool:
         """Whether the active conversation uses the small-model profile."""
@@ -136,6 +152,46 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     model_name = None
 
         return is_small_model(model_name)
+
+    def _cache_viewport(self, vw: int, vh: int) -> None:
+        """Cache the latest CSS-pixel viewport for the active conversation."""
+        if not self.conversation_id:
+            return
+        if vw <= 0 or vh <= 0:
+            return
+        self.last_viewport_by_conv[str(self.conversation_id)] = (vw, vh)
+
+    def _get_viewport(self) -> Optional[tuple[int, int]]:
+        """Return the latest cached CSS-pixel viewport, or None if unknown."""
+        if not self.conversation_id:
+            return None
+        return self.last_viewport_by_conv.get(str(self.conversation_id))
+
+    def _is_qwen_model(self) -> bool:
+        """Whether the active conversation uses a Qwen vision model.
+
+        Qwen-VL emits coordinates in the [0, 1000] normalized space, so the
+        server must denormalize before dispatching CDP input. Detection is
+        prefix-based on the canonical dashscope model id.
+        """
+        if not self.conversation_id:
+            return False
+        session = session_manager.get_session(str(self.conversation_id))
+        if session is None:
+            return False
+
+        model_name = session.metadata.get("model")
+        if not isinstance(model_name, str) or not model_name:
+            raw_alias = session.metadata.get("model_alias")
+            if isinstance(raw_alias, str) and raw_alias:
+                try:
+                    model_name = llm_config_manager.get_llm_config(raw_alias).model
+                except ValueError:
+                    model_name = None
+
+        if not isinstance(model_name, str):
+            return False
+        return model_name.startswith("dashscope/qwen") or model_name.startswith("qwen")
 
     def _is_routine_replay_mode(self) -> bool:
         """Whether the active conversation is running in routine-replay mode."""
@@ -244,6 +300,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 return self._execute_element_interaction_action(action)
             elif isinstance(action, DialogHandleAction):
                 return self._execute_dialog_action(action)
+            elif isinstance(action, MouseAction):
+                return self._execute_mouse_action(action)
+            elif isinstance(action, KeyboardAction):
+                return self._execute_keyboard_action(action)
             else:
                 raise ValueError(f"Unknown action type: {type(action).__name__}")
 
@@ -930,6 +990,213 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             return f"[{joined}]"
         return f"'{value}'"
 
+    def _denormalize_xy(
+        self, x: Optional[int], y: Optional[int]
+    ) -> tuple[Optional[int], Optional[int]]:
+        """Convert Qwen-VL [0,1000] coords to CSS pixels using cached viewport.
+
+        For Qwen models, the agent emits coordinates in [0,1000] normalized
+        space; the server rescales using the captured viewport size before
+        dispatching CDP input events. For non-Qwen models, coordinates pass
+        through unchanged.
+
+        Returns the same `(x, y)` shape — `None` for any input that was None.
+        """
+        if x is None and y is None:
+            return (None, None)
+        if not self._is_qwen_model():
+            return (x, y)
+        viewport = self._get_viewport()
+        if viewport is None:
+            # No screenshot has populated the viewport yet. Best we can do
+            # is interpret coords as already-CSS pixels and let the extension
+            # clamp; a warning marks this so we can audit if it happens.
+            logger.warning(
+                "Pixel action dispatched before any screenshot populated the "
+                "viewport cache; passing coordinates through without "
+                "denormalization (conversation_id=%s).",
+                self.conversation_id,
+            )
+            return (x, y)
+        vw, vh = viewport
+        px = round(x * vw / 1000) if x is not None else None
+        py = round(y * vh / 1000) if y is not None else None
+        return (px, py)
+
+    def _execute_mouse_action(
+        self, action: MouseAction
+    ) -> OpenBrowserObservation:
+        """Execute one mouse action (move/click/drag/scroll/reset).
+
+        Coordinates from Qwen models are in [0, 1000] normalized space and are
+        denormalized to CSS pixels using the most recent viewport captured
+        from a screenshot. Non-Qwen models pass through.
+        """
+        kind = action.action
+        logger.debug(f"DEBUG: _execute_mouse_action kind={kind}")
+
+        try:
+            if kind == "move":
+                if action.x is None or action.y is None:
+                    raise ValueError("mouse move requires x and y")
+                px, py = self._denormalize_xy(action.x, action.y)
+                command = MouseMoveCommand(
+                    x=px, y=py, conversation_id=self.conversation_id
+                )
+                result_dict = self._execute_command_sync(command)
+                return self._build_observation_from_result(
+                    result_dict, f"Mouse moved to ({px}, {py})"
+                )
+
+            if kind == "click":
+                # Click is in-place at the cursor's current position. Any
+                # x/y the model emitted is ignored on purpose — if it wants
+                # to click somewhere new it must `move` there first, so the
+                # visible cursor in the screenshot is the click point.
+                if action.x is not None or action.y is not None:
+                    logger.debug(
+                        "Mouse click ignored x=%s, y=%s (click is in-place)",
+                        action.x,
+                        action.y,
+                    )
+                command = MouseClickCommand(
+                    button=MouseButton(action.button),
+                    count=action.count,
+                    double=(action.count == 2),
+                    conversation_id=self.conversation_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                return self._build_observation_from_result(
+                    result_dict,
+                    f"Clicked {action.button} at the cursor "
+                    f"(count={action.count})",
+                )
+
+            if kind == "drag":
+                if (
+                    action.x is None
+                    or action.y is None
+                    or action.x2 is None
+                    or action.y2 is None
+                ):
+                    raise ValueError("mouse drag requires x, y, x2, y2")
+                sx, sy = self._denormalize_xy(action.x, action.y)
+                ex, ey = self._denormalize_xy(action.x2, action.y2)
+                command = MouseDragCommand(
+                    start_x=sx,
+                    start_y=sy,
+                    end_x=ex,
+                    end_y=ey,
+                    button=MouseButton(action.button),
+                    steps=action.steps,
+                    conversation_id=self.conversation_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                return self._build_observation_from_result(
+                    result_dict, f"Dragged from ({sx}, {sy}) to ({ex}, {ey})"
+                )
+
+            if kind == "scroll":
+                command = MouseScrollCommand(
+                    direction=ScrollDirection(action.direction),
+                    amount=action.amount,
+                    conversation_id=self.conversation_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                return self._build_observation_from_result(
+                    result_dict,
+                    f"Scrolled {action.direction} by {action.amount}px",
+                )
+
+            if kind == "reset":
+                command = ResetMouseCommand(
+                    conversation_id=self.conversation_id
+                )
+                result_dict = self._execute_command_sync(command)
+                return self._build_observation_from_result(
+                    result_dict, "Reset cursor to viewport center"
+                )
+
+            raise ValueError(f"Unknown mouse action: {kind}")
+        except Exception as e:
+            logger.error(f"Mouse action failed (kind={kind}): {e}", exc_info=True)
+            return OpenBrowserObservation(
+                success=False, error=str(e), small_model=self._uses_small_model()
+            )
+
+    def _execute_keyboard_action(
+        self, action: KeyboardAction
+    ) -> OpenBrowserObservation:
+        """Execute one keyboard action (type/press/clear)."""
+        kind = action.action
+        logger.debug(f"DEBUG: _execute_keyboard_action kind={kind}")
+
+        try:
+            if kind == "type":
+                if not action.text:
+                    raise ValueError("keyboard type requires text")
+                command = KeyboardTypeCommand(
+                    text=action.text, conversation_id=self.conversation_id
+                )
+                result_dict = self._execute_command_sync(command)
+                preview = (
+                    action.text
+                    if len(action.text) <= 32
+                    else action.text[:29] + "..."
+                )
+                return self._build_observation_from_result(
+                    result_dict, f"Typed text: {preview!r}"
+                )
+
+            if kind == "press":
+                if not action.key:
+                    raise ValueError("keyboard press requires key")
+                command = KeyboardPressCommand(
+                    key=action.key,
+                    modifiers=list(action.modifiers or []),
+                    conversation_id=self.conversation_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                mod_text = (
+                    f" with {'+'.join(action.modifiers)}"
+                    if action.modifiers
+                    else ""
+                )
+                return self._build_observation_from_result(
+                    result_dict, f"Pressed {action.key}{mod_text}"
+                )
+
+            if kind == "clear":
+                # Clear == select-all then Backspace. Two press commands
+                # so each fires its own event sequence on the focused
+                # element. Done at the wire level via two
+                # KeyboardPressCommands so behavior matches what the
+                # agent would have manually scripted.
+                first = KeyboardPressCommand(
+                    key="a",
+                    modifiers=["Control"],
+                    conversation_id=self.conversation_id,
+                )
+                self._execute_command_sync(first)
+                second = KeyboardPressCommand(
+                    key="Backspace",
+                    modifiers=[],
+                    conversation_id=self.conversation_id,
+                )
+                result_dict = self._execute_command_sync(second)
+                return self._build_observation_from_result(
+                    result_dict, "Cleared focused field (select-all + Backspace)"
+                )
+
+            raise ValueError(f"Unknown keyboard action: {kind}")
+        except Exception as e:
+            logger.error(
+                f"Keyboard action failed (kind={kind}): {e}", exc_info=True
+            )
+            return OpenBrowserObservation(
+                success=False, error=str(e), small_model=self._uses_small_model()
+            )
+
     def _execute_dialog_action(
         self, action: DialogHandleAction
     ) -> OpenBrowserObservation:
@@ -1246,6 +1513,26 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                             f"DEBUG: Extracted screenshot from data['imageData'], length={len(screenshot_data_url) if screenshot_data_url else 0}"
                         )
 
+                    # Capture viewport dims (CSS pixels) for Qwen [0,1000]
+                    # → pixel denormalization. Two shapes:
+                    #   highlighted/buildScreenshotPayload → viewport_width/height
+                    #   raw screenshot → metadata.viewportWidth/Height
+                    raw_vw = data.get("viewport_width")
+                    raw_vh = data.get("viewport_height")
+                    if raw_vw is None or raw_vh is None:
+                        meta = data.get("metadata")
+                        if isinstance(meta, dict):
+                            raw_vw = raw_vw if raw_vw is not None else meta.get(
+                                "viewportWidth"
+                            )
+                            raw_vh = raw_vh if raw_vh is not None else meta.get(
+                                "viewportHeight"
+                            )
+                    if isinstance(raw_vw, (int, float)) and isinstance(
+                        raw_vh, (int, float)
+                    ):
+                        self._cache_viewport(int(raw_vw), int(raw_vh))
+
                     # Extract highlighted elements for highlight_elements action
                     if highlighted_elements is None and "elements" in data:
                         highlighted_elements = data["elements"]
@@ -1355,6 +1642,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         pending_confirmation = self._get_pending_confirmation()
 
         # Build observation
+        cached_viewport = self._get_viewport()
         observation = OpenBrowserObservation(
             success=success,
             message=message,
@@ -1378,6 +1666,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             scroll_warning=scroll_warning,
             pending_confirmation=pending_confirmation,
             small_model=self._uses_small_model(),
+            viewport_width=cached_viewport[0] if cached_viewport else None,
+            viewport_height=cached_viewport[1] if cached_viewport else None,
         )
 
         return observation
@@ -1392,6 +1682,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if hasattr(command, "conversation_id"):
                 if command.conversation_id is None:
                     command.conversation_id = self.conversation_id
+
+            # The agent loop is pixel-only — every screenshot returned to the
+            # model should be clean and show the virtual cursor. Highlights
+            # are reserved for non-agent flows (recording tooling) that don't
+            # come through this executor.
+            if hasattr(command, "live_mode"):
+                command.live_mode = True
 
             # Convert command to dict using model_dump
             cmd_dict = command.model_dump()

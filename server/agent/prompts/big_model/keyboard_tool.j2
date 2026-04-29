@@ -1,0 +1,56 @@
+# Keyboard Tool
+
+Type text and press keys at the current focus. Click a field with `mouse` first to focus it; then use this tool.
+
+## Actions
+
+### type
+Type literal text where the keyboard focus is right now. Characters are sent one at a time, with a small delay between each, so per-character handlers (autocomplete, live validation) react in order — just like a real keyboard.
+
+```json
+{ "action": "type", "text": "hello world" }
+```
+
+`type` does not interpret special characters — newlines and tabs are inserted literally. For Enter / Tab / shortcuts, use `press`.
+
+### press
+Press a single named key, optionally with modifiers.
+
+```json
+{ "action": "press", "key": "Enter" }
+{ "action": "press", "key": "Escape" }
+{ "action": "press", "key": "Tab" }
+{ "action": "press", "key": "Backspace" }
+{ "action": "press", "key": "Delete" }
+{ "action": "press", "key": "ArrowDown" }
+{ "action": "press", "key": "a", "modifiers": ["Control"] }
+{ "action": "press", "key": "Tab", "modifiers": ["Shift"] }
+```
+
+Common keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `PageUp`, `PageDown`, `Home`, `End`, single letters/digits.
+
+Modifiers: `Control`, `Shift`, `Alt`, `Meta` (Cmd on macOS).
+
+### clear
+Convenience: select-all + delete the contents of the currently focused field. Use this when you want to overwrite a field that already has text in it.
+
+```json
+{ "action": "clear" }
+```
+
+Equivalent to `press a` with `modifiers: ["Control"]` then `press Backspace`.
+
+## Patterns
+
+- **Fill an empty form field**: `mouse` `click` on the field → `keyboard` `type` the value.
+- **Replace existing text in a field**: `mouse` `click` on the field → `keyboard` `clear` → `keyboard` `type` the new value.
+- **Submit a form / trigger search**: `keyboard` `press` `key: "Enter"` after typing.
+- **Erase a single character**: `keyboard` `press` `key: "Backspace"`.
+- **Select all in a field**: `keyboard` `press` `key: "a"` with `modifiers: ["Control"]` (or `"Meta"` on macOS).
+- **Tab to next field**: `keyboard` `press` `key: "Tab"`.
+
+## Notes
+
+- One action per turn.
+- Typing or pressing goes to whatever has keyboard focus. If nothing is focused, nothing happens — `mouse click` on a field first.
+- Don't type into the address bar via this tool; use the `tab` tool to navigate.

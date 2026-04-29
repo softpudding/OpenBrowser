@@ -52,21 +52,37 @@ class BaseCommand(BaseModel):
         default=None,
         description="Browser UUID capability token for targeted routing",
     )
+    # When True, the extension returns a clean (no-highlight) screenshot with
+    # the virtual cursor rendered, instead of a highlighted screenshot. Set by
+    # BrowserExecutor for live-agent-path conversations; False for routine
+    # replay (which still depends on the highlight + element-id inventory).
+    live_mode: bool = Field(
+        default=False,
+        description=(
+            "If True, the extension skips highlight injection and returns a "
+            "clean screenshot with the virtual cursor for the live pixel-only "
+            "agent path. Default False preserves the legacy highlight flow."
+        ),
+    )
 
 
 class MouseMoveCommand(BaseCommand):
-    """Move mouse to absolute position in preset coordinate system"""
+    """Move mouse to an absolute CSS-pixel position in the live viewport.
+
+    Coordinates are CSS pixels (post-denormalization). The extension clamps
+    out-of-range values to the live viewport before dispatch, so no upper
+    bound is enforced here — server-side denormalization is the single source
+    of truth on coordinate space.
+    """
 
     type: Literal["mouse_move"] = "mouse_move"
     x: int = Field(
-        description="X coordinate in preset coordinate system (0 to 1280, left to right)",
+        description="X coordinate in CSS pixels from viewport left.",
         ge=0,
-        le=1280,
     )
     y: int = Field(
-        description="Y coordinate in preset coordinate system (0 to 720, top to bottom)",
+        description="Y coordinate in CSS pixels from viewport top.",
         ge=0,
-        le=720,
     )
     duration: Optional[float] = Field(
         default=0.1,
@@ -77,12 +93,47 @@ class MouseMoveCommand(BaseCommand):
 
 
 class MouseClickCommand(BaseCommand):
-    """Click at current mouse position"""
+    """Click at the current cursor position, or at an explicit (x, y).
+
+    When ``x`` and ``y`` are provided, the extension first dispatches a
+    ``mouseMoved`` to that position so the click registers there; when omitted,
+    the click fires at the most recent cursor position tracked per tab.
+    """
 
     type: Literal["mouse_click"] = "mouse_click"
     button: MouseButton = Field(default=MouseButton.LEFT)
     double: bool = Field(default=False, description="Double click if True")
     count: int = Field(default=1, ge=1, le=3, description="Number of clicks (1-3)")
+    x: Optional[int] = Field(
+        default=None,
+        description="Optional X in CSS pixels — pre-move cursor before clicking.",
+        ge=0,
+    )
+    y: Optional[int] = Field(
+        default=None,
+        description="Optional Y in CSS pixels — pre-move cursor before clicking.",
+        ge=0,
+    )
+
+
+class MouseDragCommand(BaseCommand):
+    """Drag from (start_x, start_y) to (end_x, end_y) in CSS pixels.
+
+    Sequence: mouseMoved → mousePressed → N lerped mouseMoved → mouseReleased.
+    """
+
+    type: Literal["mouse_drag"] = "mouse_drag"
+    start_x: int = Field(description="Drag start X in CSS pixels.", ge=0)
+    start_y: int = Field(description="Drag start Y in CSS pixels.", ge=0)
+    end_x: int = Field(description="Drag end X in CSS pixels.", ge=0)
+    end_y: int = Field(description="Drag end Y in CSS pixels.", ge=0)
+    button: MouseButton = Field(default=MouseButton.LEFT)
+    steps: int = Field(
+        default=10,
+        ge=2,
+        le=40,
+        description="Intermediate mouseMoved events between start and end.",
+    )
 
 
 class MouseScrollCommand(BaseCommand):
@@ -259,6 +310,9 @@ class GetAccessibilityTreeCommand(BaseCommand):
     )
 
 
+# Legacy element-id commands (HighlightElementsCommand through HighlightDropPreviewCommand):
+# kept for /ob-routines recording/replay. The live agent uses pixel-level commands
+# (MouseMoveCommand, MouseClickCommand, etc.) and never references element_id.
 class HighlightElementsCommand(BaseCommand):
     """Highlight interactive elements on the page for visual selection
 
@@ -593,6 +647,7 @@ class TabsResponse(CommandResponse):
 Command = Union[
     MouseMoveCommand,
     MouseClickCommand,
+    MouseDragCommand,
     MouseScrollCommand,
     ResetMouseCommand,
     KeyboardTypeCommand,
@@ -630,6 +685,7 @@ def parse_command(data: dict) -> Command:
     command_map = {
         "mouse_move": MouseMoveCommand,
         "mouse_click": MouseClickCommand,
+        "mouse_drag": MouseDragCommand,
         "mouse_scroll": MouseScrollCommand,
         "reset_mouse": ResetMouseCommand,
         "keyboard_type": KeyboardTypeCommand,

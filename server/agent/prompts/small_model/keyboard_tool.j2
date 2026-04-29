@@ -1,0 +1,38 @@
+# Keyboard Tool
+
+Type text, press named keys, clear a field. Click a field with `mouse` first to focus it.
+
+## Actions
+
+### type
+Type literal text, one character at a time.
+```json
+{ "action": "type", "text": "hello world" }
+```
+
+### press
+Press a single named key, optionally with modifiers.
+```json
+{ "action": "press", "key": "Enter" }
+{ "action": "press", "key": "Backspace" }
+{ "action": "press", "key": "Tab" }
+{ "action": "press", "key": "a", "modifiers": ["Control"] }
+```
+
+Common keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `ArrowUp`/`Down`/`Left`/`Right`, `PageDown`, `Home`, `End`, single letters/digits.
+
+Modifiers: `Control`, `Shift`, `Alt`, `Meta` (Cmd on macOS).
+
+### clear
+Select-all + delete the contents of the focused field. Use before overwriting a field that already has text.
+```json
+{ "action": "clear" }
+```
+
+## Patterns
+
+- **Fill an empty field**: `mouse click` → `keyboard type`.
+- **Replace text in a field**: `mouse click` on it → `keyboard clear` → `keyboard type`.
+- **Submit / search**: `keyboard press Enter`.
+- **Erase one char**: `keyboard press Backspace`.
+- **Tab to next field**: `keyboard press Tab`.

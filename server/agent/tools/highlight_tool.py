@@ -5,6 +5,9 @@ This tool provides visual element detection with collision-aware pagination,
 allowing the AI agent to see and interact with elements via labeled overlays.
 """
 
+# Legacy: kept for /ob-routines recording/replay; not exposed to the live agent
+# (which now uses PixelInteractionTool for pure pixel-level mouse/keyboard control).
+
 from collections.abc import Sequence
 from typing import Optional, List
 

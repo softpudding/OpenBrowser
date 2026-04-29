@@ -1,0 +1,84 @@
+# Mouse Tool
+
+Drive a virtual mouse cursor: move, click, drag, scroll.
+
+## Coordinates
+
+`(x, y)` and `(x2, y2)` are integers in the **[0, 1000] normalized space**:
+
+- `(0, 0)` = top-left of the viewport.
+- `(1000, 1000)` = bottom-right.
+
+Estimate from the screenshot. Aim for the visual center of your target. The system rescales to real pixels.
+
+## The Cursor Is Load-Bearing
+
+A red dot with a pulsing red ring sits inside a white-and-black arrow. **The dot is the click point.** It appears in every screenshot on this page.
+
+`click` is **in-place**: it commits exactly where the dot is right now. It does not take a target coordinate. If you want to click somewhere new, **`move` there first**, then verify in the next screenshot that the red dot is on top of the intended target, then `click`.
+
+This is a hard rule. Skipping the move-first step and clicking will commit at whatever position the cursor was last left at — which is rarely what you want.
+
+## Actions
+
+### move
+Slide the cursor to a point. The cursor traces an eased path, so hover effects (CSS `:hover`, menus, tooltips) fire naturally along the way.
+
+```json
+{ "action": "move", "x": 500, "y": 320 }
+```
+
+### click
+Click **where the cursor is now**. Does not take coordinates.
+
+```json
+{ "action": "click" }
+{ "action": "click", "button": "right" }
+{ "action": "click", "count": 2 }
+```
+
+- `button`: `"left"` (default), `"right"`, `"middle"`.
+- `count`: `1` (default), `2` for double-click, `3` for triple-click (text selection).
+
+Before calling `click`, look at the most recent screenshot and confirm the red dot is on top of the element you want to act on. If it is not, call `move` first.
+
+### drag
+Press at `(x, y)`, drag to `(x2, y2)`, release. One call.
+
+```json
+{ "action": "drag", "x": 200, "y": 400, "x2": 800, "y2": 400 }
+```
+
+Use for sliders, kanban moves, marquee selection, drag-and-drop. `steps` (optional, default 10) controls the smoothness for DnD libraries that need many intermediate move events.
+
+### scroll
+Scroll at the cursor's current position by `amount` CSS pixels in `direction`.
+
+```json
+{ "action": "scroll", "direction": "down", "amount": 600 }
+{ "action": "scroll", "direction": "up", "amount": 300 }
+```
+
+`direction`: `"down"`, `"up"`, `"left"`, `"right"`. To scroll inside a specific panel/container, `move` over it first so the wheel event lands in the right scroll target.
+
+### reset
+Return the cursor to the viewport center.
+
+```json
+{ "action": "reset" }
+```
+
+## Patterns
+
+- **Click a button**: `move` to the button → check the screenshot → `click`.
+- **Hover-reveal menu**: `move` over the trigger; the next screenshot shows the menu open.
+- **Scroll to find something**: `scroll` direction `down`, then check the new screenshot. Repeat as needed.
+- **Drag a slider**: one `drag` from the handle's current position to the target position.
+- **Right-click for context menu**: `move` to the target → `click` with `button: "right"`.
+
+## Notes
+
+- One action per turn. The next observation reflects the post-action state.
+- The cursor position persists across actions — the cursor remains where you last left it until you `move` it again.
+- If a target isn't visible, `scroll` to bring it in view; don't try to click coordinates outside the viewport.
+- If a confirm/prompt dialog opens, the next mouse action will fail — handle the dialog first.

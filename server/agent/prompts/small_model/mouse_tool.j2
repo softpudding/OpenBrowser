@@ -1,0 +1,59 @@
+# Mouse Tool
+
+Move, click, drag, and scroll a virtual mouse cursor.
+
+## Coordinates
+
+`(x, y)` and `(x2, y2)` are integers in **[0, 1000]**: `(0, 0)` is viewport top-left, `(1000, 1000)` is bottom-right. Estimate from the screenshot.
+
+## Cursor
+
+A red dot with a pulsing red ring sits inside a white-and-black arrow on the page. **The red dot is the click point.** It appears in every screenshot.
+
+`click` is **in-place**: it commits where the dot is right now. It does not take coordinates. To click a new target: `move` there → check the screenshot → `click`.
+
+## Actions
+
+### move
+Slide the cursor to `(x, y)`.
+```json
+{ "action": "move", "x": 500, "y": 320 }
+```
+
+### click
+Click where the cursor is now. No coordinates.
+```json
+{ "action": "click" }
+{ "action": "click", "count": 2 }
+{ "action": "click", "button": "right" }
+```
+- `button`: `"left"` (default), `"right"`, `"middle"`.
+- `count`: 1 (default), 2 for double-click.
+
+Before clicking, verify in the screenshot that the red dot is on top of the target. If not, `move` first.
+
+### drag
+Press at `(x, y)`, drag to `(x2, y2)`, release.
+```json
+{ "action": "drag", "x": 200, "y": 400, "x2": 800, "y2": 400 }
+```
+
+### scroll
+Scroll at the cursor by `amount` CSS pixels.
+```json
+{ "action": "scroll", "direction": "down", "amount": 600 }
+```
+`direction`: `"down"`, `"up"`, `"left"`, `"right"`.
+
+### reset
+Return cursor to viewport center.
+```json
+{ "action": "reset" }
+```
+
+## Patterns
+
+- **Click a button**: `move` → check screenshot → `click`.
+- **Hover**: `move` over the trigger; next screenshot shows the result.
+- **Scroll to find**: `scroll` then check the new screenshot.
+- **Drag**: one `drag` with start and end coordinates.

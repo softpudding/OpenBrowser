@@ -19,6 +19,20 @@ import { tabManager } from '../commands/tab-manager';
 import { javascript } from '../commands/javascript';
 import { debuggerSessionManager } from '../commands/debugger-manager';
 import { dialogManager } from '../commands/dialog';
+import {
+  buildCursorInjectScript,
+  resolveCursorOrCenter,
+  getCursorPosition,
+} from '../commands/virtual-cursor';
+import {
+  performMouseMove,
+  performMouseClick,
+  performMouseDrag,
+  performMouseScroll,
+  performKeyboardType,
+  performKeyboardPress,
+  performResetMouse,
+} from '../commands/pixel-actions';
 import { clearScreenshotCache } from '../commands/computer';
 
 import {
@@ -688,6 +702,12 @@ interface ScreenshotPayload {
   screenshot?: string;
   dialog_auto_accepted?: unknown;
   dialog_auto_accepted_list?: unknown;
+  // Viewport metadata in CSS pixels — required by the live agent for
+  // denormalizing Qwen-VL [0,1000] coordinates to real pixels before
+  // dispatching CDP input events.
+  viewport_width?: number;
+  viewport_height?: number;
+  device_pixel_ratio?: number;
 }
 
 interface HighlightedPageStateData extends ScreenshotPayload {
@@ -716,10 +736,16 @@ function buildScreenshotPayload(
         imageData?: string;
         dialog_auto_accepted?: unknown;
         dialog_auto_accepted_list?: unknown;
+        metadata?: {
+          viewportWidth?: number;
+          viewportHeight?: number;
+          devicePixelRatio?: number;
+        };
       }
     | null
     | undefined,
 ): ScreenshotPayload {
+  const meta = screenshotResult?.metadata;
   return {
     screenshot: screenshotResult?.imageData,
     ...(screenshotResult?.dialog_auto_accepted
@@ -731,6 +757,15 @@ function buildScreenshotPayload(
       ? {
           dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list,
         }
+      : {}),
+    ...(typeof meta?.viewportWidth === 'number'
+      ? { viewport_width: meta.viewportWidth }
+      : {}),
+    ...(typeof meta?.viewportHeight === 'number'
+      ? { viewport_height: meta.viewportHeight }
+      : {}),
+    ...(typeof meta?.devicePixelRatio === 'number'
+      ? { device_pixel_ratio: meta.devicePixelRatio }
       : {}),
   };
 }
@@ -1042,6 +1077,7 @@ async function captureHighlightedPageState(
       imageData: screenshotResult.imageData,
       dialog_auto_accepted: screenshotResult.dialog_auto_accepted,
       dialog_auto_accepted_list: screenshotResult.dialog_auto_accepted_list,
+      metadata: screenshotResult.metadata,
     });
     console.log(
       `⏱️ [HighlightTrace] background compress ${Date.now() - compressStart}ms`,
@@ -1071,6 +1107,44 @@ async function captureHighlightedPageState(
   }
 
   throw new Error('Failed to produce a stable highlight screenshot');
+}
+
+/**
+ * Live-mode capture: a clean (no-highlight) screenshot with the virtual
+ * cursor injected via preCaptureScript. Used by the live pixel-only agent
+ * path on tab navigation, dialog handling, etc., in place of the highlight
+ * pipeline. Returns the same `ScreenshotPayload` shape that
+ * `captureDefaultHighlightedPageState` falls back to on failure, so callers
+ * don't need shape-aware branching.
+ */
+async function captureLiveCleanPageState(options: {
+  tabId: number;
+  conversationId: string;
+  logLabel: string;
+  waitForRender?: number;
+  captureOptions?: ScreenshotCaptureOptions;
+}): Promise<ScreenshotPayload> {
+  const {
+    tabId,
+    conversationId,
+    logLabel,
+    waitForRender = 350,
+    captureOptions = TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+  } = options;
+  const cursor = await resolveCursorOrCenter(tabId, conversationId);
+  const screenshotResult = await captureScreenshot(
+    tabId,
+    conversationId,
+    true, // includeCursor (no-op for CDP, kept for legacy callers)
+    90,
+    false,
+    waitForRender,
+    captureOptions,
+    buildCursorInjectScript(cursor.x, cursor.y),
+  );
+  const compressed = await compressScreenshotResult(screenshotResult);
+  console.log(`✅ [${logLabel}] Live clean screenshot captured`);
+  return buildScreenshotPayload(compressed);
 }
 
 async function captureDefaultHighlightedPageState(options: {
@@ -1185,6 +1259,13 @@ function isHeavyBrowserCommand(data: any): boolean {
     case 'select_element':
     case 'upload_file':
     case 'handle_dialog':
+    case 'mouse_move':
+    case 'mouse_click':
+    case 'mouse_drag':
+    case 'mouse_scroll':
+    case 'keyboard_type':
+    case 'keyboard_press':
+    case 'reset_mouse':
       return true;
     case 'tab':
       return (
@@ -1664,6 +1745,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(activeTabId, conversationId);
         tabManager.updateTabActivity(activeTabId, conversationId);
 
+        // Resolve the virtual cursor position (defaults to viewport center on
+        // first call) and inject it into the page DOM via preCaptureScript so
+        // it appears in the captured frame. Live agents always see a cursor.
+        const cursorBeforeShot =
+          command.include_visual_mouse !== false
+            ? await resolveCursorOrCenter(activeTabId, conversationId)
+            : null;
+        const cursorPreCaptureScript = cursorBeforeShot
+          ? buildCursorInjectScript(cursorBeforeShot.x, cursorBeforeShot.y)
+          : undefined;
+
         // Take screenshot in background (no tab activation)
         const screenshotResult = await captureScreenshot(
           activeTabId,
@@ -1672,6 +1764,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           command.quality || 90,
           false, // resizeToPreset: false for WYSIWYG mode
           0, // waitForRender
+          undefined, // capture options
+          cursorPreCaptureScript,
         );
         const compressedScreenshotResult =
           await compressScreenshotResult(screenshotResult);
@@ -1682,6 +1776,151 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
           success: true,
           message: 'Screenshot captured',
           data: compressedScreenshotResult,
+          timestamp: Date.now(),
+        };
+      }
+
+      // ============== Pixel-level mouse / keyboard ==============
+      // The live agent uses these instead of the highlight + element-id flow.
+      // The server has already denormalized Qwen [0,1000] coords to CSS px.
+      case 'mouse_move':
+      case 'mouse_click':
+      case 'mouse_drag':
+      case 'mouse_scroll':
+      case 'keyboard_type':
+      case 'keyboard_press':
+      case 'reset_mouse': {
+        if (!command.conversation_id) {
+          throw new Error(
+            `conversation_id is required for ${command.type} command (strict mode)`,
+          );
+        }
+        const conversationId = command.conversation_id;
+        const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
+        if (!activeTabId) {
+          throw new Error(
+            `No active tab found for conversation ${conversationId}. Use tab init first.`,
+          );
+        }
+        await tabManager.ensureTabManaged(activeTabId, conversationId);
+        tabManager.updateTabActivity(activeTabId, conversationId);
+
+        let actionDetail: Record<string, unknown> = {};
+        try {
+          switch (command.type) {
+            case 'mouse_move': {
+              const r = await performMouseMove(
+                activeTabId,
+                conversationId,
+                command.x,
+                command.y,
+              );
+              actionDetail = r;
+              break;
+            }
+            case 'mouse_click': {
+              const r = await performMouseClick(
+                activeTabId,
+                conversationId,
+                command.x,
+                command.y,
+                command.button || 'left',
+                command.count || (command.double ? 2 : 1),
+              );
+              actionDetail = r;
+              break;
+            }
+            case 'mouse_drag': {
+              const r = await performMouseDrag(
+                activeTabId,
+                conversationId,
+                command.start_x,
+                command.start_y,
+                command.end_x,
+                command.end_y,
+                command.button || 'left',
+                command.steps || 10,
+              );
+              actionDetail = r;
+              break;
+            }
+            case 'mouse_scroll': {
+              const r = await performMouseScroll(
+                activeTabId,
+                conversationId,
+                command.direction || 'down',
+                command.amount || 300,
+              );
+              actionDetail = r;
+              break;
+            }
+            case 'keyboard_type': {
+              const r = await performKeyboardType(
+                activeTabId,
+                conversationId,
+                command.text || '',
+              );
+              actionDetail = r;
+              break;
+            }
+            case 'keyboard_press': {
+              const r = await performKeyboardPress(
+                activeTabId,
+                conversationId,
+                command.key || '',
+                command.modifiers,
+              );
+              actionDetail = r;
+              break;
+            }
+            case 'reset_mouse': {
+              const r = await performResetMouse(activeTabId, conversationId);
+              actionDetail = r;
+              break;
+            }
+          }
+        } catch (err) {
+          throw new Error(
+            `Pixel action ${command.type} failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+
+        // Capture a fresh post-action screenshot with the cursor visible.
+        // For actions that can navigate or trigger heavy re-render
+        // (`mouse_click`, `mouse_drag`, `keyboard_press` Enter), give the
+        // browser a brief settle window so the captured frame reflects the
+        // new state instead of a transitional DOM. Lighter actions
+        // (mouse_move, mouse_scroll, keyboard_type, reset_mouse) take 0.
+        const settleMs =
+          command.type === 'mouse_click' ||
+          command.type === 'mouse_drag' ||
+          command.type === 'keyboard_press'
+            ? 350
+            : 0;
+        const cursorAfter =
+          getCursorPosition(activeTabId) ??
+          (await resolveCursorOrCenter(activeTabId, conversationId));
+        const postScreenshotResult = await captureScreenshot(
+          activeTabId,
+          conversationId,
+          true,
+          90,
+          false,
+          settleMs,
+          undefined,
+          buildCursorInjectScript(cursorAfter.x, cursorAfter.y),
+        );
+        const compressedPost =
+          await compressScreenshotResult(postScreenshotResult);
+
+        return {
+          success: true,
+          message: `Pixel action ${command.type} completed`,
+          data: {
+            ...(compressedPost || {}),
+            pixel_action: command.type,
+            ...actionDetail,
+          },
           timestamp: Date.now(),
         };
       }
@@ -1713,13 +1952,20 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             // Set the newly created tab as active
             tabManager.setCurrentActiveTabId(conversationId, initResult.tabId);
 
-            // Capture screenshot after initialization
-            const initPageState = await captureDefaultHighlightedPageState({
-              tabId: initResult.tabId,
-              conversationId,
-              logLabel: 'Tab Init',
-              primeWithRawScreenshot: true,
-            });
+            // Capture screenshot after initialization. Live agent path
+            // returns clean+cursor; replay returns highlight inventory.
+            const initPageState = command.live_mode
+              ? await captureLiveCleanPageState({
+                  tabId: initResult.tabId,
+                  conversationId,
+                  logLabel: 'Tab Init',
+                })
+              : await captureDefaultHighlightedPageState({
+                  tabId: initResult.tabId,
+                  conversationId,
+                  logLabel: 'Tab Init',
+                  primeWithRawScreenshot: true,
+                });
 
             return {
               success: true,
@@ -1751,12 +1997,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
 
             // Capture screenshot after opening
             const openPageState = openResult.tabId
-              ? await captureDefaultHighlightedPageState({
-                  tabId: openResult.tabId,
-                  conversationId,
-                  logLabel: 'Tab Open',
-                  primeWithRawScreenshot: true,
-                })
+              ? command.live_mode
+                ? await captureLiveCleanPageState({
+                    tabId: openResult.tabId,
+                    conversationId,
+                    logLabel: 'Tab Open',
+                  })
+                : await captureDefaultHighlightedPageState({
+                    tabId: openResult.tabId,
+                    conversationId,
+                    logLabel: 'Tab Open',
+                    primeWithRawScreenshot: true,
+                  })
               : {};
 
             return {
@@ -1797,12 +2049,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             tabManager.setCurrentActiveTabId(conversationId, command.tab_id);
 
             // Capture screenshot after switching
-            const switchPageState = await captureDefaultHighlightedPageState({
-              tabId: command.tab_id,
-              conversationId,
-              logLabel: 'Tab Switch',
-              primeWithRawScreenshot: true,
-            });
+            const switchPageState = command.live_mode
+              ? await captureLiveCleanPageState({
+                  tabId: command.tab_id,
+                  conversationId,
+                  logLabel: 'Tab Switch',
+                })
+              : await captureDefaultHighlightedPageState({
+                  tabId: command.tab_id,
+                  conversationId,
+                  logLabel: 'Tab Switch',
+                  primeWithRawScreenshot: true,
+                });
 
             return {
               success: true,
@@ -1839,12 +2097,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             const refreshResult = await tabs.refreshTab(command.tab_id);
 
             // Capture screenshot after refresh
-            const refreshPageState = await captureDefaultHighlightedPageState({
-              tabId: command.tab_id,
-              conversationId,
-              logLabel: 'Tab Refresh',
-              primeWithRawScreenshot: true,
-            });
+            const refreshPageState = command.live_mode
+              ? await captureLiveCleanPageState({
+                  tabId: command.tab_id,
+                  conversationId,
+                  logLabel: 'Tab Refresh',
+                })
+              : await captureDefaultHighlightedPageState({
+                  tabId: command.tab_id,
+                  conversationId,
+                  logLabel: 'Tab Refresh',
+                  primeWithRawScreenshot: true,
+                });
 
             return {
               success: true,
@@ -1873,6 +2137,14 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               `👁️ [Tab View] Capturing screenshot for tab ${viewActiveTabId}, conversation: ${conversationId}`,
             );
 
+            // Inject the virtual cursor before capture so live-mode screenshots
+            // always show the pointer. For replay/legacy callers, this is
+            // harmless — the cursor is just an extra DOM element below the
+            // highlight overlay's z-index.
+            const viewCursor = await resolveCursorOrCenter(
+              viewActiveTabId,
+              conversationId,
+            );
             const viewScreenshotResult = await captureScreenshot(
               viewActiveTabId,
               conversationId,
@@ -1881,6 +2153,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               false,
               350,
               TAB_VIEW_SCREENSHOT_CAPTURE_OPTIONS,
+              buildCursorInjectScript(viewCursor.x, viewCursor.y),
             );
             const compressedViewScreenshotResult =
               await compressScreenshotResult(viewScreenshotResult);
@@ -1945,14 +2218,20 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 ? await tabs.goBack(targetTabId)
                 : await tabs.goForward(targetTabId);
 
-            const navigationPageState =
-              await captureDefaultHighlightedPageState({
-                tabId: targetTabId,
-                conversationId,
-                logLabel:
-                  command.action === 'back' ? 'Tab Back' : 'Tab Forward',
-                primeWithRawScreenshot: true,
-              });
+            const navigationPageState = command.live_mode
+              ? await captureLiveCleanPageState({
+                  tabId: targetTabId,
+                  conversationId,
+                  logLabel:
+                    command.action === 'back' ? 'Tab Back' : 'Tab Forward',
+                })
+              : await captureDefaultHighlightedPageState({
+                  tabId: targetTabId,
+                  conversationId,
+                  logLabel:
+                    command.action === 'back' ? 'Tab Back' : 'Tab Forward',
+                  primeWithRawScreenshot: true,
+                });
 
             return {
               success: true,
@@ -2213,11 +2492,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               console.log(`💬 [HandleDialog] Auto-accepting cascading alert`);
               await dialogManager.autoAcceptDialog(activeTabId);
 
-              const dialogPageState = await captureDefaultHighlightedPageState({
-                tabId: activeTabId,
-                conversationId,
-                logLabel: 'HandleDialog',
-              });
+              const dialogPageState = command.live_mode
+                ? await captureLiveCleanPageState({
+                    tabId: activeTabId,
+                    conversationId,
+                    logLabel: 'HandleDialog',
+                  })
+                : await captureDefaultHighlightedPageState({
+                    tabId: activeTabId,
+                    conversationId,
+                    logLabel: 'HandleDialog',
+                  });
 
               return {
                 success: true,
@@ -2254,11 +2539,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             };
           }
 
-          const dialogPageState = await captureDefaultHighlightedPageState({
-            tabId: activeTabId,
-            conversationId,
-            logLabel: 'HandleDialog',
-          });
+          const dialogPageState = command.live_mode
+            ? await captureLiveCleanPageState({
+                tabId: activeTabId,
+                conversationId,
+                logLabel: 'HandleDialog',
+              })
+            : await captureDefaultHighlightedPageState({
+                tabId: activeTabId,
+                conversationId,
+                logLabel: 'HandleDialog',
+              });
 
           console.log(
             `✅ [HandleDialog] Dialog handling complete, screenshot captured`,

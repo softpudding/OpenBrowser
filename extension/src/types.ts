@@ -21,6 +21,10 @@ export interface BaseCommand {
   timestamp?: number;
   tab_id?: number;
   conversation_id?: string; // For multi-session support
+  // When true, the live agent path is active: skip highlight injection and
+  // return a clean screenshot with the virtual cursor. Default false keeps
+  // routine-replay's highlight + element-id behavior.
+  live_mode?: boolean;
 }
 
 export interface MouseMoveCommand extends BaseCommand {
@@ -35,6 +39,21 @@ export interface MouseClickCommand extends BaseCommand {
   button?: MouseButton;
   double?: boolean;
   count?: number;
+  // Optional CSS-pixel target. When provided, the extension pre-moves the
+  // cursor to (x, y) before dispatching the click. When omitted, the click
+  // fires at the cursor's current position.
+  x?: number;
+  y?: number;
+}
+
+export interface MouseDragCommand extends BaseCommand {
+  type: 'mouse_drag';
+  start_x: number;
+  start_y: number;
+  end_x: number;
+  end_y: number;
+  button?: MouseButton;
+  steps?: number;
 }
 
 export interface MouseScrollCommand extends BaseCommand {
@@ -294,6 +313,7 @@ export interface GroundedElementsResponse {
 export type Command =
   | MouseMoveCommand
   | MouseClickCommand
+  | MouseDragCommand
   | MouseScrollCommand
   | ResetMouseCommand
   | KeyboardTypeCommand

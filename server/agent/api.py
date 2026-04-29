@@ -497,14 +497,24 @@ def initialize_agent():
         # Import the old OpenBrowserTool for backward compatibility
         # logger.info("OpenBrowserTool registered (deprecated, for backward compatibility)")
 
-        # Import new focused tools to ensure they're registered
+        # Tools exposed to the agent: tab, mouse, keyboard, dialog. The
+        # legacy highlight + element_interaction modules are imported only
+        # to keep them importable for non-agent flows; they are not in the
+        # agent's toolset.
         from .tools.tab_tool import TabTool
-        from .tools.highlight_tool import HighlightTool
-        from .tools.element_interaction_tool import ElementInteractionTool
         from .tools.dialog_tool import DialogTool
+        from .tools.mouse_tool import MouseTool
+        from .tools.keyboard_tool import KeyboardTool
+        # Imported for legacy tooling (routine recording) — not registered
+        # for the live agent.
+        from .tools.highlight_tool import HighlightTool  # noqa: F401
+        from .tools.element_interaction_tool import (  # noqa: F401
+            ElementInteractionTool,
+        )
 
         logger.info(
-            "4 focused OpenBrowser tools registered: tab, highlight, element_interaction, dialog"
+            "4 OpenBrowser tools registered for the agent: "
+            "tab, mouse, keyboard, dialog"
         )
 
     except Exception as e:

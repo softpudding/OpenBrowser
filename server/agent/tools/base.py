@@ -287,6 +287,17 @@ class OpenBrowserObservation(Observation):
         default=None,
         description="Whether the active conversation uses the small-model profile.",
     )
+    # Viewport dimensions in CSS pixels at the time of the most recent screenshot.
+    # Surfaced to the model so it can self-correct if it ever drifts away from
+    # the [0,1000] normalized convention or the captured viewport changes.
+    viewport_width: Optional[int] = Field(
+        default=None,
+        description="CSS-pixel viewport width at screenshot time (None if unknown).",
+    )
+    viewport_height: Optional[int] = Field(
+        default=None,
+        description="CSS-pixel viewport height at screenshot time (None if unknown).",
+    )
 
     def _pending_confirmation_llm_content(
         self,
@@ -397,6 +408,10 @@ class OpenBrowserObservation(Observation):
         # Operation Status Section
         text_parts.append("## Operation Status")
         text_parts.append("")
+        # Viewport size is intentionally not surfaced to the agent — the
+        # server denormalizes [0,1000] coords to real pixels automatically,
+        # so the agent never needs to reason about page dimensions. The
+        # cached vw/vh on the executor still drives that conversion.
         if not self.success:
             text_parts.append(f"**Status**: FAILED")
             text_parts.append(f"**Error**: {self.error}")

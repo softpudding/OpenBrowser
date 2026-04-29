@@ -11,6 +11,7 @@ from server.models.commands import (
     parse_command,
     MouseMoveCommand,
     MouseClickCommand,
+    MouseDragCommand,
     MouseScrollCommand,
     ResetMouseCommand,
     KeyboardTypeCommand,
@@ -132,6 +133,7 @@ class CommandProcessor:
             ScreenshotCommand,
             MouseMoveCommand,
             MouseClickCommand,
+            MouseDragCommand,
             MouseScrollCommand,
             ResetMouseCommand,
             KeyboardTypeCommand,
@@ -166,12 +168,24 @@ class CommandProcessor:
         ):
             # Check command type to decide if we should fill tab_id
             if isinstance(command, TabCommand):
-                # For tab commands, only fill tab_id for certain actions
-                # init and open create new tabs - don't fill
-                # close and switch need specific tab_id - don't fill if not specified
-                # list gets all tabs - don't fill
-                # So generally don't auto-fill for TabCommand
-                pass
+                # init/open create new tabs; close/switch need an explicit
+                # tab_id; list gets all tabs. But refresh/view/back/forward
+                # operate on "the current tab" semantically, so fill in the
+                # active tab when the agent didn't bother to pass it.
+                action_value = command_dict.get("action") or getattr(
+                    command, "action", None
+                )
+                action_name = (
+                    action_value.value
+                    if hasattr(action_value, "value")
+                    else action_value
+                )
+                if action_name in {"refresh", "view", "back", "forward"}:
+                    command_dict["tab_id"] = current_tab_id
+                    logger.debug(
+                        f"Auto-filled tab_id {current_tab_id} for "
+                        f"tab.{action_name} in conversation {conversation_id}"
+                    )
             elif isinstance(command, GetTabsCommand):
                 # GetTabsCommand gets all tabs, doesn't need tab_id
                 pass
@@ -214,6 +228,8 @@ class CommandProcessor:
                 return await self._execute_mouse_move(command)
             elif isinstance(command, MouseClickCommand):
                 return await self._execute_mouse_click(command)
+            elif isinstance(command, MouseDragCommand):
+                return await self._execute_mouse_drag(command)
             elif isinstance(command, MouseScrollCommand):
                 return await self._execute_mouse_scroll(command)
             elif isinstance(command, KeyboardTypeCommand):
@@ -282,6 +298,13 @@ class CommandProcessor:
 
     async def _execute_mouse_click(self, command: MouseClickCommand) -> CommandResponse:
         """Execute mouse click command"""
+        response = await self._send_prepared_command(command)
+        return response
+
+    async def _execute_mouse_drag(
+        self, command: MouseDragCommand
+    ) -> CommandResponse:
+        """Execute mouse drag command"""
         response = await self._send_prepared_command(command)
         return response
 
