@@ -16,6 +16,8 @@ from server.models.commands import (
     ResetMouseCommand,
     KeyboardTypeCommand,
     KeyboardPressCommand,
+    SelectOptionCommand,
+    UploadFilePendingCommand,
     ScreenshotCommand,
     TabCommand,
     GetTabsCommand,
@@ -138,6 +140,8 @@ class CommandProcessor:
             ResetMouseCommand,
             KeyboardTypeCommand,
             KeyboardPressCommand,
+            SelectOptionCommand,
+            UploadFilePendingCommand,
             JavascriptExecuteCommand,
             HandleDialogCommand,
         )
@@ -236,6 +240,10 @@ class CommandProcessor:
                 return await self._execute_keyboard_type(command)
             elif isinstance(command, KeyboardPressCommand):
                 return await self._execute_keyboard_press(command)
+            elif isinstance(command, SelectOptionCommand):
+                return await self._execute_select_option(command)
+            elif isinstance(command, UploadFilePendingCommand):
+                return await self._execute_upload_file_pending(command)
             elif isinstance(command, ScreenshotCommand):
                 return await self._execute_screenshot(command)
             elif isinstance(command, TabCommand):
@@ -326,6 +334,20 @@ class CommandProcessor:
         self, command: KeyboardPressCommand
     ) -> CommandResponse:
         """Execute keyboard press command"""
+        response = await self._send_prepared_command(command)
+        return response
+
+    async def _execute_select_option(
+        self, command: SelectOptionCommand
+    ) -> CommandResponse:
+        """Execute select_option command — operates on the pending `<select>`."""
+        response = await self._send_prepared_command(command)
+        return response
+
+    async def _execute_upload_file_pending(
+        self, command: UploadFilePendingCommand
+    ) -> CommandResponse:
+        """Execute upload_file_pending command — operates on the pending file input."""
         response = await self._send_prepared_command(command)
         return response
 

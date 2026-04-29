@@ -178,6 +178,51 @@ class KeyboardPressCommand(BaseCommand):
     )
 
 
+class SelectOptionCommand(BaseCommand):
+    """Choose option(s) on a `<select>` previously focused by `mouse_click`.
+
+    The agent's preceding `mouse_click` lands on a native `<select>`, the
+    extension intercepts it (the OS-level dropdown does not render into
+    screenshots) and marks the element. This command operates on that
+    pending mark — no element_id required.
+
+    `values` is matched against options in this order: exact `value`
+    attribute → exact visible label → case-insensitive substring of label.
+    Pass a list with multiple entries for `<select multiple>`.
+    """
+
+    type: Literal["select_option"] = "select_option"
+    values: List[str] = Field(
+        description=(
+            "Option(s) to select on the most recently clicked native `<select>`. "
+            "Pass a single-entry list for a normal dropdown, or multiple entries "
+            "for `<select multiple>`."
+        ),
+        min_length=1,
+        max_length=50,
+    )
+
+
+class UploadFilePendingCommand(BaseCommand):
+    """Attach file(s) to the `<input type=file>` previously focused by `mouse_click`.
+
+    Bypasses the native OS file picker via CDP `DOM.setFileInputFiles`.
+    Paths must be absolute and exist on the host running Chrome (same
+    machine as the server in the v1 setup).
+    """
+
+    type: Literal["upload_file_pending"] = "upload_file_pending"
+    paths: List[str] = Field(
+        description=(
+            "Absolute file paths to attach to the most recently clicked file "
+            "input. Single-entry list for a normal upload, multiple entries "
+            "for `<input type=file multiple>`."
+        ),
+        min_length=1,
+        max_length=20,
+    )
+
+
 class ScreenshotCommand(BaseCommand):
     """Capture screenshot"""
 
@@ -652,6 +697,8 @@ Command = Union[
     ResetMouseCommand,
     KeyboardTypeCommand,
     KeyboardPressCommand,
+    SelectOptionCommand,
+    UploadFilePendingCommand,
     ScreenshotCommand,
     TabCommand,
     GetTabsCommand,
@@ -690,6 +737,8 @@ def parse_command(data: dict) -> Command:
         "reset_mouse": ResetMouseCommand,
         "keyboard_type": KeyboardTypeCommand,
         "keyboard_press": KeyboardPressCommand,
+        "select_option": SelectOptionCommand,
+        "upload_file_pending": UploadFilePendingCommand,
         "screenshot": ScreenshotCommand,
         "tab": TabCommand,
         "get_tabs": GetTabsCommand,

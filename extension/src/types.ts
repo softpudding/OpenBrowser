@@ -77,6 +77,16 @@ export interface KeyboardPressCommand extends BaseCommand {
   modifiers?: string[];
 }
 
+export interface SelectOptionCommand extends BaseCommand {
+  type: 'select_option';
+  values: string[];
+}
+
+export interface UploadFilePendingCommand extends BaseCommand {
+  type: 'upload_file_pending';
+  paths: string[];
+}
+
 export interface ScreenshotCommand extends BaseCommand {
   type: 'screenshot';
   tab_id?: number;
@@ -318,6 +328,8 @@ export type Command =
   | ResetMouseCommand
   | KeyboardTypeCommand
   | KeyboardPressCommand
+  | SelectOptionCommand
+  | UploadFilePendingCommand
   | ScreenshotCommand
   | TabCommand
   | GetTabsCommand

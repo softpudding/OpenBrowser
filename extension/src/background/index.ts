@@ -32,6 +32,8 @@ import {
   performKeyboardType,
   performKeyboardPress,
   performResetMouse,
+  performSelectOption,
+  performUploadFilePending,
 } from '../commands/pixel-actions';
 import { clearScreenshotCache } from '../commands/computer';
 
@@ -1789,7 +1791,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       case 'mouse_scroll':
       case 'keyboard_type':
       case 'keyboard_press':
-      case 'reset_mouse': {
+      case 'reset_mouse':
+      case 'select_option':
+      case 'upload_file_pending': {
         if (!command.conversation_id) {
           throw new Error(
             `conversation_id is required for ${command.type} command (strict mode)`,
@@ -1805,7 +1809,8 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(activeTabId, conversationId);
         tabManager.updateTabActivity(activeTabId, conversationId);
 
-        let actionDetail: Record<string, unknown> = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let actionDetail: Record<string, any> = {};
         try {
           switch (command.type) {
             case 'mouse_move': {
@@ -1878,6 +1883,36 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
               actionDetail = r;
               break;
             }
+            case 'select_option': {
+              const raw = command.values;
+              const values = Array.isArray(raw)
+                ? raw.map((v: unknown) => String(v))
+                : raw !== undefined && raw !== null
+                  ? [String(raw)]
+                  : [];
+              const r = await performSelectOption(
+                activeTabId,
+                conversationId,
+                values,
+              );
+              actionDetail = r;
+              break;
+            }
+            case 'upload_file_pending': {
+              const raw = command.paths;
+              const paths = Array.isArray(raw)
+                ? raw.map((v: unknown) => String(v))
+                : raw !== undefined && raw !== null
+                  ? [String(raw)]
+                  : [];
+              const r = await performUploadFilePending(
+                activeTabId,
+                conversationId,
+                paths,
+              );
+              actionDetail = r;
+              break;
+            }
           }
         } catch (err) {
           throw new Error(
@@ -1894,7 +1929,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         const settleMs =
           command.type === 'mouse_click' ||
           command.type === 'mouse_drag' ||
-          command.type === 'keyboard_press'
+          command.type === 'keyboard_press' ||
+          command.type === 'select_option' ||
+          command.type === 'upload_file_pending'
             ? 350
             : 0;
         const cursorAfter =

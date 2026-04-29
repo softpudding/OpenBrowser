@@ -1,0 +1,26 @@
+# Select Option Tool
+
+Pick option(s) on a native `<select>` after clicking it.
+
+Native dropdowns render in OS chrome and do not appear in screenshots. When `mouse click` lands on a `<select>`, the observation lists the options. Then call `select_option` with the value or label.
+
+## Action
+
+```json
+{ "values": ["option-value"] }
+```
+
+`values`: list of option values or labels. Match order — exact `value`, exact label, case-insensitive substring of label. One entry for normal `<select>`, multiple for `<select multiple>`.
+
+## Pattern
+
+1. `mouse move` over the dropdown.
+2. `mouse click`. The observation lists options.
+3. `select_option` with the desired entry.
+
+## Examples
+
+```json
+{ "values": ["United States"] }
+{ "values": ["red", "blue"] }
+```

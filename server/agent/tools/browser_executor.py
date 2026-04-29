@@ -47,6 +47,8 @@ from server.models.commands import (
     KeyboardTypeCommand,
     KeyboardPressCommand,
     ResetMouseCommand,
+    SelectOptionCommand,
+    UploadFilePendingCommand,
     MouseButton,
     ScrollDirection,
 )
@@ -58,6 +60,8 @@ from server.agent.tools.element_interaction_tool import ElementInteractionAction
 from server.agent.tools.dialog_tool import DialogHandleAction
 from server.agent.tools.mouse_tool import MouseAction
 from server.agent.tools.keyboard_tool import KeyboardAction
+from server.agent.tools.select_option_tool import SelectOptionAction
+from server.agent.tools.upload_file_tool import UploadFileAction
 
 from server.agent.tools.base import OpenBrowserAction, OpenBrowserObservation
 from server.core.llm_config import llm_config_manager
@@ -304,6 +308,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 return self._execute_mouse_action(action)
             elif isinstance(action, KeyboardAction):
                 return self._execute_keyboard_action(action)
+            elif isinstance(action, SelectOptionAction):
+                return self._execute_select_option_action(action)
+            elif isinstance(action, UploadFileAction):
+                return self._execute_upload_file_action(action)
             else:
                 raise ValueError(f"Unknown action type: {type(action).__name__}")
 
@@ -1066,11 +1074,22 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     conversation_id=self.conversation_id,
                 )
                 result_dict = self._execute_command_sync(command)
-                return self._build_observation_from_result(
-                    result_dict,
+                message = (
                     f"Clicked {action.button} at the cursor "
-                    f"(count={action.count})",
+                    f"(count={action.count})"
                 )
+                # When the click landed on a native <select> or
+                # <input type=file>, the extension suppresses the OS-level
+                # popup and returns descriptor metadata. Surface it in the
+                # observation message so the agent knows to follow up with
+                # `select_option` or `upload_file` (the option list / file
+                # input metadata is invisible in the screenshot).
+                intercepted = self._extract_intercepted_form_control(result_dict)
+                if intercepted:
+                    message = self._format_intercepted_message(
+                        intercepted, action.button, action.count
+                    )
+                return self._build_observation_from_result(result_dict, message)
 
             if kind == "drag":
                 if (
@@ -1196,6 +1215,195 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             return OpenBrowserObservation(
                 success=False, error=str(e), small_model=self._uses_small_model()
             )
+
+    @staticmethod
+    def _extract_intercepted_form_control(
+        result_dict: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """Pull `intercepted_form_control` out of the click wire response.
+
+        The extension wraps pixel-action details under `data` (keyed
+        alongside the screenshot). Returns the descriptor dict, or None
+        if the click was a normal click that fell through.
+        """
+        if not result_dict:
+            return None
+        data = result_dict.get("data")
+        if isinstance(data, dict):
+            ifc = data.get("intercepted_form_control")
+            if isinstance(ifc, dict):
+                return ifc
+        ifc = result_dict.get("intercepted_form_control")
+        if isinstance(ifc, dict):
+            return ifc
+        return None
+
+    @staticmethod
+    def _format_intercepted_message(
+        ifc: Dict[str, Any], button: str, count: int
+    ) -> str:
+        """Render a human-readable observation when click hit a native control.
+
+        Lists every option for `<select>` so the agent can pick one with
+        `select_option`. For file inputs, names the input and reminds the
+        agent to call `upload_file`.
+        """
+        kind = ifc.get("kind")
+        name = (ifc.get("name") or "").strip()
+        aria = (ifc.get("ariaLabel") or "").strip()
+        ident = " ".join(
+            f"{k}={v!r}" for k, v in (("name", name), ("aria-label", aria)) if v
+        )
+        ident_suffix = f" ({ident})" if ident else ""
+        if kind == "select":
+            multiple = bool(ifc.get("multiple"))
+            options = ifc.get("options") or []
+            if not isinstance(options, list):
+                options = []
+            lines = []
+            for o in options:
+                if not isinstance(o, dict):
+                    continue
+                value = o.get("value", "")
+                label = (o.get("label") or "").strip()
+                tags = []
+                if o.get("selected"):
+                    tags.append("selected")
+                if o.get("disabled"):
+                    tags.append("disabled")
+                tag_str = f" [{', '.join(tags)}]" if tags else ""
+                lines.append(f"  - value={value!r} label={label!r}{tag_str}")
+            options_block = "\n".join(lines) if lines else "  (no options found)"
+            kind_word = "multi-select" if multiple else "select"
+            return (
+                f"Clicked {button} on a native <{kind_word}>{ident_suffix}; "
+                f"the OS dropdown does not render in screenshots, so the "
+                f"options are listed below. Pick one or more by calling "
+                f"`select_option` with the desired `value` or label.\n"
+                f"options:\n{options_block}"
+            )
+        if kind == "file":
+            accept = (ifc.get("accept") or "").strip()
+            multiple = bool(ifc.get("multiple"))
+            extras = []
+            if accept:
+                extras.append(f"accept={accept!r}")
+            if multiple:
+                extras.append("multiple")
+            extras_str = f" ({', '.join(extras)})" if extras else ""
+            return (
+                f"Clicked {button} on a native <input type=file>"
+                f"{ident_suffix}{extras_str}; the OS file picker does not "
+                f"render in screenshots. Call `upload_file` with the "
+                f"absolute path(s) to attach the file(s)."
+            )
+        # Unknown kind — fall back to the plain click message but include the
+        # raw kind so the agent isn't completely blind.
+        return (
+            f"Clicked {button} at the cursor (count={count}); intercepted "
+            f"native control of unknown kind={kind!r}"
+        )
+
+    def _execute_select_option_action(
+        self, action: SelectOptionAction
+    ) -> OpenBrowserObservation:
+        """Pick option(s) on the `<select>` focused by the previous click."""
+        try:
+            command = SelectOptionCommand(
+                values=list(action.values),
+                conversation_id=self.conversation_id,
+            )
+            result_dict = self._execute_command_sync(command)
+            preview = ", ".join(action.values[:3])
+            if len(action.values) > 3:
+                preview += f", … ({len(action.values)} total)"
+            message = self._format_select_option_message(
+                result_dict, action.values, preview
+            )
+            return self._build_observation_from_result(result_dict, message)
+        except Exception as e:
+            logger.error(f"select_option failed: {e}", exc_info=True)
+            return OpenBrowserObservation(
+                success=False, error=str(e), small_model=self._uses_small_model()
+            )
+
+    @staticmethod
+    def _format_select_option_message(
+        result_dict: Optional[Dict[str, Any]],
+        values: list,
+        preview: str,
+    ) -> str:
+        """Surface select_option outcomes (success, missing target, no match)."""
+        data = (result_dict or {}).get("data") or {}
+        ok = data.get("ok")
+        err = data.get("error")
+        if ok is False or err:
+            if err == "no_pending_select":
+                return (
+                    "select_option had no pending target. Click a native "
+                    "`<select>` first — its options are listed in that "
+                    "click's observation — then call select_option."
+                )
+            if err == "option_not_found":
+                wanted = data.get("wanted") or ", ".join(values)
+                avail = data.get("available") or []
+                shown = avail[:30]
+                avail_block = "\n".join(f"  - {label!r}" for label in shown)
+                if len(avail) > len(shown):
+                    avail_block += f"\n  …({len(avail) - len(shown)} more)"
+                return (
+                    f"select_option could not match {wanted!r}. Available "
+                    f"option labels:\n{avail_block}"
+                )
+            return f"select_option failed: {err!r}"
+        selected = data.get("selected") or values
+        sel_preview = ", ".join(str(s) for s in selected[:3])
+        if len(selected) > 3:
+            sel_preview += f", … ({len(selected)} total)"
+        return f"Selected option(s): {sel_preview} (requested: {preview})"
+
+    def _execute_upload_file_action(
+        self, action: UploadFileAction
+    ) -> OpenBrowserObservation:
+        """Attach file(s) to the file input focused by the previous click."""
+        try:
+            command = UploadFilePendingCommand(
+                paths=list(action.paths),
+                conversation_id=self.conversation_id,
+            )
+            result_dict = self._execute_command_sync(command)
+            preview = ", ".join(action.paths[:2])
+            if len(action.paths) > 2:
+                preview += f", … ({len(action.paths)} total)"
+            message = self._format_upload_file_message(
+                result_dict, action.paths, preview
+            )
+            return self._build_observation_from_result(result_dict, message)
+        except Exception as e:
+            logger.error(f"upload_file failed: {e}", exc_info=True)
+            return OpenBrowserObservation(
+                success=False, error=str(e), small_model=self._uses_small_model()
+            )
+
+    @staticmethod
+    def _format_upload_file_message(
+        result_dict: Optional[Dict[str, Any]],
+        paths: list,
+        preview: str,
+    ) -> str:
+        """Surface upload_file outcomes."""
+        data = (result_dict or {}).get("data") or {}
+        ok = data.get("ok")
+        err = data.get("error")
+        if ok is False or err:
+            if err == "no_pending_file_input":
+                return (
+                    "upload_file had no pending target. Click an "
+                    "<input type=file> (or its visible label/button) "
+                    "first, then call upload_file."
+                )
+            return f"upload_file failed: {err!r}"
+        return f"Uploaded file(s): {preview}"
 
     def _execute_dialog_action(
         self, action: DialogHandleAction

@@ -1,0 +1,26 @@
+# Upload File Tool
+
+Attach file(s) to a native `<input type="file">` after clicking it.
+
+OS file pickers do not appear in screenshots. When `mouse click` lands on an upload control, the observation reports that a file input was focused. Then call `upload_file` with absolute path(s).
+
+## Action
+
+```json
+{ "paths": ["/absolute/path/to/file.pdf"] }
+```
+
+`paths`: absolute file paths on the host running the browser. One entry for a normal upload, multiple for `<input type=file multiple>`.
+
+## Pattern
+
+1. `mouse move` over the upload button.
+2. `mouse click`. The observation reports a file input was focused.
+3. `upload_file` with absolute path(s).
+
+## Examples
+
+```json
+{ "paths": ["/tmp/resume.pdf"] }
+{ "paths": ["/tmp/photo1.jpg", "/tmp/photo2.jpg"] }
+```

@@ -195,6 +195,137 @@ export async function performMouseMove(
   return target;
 }
 
+export interface NativeFormControlHit {
+  kind: 'select' | 'file';
+  // For 'select'
+  multiple?: boolean;
+  options?: Array<{
+    index: number;
+    value: string;
+    label: string;
+    disabled: boolean;
+    selected: boolean;
+  }>;
+  // For 'file'
+  accept?: string;
+  // Common
+  name?: string;
+  ariaLabel?: string;
+}
+
+export interface MouseClickResult {
+  x: number;
+  y: number;
+  button: string;
+  warning?: string;
+  intercepted_form_control?: NativeFormControlHit;
+}
+
+// Hit-test the click point. If the cursor sits on a native <select> or
+// <input type="file"> (directly or via a <label> that targets one), mark
+// the element with a `data-ob-pending-form-target` attribute and return a
+// descriptor. The caller suppresses the native press/release dispatch so
+// the OS-level dropdown / file picker never opens — neither one renders
+// into CDP screenshots, which would leave the agent blind. Follow-up tools
+// (`select_option`, `upload_file`) operate on the marked element.
+function nativeFormControlProbeScript(x: number, y: number): string {
+  return `(function(px, py) {
+  function find(start) {
+    var node = start;
+    while (node && node !== document.body) {
+      if (node.tagName === 'SELECT' && !node.disabled) return node;
+      if (
+        node.tagName === 'INPUT' &&
+        (node.type || '').toLowerCase() === 'file' &&
+        !node.disabled
+      ) return node;
+      if (node.tagName === 'LABEL') {
+        var ctrl = node.control;
+        if (ctrl) {
+          if (ctrl.tagName === 'SELECT' && !ctrl.disabled) return ctrl;
+          if (
+            ctrl.tagName === 'INPUT' &&
+            (ctrl.type || '').toLowerCase() === 'file' &&
+            !ctrl.disabled
+          ) return ctrl;
+        }
+        var innerSel = node.querySelector('select:not([disabled])');
+        if (innerSel) return innerSel;
+        var innerFile = node.querySelector('input[type="file"]:not([disabled])');
+        if (innerFile) return innerFile;
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+  var hit = document.elementFromPoint(px, py);
+  if (!hit) return null;
+  var target = find(hit);
+  if (!target) return null;
+  // Clear stale markers (only one pending target per page at a time).
+  var stale = document.querySelectorAll('[data-ob-pending-form-target]');
+  for (var i = 0; i < stale.length; i++) {
+    if (stale[i] !== target) stale[i].removeAttribute('data-ob-pending-form-target');
+  }
+  if (target.tagName === 'SELECT') {
+    target.setAttribute('data-ob-pending-form-target', 'select');
+    var opts = [];
+    for (var j = 0; j < target.options.length; j++) {
+      var o = target.options[j];
+      opts.push({
+        index: j,
+        value: o.value,
+        label: (o.textContent || '').trim(),
+        disabled: !!o.disabled,
+        selected: !!o.selected,
+      });
+    }
+    return {
+      kind: 'select',
+      multiple: !!target.multiple,
+      name: target.name || target.id || '',
+      ariaLabel: target.getAttribute('aria-label') || '',
+      options: opts,
+    };
+  }
+  target.setAttribute('data-ob-pending-form-target', 'file');
+  return {
+    kind: 'file',
+    name: target.name || target.id || '',
+    accept: target.getAttribute('accept') || '',
+    multiple: !!target.multiple,
+    ariaLabel: target.getAttribute('aria-label') || '',
+  };
+})(${x}, ${y})`;
+}
+
+async function detectNativeFormControl(
+  cdp: CdpCommander,
+  x: number,
+  y: number,
+): Promise<NativeFormControlHit | null> {
+  try {
+    const res = await cdp.sendCommand<{
+      result?: { value?: NativeFormControlHit | null };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression: nativeFormControlProbeScript(x, y),
+        returnByValue: true,
+      },
+      8000,
+      0,
+    );
+    return res?.result?.value ?? null;
+  } catch (err) {
+    console.warn(
+      '[PixelActions] Native form-control hit-test failed:',
+      err,
+    );
+    return null;
+  }
+}
+
 export async function performMouseClick(
   tabId: number,
   conversationId: string,
@@ -207,7 +338,7 @@ export async function performMouseClick(
   _y: number | undefined,
   button: 'left' | 'right' | 'middle' = 'left',
   count: number = 1,
-): Promise<{ x: number; y: number; button: string; warning?: string }> {
+): Promise<MouseClickResult> {
   await attachWithDialogTracking(tabId, conversationId);
   const cdp = new CdpCommander(tabId);
   const { width: vw, height: vh } = await getViewport(cdp);
@@ -219,6 +350,26 @@ export async function performMouseClick(
     getCursorPosition(tabId) ??
     (await resolveCursorOrCenter(tabId, conversationId));
   const clamped = clampToViewport(cursor.x, cursor.y, vw, vh);
+
+  // Intercept native <select> / <input type=file> before the click
+  // commits — only on a left single-click, where the OS-level UI would
+  // otherwise pop. Right-clicks (context menus) and double/triple-clicks
+  // pass through unchanged.
+  if (button === 'left' && (count | 0) <= 1) {
+    const hit = await detectNativeFormControl(cdp, clamped.x, clamped.y);
+    if (hit) {
+      // Refresh the cursor sprite at the click point so the agent's next
+      // screenshot matches the position they targeted.
+      await refreshCursor(cdp, tabId, clamped.x, clamped.y);
+      return {
+        x: clamped.x,
+        y: clamped.y,
+        button,
+        warning: clamped.warning,
+        intercepted_form_control: hit,
+      };
+    }
+  }
 
   const cdpButton: 'left' | 'right' | 'middle' = button;
   const buttons = button === 'left' ? 1 : button === 'right' ? 2 : 4;
@@ -690,4 +841,188 @@ export async function performResetMouse(
   );
   await refreshCursor(cdp, tabId, cx, cy);
   return { x: cx, y: cy };
+}
+
+export interface SelectOptionResult {
+  ok: boolean;
+  selected?: string[];
+  error?: string;
+  wanted?: string;
+  available?: string[];
+}
+
+/**
+ * Choose option(s) on the `<select>` most recently intercepted by a
+ * `mouse_click`. Sets `.value` (or per-option `.selected` for multi-select)
+ * and dispatches `input` + `change` so the page's listeners run as if a
+ * human picked from the dropdown.
+ *
+ * `values` is matched against options in this order:
+ *   1. exact `value` attribute
+ *   2. exact visible label (trimmed)
+ *   3. case-insensitive substring of the visible label
+ */
+export async function performSelectOption(
+  tabId: number,
+  conversationId: string,
+  values: string[],
+): Promise<SelectOptionResult> {
+  await attachWithDialogTracking(tabId, conversationId);
+  const cdp = new CdpCommander(tabId);
+  const expr = `(function(values){
+    var el = document.querySelector('[data-ob-pending-form-target="select"]');
+    if (!el || el.tagName !== 'SELECT') {
+      return { ok: false, error: 'no_pending_select' };
+    }
+    var matched = [];
+    if (el.multiple) {
+      for (var i = 0; i < el.options.length; i++) {
+        var opt = el.options[i];
+        var label = (opt.textContent || '').trim();
+        var want = values.indexOf(opt.value) >= 0 || values.indexOf(label) >= 0;
+        opt.selected = !!want;
+        if (want) matched.push(opt.value);
+      }
+      if (matched.length === 0) {
+        var labels = [];
+        for (var k = 0; k < el.options.length; k++) labels.push((el.options[k].textContent || '').trim());
+        return { ok: false, error: 'option_not_found', wanted: values.join(','), available: labels };
+      }
+    } else {
+      var want = values[0];
+      var idx = -1;
+      for (var i2 = 0; i2 < el.options.length; i2++) {
+        if (el.options[i2].value === want) { idx = i2; break; }
+      }
+      if (idx === -1) {
+        for (var i3 = 0; i3 < el.options.length; i3++) {
+          if ((el.options[i3].textContent || '').trim() === want) { idx = i3; break; }
+        }
+      }
+      if (idx === -1 && want) {
+        var wl = String(want).toLowerCase();
+        for (var i4 = 0; i4 < el.options.length; i4++) {
+          if ((el.options[i4].textContent || '').toLowerCase().indexOf(wl) >= 0) { idx = i4; break; }
+        }
+      }
+      if (idx === -1) {
+        var avail = [];
+        for (var k2 = 0; k2 < el.options.length; k2++) avail.push((el.options[k2].textContent || '').trim());
+        return { ok: false, error: 'option_not_found', wanted: String(want || ''), available: avail };
+      }
+      el.selectedIndex = idx;
+      matched.push(el.options[idx].value);
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.removeAttribute('data-ob-pending-form-target');
+    return { ok: true, selected: matched };
+  })(${JSON.stringify(values)})`;
+  try {
+    const r = await cdp.sendCommand<{ result?: { value?: SelectOptionResult } }>(
+      'Runtime.evaluate',
+      { expression: expr, returnByValue: true },
+      8000,
+      0,
+    );
+    return r?.result?.value ?? { ok: false, error: 'no_result' };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `eval_failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+export interface UploadFilePendingResult {
+  ok: boolean;
+  paths?: string[];
+  error?: string;
+}
+
+/**
+ * Attach files to the `<input type="file">` most recently intercepted by
+ * a `mouse_click`. Uses CDP `DOM.setFileInputFiles`, which bypasses the
+ * native OS file picker entirely. Paths must exist on the host running
+ * Chrome (same machine as the server in the v1 setup).
+ */
+export async function performUploadFilePending(
+  tabId: number,
+  conversationId: string,
+  paths: string[],
+): Promise<UploadFilePendingResult> {
+  await attachWithDialogTracking(tabId, conversationId);
+  const cdp = new CdpCommander(tabId);
+  let objectId: string | undefined;
+  try {
+    const findRes = await cdp.sendCommand<{
+      result?: { objectId?: string; subtype?: string; type?: string };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression: `document.querySelector('[data-ob-pending-form-target="file"]')`,
+        returnByValue: false,
+      },
+      8000,
+      0,
+    );
+    objectId = findRes?.result?.objectId;
+  } catch (err) {
+    return {
+      ok: false,
+      error: `lookup_failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  if (!objectId) {
+    return { ok: false, error: 'no_pending_file_input' };
+  }
+  let backendNodeId: number | undefined;
+  try {
+    const desc = await cdp.sendCommand<{ node?: { backendNodeId?: number } }>(
+      'DOM.describeNode',
+      { objectId },
+      8000,
+      0,
+    );
+    backendNodeId = desc?.node?.backendNodeId;
+  } catch (err) {
+    return {
+      ok: false,
+      error: `describe_node_failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  if (!backendNodeId) {
+    return { ok: false, error: 'cannot_resolve_backend_node' };
+  }
+  try {
+    await cdp.sendCommand(
+      'DOM.setFileInputFiles',
+      { backendNodeId, files: paths },
+      15000,
+      0,
+    );
+  } catch (err) {
+    return {
+      ok: false,
+      error: `set_files_failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  // Clear marker and dispatch the form events the page's listeners expect.
+  await cdp.sendCommand(
+    'Runtime.evaluate',
+    {
+      expression: `(function(){
+        var el = document.querySelector('[data-ob-pending-form-target="file"]');
+        if (el) {
+          el.removeAttribute('data-ob-pending-form-target');
+          try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+          try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+        }
+      })()`,
+      returnByValue: true,
+    },
+    8000,
+    0,
+  );
+  return { ok: true, paths };
 }

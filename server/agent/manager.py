@@ -102,6 +102,8 @@ class OpenBrowserAgentManager:
             Tool(name="mouse"),  # Virtual mouse: move/click/drag/scroll/reset
             Tool(name="keyboard"),  # Virtual keyboard: type/press
             Tool(name="dialog"),  # Browser dialog handling
+            Tool(name="select_option"),  # Pick from a native <select>
+            Tool(name="upload_file"),  # Attach files to <input type=file>
         ]
         self.general_tools = [
             Tool(name=PLEASE_HELP_ME_TOOL_NAME),

@@ -1,0 +1,34 @@
+# Select Option Tool
+
+Pick option(s) on a native `<select>` after clicking it.
+
+## When to use
+
+Some dropdowns are native `<select>` elements: clicking one opens an OS-level menu that does not appear in the screenshot. When you click such a dropdown, the observation lists the available options instead of opening the menu visually. Call `select_option` with the value or label you want.
+
+## Action
+
+```json
+{ "values": ["option-value"] }
+```
+
+`values`: list of option values or visible labels. Each entry matches in this order — exact `value` attribute, exact label, case-insensitive substring of the label. Pass one entry for a normal `<select>`, multiple for `<select multiple>`.
+
+## Pattern
+
+1. `move` the cursor over the dropdown.
+2. `click`. The observation lists the dropdown's options.
+3. `select_option` with the desired entry.
+
+## Examples
+
+```json
+{ "values": ["us"] }
+{ "values": ["United States"] }
+{ "values": ["red", "blue"] }
+```
+
+## Notes
+
+- This tool only works after a click intercepted a native `<select>`. For custom dropdowns built from divs, use `mouse` to click options visually.
+- The page's `change` event fires after selection, so dependent UI updates run as if a person picked the option.

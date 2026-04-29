@@ -1,0 +1,33 @@
+# Upload File Tool
+
+Attach file(s) to a native `<input type="file">` after clicking it.
+
+## When to use
+
+Clicking an upload control opens an OS-level file picker that does not render into screenshots. When you click such a control, the observation reports that a file input was focused. Call `upload_file` with the path(s) you want to attach.
+
+## Action
+
+```json
+{ "paths": ["/absolute/path/to/file.pdf"] }
+```
+
+`paths`: list of absolute file paths on the host running the browser. One entry for a normal upload, multiple for `<input type=file multiple>`.
+
+## Pattern
+
+1. `move` the cursor over the upload button or drop zone.
+2. `click`. The observation reports the file input was focused.
+3. `upload_file` with the absolute path(s).
+
+## Examples
+
+```json
+{ "paths": ["/tmp/resume.pdf"] }
+{ "paths": ["/tmp/photo1.jpg", "/tmp/photo2.jpg"] }
+```
+
+## Notes
+
+- Paths must exist on the same machine that runs Chrome.
+- The page's `change` event fires after attaching, so any UI that depends on a file being selected (preview, validation, submit-button enable) updates immediately.
