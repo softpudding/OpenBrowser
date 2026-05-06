@@ -42,6 +42,7 @@ from server.models.commands import (
     HighlightDropPreviewCommand,
     AnalyzePixelTargetsCommand,
     RenderPixelConfirmCommand,
+    ClearPixelOverlayCommand,
     MouseMoveCommand,
     MouseClickCommand,
     MouseDragCommand,
@@ -1305,9 +1306,17 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         y_css: int,
         target_bbox: Optional[Dict[str, Any]],
         candidate_bboxes: Optional[list],
+        target_selector: Optional[str] = None,
+        candidate_selectors: Optional[list] = None,
+        banner_kind: Optional[str] = None,
         drag_end: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """Ask the extension to render a confirmation crop.
+
+        Selectors and `banner_kind` enable the extension to draw the
+        same yellow/orange overlay directly on the live page DOM (so a
+        human watching the browser sees what the agent sees) before the
+        screenshot capture. The crop is always returned for the agent.
 
         Returns the data URL on success, or None on failure (caller should
         gracefully proceed without a preview rather than block).
@@ -1319,6 +1328,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 y=int(y_css),
                 target_bbox=target_bbox,
                 candidate_bboxes=candidate_bboxes,
+                target_selector=target_selector,
+                candidate_selectors=candidate_selectors,
+                banner_kind=banner_kind,
                 drag_end=drag_end,
                 conversation_id=self.conversation_id,
             )
@@ -1343,37 +1355,35 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         candidates: list,
         drag_endpoints: Optional[Dict[str, str]] = None,
     ) -> str:
-        """Compose the human-readable confirmation message for the agent."""
+        """Compose the human-readable confirmation message for the agent.
+
+        Kept terse on purpose: the zoomed crop already shows the yellow
+        target and orange neighbors visually, so the message contributes
+        only the candidate list (HTML + centers) and one-line guidance.
+        """
         lines: list[str] = []
         if kind == "click":
             if hit:
                 lines.append(
-                    "The yellow box marks the element `click` would commit. "
-                    "Orange dashed outlines mark nearby alternatives."
+                    "Click previewed on the yellow target. Confirm to "
+                    "commit, or re-emit `click` with one of the candidate "
+                    "centers below."
                 )
             else:
                 lines.append(
-                    "Orange dashed outlines mark nearby interactable "
-                    "alternatives near the cursor."
+                    "No element under the cursor — re-emit `click` with one "
+                    "of the candidate centers below."
                 )
-            lines.append(
-                "Reply with `mouse` `action: \"confirm\"` to commit, or "
-                "re-emit `move` + `click` aimed at one of the candidate "
-                "centers below."
-            )
         elif kind == "drag":
             note = ""
             if drag_endpoints:
                 note = (
-                    f" Start={drag_endpoints.get('start', 'unknown')}, "
-                    f"end={drag_endpoints.get('end', 'unknown')}."
+                    f" (start={drag_endpoints.get('start', 'unknown')}, "
+                    f"end={drag_endpoints.get('end', 'unknown')})"
                 )
             lines.append(
-                "At least one drag endpoint sits in a dense neighborhood." + note
-            )
-            lines.append(
-                "Reply with `mouse` `action: \"confirm\"` to commit the drag, "
-                "or re-emit `drag` with corrected endpoints."
+                "Drag previewed" + note + ". Confirm to commit, or re-emit "
+                "`drag` with corrected endpoints."
             )
         block = self._format_pixel_candidates_block(
             candidates,
@@ -1402,8 +1412,16 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         candidate_bboxes = [
             c["bbox"] for c in neighborhood if isinstance(c.get("bbox"), dict)
         ]
+        candidate_selectors = [
+            c.get("selector") for c in neighborhood
+            if isinstance(c.get("selector"), str)
+        ]
         target_bbox = (
             hit.get("bbox") if hit and isinstance(hit.get("bbox"), dict) else None
+        )
+        target_selector = (
+            hit.get("selector") if hit and isinstance(hit.get("selector"), str)
+            else None
         )
 
         preview_url = self._render_pixel_preview(
@@ -1412,6 +1430,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             y_css=cy,
             target_bbox=target_bbox,
             candidate_bboxes=candidate_bboxes,
+            target_selector=target_selector,
+            candidate_selectors=candidate_selectors,
+            banner_kind="click",
         )
 
         message = self._build_pixel_gate_message(
@@ -1484,9 +1505,18 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             for c in focus_neighborhood
             if isinstance(c.get("bbox"), dict)
         ]
+        candidate_selectors = [
+            c.get("selector") for c in focus_neighborhood
+            if isinstance(c.get("selector"), str)
+        ]
         target_bbox = (
             focus_hit.get("bbox")
             if focus_hit and isinstance(focus_hit.get("bbox"), dict)
+            else None
+        )
+        target_selector = (
+            focus_hit.get("selector")
+            if focus_hit and isinstance(focus_hit.get("selector"), str)
             else None
         )
 
@@ -1496,6 +1526,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             y_css=focus_y,
             target_bbox=target_bbox,
             candidate_bboxes=candidate_bboxes,
+            target_selector=target_selector,
+            candidate_selectors=candidate_selectors,
+            banner_kind="drag",
             drag_end=drag_end_point,
         )
 
@@ -1548,6 +1581,15 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 ),
                 small_model=self._uses_small_model(),
             )
+
+        # Strip the in-page overlay before committing so the click commits on
+        # an unhighlighted page and the resulting screenshot is clean.
+        try:
+            self._execute_command_sync(
+                ClearPixelOverlayCommand(conversation_id=self.conversation_id)
+            )
+        except Exception as e:
+            logger.debug("clear_pixel_overlay before commit failed: %s", e)
 
         action_type = pending.get("action_type")
         extra = pending.get("extra_data") or {}
@@ -1632,6 +1674,20 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         kind = action.action
         logger.debug(f"DEBUG: _execute_mouse_action kind={kind}")
 
+        # Strip any DOM overlay left over from a previous gated preview so the
+        # live page matches the agent's new intent. `confirm` keeps the overlay
+        # in place — the next observation after the click will redraw or the
+        # navigation will replace the page.
+        if kind != "confirm":
+            try:
+                self._execute_command_sync(
+                    ClearPixelOverlayCommand(
+                        conversation_id=self.conversation_id
+                    )
+                )
+            except Exception as e:
+                logger.debug("clear_pixel_overlay best-effort failed: %s", e)
+
         try:
             if kind == "move":
                 if action.x is None or action.y is None:
@@ -1648,16 +1704,26 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
 
             if kind == "click":
-                # Click is in-place at the cursor's current position. The
-                # gate runs against the cursor coord (the implicit click
-                # point), not action.x/y — the agent positions via `move`
-                # first, so any x/y on the action is informational.
-                if action.x is not None or action.y is not None:
-                    logger.debug(
-                        "Mouse click ignored x=%s, y=%s (click is in-place)",
-                        action.x,
-                        action.y,
+                # `click {x, y}` is move-then-click in one call. With both
+                # coordinates supplied, slide the cursor to (x, y), cache it,
+                # and run the gate against that fresh position. With no
+                # coordinates, click at the cursor's current position
+                # (hover-then-click flows). Mixing — e.g. only x — is
+                # rejected so the agent re-emits cleanly.
+                has_x = action.x is not None
+                has_y = action.y is not None
+                if has_x ^ has_y:
+                    raise ValueError(
+                        "mouse click with explicit coordinates needs both x and y"
                     )
+                if has_x and has_y:
+                    px, py = self._denormalize_xy(action.x, action.y)
+                    move_command = MouseMoveCommand(
+                        x=px, y=py, conversation_id=self.conversation_id
+                    )
+                    self._execute_command_sync(move_command)
+                    if px is not None and py is not None:
+                        self._cache_cursor(px, py)
                 cursor = self._get_cursor_or_center()
                 gate = (
                     self._gate_pixel_target(cursor[0], cursor[1])
@@ -1678,10 +1744,15 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     conversation_id=self.conversation_id,
                 )
                 result_dict = self._execute_command_sync(command)
-                message = (
-                    f"Clicked {action.button} at the cursor "
-                    f"(count={action.count})"
+                cx, cy = cursor or (None, None)
+                where = (
+                    f"({cx}, {cy})" if cx is not None and cy is not None
+                    else "the cursor"
                 )
+                count_note = (
+                    f", count={action.count}" if action.count != 1 else ""
+                )
+                message = f"Clicked {action.button} at {where}{count_note}."
                 intercepted = self._extract_intercepted_form_control(result_dict)
                 if intercepted:
                     message = self._format_intercepted_message(

@@ -15,6 +15,10 @@
  */
 
 import { captureScreenshot, compressIfNeeded } from './screenshot';
+import { executeJavaScript } from './javascript';
+
+const PIXEL_OVERLAY_ID = '__ob_pixel_confirm_overlay__';
+const OVERLAY_INJECTION_TIMEOUT_MS = 5000;
 
 const HIT_BORDER_COLOR = '#FFD400';
 const HIT_GLOW_COLOR = 'rgba(255, 212, 0, 0.7)';
@@ -53,6 +57,9 @@ export interface PixelConfirmRenderRequest {
   y: number; // CSS px
   target_bbox?: BBox; // CSS px (required for pixel_hit)
   candidate_bboxes?: BBox[]; // CSS px
+  target_selector?: string; // CSS selector for the hit element (DOM overlay)
+  candidate_selectors?: string[]; // CSS selectors for candidates (DOM overlay)
+  banner_kind?: 'click' | 'drag'; // banner phrasing for the in-page prompt
   drag_end?: PointXY; // CSS px (optional second point for drag previews)
 }
 
@@ -252,6 +259,146 @@ function drawDragArrow(
   ctx.restore();
 }
 
+function buildPixelOverlayScript(request: PixelConfirmRenderRequest): string {
+  // No banner div — a floating banner overlaps neighboring candidates
+  // (which are exactly the alternatives the agent might want to re-aim
+  // at). The yellow + orange outlines are enough; the verification
+  // language lives in the system / tool prompts.
+  const payload = {
+    overlayId: PIXEL_OVERLAY_ID,
+    targetSelector: request.target_selector || null,
+    targetBbox: request.target_bbox || null,
+    candidateSelectors: request.candidate_selectors || [],
+    candidateBboxes: request.candidate_bboxes || [],
+    drag: request.drag_end
+      ? { from: { x: request.x, y: request.y }, to: request.drag_end }
+      : null,
+  };
+
+  return `
+    (() => {
+      const cfg = ${JSON.stringify(payload)};
+      const OVERLAY_ID = cfg.overlayId;
+
+      // Wipe any previous overlay container — every box we draw lives
+      // inside it, so removing the container is the entire cleanup.
+      const prev = document.getElementById(OVERLAY_ID);
+      if (prev) prev.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = OVERLAY_ID;
+      overlay.style.cssText =
+        'position:absolute;top:0;left:0;pointer-events:none;z-index:2147483647;';
+      document.documentElement.appendChild(overlay);
+
+      const sx = window.scrollX || window.pageXOffset || 0;
+      const sy = window.scrollY || window.pageYOffset || 0;
+
+      const resolveBbox = (selector, fallbackBbox) => {
+        if (selector) {
+          try {
+            const el = document.querySelector(selector);
+            if (el) {
+              const rect = el.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0) {
+                return {
+                  x: rect.left,
+                  y: rect.top,
+                  width: rect.width,
+                  height: rect.height,
+                };
+              }
+            }
+          } catch (_) {}
+        }
+        return fallbackBbox || null;
+      };
+
+      const drawBox = (bbox, color, dashed, role) => {
+        if (!bbox || bbox.width <= 0 || bbox.height <= 0) return;
+        const div = document.createElement('div');
+        const borderWidth = dashed ? 2 : 3;
+        div.setAttribute('data-ob-role', role);
+        div.style.cssText =
+          'position:absolute;pointer-events:none;box-sizing:border-box;'
+          + 'left:' + (bbox.x + sx - borderWidth) + 'px;'
+          + 'top:' + (bbox.y + sy - borderWidth) + 'px;'
+          + 'width:' + (bbox.width + borderWidth * 2) + 'px;'
+          + 'height:' + (bbox.height + borderWidth * 2) + 'px;'
+          + 'border:' + borderWidth + 'px '
+          + (dashed ? 'dashed' : 'solid') + ' ' + color + ';'
+          + 'border-radius:3px;'
+          + 'background:transparent;';
+        overlay.appendChild(div);
+      };
+
+      // Candidates first so the hit box paints on top.
+      const candidateColor = '#FF6B00';
+      for (let i = 0; i < cfg.candidateSelectors.length; i++) {
+        const bbox = resolveBbox(
+          cfg.candidateSelectors[i],
+          cfg.candidateBboxes[i],
+        );
+        drawBox(bbox, candidateColor, true, 'candidate');
+      }
+
+      const hitColor = '#FFD400';
+      const hitBbox = resolveBbox(cfg.targetSelector, cfg.targetBbox);
+      if (hitBbox) drawBox(hitBbox, hitColor, false, 'hit');
+
+      if (cfg.drag && cfg.drag.from && cfg.drag.to) {
+        // Simple line + arrowhead between the two endpoints.
+        const arrow = document.createElement('div');
+        const dx = cfg.drag.to.x - cfg.drag.from.x;
+        const dy = cfg.drag.to.y - cfg.drag.from.y;
+        const len = Math.hypot(dx, dy);
+        const angle = Math.atan2(dy, dx);
+        arrow.style.cssText =
+          'position:absolute;pointer-events:none;'
+          + 'left:' + (cfg.drag.from.x + sx) + 'px;'
+          + 'top:' + (cfg.drag.from.y + sy - 1) + 'px;'
+          + 'width:' + Math.max(1, len) + 'px;'
+          + 'height:3px;'
+          + 'background:rgba(255,212,0,0.9);'
+          + 'transform-origin:0 50%;'
+          + 'transform:rotate(' + angle + 'rad);';
+        overlay.appendChild(arrow);
+      }
+
+      return { overlay: true };
+    })();
+  `;
+}
+
+function buildPixelOverlayCleanupScript(): string {
+  return `
+    (() => {
+      const OVERLAY_ID = ${JSON.stringify(PIXEL_OVERLAY_ID)};
+      const prev = document.getElementById(OVERLAY_ID);
+      if (prev) prev.remove();
+      return { cleared: true };
+    })();
+  `;
+}
+
+export async function clearPixelConfirmOverlay(
+  tabId: number,
+  conversationId: string,
+): Promise<void> {
+  try {
+    await executeJavaScript(
+      tabId,
+      conversationId,
+      buildPixelOverlayCleanupScript(),
+      true,
+      true,
+      OVERLAY_INJECTION_TIMEOUT_MS,
+    );
+  } catch (e) {
+    console.warn('[PixelConfirmRender] cleanup failed', e);
+  }
+}
+
 export async function renderPixelConfirm(
   tabId: number,
   conversationId: string,
@@ -262,6 +409,29 @@ export async function renderPixelConfirm(
   }
   if (typeof createImageBitmap === 'undefined') {
     throw new Error('[PixelConfirmRender] createImageBitmap is not available');
+  }
+
+  // Inject the same yellow / orange overlay onto the live page DOM so a
+  // human watching the browser sees what the agent sees. The screenshot
+  // captured below picks up these overlays naturally; canvas-side
+  // drawing further down is a fail-safe in case injection is blocked.
+  if (
+    request.target_selector ||
+    (request.candidate_selectors && request.candidate_selectors.length > 0) ||
+    request.banner_kind
+  ) {
+    try {
+      await executeJavaScript(
+        tabId,
+        conversationId,
+        buildPixelOverlayScript(request),
+        true,
+        true,
+        OVERLAY_INJECTION_TIMEOUT_MS,
+      );
+    } catch (e) {
+      console.warn('[PixelConfirmRender] DOM overlay injection failed', e);
+    }
   }
 
   // Capture a clean shot — no cursor (we draw our own crosshair / box).

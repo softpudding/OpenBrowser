@@ -10,7 +10,7 @@ Move, click, drag, and scroll a virtual mouse cursor.
 
 A red dot with a pulsing red ring sits inside a white-and-black arrow on the page. **The red dot is the click point.** It appears in every screenshot.
 
-`click` commits at the cursor's current position. To click a new target: `move` there → check the screenshot → `click`.
+`click {x, y}` moves the cursor to `(x, y)` and clicks in one step. `click` with no coords clicks at the cursor's current position — use that after a `move` when you want a hover effect to fire first.
 
 ## Actions
 
@@ -21,16 +21,17 @@ Slide the cursor to `(x, y)`.
 ```
 
 ### click
-Click at the cursor's current position.
+Click on the page.
 ```json
+{ "action": "click", "x": 612, "y": 318 }
 { "action": "click" }
-{ "action": "click", "count": 2 }
+{ "action": "click", "x": 612, "y": 318, "count": 2 }
 { "action": "click", "button": "right" }
 ```
+- With `x, y`: cursor moves to `(x, y)` and clicks. Default form.
+- Without `x, y`: clicks at the cursor's current position. Use after a `move` for hover-then-click flows.
 - `button`: `"left"` (default), `"right"`, `"middle"`.
 - `count`: 1 (default), 2 for double-click.
-
-Before clicking, verify in the screenshot that the red dot is on top of the target. If not, `move` again first.
 
 ### drag
 Press at `(x, y)`, drag to `(x2, y2)`, release.
@@ -60,23 +61,17 @@ Only valid after a preview observation (zoomed crop with a yellow box or red cro
 
 ## Confirmation previews
 
-If `click` or `drag` falls in a crowded area, the next observation is a zoomed crop:
+If `click` or `drag` falls in a crowded area, the next observation is a zoomed crop. The same outlines are also painted on the live page DOM.
 
-- **Yellow box** = your action would commit on that element. Reply `{"action": "confirm"}` to commit, or `move` to a corrected target.
-- **No yellow box, only orange dashed outlines** = the click landed between controls. Re-emit aimed at one of the listed candidate centers in [0, 1000] space.
+- A **yellow** outline marks the element the click would commit on.
+- **Orange dashed** outlines mark nearby candidates, listed in the message with HTML and center coordinates in `[0, 1000]` space.
 
-Orange dashed outlines mark nearby candidates in either case.
-
-Example after a miss:
-```json
-{ "action": "move", "x": 612, "y": 318 }
-{ "action": "click" }
-```
+Check the yellow-highlighted element. If it matches your intent, reply `{"action": "confirm"}` to commit. Otherwise, re-emit `click` (or `drag`) with one of the listed candidate centers as `x, y`.
 
 ## Patterns
 
-- **Click a button**: `move` → check screenshot → `click`.
-- **Hover**: `move` over the trigger; next screenshot shows the result.
+- **Click a button**: `click` with the button's center coordinates.
+- **Hover**: `move` over the trigger; next screenshot shows the result, then `click` to commit.
 - **Scroll to find**: `scroll` then check the new screenshot.
 - **Drag**: one `drag` with start and end coordinates.
-- **Type into a field**: `move` to the field → `click` to focus it → `keyboard type` the text.
+- **Type into a field**: `click {x, y}` on the field to focus it → `keyboard type` the text.

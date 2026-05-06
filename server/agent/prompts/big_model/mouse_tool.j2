@@ -15,7 +15,7 @@ Estimate from the screenshot. Aim for the visual center of your target. The syst
 
 A red dot with a pulsing red ring sits inside a white-and-black arrow on the page. **The red dot is the click point.** It appears in every screenshot.
 
-`click` commits at the cursor's current position. To click a new target: `move` there → look at the next screenshot to confirm the red dot is on the target → `click`.
+`click {x, y}` moves the cursor to `(x, y)` and clicks there in one step. `click` with no coordinates clicks at the cursor's current position — use that after a `move` when you want a hover effect to fire first.
 
 ## Actions
 
@@ -27,18 +27,19 @@ Slide the cursor to a point. The cursor traces an eased path so hover effects (C
 ```
 
 ### click
-Click at the cursor's current position.
+Click on the page.
 
 ```json
+{ "action": "click", "x": 612, "y": 318 }
 { "action": "click" }
+{ "action": "click", "x": 612, "y": 318, "count": 2 }
 { "action": "click", "button": "right" }
-{ "action": "click", "count": 2 }
 ```
 
+- With `x, y`: cursor moves to `(x, y)` and clicks there. Default form for "click this thing".
+- Without `x, y`: clicks at the cursor's current position. Use after a `move` for hover-then-click flows, or after a gated preview when re-aiming would be wrong.
 - `button`: `"left"` (default), `"right"`, `"middle"`.
 - `count`: `1` (default), `2` for double-click, `3` for triple-click (text selection).
-
-Before calling `click`, look at the most recent screenshot and confirm the red dot is on top of the element you want to act on. If it isn't, `move` again first.
 
 ### drag
 Press at `(x, y)`, drag to `(x2, y2)`, release. One call.
@@ -77,31 +78,26 @@ Return the cursor to the viewport center.
 
 ## Confirmation previews
 
-When `click` or `drag` lands in an area with several interactable controls close together, the next observation is a zoomed crop showing exactly what your coordinate selected. Two cases:
+When `click` or `drag` lands in an area with several interactable controls close together, the next observation is a zoomed crop showing exactly what your coordinate selected. The same outlines are also painted onto the live page DOM, so the screenshot reflects what a human watching the browser would see.
 
-- **Yellow box** around an element: the click sits on it. Reply with `{"action": "confirm"}` to commit, or re-emit `move` + `click` (or `drag`) aimed at a corrected coordinate.
-- **No yellow box, only orange outlines**: the click sits between controls. Re-emit aimed at one of the candidate centers listed in the message.
+- A **yellow** outline marks the element the click would commit on.
+- **Orange dashed** outlines mark nearby candidates. The message lists each candidate's HTML and center coordinates in `[0, 1000]` space.
 
-Orange dashed outlines mark nearby candidates. The message lists each one with its HTML and **center coordinates in [0, 1000] space**. Pick the center matching your goal:
-
-```json
-{ "action": "move", "x": 612, "y": 318 }
-{ "action": "click" }
-```
+Check the yellow-highlighted element. If it matches what you wanted to click (or drag), reply `{"action": "confirm"}` to commit. If it does not, re-emit `click` (or `drag`) with one of the listed candidate centers as `x, y`.
 
 For a drag preview, the same rules apply at each endpoint. `confirm` commits the drag as previewed; otherwise re-emit `drag` with corrected `x, y, x2, y2`.
 
 ## Patterns
 
-- **Click a button**: `move` to the button → check the screenshot → `click`.
-- **Hover-reveal menu**: `move` over the trigger; the next screenshot shows the menu open.
+- **Click a button**: `click` with the button's center coordinates.
+- **Hover-reveal menu**: `move` over the trigger; the next screenshot shows the menu open. Then `click` (with or without coords) on the revealed item.
 - **Scroll to find something**: `scroll` direction `down`, then check the new screenshot. Repeat as needed.
 - **Drag a slider**: one `drag` from the handle's current position to the target position.
-- **Right-click for context menu**: `move` to the target → `click` with `button: "right"`.
+- **Right-click for context menu**: `click` with the target's coords and `button: "right"`.
 
 ## Notes
 
 - One action per turn. The next observation reflects the post-action state.
-- The cursor position persists across actions — it stays where you last left it until the next `move`.
+- The cursor position persists across actions — it stays where you last left it until the next `move` or coordinate-form `click`.
 - If a target isn't in the viewport, `scroll` to bring it in view before pointing at it.
 - If a confirm/prompt dialog opens, handle it with the dialog tool before the next mouse action.

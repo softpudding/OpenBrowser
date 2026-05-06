@@ -41,6 +41,7 @@ from server.models.commands import (
     HighlightDropPreviewCommand,
     AnalyzePixelTargetsCommand,
     RenderPixelConfirmCommand,
+    ClearPixelOverlayCommand,
 )
 from server.websocket.manager import ws_manager
 from server.core.config import config
@@ -292,6 +293,8 @@ class CommandProcessor:
                 return await self._execute_analyze_pixel_targets(command)
             elif isinstance(command, RenderPixelConfirmCommand):
                 return await self._execute_render_pixel_confirm(command)
+            elif isinstance(command, ClearPixelOverlayCommand):
+                return await self._execute_clear_pixel_overlay(command)
             elif isinstance(command, UploadFileCommand):
                 return await self._execute_upload_file(command)
             else:
@@ -519,6 +522,12 @@ class CommandProcessor:
         self, command: RenderPixelConfirmCommand
     ) -> CommandResponse:
         """Render a zoomed confirmation crop for a pending pixel action."""
+        return await self._send_prepared_command(command)
+
+    async def _execute_clear_pixel_overlay(
+        self, command: ClearPixelOverlayCommand
+    ) -> CommandResponse:
+        """Clear any pixel-confirmation overlay drawn on the page."""
         return await self._send_prepared_command(command)
 
     async def _execute_upload_file(self, command: UploadFileCommand) -> CommandResponse:

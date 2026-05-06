@@ -689,6 +689,30 @@ class RenderPixelConfirmCommand(BaseCommand):
             "(used by pixel_miss)."
         ),
     )
+    target_selector: Optional[str] = Field(
+        default=None,
+        description=(
+            "CSS selector for the hit element. When provided, the extension "
+            "draws a yellow outline directly on the live page DOM in "
+            "addition to the canvas overlay."
+        ),
+    )
+    candidate_selectors: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "CSS selectors for nearby candidate elements. When provided, the "
+            "extension draws orange dashed outlines directly on the live "
+            "page DOM."
+        ),
+    )
+    banner_kind: Optional[Literal["click", "drag"]] = Field(
+        default=None,
+        description=(
+            "Banner kind for the in-page confirmation prompt — 'click' "
+            "renders 'Is this the element you wanted to click?', 'drag' "
+            "renders the drag equivalent. Omit to skip the banner."
+        ),
+    )
     drag_end: Optional[dict] = Field(
         default=None,
         description=(
@@ -696,6 +720,16 @@ class RenderPixelConfirmCommand(BaseCommand):
             "drag-endpoint previews)."
         ),
     )
+
+
+class ClearPixelOverlayCommand(BaseCommand):
+    """Remove any pixel-confirmation overlay currently drawn on the page.
+
+    Sent before a new mouse action begins so a stale yellow/orange overlay
+    from the previous turn does not linger across actions.
+    """
+
+    type: Literal["clear_pixel_overlay"] = "clear_pixel_overlay"
 
 
 class HighlightDropPreviewCommand(BaseCommand):
@@ -791,6 +825,7 @@ Command = Union[
     HighlightDropPreviewCommand,
     AnalyzePixelTargetsCommand,
     RenderPixelConfirmCommand,
+    ClearPixelOverlayCommand,
     RecordingControlCommand,
     DragAndDropElementCommand,
     SetSliderValueCommand,
@@ -834,6 +869,7 @@ def parse_command(data: dict) -> Command:
         "highlight_drop_preview": HighlightDropPreviewCommand,
         "analyze_pixel_targets": AnalyzePixelTargetsCommand,
         "render_pixel_confirm": RenderPixelConfirmCommand,
+        "clear_pixel_overlay": ClearPixelOverlayCommand,
         "recording_control": RecordingControlCommand,
         "drag_and_drop_element": DragAndDropElementCommand,
         "set_slider_value": SetSliderValueCommand,

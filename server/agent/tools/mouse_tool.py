@@ -49,11 +49,11 @@ class MouseAction(OpenBrowserAction):
             "What to do with the mouse. "
             "'move' — slide the cursor to (x, y). The cursor traces an eased "
             "path so hover effects fire naturally along the way. "
-            "'click' — click at the cursor's current position. To click a "
-            "different target, 'move' there first, then verify the red dot "
-            "is on the target in the next screenshot, then 'click'. Use "
-            "`count: 2` for double-click, `count: 3` for triple-click. "
-            "`button: 'right'` for context menus. "
+            "'click' — click on the page. Pass `x, y` to move the cursor "
+            "there and click in one step; omit `x, y` to click at the "
+            "cursor's current position (use this after a `move` for a "
+            "hover-then-click flow). `count: 2` double-clicks, `count: 3` "
+            "triple-clicks. `button: 'right'` opens the context menu. "
             "'drag' — press at (x, y), drag to (x2, y2), release. "
             "'scroll' — scroll at the cursor position by `amount` in "
             "`direction`. "
@@ -66,8 +66,9 @@ class MouseAction(OpenBrowserAction):
     x: Optional[int] = Field(
         default=None,
         description=(
-            "Target X in Qwen-VL [0, 1000] normalized space. Used by 'move' "
-            "and 'drag' (start)."
+            "Target X in [0, 1000] normalized space. For 'move' and 'click' "
+            "this is the destination; for 'drag' this is the start of the "
+            "drag."
         ),
         ge=0,
         le=1000,
@@ -75,8 +76,9 @@ class MouseAction(OpenBrowserAction):
     y: Optional[int] = Field(
         default=None,
         description=(
-            "Target Y in Qwen-VL [0, 1000] normalized space. Used by 'move' "
-            "and 'drag' (start)."
+            "Target Y in [0, 1000] normalized space. For 'move' and 'click' "
+            "this is the destination; for 'drag' this is the start of the "
+            "drag."
         ),
         ge=0,
         le=1000,

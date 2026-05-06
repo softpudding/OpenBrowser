@@ -323,8 +323,18 @@ export interface RenderPixelConfirmCommand extends BaseCommand {
   target_bbox?: { x: number; y: number; width: number; height: number };
   /** Bboxes for nearby candidate outlines (used by pixel_miss). */
   candidate_bboxes?: { x: number; y: number; width: number; height: number }[];
+  /** CSS selector for the hit element (drives in-page DOM overlay). */
+  target_selector?: string;
+  /** CSS selectors for nearby candidates (drive in-page DOM overlay). */
+  candidate_selectors?: string[];
+  /** Banner kind for the in-page confirmation prompt. */
+  banner_kind?: 'click' | 'drag';
   /** Optional drag end-point in CSS pixels (renders an arrow). */
   drag_end?: { x: number; y: number };
+}
+
+export interface ClearPixelOverlayCommand extends BaseCommand {
+  type: 'clear_pixel_overlay';
 }
 
 export interface RecordingControlCommand extends BaseCommand {
@@ -382,6 +392,7 @@ export type Command =
   | HighlightDropPreviewCommand
   | AnalyzePixelTargetsCommand
   | RenderPixelConfirmCommand
+  | ClearPixelOverlayCommand
   | RecordingControlCommand;
 
 export interface CommandResponse {

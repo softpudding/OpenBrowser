@@ -43,7 +43,10 @@ import {
 } from '../commands/single-highlight';
 import { highlightDropPreview } from '../commands/drop-preview-highlight';
 import { analyzePixelTargets } from '../commands/pixel-target-analyzer';
-import { renderPixelConfirm } from '../commands/pixel-confirm-render';
+import {
+  renderPixelConfirm,
+  clearPixelConfirmOverlay,
+} from '../commands/pixel-confirm-render';
 import { elementCache } from '../commands/element-cache';
 import { assignHashedElementIds } from '../commands/element-id';
 import { buildElementCacheMissMessage } from '../commands/element-cache';
@@ -1823,6 +1826,31 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         };
       }
 
+      case 'clear_pixel_overlay': {
+        if (!command.conversation_id) {
+          throw new Error(
+            'conversation_id is required for clear_pixel_overlay command (strict mode)',
+          );
+        }
+        const conversationId = command.conversation_id;
+        const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
+        if (!activeTabId) {
+          // No active tab — nothing to clear, but treat as a no-op success.
+          return {
+            success: true,
+            message: 'clear_pixel_overlay (no active tab)',
+            timestamp: Date.now(),
+          };
+        }
+        await tabManager.ensureTabManaged(activeTabId, conversationId);
+        await clearPixelConfirmOverlay(activeTabId, conversationId);
+        return {
+          success: true,
+          message: 'clear_pixel_overlay',
+          timestamp: Date.now(),
+        };
+      }
+
       case 'render_pixel_confirm': {
         if (!command.conversation_id) {
           throw new Error(
@@ -1848,6 +1876,9 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
             y: command.y,
             target_bbox: command.target_bbox,
             candidate_bboxes: command.candidate_bboxes,
+            target_selector: command.target_selector,
+            candidate_selectors: command.candidate_selectors,
+            banner_kind: command.banner_kind,
             drag_end: command.drag_end,
           },
         );
