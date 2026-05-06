@@ -1918,6 +1918,18 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(activeTabId, conversationId);
         tabManager.updateTabActivity(activeTabId, conversationId);
 
+        // Drop any pixel-confirm overlay left over from a previous gated
+        // preview or no-op warning the moment the next agent action lands.
+        // The server also clears in front of mouse moves/clicks but does
+        // not clear before keyboard/select/upload actions; doing it here
+        // keeps the overlay tied to "the agent's last decision turn"
+        // regardless of which action follows.
+        try {
+          await clearPixelConfirmOverlay(activeTabId, conversationId);
+        } catch (e) {
+          console.warn('[PixelAction] pre-action overlay clear failed', e);
+        }
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let actionDetail: Record<string, any> = {};
         try {

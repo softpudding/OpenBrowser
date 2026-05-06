@@ -793,7 +793,7 @@ window.tracker = new AgentTracker("mail.google.com", "hard");
             </div>
             <div style="margin-top: 18px;">
               <label class="mock-kicker" for="new-label-name">Create a new label</label>
-              <input id="new-label-name" class="mock-input" data-role="new-label-name" value="${escapeHtml(modal.newLabelName || "")}" placeholder="Finance/Board-Prep">
+              <input id="new-label-name" class="mock-input" data-role="new-label-name" value="${escapeHtml(modal.newLabelName || "")}" placeholder="e.g. Marketing/Q4-Launch" autocomplete="off">
             </div>
           </div>
           <div class="mock-modal-footer">

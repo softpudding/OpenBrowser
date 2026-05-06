@@ -42,7 +42,6 @@ from server.models.commands import (
     HighlightDropPreviewCommand,
     AnalyzePixelTargetsCommand,
     RenderPixelConfirmCommand,
-    ClearPixelOverlayCommand,
     MouseMoveCommand,
     MouseClickCommand,
     MouseDragCommand,
@@ -1212,6 +1211,12 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     # HTML snippet for grounding without re-querying.
                     "html": html,
                     "selector": c.get("selector"),
+                    "bbox_css": {
+                        "x": int(bx),
+                        "y": int(by),
+                        "width": int(bw),
+                        "height": int(bh),
+                    },
                     "bbox_norm": {
                         "x": round(bx / vw * 1000),
                         "y": round(by / vh * 1000),
@@ -1582,14 +1587,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 small_model=self._uses_small_model(),
             )
 
-        # Strip the in-page overlay before committing so the click commits on
-        # an unhighlighted page and the resulting screenshot is clean.
-        try:
-            self._execute_command_sync(
-                ClearPixelOverlayCommand(conversation_id=self.conversation_id)
-            )
-        except Exception as e:
-            logger.debug("clear_pixel_overlay before commit failed: %s", e)
+        # No explicit clear needed: the actual mouse_click / mouse_drag
+        # dispatched below routes through the extension's pixel-action
+        # case, which clears the gated-preview overlay at its top.
 
         action_type = pending.get("action_type")
         extra = pending.get("extra_data") or {}
@@ -1616,9 +1616,18 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                         intercepted, button, count
                     )
                 elif self._click_was_a_no_op(result_dict):
+                    serialized = extra.get("candidates") or []
                     message += self._format_no_op_warning_from_candidates(
-                        extra.get("candidates") or []
+                        serialized
                     )
+                    # Same overlay as the direct-click path so the live
+                    # page visually surfaces the candidates the agent was
+                    # given as alternatives.
+                    px, py = extra.get("px"), extra.get("py")
+                    if isinstance(px, int) and isinstance(py, int):
+                        self._draw_no_op_overlay_from_serialized(
+                            (px, py), serialized
+                        )
                 return self._build_observation_from_result(result_dict, message)
 
             if action_type == "mouse_drag_pixel":
@@ -1678,19 +1687,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         kind = action.action
         logger.debug(f"DEBUG: _execute_mouse_action kind={kind}")
 
-        # Strip any DOM overlay left over from a previous gated preview so the
-        # live page matches the agent's new intent. `confirm` keeps the overlay
-        # in place — the next observation after the click will redraw or the
-        # navigation will replace the page.
-        if kind != "confirm":
-            try:
-                self._execute_command_sync(
-                    ClearPixelOverlayCommand(
-                        conversation_id=self.conversation_id
-                    )
-                )
-            except Exception as e:
-                logger.debug("clear_pixel_overlay best-effort failed: %s", e)
+        # Overlay teardown lives in the extension's pixel-action dispatcher
+        # so every incoming agent action — mouse, keyboard, select, upload —
+        # clears any leftover overlay before running. No server-side clear
+        # needed here.
 
         try:
             if kind == "move":
@@ -1764,6 +1764,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     )
                 elif self._click_was_a_no_op(result_dict):
                     message += self._format_no_op_warning(gate)
+                    # Draw orange-dashed candidates on the live page so a
+                    # human watching the browser sees what the agent is
+                    # told to re-aim at. Cleared on the agent's next
+                    # mouse action via clear_pixel_overlay.
+                    self._draw_no_op_overlay(cursor, gate)
                 return self._build_observation_from_result(result_dict, message)
 
             if kind == "drag":
@@ -1918,6 +1923,84 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             return OpenBrowserObservation(
                 success=False, error=str(e), small_model=self._uses_small_model()
             )
+
+    def _draw_no_op_overlay(
+        self,
+        cursor: Optional[tuple[int, int]],
+        gate: Optional[Dict[str, Any]],
+    ) -> None:
+        """Inject orange-dashed candidate boxes onto the live page for the
+        no-op case. Mirrors the gated-preview overlay so a human watching
+        the browser sees the same alternatives the agent is told to re-aim
+        at. Best-effort: failures are logged and swallowed.
+        """
+        if cursor is None or not gate:
+            return
+        neighborhood = gate.get("neighborhood") or []
+        if not neighborhood:
+            return
+        candidate_selectors: list = []
+        candidate_bboxes: list = []
+        for c in neighborhood:
+            if not isinstance(c, dict):
+                continue
+            sel = c.get("selector")
+            bbox = c.get("bbox") if isinstance(c.get("bbox"), dict) else None
+            if isinstance(sel, str):
+                candidate_selectors.append(sel)
+            if bbox:
+                candidate_bboxes.append(bbox)
+        if not candidate_selectors and not candidate_bboxes:
+            return
+        try:
+            self._render_pixel_preview(
+                mode="pixel_miss",
+                x_css=cursor[0],
+                y_css=cursor[1],
+                target_bbox=None,
+                candidate_bboxes=candidate_bboxes,
+                target_selector=None,
+                candidate_selectors=candidate_selectors,
+                banner_kind=None,
+            )
+        except Exception as e:
+            logger.debug("no-op overlay render failed: %s", e)
+
+    def _draw_no_op_overlay_from_serialized(
+        self,
+        cursor: Optional[tuple[int, int]],
+        candidates: list,
+    ) -> None:
+        """Same as `_draw_no_op_overlay` but takes pre-serialized candidates
+        (the form stashed in `extra_data` for confirm-path commits)."""
+        if cursor is None or not candidates:
+            return
+        candidate_selectors: list = []
+        candidate_bboxes: list = []
+        for c in candidates:
+            if not isinstance(c, dict):
+                continue
+            sel = c.get("selector")
+            bbox = c.get("bbox_css")
+            if isinstance(sel, str):
+                candidate_selectors.append(sel)
+            if isinstance(bbox, dict):
+                candidate_bboxes.append(bbox)
+        if not candidate_selectors and not candidate_bboxes:
+            return
+        try:
+            self._render_pixel_preview(
+                mode="pixel_miss",
+                x_css=cursor[0],
+                y_css=cursor[1],
+                target_bbox=None,
+                candidate_bboxes=candidate_bboxes,
+                target_selector=None,
+                candidate_selectors=candidate_selectors,
+                banner_kind=None,
+            )
+        except Exception as e:
+            logger.debug("no-op overlay render failed: %s", e)
 
     def _format_no_op_warning(
         self, gate: Optional[Dict[str, Any]]
