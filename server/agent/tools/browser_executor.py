@@ -40,6 +40,8 @@ from server.models.commands import (
     SetSliderValueCommand,
     UploadFileCommand,
     HighlightDropPreviewCommand,
+    AnalyzePixelTargetsCommand,
+    RenderPixelConfirmCommand,
     MouseMoveCommand,
     MouseClickCommand,
     MouseDragCommand,
@@ -130,6 +132,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         # denormalize Qwen-VL [0,1000] coordinates before dispatching to the
         # extension. None = no screenshot yet — caller must take one first.
         self.last_viewport_by_conv: Dict[str, tuple[int, int]] = {}
+        # Most recent virtual-cursor position per conversation in CSS pixels.
+        # Tracked alongside extension state so the server can identify the
+        # implicit click point for the pixel `click` action (which fires in
+        # place at the cursor). Updated after `move`, `drag`, and `reset`;
+        # falls back to viewport center when unset, matching the extension's
+        # own first-action behavior.
+        self.last_cursor_by_conv: Dict[str, tuple[int, int]] = {}
 
     def _uses_small_model(self) -> bool:
         """Whether the active conversation uses the small-model profile."""
@@ -170,6 +179,34 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         if not self.conversation_id:
             return None
         return self.last_viewport_by_conv.get(str(self.conversation_id))
+
+    def _cache_cursor(self, x_css: int, y_css: int) -> None:
+        """Cache the latest virtual-cursor position (CSS px) for the conv."""
+        if not self.conversation_id:
+            return
+        self.last_cursor_by_conv[str(self.conversation_id)] = (
+            int(x_css),
+            int(y_css),
+        )
+
+    def _get_cursor_or_center(self) -> Optional[tuple[int, int]]:
+        """Return the cached cursor position, falling back to viewport center.
+
+        Mirrors the extension's `resolveCursorOrCenter`: pixel `click` lands
+        wherever the virtual cursor currently sits, which is the viewport
+        center until the agent has moved it. Returns None only when neither
+        the cursor nor a viewport has been observed yet.
+        """
+        if not self.conversation_id:
+            return None
+        cached = self.last_cursor_by_conv.get(str(self.conversation_id))
+        if cached is not None:
+            return cached
+        viewport = self._get_viewport()
+        if viewport is None:
+            return None
+        vw, vh = viewport
+        return (vw // 2, vh // 2)
 
     def _is_qwen_model(self) -> bool:
         """Whether the active conversation uses a Qwen vision model.
@@ -289,7 +326,29 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 # Keep pending confirmation if this is a confirmation action
                 if action.action and action.action.startswith("confirm_"):
                     should_clear = False
+            elif isinstance(action, MouseAction):
+                # The pixel-action gate stores its pending confirmation in the
+                # same registry; preserve it when the agent commits via
+                # `mouse(action="confirm")`.
+                if action.action == "confirm":
+                    should_clear = False
+            # When the agent emits a non-confirm action while a pixel
+            # confirmation is pending, treat the action as an implicit
+            # rejection: stash the candidate list so the response to the
+            # new action can include them as structured guidance. The
+            # element-paradigm pendings are skipped here — they have their
+            # own LLM rendering path (`_pending_confirmation_llm_content`).
+            rejected_pixel_candidates: list = []
             if should_clear:
+                pending = self._get_pending_confirmation()
+                if (
+                    pending
+                    and pending.get("action_type")
+                    in ("mouse_click_pixel", "mouse_drag_pixel")
+                ):
+                    cands = (pending.get("extra_data") or {}).get("candidates")
+                    if isinstance(cands, list):
+                        rejected_pixel_candidates = cands
                 logger.debug(
                     f"DEBUG: Clearing pending confirmation before action {type(action).__name__}"
                 )
@@ -297,23 +356,54 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
 
             # Route based on action type
             if isinstance(action, TabAction):
-                return self._execute_tab_action(action)
+                obs = self._execute_tab_action(action)
             elif isinstance(action, BaseHighlightAction):
-                return self._execute_highlight_action(action)
+                obs = self._execute_highlight_action(action)
             elif isinstance(action, ElementInteractionAction):
-                return self._execute_element_interaction_action(action)
+                obs = self._execute_element_interaction_action(action)
             elif isinstance(action, DialogHandleAction):
-                return self._execute_dialog_action(action)
+                obs = self._execute_dialog_action(action)
             elif isinstance(action, MouseAction):
-                return self._execute_mouse_action(action)
+                obs = self._execute_mouse_action(action)
             elif isinstance(action, KeyboardAction):
-                return self._execute_keyboard_action(action)
+                obs = self._execute_keyboard_action(action)
             elif isinstance(action, SelectOptionAction):
-                return self._execute_select_option_action(action)
+                obs = self._execute_select_option_action(action)
             elif isinstance(action, UploadFileAction):
-                return self._execute_upload_file_action(action)
+                obs = self._execute_upload_file_action(action)
             else:
                 raise ValueError(f"Unknown action type: {type(action).__name__}")
+
+            # Append rejected-pending candidates to the response so the
+            # agent has them fresh when course-correcting. Skip if the new
+            # action triggered its own pixel gate (its message already
+            # contains a fresh candidates block).
+            if (
+                rejected_pixel_candidates
+                and getattr(obs, "success", False)
+            ):
+                new_pending = self._get_pending_confirmation()
+                new_is_pixel_gate = bool(
+                    new_pending
+                    and new_pending.get("action_type")
+                    in ("mouse_click_pixel", "mouse_drag_pixel")
+                )
+                if not new_is_pixel_gate:
+                    block = self._format_pixel_candidates_block(
+                        rejected_pixel_candidates,
+                        header=(
+                            "Candidates near the previously-previewed click "
+                            "(centers in [0,1000] space)"
+                        ),
+                    )
+                    if block:
+                        existing = obs.message or ""
+                        merged = (
+                            existing.rstrip() + ("\n\n" if existing else "") + block
+                        )
+                        # OpenBrowserObservation is frozen; rebuild via copy.
+                        obs = obs.model_copy(update={"message": merged})
+            return obs
 
         except Exception as e:
             logger.error(f"Error executing action: {e}", exc_info=True)
@@ -1031,6 +1121,505 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         py = round(y * vh / 1000) if y is not None else None
         return (px, py)
 
+    # ========== Pixel-action density gate ==========
+
+    PIXEL_GATE_RADIUS_CSS = 30
+    PIXEL_GATE_CANDIDATE_LIMIT = 5
+
+    def _gate_pixel_target(
+        self, x_css: int, y_css: int
+    ) -> Optional[Dict[str, Any]]:
+        """Probe (x, y) for the hit element + nearby interactables.
+
+        Returns the analysis dict from the extension on success, or None if
+        the call failed (in which case the caller should fall through to the
+        un-gated dispatch path so a transient analyzer error doesn't block
+        the agent).
+        """
+        try:
+            cmd = AnalyzePixelTargetsCommand(
+                x=int(x_css),
+                y=int(y_css),
+                radius=self.PIXEL_GATE_RADIUS_CSS,
+                candidate_limit=self.PIXEL_GATE_CANDIDATE_LIMIT,
+                conversation_id=self.conversation_id,
+            )
+            result_dict = self._execute_command_sync(cmd)
+        except Exception as e:
+            logger.warning(
+                "Pixel gate analyze failed at (%s, %s): %s",
+                x_css,
+                y_css,
+                e,
+            )
+            return None
+        if not isinstance(result_dict, dict) or not result_dict.get("success"):
+            logger.warning(
+                "Pixel gate analyze returned no success at (%s, %s): %s",
+                x_css,
+                y_css,
+                result_dict,
+            )
+            return None
+        data = result_dict.get("data")
+        if not isinstance(data, dict):
+            return None
+        return data
+
+    def _serialize_pixel_candidates(
+        self,
+        candidates: list,
+        vw: int,
+        vh: int,
+    ) -> list:
+        """Convert extension candidate dicts to a Qwen-normalized payload.
+
+        Forwards the full element shape that the highlight observation uses
+        (tagName, descriptor, interactionHints, etc.) so the message renderer
+        can reuse `_format_highlighted_element_lines` and surface the same
+        structured signal as the element-paradigm inventory. Adds Qwen-norm
+        bbox / center coordinates so the agent can re-aim a `move` + `click`
+        directly without converting pixels.
+        """
+        out = []
+        if vw <= 0 or vh <= 0:
+            return out
+        for c in candidates or []:
+            bbox = c.get("bbox") or {}
+            try:
+                bx = float(bbox.get("x", 0))
+                by = float(bbox.get("y", 0))
+                bw = float(bbox.get("width", 0))
+                bh = float(bbox.get("height", 0))
+            except (TypeError, ValueError):
+                continue
+            html = c.get("html") or ""
+            if isinstance(html, str) and len(html) > 512:
+                html = html[:509] + "..."
+            cx = bx + bw / 2
+            cy = by + bh / 2
+            out.append(
+                {
+                    # Element fields (shape compatible with
+                    # `_format_highlighted_element_lines`).
+                    "tagName": c.get("tagName"),
+                    "type": c.get("type"),
+                    "interactionHints": c.get("interactionHints") or [],
+                    "text": c.get("text"),
+                    "descriptor": c.get("descriptor") or {},
+                    # Pixel-paradigm extras: structured coords + truncated
+                    # HTML snippet for grounding without re-querying.
+                    "html": html,
+                    "selector": c.get("selector"),
+                    "bbox_norm": {
+                        "x": round(bx / vw * 1000),
+                        "y": round(by / vh * 1000),
+                        "w": round(bw / vw * 1000),
+                        "h": round(bh / vh * 1000),
+                    },
+                    "center_norm": {
+                        "x": round(cx / vw * 1000),
+                        "y": round(cy / vh * 1000),
+                    },
+                    "distance_css": c.get("distance"),
+                }
+            )
+        return out
+
+    def _format_pixel_candidates_block(
+        self,
+        candidates: list,
+        header: str = "Nearby candidates",
+    ) -> str:
+        """Render candidates the way the old highlight observation does.
+
+        Reuses `_format_highlighted_element_lines` so the agent reads the
+        same descriptor-first wording (`<button>"Search" · type=submit`)
+        the element paradigm produced. Appends each candidate's center in
+        [0, 1000] space to the header line so the agent can feed the value
+        directly back into `move`.
+
+        Decorative wrappers often have empty descriptor fields; if the
+        renderer produces a bare `<tag>` line with no text or attrs, fall
+        back to a truncated HTML snippet so the agent at least sees class
+        names / ids / inline attributes to ground on.
+        """
+        if not candidates:
+            return ""
+        from server.agent.tools.base import _format_highlighted_element_lines
+
+        lines: list[str] = [header + ":"]
+        for i, c in enumerate(candidates, 1):
+            display_id = str(i)
+            element_lines = _format_highlighted_element_lines(display_id, c)
+            if not element_lines:
+                continue
+
+            # Detect "bare tag" rendering: the formatter emits no
+            # segments after the opening `<tag>` so the line ends with
+            # `>`. In that case the agent has nothing to disambiguate
+            # this candidate from any other plain wrapper.
+            if element_lines[0].rstrip().endswith(">"):
+                snippet = self._html_snippet_for_candidate(c)
+                if snippet:
+                    element_lines[0] = f"{element_lines[0]} · {snippet}"
+
+            cn = c.get("center_norm") or {}
+            cx = cn.get("x")
+            cy = cn.get("y")
+            if cx is not None and cy is not None:
+                element_lines[0] = (
+                    f"{element_lines[0]}  → center=({cx}, {cy})"
+                )
+            lines.extend(element_lines)
+        return "\n".join(lines)
+
+    @staticmethod
+    def _html_snippet_for_candidate(c: Dict[str, Any]) -> str:
+        """Build a short single-line HTML snippet for a candidate.
+
+        Used when the descriptor lacks meaningful text/name/class hints.
+        Collapses whitespace and truncates so a long `<div class="...">`
+        gloss doesn't blow the message budget.
+        """
+        html = c.get("html") or ""
+        if not isinstance(html, str) or not html:
+            selector = c.get("selector") or ""
+            if isinstance(selector, str) and selector:
+                return f"selector={selector!r}"
+            return ""
+        snippet = " ".join(html.split())
+        # Strip the trailing close tag for compactness — the agent only
+        # needs the opening attributes to identify the element.
+        close_idx = snippet.find(">")
+        if 0 < close_idx < 200:
+            snippet = snippet[: close_idx + 1]
+        if len(snippet) > 160:
+            snippet = snippet[:157] + "..."
+        return snippet
+
+    def _render_pixel_preview(
+        self,
+        mode: str,
+        x_css: int,
+        y_css: int,
+        target_bbox: Optional[Dict[str, Any]],
+        candidate_bboxes: Optional[list],
+        drag_end: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        """Ask the extension to render a confirmation crop.
+
+        Returns the data URL on success, or None on failure (caller should
+        gracefully proceed without a preview rather than block).
+        """
+        try:
+            cmd = RenderPixelConfirmCommand(
+                mode=mode,
+                x=int(x_css),
+                y=int(y_css),
+                target_bbox=target_bbox,
+                candidate_bboxes=candidate_bboxes,
+                drag_end=drag_end,
+                conversation_id=self.conversation_id,
+            )
+            result_dict = self._execute_command_sync(cmd)
+        except Exception as e:
+            logger.warning("Pixel preview render failed: %s", e)
+            return None
+        if not isinstance(result_dict, dict) or not result_dict.get("success"):
+            logger.warning("Pixel preview render returned no success: %s", result_dict)
+            return None
+        data = result_dict.get("data") or {}
+        url = data.get("screenshot_data_url")
+        if isinstance(url, str) and url.startswith("data:"):
+            return url
+        return None
+
+    def _build_pixel_gate_message(
+        self,
+        kind: str,
+        verdict: str,
+        hit: Optional[Dict[str, Any]],
+        candidates: list,
+        drag_endpoints: Optional[Dict[str, str]] = None,
+    ) -> str:
+        """Compose the human-readable confirmation message for the agent."""
+        lines: list[str] = []
+        if kind == "click":
+            if hit:
+                lines.append(
+                    "The yellow box marks the element `click` would commit. "
+                    "Orange dashed outlines mark nearby alternatives."
+                )
+            else:
+                lines.append(
+                    "Orange dashed outlines mark nearby interactable "
+                    "alternatives near the cursor."
+                )
+            lines.append(
+                "Reply with `mouse` `action: \"confirm\"` to commit, or "
+                "re-emit `move` + `click` aimed at one of the candidate "
+                "centers below."
+            )
+        elif kind == "drag":
+            note = ""
+            if drag_endpoints:
+                note = (
+                    f" Start={drag_endpoints.get('start', 'unknown')}, "
+                    f"end={drag_endpoints.get('end', 'unknown')}."
+                )
+            lines.append(
+                "At least one drag endpoint sits in a dense neighborhood." + note
+            )
+            lines.append(
+                "Reply with `mouse` `action: \"confirm\"` to commit the drag, "
+                "or re-emit `drag` with corrected endpoints."
+            )
+        block = self._format_pixel_candidates_block(
+            candidates,
+            header="Nearby candidates (centers in [0,1000] space)",
+        )
+        if block:
+            lines.append(block)
+        return "\n".join(lines)
+
+    def _gate_pixel_click(
+        self,
+        action: MouseAction,
+        cursor: tuple[int, int],
+        gate: Dict[str, Any],
+    ) -> OpenBrowserObservation:
+        """Stash a pending click and return a confirmation preview observation."""
+        cx, cy = cursor
+        viewport = self._get_viewport() or (
+            int(gate.get("viewport", {}).get("width") or 0),
+            int(gate.get("viewport", {}).get("height") or 0),
+        )
+        vw, vh = viewport
+        hit = gate.get("hit") if isinstance(gate.get("hit"), dict) else None
+        neighborhood = gate.get("neighborhood") or []
+        candidates = self._serialize_pixel_candidates(neighborhood, vw, vh)
+        candidate_bboxes = [
+            c["bbox"] for c in neighborhood if isinstance(c.get("bbox"), dict)
+        ]
+        target_bbox = (
+            hit.get("bbox") if hit and isinstance(hit.get("bbox"), dict) else None
+        )
+
+        preview_url = self._render_pixel_preview(
+            mode="pixel_hit" if hit else "pixel_miss",
+            x_css=cx,
+            y_css=cy,
+            target_bbox=target_bbox,
+            candidate_bboxes=candidate_bboxes,
+        )
+
+        message = self._build_pixel_gate_message(
+            kind="click",
+            verdict="dense",
+            hit=hit,
+            candidates=candidates,
+        )
+
+        self._set_pending_confirmation(
+            element_id="",
+            action_type="mouse_click_pixel",
+            full_html=(hit.get("html") if hit else "") or "",
+            extra_data={
+                "px": cx,
+                "py": cy,
+                "button": action.button,
+                "count": action.count,
+                "candidates": candidates,
+                "hit_selector": hit.get("selector") if hit else None,
+            },
+            screenshot_data_url=preview_url,
+        )
+
+        return OpenBrowserObservation(
+            success=True,
+            message=message,
+            screenshot_data_url=preview_url,
+            small_model=self._uses_small_model(),
+        )
+
+    def _gate_pixel_drag(
+        self,
+        action: MouseAction,
+        start_css: tuple[int, int],
+        end_css: tuple[int, int],
+        start_gate: Optional[Dict[str, Any]],
+        end_gate: Optional[Dict[str, Any]],
+        start_dense: bool,
+        end_dense: bool,
+    ) -> OpenBrowserObservation:
+        """Stash a pending drag and return a confirmation preview observation."""
+        sx, sy = start_css
+        ex, ey = end_css
+        viewport = self._get_viewport()
+        if viewport is None:
+            gate_for_viewport = start_gate or end_gate or {}
+            viewport = (
+                int(gate_for_viewport.get("viewport", {}).get("width") or 0),
+                int(gate_for_viewport.get("viewport", {}).get("height") or 0),
+            )
+        vw, vh = viewport
+
+        # Pick which endpoint to feature in the preview: prefer the dense one;
+        # if both are dense, prefer the start (the drag's source matters more
+        # for slider/handle grabs).
+        focus_gate = start_gate if start_dense else end_gate
+        focus_x, focus_y = (sx, sy) if start_dense else (ex, ey)
+        drag_end_point = {"x": ex, "y": ey} if start_dense else {"x": sx, "y": sy}
+
+        focus_hit = (
+            focus_gate.get("hit")
+            if focus_gate and isinstance(focus_gate.get("hit"), dict)
+            else None
+        )
+        focus_neighborhood = (focus_gate or {}).get("neighborhood") or []
+        candidates = self._serialize_pixel_candidates(focus_neighborhood, vw, vh)
+        candidate_bboxes = [
+            c["bbox"]
+            for c in focus_neighborhood
+            if isinstance(c.get("bbox"), dict)
+        ]
+        target_bbox = (
+            focus_hit.get("bbox")
+            if focus_hit and isinstance(focus_hit.get("bbox"), dict)
+            else None
+        )
+
+        preview_url = self._render_pixel_preview(
+            mode="pixel_hit" if focus_hit else "pixel_miss",
+            x_css=focus_x,
+            y_css=focus_y,
+            target_bbox=target_bbox,
+            candidate_bboxes=candidate_bboxes,
+            drag_end=drag_end_point,
+        )
+
+        endpoints = {
+            "start": "dense" if start_dense else "sparse",
+            "end": "dense" if end_dense else "sparse",
+        }
+        message = self._build_pixel_gate_message(
+            kind="drag",
+            verdict="dense",
+            hit=focus_hit,
+            candidates=candidates,
+            drag_endpoints=endpoints,
+        )
+
+        self._set_pending_confirmation(
+            element_id="",
+            action_type="mouse_drag_pixel",
+            full_html=(focus_hit.get("html") if focus_hit else "") or "",
+            extra_data={
+                "sx": sx,
+                "sy": sy,
+                "ex": ex,
+                "ey": ey,
+                "button": action.button,
+                "steps": action.steps,
+                "candidates": candidates,
+                "endpoints": endpoints,
+            },
+            screenshot_data_url=preview_url,
+        )
+
+        return OpenBrowserObservation(
+            success=True,
+            message=message,
+            screenshot_data_url=preview_url,
+            small_model=self._uses_small_model(),
+        )
+
+    def _commit_pending_pixel_action(self) -> OpenBrowserObservation:
+        """Commit a pending pixel click or drag stashed by the gate."""
+        pending = self._get_pending_confirmation()
+        if not pending:
+            return OpenBrowserObservation(
+                success=False,
+                error=(
+                    "No pending pixel action to confirm. Emit `move` + `click` "
+                    "or `drag` first; `confirm` is only valid right after a "
+                    "gated preview."
+                ),
+                small_model=self._uses_small_model(),
+            )
+
+        action_type = pending.get("action_type")
+        extra = pending.get("extra_data") or {}
+
+        try:
+            if action_type == "mouse_click_pixel":
+                button = extra.get("button", "left")
+                count = int(extra.get("count", 1))
+                command = MouseClickCommand(
+                    button=MouseButton(button),
+                    count=count,
+                    double=(count == 2),
+                    conversation_id=self.conversation_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                self._clear_pending_confirmation()
+                message = (
+                    f"Confirmed click {button} at "
+                    f"({extra.get('px')}, {extra.get('py')}) (count={count})"
+                )
+                intercepted = self._extract_intercepted_form_control(result_dict)
+                if intercepted:
+                    message = self._format_intercepted_message(
+                        intercepted, button, count
+                    )
+                return self._build_observation_from_result(result_dict, message)
+
+            if action_type == "mouse_drag_pixel":
+                sx = extra.get("sx")
+                sy = extra.get("sy")
+                ex = extra.get("ex")
+                ey = extra.get("ey")
+                button = extra.get("button", "left")
+                steps = int(extra.get("steps", 10))
+                if None in (sx, sy, ex, ey):
+                    raise ValueError(
+                        "Pending drag is missing endpoint coordinates."
+                    )
+                command = MouseDragCommand(
+                    start_x=int(sx),
+                    start_y=int(sy),
+                    end_x=int(ex),
+                    end_y=int(ey),
+                    button=MouseButton(button),
+                    steps=steps,
+                    conversation_id=self.conversation_id,
+                )
+                result_dict = self._execute_command_sync(command)
+                self._clear_pending_confirmation()
+                self._cache_cursor(int(ex), int(ey))
+                return self._build_observation_from_result(
+                    result_dict, f"Confirmed drag from ({sx}, {sy}) to ({ex}, {ey})"
+                )
+
+            self._clear_pending_confirmation()
+            return OpenBrowserObservation(
+                success=False,
+                error=(
+                    f"Pending action type {action_type!r} is not a pixel "
+                    "action. `confirm` only commits gated `mouse` previews."
+                ),
+                small_model=self._uses_small_model(),
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to commit pending pixel action: %s", e, exc_info=True
+            )
+            self._clear_pending_confirmation()
+            return OpenBrowserObservation(
+                success=False, error=str(e), small_model=self._uses_small_model()
+            )
+
     def _execute_mouse_action(
         self, action: MouseAction
     ) -> OpenBrowserObservation:
@@ -1052,21 +1641,36 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     x=px, y=py, conversation_id=self.conversation_id
                 )
                 result_dict = self._execute_command_sync(command)
+                if px is not None and py is not None:
+                    self._cache_cursor(px, py)
                 return self._build_observation_from_result(
                     result_dict, f"Mouse moved to ({px}, {py})"
                 )
 
             if kind == "click":
-                # Click is in-place at the cursor's current position. Any
-                # x/y the model emitted is ignored on purpose — if it wants
-                # to click somewhere new it must `move` there first, so the
-                # visible cursor in the screenshot is the click point.
+                # Click is in-place at the cursor's current position. The
+                # gate runs against the cursor coord (the implicit click
+                # point), not action.x/y — the agent positions via `move`
+                # first, so any x/y on the action is informational.
                 if action.x is not None or action.y is not None:
                     logger.debug(
                         "Mouse click ignored x=%s, y=%s (click is in-place)",
                         action.x,
                         action.y,
                     )
+                cursor = self._get_cursor_or_center()
+                gate = (
+                    self._gate_pixel_target(cursor[0], cursor[1])
+                    if cursor is not None
+                    else None
+                )
+                if (
+                    gate
+                    and gate.get("verdict") == "dense"
+                    and cursor is not None
+                ):
+                    return self._gate_pixel_click(action, cursor, gate)
+
                 command = MouseClickCommand(
                     button=MouseButton(action.button),
                     count=action.count,
@@ -1078,12 +1682,6 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     f"Clicked {action.button} at the cursor "
                     f"(count={action.count})"
                 )
-                # When the click landed on a native <select> or
-                # <input type=file>, the extension suppresses the OS-level
-                # popup and returns descriptor metadata. Surface it in the
-                # observation message so the agent knows to follow up with
-                # `select_option` or `upload_file` (the option list / file
-                # input metadata is invisible in the screenshot).
                 intercepted = self._extract_intercepted_form_control(result_dict)
                 if intercepted:
                     message = self._format_intercepted_message(
@@ -1101,6 +1699,26 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     raise ValueError("mouse drag requires x, y, x2, y2")
                 sx, sy = self._denormalize_xy(action.x, action.y)
                 ex, ey = self._denormalize_xy(action.x2, action.y2)
+
+                start_gate = self._gate_pixel_target(sx, sy)
+                end_gate = self._gate_pixel_target(ex, ey)
+                start_dense = bool(
+                    start_gate and start_gate.get("verdict") == "dense"
+                )
+                end_dense = bool(
+                    end_gate and end_gate.get("verdict") == "dense"
+                )
+                if start_dense or end_dense:
+                    return self._gate_pixel_drag(
+                        action,
+                        (sx, sy),
+                        (ex, ey),
+                        start_gate,
+                        end_gate,
+                        start_dense,
+                        end_dense,
+                    )
+
                 command = MouseDragCommand(
                     start_x=sx,
                     start_y=sy,
@@ -1111,6 +1729,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     conversation_id=self.conversation_id,
                 )
                 result_dict = self._execute_command_sync(command)
+                if ex is not None and ey is not None:
+                    self._cache_cursor(ex, ey)
                 return self._build_observation_from_result(
                     result_dict, f"Dragged from ({sx}, {sy}) to ({ex}, {ey})"
                 )
@@ -1132,9 +1752,15 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     conversation_id=self.conversation_id
                 )
                 result_dict = self._execute_command_sync(command)
+                viewport = self._get_viewport()
+                if viewport is not None:
+                    self._cache_cursor(viewport[0] // 2, viewport[1] // 2)
                 return self._build_observation_from_result(
                     result_dict, "Reset cursor to viewport center"
                 )
+
+            if kind == "confirm":
+                return self._commit_pending_pixel_action()
 
             raise ValueError(f"Unknown mouse action: {kind}")
         except Exception as e:

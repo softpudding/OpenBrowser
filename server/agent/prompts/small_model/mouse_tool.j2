@@ -51,6 +51,28 @@ Return cursor to viewport center.
 { "action": "reset" }
 ```
 
+### confirm
+Commit a previewed click or drag.
+```json
+{ "action": "confirm" }
+```
+Only valid after a preview observation (zoomed crop with a yellow box or red crosshair). See **Confirmation previews** below.
+
+## Confirmation previews
+
+If `click` or `drag` falls in a crowded area, the next observation is a zoomed crop:
+
+- **Yellow box** = your action would commit on that element. Reply `{"action": "confirm"}` to commit, or `move` to a corrected target.
+- **No yellow box, only orange dashed outlines** = the click landed between controls. Re-emit aimed at one of the listed candidate centers in [0, 1000] space.
+
+Orange dashed outlines mark nearby candidates in either case.
+
+Example after a miss:
+```json
+{ "action": "move", "x": 612, "y": 318 }
+{ "action": "click" }
+```
+
 ## Patterns
 
 - **Click a button**: `move` → check screenshot → `click`.

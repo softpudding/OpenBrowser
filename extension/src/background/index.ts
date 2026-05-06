@@ -42,6 +42,8 @@ import {
   getConfirmationPromptText,
 } from '../commands/single-highlight';
 import { highlightDropPreview } from '../commands/drop-preview-highlight';
+import { analyzePixelTargets } from '../commands/pixel-target-analyzer';
+import { renderPixelConfirm } from '../commands/pixel-confirm-render';
 import { elementCache } from '../commands/element-cache';
 import { assignHashedElementIds } from '../commands/element-id';
 import { buildElementCacheMissMessage } from '../commands/element-cache';
@@ -1782,6 +1784,82 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         };
       }
 
+      // ============== Pixel-target analysis & confirmation render ==============
+      // Used by the server to gate dense pixel clicks: analyze probes the live
+      // viewport at (x,y) for nearby interactables, render produces a zoomed
+      // confirmation crop showing what was selected.
+      case 'analyze_pixel_targets': {
+        if (!command.conversation_id) {
+          throw new Error(
+            'conversation_id is required for analyze_pixel_targets command (strict mode)',
+          );
+        }
+        const conversationId = command.conversation_id;
+        const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
+        if (!activeTabId) {
+          throw new Error(
+            `No active tab found for conversation ${conversationId}. Use tab init first.`,
+          );
+        }
+        await tabManager.ensureTabManaged(activeTabId, conversationId);
+        tabManager.updateTabActivity(activeTabId, conversationId);
+
+        const analysis = await analyzePixelTargets(
+          activeTabId,
+          conversationId,
+          command.x,
+          command.y,
+          typeof command.radius === 'number' ? command.radius : 30,
+          typeof command.candidate_limit === 'number'
+            ? command.candidate_limit
+            : 5,
+        );
+
+        return {
+          success: true,
+          message: `analyze_pixel_targets verdict=${analysis.verdict}`,
+          data: analysis,
+          timestamp: Date.now(),
+        };
+      }
+
+      case 'render_pixel_confirm': {
+        if (!command.conversation_id) {
+          throw new Error(
+            'conversation_id is required for render_pixel_confirm command (strict mode)',
+          );
+        }
+        const conversationId = command.conversation_id;
+        const activeTabId = tabManager.getCurrentActiveTabId(conversationId);
+        if (!activeTabId) {
+          throw new Error(
+            `No active tab found for conversation ${conversationId}. Use tab init first.`,
+          );
+        }
+        await tabManager.ensureTabManaged(activeTabId, conversationId);
+        tabManager.updateTabActivity(activeTabId, conversationId);
+
+        const rendered = await renderPixelConfirm(
+          activeTabId,
+          conversationId,
+          {
+            mode: command.mode,
+            x: command.x,
+            y: command.y,
+            target_bbox: command.target_bbox,
+            candidate_bboxes: command.candidate_bboxes,
+            drag_end: command.drag_end,
+          },
+        );
+
+        return {
+          success: true,
+          message: `render_pixel_confirm mode=${command.mode}`,
+          data: rendered,
+          timestamp: Date.now(),
+        };
+      }
+
       // ============== Pixel-level mouse / keyboard ==============
       // The live agent uses these instead of the highlight + element-id flow.
       // The server has already denormalized Qwen [0,1000] coords to CSS px.
@@ -1924,16 +2002,27 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         // For actions that can navigate or trigger heavy re-render
         // (`mouse_click`, `mouse_drag`, `keyboard_press` Enter), give the
         // browser a brief settle window so the captured frame reflects the
-        // new state instead of a transitional DOM. Lighter actions
-        // (mouse_move, mouse_scroll, keyboard_type, reset_mouse) take 0.
-        const settleMs =
+        // new state instead of a transitional DOM. `mouse_move` waits for
+        // the cursor sprite's CSS transition (120 ms — see
+        // `virtual-cursor.ts` `transition:transform 120ms`) to finish, so
+        // the screenshot shows the cursor at its destination rather than
+        // somewhere mid-glide. `reset_mouse` jumps to viewport center via
+        // the same sprite path and needs the same wait.
+        let settleMs = 0;
+        if (
           command.type === 'mouse_click' ||
           command.type === 'mouse_drag' ||
           command.type === 'keyboard_press' ||
           command.type === 'select_option' ||
           command.type === 'upload_file_pending'
-            ? 350
-            : 0;
+        ) {
+          settleMs = 350;
+        } else if (
+          command.type === 'mouse_move' ||
+          command.type === 'reset_mouse'
+        ) {
+          settleMs = 150;
+        }
         const cursorAfter =
           getCursorPosition(activeTabId) ??
           (await resolveCursorOrCenter(activeTabId, conversationId));

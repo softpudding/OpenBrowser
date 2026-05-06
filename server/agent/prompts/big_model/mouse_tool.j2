@@ -49,6 +49,15 @@ Press at `(x, y)`, drag to `(x2, y2)`, release. One call.
 
 Use for sliders, kanban moves, marquee selection, drag-and-drop. `steps` (optional, default 10) controls the smoothness for DnD libraries that need many intermediate move events.
 
+### confirm
+Commit a pending click or drag that was previewed in the previous response.
+
+```json
+{ "action": "confirm" }
+```
+
+Only valid right after a preview-style observation (zoomed crop with a yellow box or red crosshair). See **Confirmation previews** below.
+
 ### scroll
 Scroll at the cursor's current position by `amount` CSS pixels in `direction`.
 
@@ -65,6 +74,22 @@ Return the cursor to the viewport center.
 ```json
 { "action": "reset" }
 ```
+
+## Confirmation previews
+
+When `click` or `drag` lands in an area with several interactable controls close together, the next observation is a zoomed crop showing exactly what your coordinate selected. Two cases:
+
+- **Yellow box** around an element: the click sits on it. Reply with `{"action": "confirm"}` to commit, or re-emit `move` + `click` (or `drag`) aimed at a corrected coordinate.
+- **No yellow box, only orange outlines**: the click sits between controls. Re-emit aimed at one of the candidate centers listed in the message.
+
+Orange dashed outlines mark nearby candidates. The message lists each one with its HTML and **center coordinates in [0, 1000] space**. Pick the center matching your goal:
+
+```json
+{ "action": "move", "x": 612, "y": 318 }
+{ "action": "click" }
+```
+
+For a drag preview, the same rules apply at each endpoint. `confirm` commits the drag as previewed; otherwise re-emit `drag` with corrected `x, y, x2, y2`.
 
 ## Patterns
 

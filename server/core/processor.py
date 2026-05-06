@@ -39,6 +39,8 @@ from server.models.commands import (
     SetSliderValueCommand,
     UploadFileCommand,
     HighlightDropPreviewCommand,
+    AnalyzePixelTargetsCommand,
+    RenderPixelConfirmCommand,
 )
 from server.websocket.manager import ws_manager
 from server.core.config import config
@@ -286,6 +288,10 @@ class CommandProcessor:
                 return await self._execute_recording_control(command)
             elif isinstance(command, HighlightDropPreviewCommand):
                 return await self._execute_highlight_drop_preview(command)
+            elif isinstance(command, AnalyzePixelTargetsCommand):
+                return await self._execute_analyze_pixel_targets(command)
+            elif isinstance(command, RenderPixelConfirmCommand):
+                return await self._execute_render_pixel_confirm(command)
             elif isinstance(command, UploadFileCommand):
                 return await self._execute_upload_file(command)
             else:
@@ -501,6 +507,18 @@ class CommandProcessor:
         self, command: HighlightDropPreviewCommand
     ) -> CommandResponse:
         """Highlight inner elements of a drop container for drag-and-drop 2PC"""
+        return await self._send_prepared_command(command)
+
+    async def _execute_analyze_pixel_targets(
+        self, command: AnalyzePixelTargetsCommand
+    ) -> CommandResponse:
+        """Probe (x, y) for the hit element and nearby interactables."""
+        return await self._send_prepared_command(command)
+
+    async def _execute_render_pixel_confirm(
+        self, command: RenderPixelConfirmCommand
+    ) -> CommandResponse:
+        """Render a zoomed confirmation crop for a pending pixel action."""
         return await self._send_prepared_command(command)
 
     async def _execute_upload_file(self, command: UploadFileCommand) -> CommandResponse:

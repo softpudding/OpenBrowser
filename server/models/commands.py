@@ -624,6 +624,80 @@ class HighlightSingleElementCommand(BaseCommand):
     )
 
 
+class AnalyzePixelTargetsCommand(BaseCommand):
+    """Probe the live viewport at a CSS-pixel coordinate to find what
+    interactable element (if any) lies under the point and which other
+    interactables sit within `radius` of it.
+
+    The extension reuses the highlight-detection engine and returns:
+      - hit: smallest interactable whose bbox contains (x, y), or None
+      - neighborhood: top-N interactables within `radius` CSS pixels of
+        the point, sorted by distance
+      - verdict: 'sparse' if neighborhood has 0–1 elements, 'dense' if 2+
+
+    The server uses the verdict to gate pixel mouse_click / mouse_drag:
+    only dense neighborhoods receive a confirmation preview round-trip.
+    """
+
+    type: Literal["analyze_pixel_targets"] = "analyze_pixel_targets"
+    x: int = Field(description="Click X in CSS pixels (viewport coord)")
+    y: int = Field(description="Click Y in CSS pixels (viewport coord)")
+    radius: int = Field(
+        default=30,
+        description="Neighborhood radius in CSS pixels around (x, y).",
+        ge=0,
+    )
+    candidate_limit: int = Field(
+        default=5,
+        description="Max number of nearby candidates to return.",
+        ge=1,
+        le=20,
+    )
+
+
+class RenderPixelConfirmCommand(BaseCommand):
+    """Produce a zoomed confirmation screenshot for a pending pixel action.
+
+    Two modes:
+      - 'pixel_hit': the click landed on `target_selector`; render a YELLOW
+        box around it and zoom-crop centered on the element.
+      - 'pixel_miss': the click landed in whitespace; render a red crosshair
+        at (x, y) plus thin grey outlines on `candidate_bboxes`. Zoom-crop
+        centered on the click point.
+
+    Returns a screenshot data URL only — server already holds the
+    structured candidate list from the prior analyze_pixel_targets call.
+    """
+
+    type: Literal["render_pixel_confirm"] = "render_pixel_confirm"
+    mode: Literal["pixel_hit", "pixel_miss"] = Field(
+        description="Visual mode: pixel_hit (yellow box) or pixel_miss (crosshair)."
+    )
+    x: int = Field(description="Click X in CSS pixels (viewport coord)")
+    y: int = Field(description="Click Y in CSS pixels (viewport coord)")
+    target_bbox: Optional[dict] = Field(
+        default=None,
+        description=(
+            "Bbox of the hit element {x, y, width, height} in CSS pixels. "
+            "Required for pixel_hit; ignored for pixel_miss."
+        ),
+    )
+    candidate_bboxes: Optional[List[dict]] = Field(
+        default=None,
+        description=(
+            "Bbox dicts {x, y, width, height} in CSS pixels for outlines "
+            "(used by pixel_miss)."
+        ),
+    )
+    drag_end: Optional[dict] = Field(
+        default=None,
+        description=(
+            "Optional {x, y} CSS-pixel point to draw an arrow toward (for "
+            "drag-endpoint previews)."
+        ),
+    )
+
+
 class HighlightDropPreviewCommand(BaseCommand):
     """Highlight inner elements of a drop container for drag-and-drop 2PC flow.
 
@@ -715,6 +789,8 @@ Command = Union[
     SelectElementCommand,
     GetElementHtmlCommand | HighlightSingleElementCommand,
     HighlightDropPreviewCommand,
+    AnalyzePixelTargetsCommand,
+    RenderPixelConfirmCommand,
     RecordingControlCommand,
     DragAndDropElementCommand,
     SetSliderValueCommand,
@@ -756,6 +832,8 @@ def parse_command(data: dict) -> Command:
         "get_element_html": GetElementHtmlCommand,
         "highlight_single_element": HighlightSingleElementCommand,
         "highlight_drop_preview": HighlightDropPreviewCommand,
+        "analyze_pixel_targets": AnalyzePixelTargetsCommand,
+        "render_pixel_confirm": RenderPixelConfirmCommand,
         "recording_control": RecordingControlCommand,
         "drag_and_drop_element": DragAndDropElementCommand,
         "set_slider_value": SetSliderValueCommand,

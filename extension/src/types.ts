@@ -299,6 +299,34 @@ export interface HighlightDropPreviewCommand extends BaseCommand {
   tab_id?: number;
 }
 
+export interface AnalyzePixelTargetsCommand extends BaseCommand {
+  type: 'analyze_pixel_targets';
+  /** Click X in CSS pixels (viewport coord). */
+  x: number;
+  /** Click Y in CSS pixels (viewport coord). */
+  y: number;
+  /** Neighborhood radius in CSS pixels around (x, y). Default 30. */
+  radius?: number;
+  /** Max number of nearby candidates to return. Default 5. */
+  candidate_limit?: number;
+}
+
+export interface RenderPixelConfirmCommand extends BaseCommand {
+  type: 'render_pixel_confirm';
+  /** Visual mode for the preview crop. */
+  mode: 'pixel_hit' | 'pixel_miss';
+  /** Click X in CSS pixels. */
+  x: number;
+  /** Click Y in CSS pixels. */
+  y: number;
+  /** Bbox of the hit element in CSS pixels (required for pixel_hit). */
+  target_bbox?: { x: number; y: number; width: number; height: number };
+  /** Bboxes for nearby candidate outlines (used by pixel_miss). */
+  candidate_bboxes?: { x: number; y: number; width: number; height: number }[];
+  /** Optional drag end-point in CSS pixels (renders an arrow). */
+  drag_end?: { x: number; y: number };
+}
+
 export interface RecordingControlCommand extends BaseCommand {
   type: 'recording_control';
   action: RecordingControlAction;
@@ -352,6 +380,8 @@ export type Command =
   | GetElementHtmlCommand
   | HighlightSingleElementCommand
   | HighlightDropPreviewCommand
+  | AnalyzePixelTargetsCommand
+  | RenderPixelConfirmCommand
   | RecordingControlCommand;
 
 export interface CommandResponse {

@@ -31,7 +31,9 @@ def get_mouse_tool_description(conv_state=None) -> str:
     )
 
 
-MouseActionKind = Literal["move", "click", "drag", "scroll", "reset"]
+MouseActionKind = Literal[
+    "move", "click", "drag", "scroll", "reset", "confirm"
+]
 
 
 class MouseAction(OpenBrowserAction):
@@ -55,7 +57,9 @@ class MouseAction(OpenBrowserAction):
             "'drag' — press at (x, y), drag to (x2, y2), release. "
             "'scroll' — scroll at the cursor position by `amount` in "
             "`direction`. "
-            "'reset' — return the cursor to the viewport center."
+            "'reset' — return the cursor to the viewport center. "
+            "'confirm' — commit a pending click or drag that was previewed "
+            "as a zoomed crop in the previous response."
         )
     )
 
