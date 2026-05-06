@@ -108,6 +108,117 @@ function clampToViewport(
   return { x: cx, y: cy, warning };
 }
 
+/**
+ * No-op click detection via MutationObserver.
+ *
+ * A snapshot/diff probe (URL, title, active-element, body-text length,
+ * dialog count) misses common interactions that only flip a CSS class
+ * or toggle an aria attribute — e.g. tapping a like-heart on Xiaohongshu
+ * changes the SVG color and `aria-pressed` but no body text, no URL.
+ * Counting DOM mutations during the click window catches those: any
+ * non-cursor-sprite mutation means the click did *something*.
+ *
+ * Mutations on the agent's injected cursor sprite are filtered out so
+ * `refreshCursor` running between the click and the read does not
+ * register as page activity.
+ */
+const ARM_MUTATION_OBSERVER_SCRIPT = `
+  (() => {
+    try {
+      const w = window;
+      if (w.__ob_click_obs__) {
+        try { w.__ob_click_obs__.disconnect(); } catch (_) {}
+      }
+      w.__ob_click_mutations__ = 0;
+      // The agent's cursor sprite lives at #__ob_cursor__ (see
+      // virtual-cursor.ts buildCursorInjectScript). Mutations on it
+      // (refreshCursor between click and read) are not page activity.
+      const cursorId = '__ob_cursor__';
+      const overlayId = '__ob_pixel_confirm_overlay__';
+      const skipIds = new Set([cursorId, overlayId]);
+      const obs = new MutationObserver((muts) => {
+        for (const m of muts) {
+          let t = m.target;
+          let skip = false;
+          while (t && t.nodeType === 1) {
+            if (skipIds.has(t.id)) { skip = true; break; }
+            t = t.parentNode;
+          }
+          if (!skip) w.__ob_click_mutations__++;
+        }
+      });
+      obs.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true,
+      });
+      w.__ob_click_obs__ = obs;
+      return { armed: true };
+    } catch (e) {
+      return { armed: false, error: String(e) };
+    }
+  })()
+`;
+
+const READ_MUTATION_OBSERVER_SCRIPT = `
+  (() => {
+    try {
+      const w = window;
+      const obs = w.__ob_click_obs__;
+      if (!obs) return { mutations: -1 };
+      try { obs.disconnect(); } catch (_) {}
+      const c = w.__ob_click_mutations__ || 0;
+      delete w.__ob_click_obs__;
+      delete w.__ob_click_mutations__;
+      return { mutations: c };
+    } catch (e) {
+      return { mutations: -1, error: String(e) };
+    }
+  })()
+`;
+
+async function armClickMutationObserver(cdp: CdpCommander): Promise<boolean> {
+  try {
+    const probe = await cdp.sendCommand<{
+      result?: { value?: { armed?: boolean } };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression: ARM_MUTATION_OBSERVER_SCRIPT,
+        returnByValue: true,
+      },
+      4000,
+      0,
+    );
+    return probe?.result?.value?.armed === true;
+  } catch (e) {
+    console.warn('[PixelActions] arm mutation observer failed', e);
+    return false;
+  }
+}
+
+async function readClickMutationCount(cdp: CdpCommander): Promise<number> {
+  try {
+    const probe = await cdp.sendCommand<{
+      result?: { value?: { mutations?: number } };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression: READ_MUTATION_OBSERVER_SCRIPT,
+        returnByValue: true,
+      },
+      4000,
+      0,
+    );
+    const n = probe?.result?.value?.mutations;
+    return typeof n === 'number' ? n : -1;
+  } catch (e) {
+    console.warn('[PixelActions] read mutation observer failed', e);
+    return -1;
+  }
+}
+
 async function refreshCursor(
   cdp: CdpCommander,
   tabId: number,
@@ -219,6 +330,15 @@ export interface MouseClickResult {
   button: string;
   warning?: string;
   intercepted_form_control?: NativeFormControlHit;
+  /**
+   * False when a MutationObserver armed before dispatch saw zero
+   * non-cursor DOM mutations within ~250 ms after the click — i.e. the
+   * click did nothing the page reacted to. Surfaces as a warning in the
+   * agent's observation so it stops re-clicking a non-interactable spot.
+   * Undefined when the probe could not run (intercepted form control,
+   * arming failed, evaluator failure).
+   */
+  triggered_anything?: boolean;
 }
 
 // Hit-test the click point. If the cursor sits on a native <select> or
@@ -375,6 +495,11 @@ export async function performMouseClick(
   const buttons = button === 'left' ? 1 : button === 'right' ? 2 : 4;
   const safeCount = Math.max(1, Math.min(3, count | 0));
 
+  // Arm a MutationObserver right before dispatch so the post-click
+  // read can decide whether the click changed anything in the DOM.
+  // Cursor-sprite + pixel-overlay mutations are filtered out.
+  const observerArmed = await armClickMutationObserver(cdp);
+
   // CDP convention: emit one press/release pair per click and increment
   // `clickCount` (1, 2, 3) so Chrome interprets it as a single → double →
   // triple click sequence. Sending N pairs each with `clickCount:N` produces
@@ -409,7 +534,31 @@ export async function performMouseClick(
   }
 
   await refreshCursor(cdp, tabId, clamped.x, clamped.y);
-  return { x: clamped.x, y: clamped.y, button, warning: clamped.warning };
+
+  // Wait briefly for synchronous + short-async reactions (animation
+  // start, focus change, modal open, navigation kickoff) to land before
+  // we read the mutation count. 250 ms covers most React/Vue render
+  // passes without perceptibly slowing the action loop.
+  await new Promise((r) => setTimeout(r, 250));
+  let triggered: boolean | undefined;
+  if (observerArmed) {
+    const mutations = await readClickMutationCount(cdp);
+    if (mutations >= 0) {
+      // 0 mutations = click did nothing the page reacted to. Anything
+      // positive means the page changed something — class toggle, aria
+      // flip, child append, navigation start. Read failure (-1) leaves
+      // `triggered` undefined so the agent gets no warning.
+      triggered = mutations > 0;
+    }
+  }
+
+  return {
+    x: clamped.x,
+    y: clamped.y,
+    button,
+    warning: clamped.warning,
+    triggered_anything: triggered,
+  };
 }
 
 export async function performMouseDrag(

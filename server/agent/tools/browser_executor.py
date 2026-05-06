@@ -1615,6 +1615,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     message = self._format_intercepted_message(
                         intercepted, button, count
                     )
+                elif self._click_was_a_no_op(result_dict):
+                    message += self._format_no_op_warning_from_candidates(
+                        extra.get("candidates") or []
+                    )
                 return self._build_observation_from_result(result_dict, message)
 
             if action_type == "mouse_drag_pixel":
@@ -1758,6 +1762,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     message = self._format_intercepted_message(
                         intercepted, action.button, action.count
                     )
+                elif self._click_was_a_no_op(result_dict):
+                    message += self._format_no_op_warning(gate)
                 return self._build_observation_from_result(result_dict, message)
 
             if kind == "drag":
@@ -1912,6 +1918,74 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             return OpenBrowserObservation(
                 success=False, error=str(e), small_model=self._uses_small_model()
             )
+
+    def _format_no_op_warning(
+        self, gate: Optional[Dict[str, Any]]
+    ) -> str:
+        """Warning text for a click that committed but produced no DOM change.
+
+        When `gate` carries a neighborhood from the pixel-target probe, the
+        nearby interactable elements are listed so the agent has somewhere
+        concrete to re-aim at. Empty-space clicks otherwise leave the agent
+        with no signal beyond "it didn't work."
+        """
+        candidates: list = []
+        if gate:
+            neighborhood = gate.get("neighborhood") or []
+            viewport = gate.get("viewport") or {}
+            vw = int(viewport.get("width") or 0)
+            vh = int(viewport.get("height") or 0)
+            if not vw or not vh:
+                vp = self._get_viewport()
+                if vp is not None:
+                    vw, vh = vp
+            candidates = self._serialize_pixel_candidates(neighborhood, vw, vh)
+        return self._format_no_op_warning_from_candidates(candidates)
+
+    def _format_no_op_warning_from_candidates(
+        self, candidates: list
+    ) -> str:
+        """Render the no-op warning + candidate block from pre-serialized data."""
+        lines = [
+            "",
+            "⚠ The click produced no DOM change. The element may be "
+            "disabled, behind a modal, off-screen, or non-interactable. "
+            "Re-clicking the same spot will not help — re-aim at one of "
+            "the nearby interactable elements below, scroll the target "
+            "into view, or focus a different control.",
+        ]
+        block = self._format_pixel_candidates_block(
+            candidates,
+            header="Nearby interactable elements (centers in [0,1000] space)",
+        )
+        if block:
+            lines.append(block)
+        else:
+            lines[-1] = (
+                "⚠ The click produced no DOM change and no nearby "
+                "interactable element was detected. Scroll the target "
+                "into view or pick a different region of the screen."
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _click_was_a_no_op(result_dict: Optional[Dict[str, Any]]) -> bool:
+        """True iff the extension's post-click probe saw zero DOM mutations.
+
+        A MutationObserver is armed before the CDP click and read ~250ms
+        after — `triggered_anything: false` means the observer recorded
+        zero non-cursor mutations during that window, i.e. the click did
+        nothing the page reacted to. Any other shape (including a probe
+        failure) is treated as "did something" so we never warn falsely.
+        """
+        if not result_dict:
+            return False
+        data = result_dict.get("data")
+        if isinstance(data, dict) and "triggered_anything" in data:
+            return data.get("triggered_anything") is False
+        if "triggered_anything" in result_dict:
+            return result_dict.get("triggered_anything") is False
+        return False
 
     @staticmethod
     def _extract_intercepted_form_control(
