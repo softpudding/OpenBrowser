@@ -1,0 +1,82 @@
+# Mouse Tool
+
+Move, click, drag, and scroll a virtual mouse cursor. Every call is a single JSON object passed as the `mouse` tool's arguments.
+
+## Coordinates
+
+Coordinates are 2-element arrays `[x, y]` of integers in **[0, 1000]**: `[0, 0]` is viewport top-left, `[1000, 1000]` is bottom-right. Estimate from the screenshot.
+
+## Cursor
+
+A red dot with a pulsing red ring sits inside a white-and-black arrow on the page. **The red dot is the click point.** It appears in every screenshot.
+
+A `click` with `coordinate` moves the cursor there and clicks in one step. A `click` without `coordinate` clicks at the cursor's current position — use that after a `move` when you want a hover effect to fire first.
+
+## Actions
+
+`action` defaults to `"move"`, so `{ "coordinate": [500, 320] }` slides the cursor to that point.
+
+### move
+Slide the cursor to `coordinate`.
+```json
+{ "action": "move", "coordinate": [500, 320] }
+```
+
+### click
+Click on the page.
+```json
+{ "action": "click", "coordinate": [612, 318] }
+{ "action": "click" }
+{ "action": "click", "coordinate": [612, 318], "count": 2 }
+{ "action": "click", "coordinate": [612, 318], "button": "right" }
+```
+- With `coordinate`: cursor moves there and clicks. Default form.
+- Without `coordinate`: clicks at the cursor's current position. Use after a `move` for hover-then-click flows.
+- `button`: `"left"` (default), `"right"` (context menu), `"middle"`.
+- `count`: 1 (default), 2 for double-click, 3 for triple-click.
+
+### drag
+Press at `start_coordinate`, drag to `end_coordinate`, release.
+```json
+{ "action": "drag", "start_coordinate": [200, 400], "end_coordinate": [800, 400] }
+```
+
+### scroll
+Scroll at the cursor by `amount` CSS pixels. `amount` is always positive — `direction` carries the sign. To scroll inside a panel, sidebar, or modal, `move` over it first so the wheel event lands there.
+```json
+{ "action": "scroll", "direction": "down", "amount": 600 }
+{ "action": "scroll", "direction": "up", "amount": 300 }
+```
+`direction`: `"down"`, `"up"`, `"left"`, `"right"`.
+
+### reset
+Return cursor to viewport center.
+```json
+{ "action": "reset" }
+```
+
+### confirm
+Commit a previewed click or drag.
+```json
+{ "action": "confirm" }
+```
+Only valid after a preview observation (zoomed crop with a yellow box or red crosshair). See **Confirmation previews** below.
+
+## Confirmation previews
+
+If `click` or `drag` falls in a crowded area, the next observation is a zoomed crop. The same outlines are also painted on the live page DOM.
+
+- A **yellow** outline marks the element the click would commit on.
+- **Orange dashed** outlines mark nearby candidates, listed in the message with HTML and center coordinates in `[0, 1000]` space.
+
+Check the yellow-highlighted element. If it matches your intent, reply `{ "action": "confirm" }` to commit. Otherwise, re-emit `click` (or `drag`) with one of the listed candidate centers as the `coordinate`.
+
+## Patterns
+
+- **Click a button**: `{ "action": "click", "coordinate": [x, y] }`.
+- **Hover**: `{ "action": "move", "coordinate": [x, y] }` over the trigger; the next screenshot shows the result, then `{ "action": "click" }` to commit.
+- **Scroll to find**: `{ "action": "scroll", "direction": "down", "amount": 600 }`, then check the new screenshot.
+- **Drag**: one `drag` with `start_coordinate` and `end_coordinate`.
+- **Right-click**: `{ "action": "click", "coordinate": [x, y], "button": "right" }`.
+- **Double-click**: `{ "action": "click", "coordinate": [x, y], "count": 2 }`.
+- **Type into a field**: `{ "action": "click", "coordinate": [x, y] }` to focus → `keyboard type` the text.

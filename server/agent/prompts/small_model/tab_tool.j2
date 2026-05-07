@@ -6,12 +6,9 @@ Manage tabs for the current conversation.
 
 1. Keep the workflow in one active tab unless a new tab is clearly necessary.
 2. After navigation, look at the returned screenshot before the next action.
-3. `tab init`, `tab open`, `tab switch`, `tab back`, `tab forward`, and `tab refresh` already return the default `highlight` `element_type: "any"` page 1 screenshot and IDs for the new page state.
-4. Prefer `tab view` when you only need a clean screenshot.
-5. If the target is already partly visible after navigation, scroll first to reposition it.
-6. If `tab view` gave you only a clean screenshot and you need `element_id`s, call `highlight`.
-7. If page 1 missed the target on the same unchanged page state, continue the same highlight mode before changing strategy.
-8. If dense UI, a sidebar, a tab strip, or collision-aware label placement may have split nearby controls across pages, keep paginating that same mode before narrowing or switching strategies.
+3. All `tab` actions return a clean screenshot of the new page state with the virtual cursor visible — act on it directly with `mouse` and `keyboard`.
+4. If the target is already partly visible after navigation, scroll to recenter it before clicking.
+5. If the target is not visible at all, scroll or navigate; do not click coordinates outside the viewport.
 
 ## Commands
 
@@ -44,7 +41,7 @@ List tabs when you need to know available `tab_id`s.
 ```
 
 ### tab view
-Get a clean screenshot of the active tab.
+Get a fresh screenshot of the active tab without acting.
 
 ```json
 { "action": "view" }
@@ -74,10 +71,7 @@ Close an unused tab.
 
 ## Recommended Flow
 
-- Start with `tab init`
-- If you need a clean screenshot, use `tab view`
-- Otherwise, use the returned `element_id`s from the default `highlight` `element_type: "any"` page 1 result
-- If the target is already partly visible or clipped, use `scroll` before more discovery
-- If the page state is unchanged and the target is still missing, your default next step is the next `any` page
-- If highlight page 1 does not show the target and it is not already partly visible, continue `element_type: "any"` pagination before changing strategy
-- If dense UI or collision-aware label placement may have split nearby controls across pages, keep paginating the same mode before narrowing or switching strategies
+- Start with `tab init`.
+- After init, the returned screenshot is your working state — use `mouse` and `keyboard` to act on it.
+- If you need a fresh screenshot without acting, use `tab view`.
+- If the target is partly visible or clipped, scroll to recenter it before clicking.

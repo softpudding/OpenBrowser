@@ -1,0 +1,42 @@
+# Keyboard Tool
+
+Type text and press named keys at the current focus.
+
+## Focus an input first
+
+Keyboard events go to the focused element. Before typing into a text box, search field, or any input area, **`mouse move` to the field and `mouse click` it** to focus it. Then call this tool.
+
+## Actions
+
+### type
+Type literal text into the focused field.
+```json
+{ "action": "type", "text": "hello world" }
+```
+
+### press
+Press a single named key, optionally with modifiers.
+```json
+{ "action": "press", "key": "Enter" }
+{ "action": "press", "key": "Backspace" }
+{ "action": "press", "key": "Tab" }
+{ "action": "press", "key": "a", "modifiers": ["Control"] }
+```
+
+Common keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `ArrowUp`/`Down`/`Left`/`Right`, `PageDown`, `Home`, `End`, single letters/digits.
+
+Modifiers: `Control`, `Shift`, `Alt`, `Meta` (Cmd on macOS).
+
+### clear
+Empty the focused field. Works on `<input>`, `<textarea>`, and contenteditable widgets. The result tells you whether the field actually ended up empty — if not, click into the field first and try again.
+```json
+{ "action": "clear" }
+```
+
+## Patterns
+
+- **Fill an empty field**: `mouse move` → `mouse click` → `keyboard type`.
+- **Replace text in a field**: `mouse move` → `mouse click` → `keyboard clear` → `keyboard type`.
+- **Submit / search**: `keyboard press Enter`.
+- **Erase one char**: `keyboard press Backspace`.
+- **Tab to next field**: `keyboard press Tab`.

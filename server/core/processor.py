@@ -11,10 +11,13 @@ from server.models.commands import (
     parse_command,
     MouseMoveCommand,
     MouseClickCommand,
+    MouseDragCommand,
     MouseScrollCommand,
     ResetMouseCommand,
     KeyboardTypeCommand,
     KeyboardPressCommand,
+    SelectOptionCommand,
+    UploadFilePendingCommand,
     ScreenshotCommand,
     TabCommand,
     GetTabsCommand,
@@ -36,6 +39,9 @@ from server.models.commands import (
     SetSliderValueCommand,
     UploadFileCommand,
     HighlightDropPreviewCommand,
+    AnalyzePixelTargetsCommand,
+    RenderPixelConfirmCommand,
+    ClearPixelOverlayCommand,
 )
 from server.websocket.manager import ws_manager
 from server.core.config import config
@@ -132,10 +138,13 @@ class CommandProcessor:
             ScreenshotCommand,
             MouseMoveCommand,
             MouseClickCommand,
+            MouseDragCommand,
             MouseScrollCommand,
             ResetMouseCommand,
             KeyboardTypeCommand,
             KeyboardPressCommand,
+            SelectOptionCommand,
+            UploadFilePendingCommand,
             JavascriptExecuteCommand,
             HandleDialogCommand,
         )
@@ -166,12 +175,24 @@ class CommandProcessor:
         ):
             # Check command type to decide if we should fill tab_id
             if isinstance(command, TabCommand):
-                # For tab commands, only fill tab_id for certain actions
-                # init and open create new tabs - don't fill
-                # close and switch need specific tab_id - don't fill if not specified
-                # list gets all tabs - don't fill
-                # So generally don't auto-fill for TabCommand
-                pass
+                # init/open create new tabs; close/switch need an explicit
+                # tab_id; list gets all tabs. But refresh/view/back/forward
+                # operate on "the current tab" semantically, so fill in the
+                # active tab when the agent didn't bother to pass it.
+                action_value = command_dict.get("action") or getattr(
+                    command, "action", None
+                )
+                action_name = (
+                    action_value.value
+                    if hasattr(action_value, "value")
+                    else action_value
+                )
+                if action_name in {"refresh", "view", "back", "forward"}:
+                    command_dict["tab_id"] = current_tab_id
+                    logger.debug(
+                        f"Auto-filled tab_id {current_tab_id} for "
+                        f"tab.{action_name} in conversation {conversation_id}"
+                    )
             elif isinstance(command, GetTabsCommand):
                 # GetTabsCommand gets all tabs, doesn't need tab_id
                 pass
@@ -214,12 +235,18 @@ class CommandProcessor:
                 return await self._execute_mouse_move(command)
             elif isinstance(command, MouseClickCommand):
                 return await self._execute_mouse_click(command)
+            elif isinstance(command, MouseDragCommand):
+                return await self._execute_mouse_drag(command)
             elif isinstance(command, MouseScrollCommand):
                 return await self._execute_mouse_scroll(command)
             elif isinstance(command, KeyboardTypeCommand):
                 return await self._execute_keyboard_type(command)
             elif isinstance(command, KeyboardPressCommand):
                 return await self._execute_keyboard_press(command)
+            elif isinstance(command, SelectOptionCommand):
+                return await self._execute_select_option(command)
+            elif isinstance(command, UploadFilePendingCommand):
+                return await self._execute_upload_file_pending(command)
             elif isinstance(command, ScreenshotCommand):
                 return await self._execute_screenshot(command)
             elif isinstance(command, TabCommand):
@@ -262,6 +289,12 @@ class CommandProcessor:
                 return await self._execute_recording_control(command)
             elif isinstance(command, HighlightDropPreviewCommand):
                 return await self._execute_highlight_drop_preview(command)
+            elif isinstance(command, AnalyzePixelTargetsCommand):
+                return await self._execute_analyze_pixel_targets(command)
+            elif isinstance(command, RenderPixelConfirmCommand):
+                return await self._execute_render_pixel_confirm(command)
+            elif isinstance(command, ClearPixelOverlayCommand):
+                return await self._execute_clear_pixel_overlay(command)
             elif isinstance(command, UploadFileCommand):
                 return await self._execute_upload_file(command)
             else:
@@ -285,6 +318,11 @@ class CommandProcessor:
         response = await self._send_prepared_command(command)
         return response
 
+    async def _execute_mouse_drag(self, command: MouseDragCommand) -> CommandResponse:
+        """Execute mouse drag command"""
+        response = await self._send_prepared_command(command)
+        return response
+
     async def _execute_mouse_scroll(
         self, command: MouseScrollCommand
     ) -> CommandResponse:
@@ -303,6 +341,20 @@ class CommandProcessor:
         self, command: KeyboardPressCommand
     ) -> CommandResponse:
         """Execute keyboard press command"""
+        response = await self._send_prepared_command(command)
+        return response
+
+    async def _execute_select_option(
+        self, command: SelectOptionCommand
+    ) -> CommandResponse:
+        """Execute select_option command — operates on the pending `<select>`."""
+        response = await self._send_prepared_command(command)
+        return response
+
+    async def _execute_upload_file_pending(
+        self, command: UploadFilePendingCommand
+    ) -> CommandResponse:
+        """Execute upload_file_pending command — operates on the pending file input."""
         response = await self._send_prepared_command(command)
         return response
 
@@ -456,6 +508,24 @@ class CommandProcessor:
         self, command: HighlightDropPreviewCommand
     ) -> CommandResponse:
         """Highlight inner elements of a drop container for drag-and-drop 2PC"""
+        return await self._send_prepared_command(command)
+
+    async def _execute_analyze_pixel_targets(
+        self, command: AnalyzePixelTargetsCommand
+    ) -> CommandResponse:
+        """Probe (x, y) for the hit element and nearby interactables."""
+        return await self._send_prepared_command(command)
+
+    async def _execute_render_pixel_confirm(
+        self, command: RenderPixelConfirmCommand
+    ) -> CommandResponse:
+        """Render a zoomed confirmation crop for a pending pixel action."""
+        return await self._send_prepared_command(command)
+
+    async def _execute_clear_pixel_overlay(
+        self, command: ClearPixelOverlayCommand
+    ) -> CommandResponse:
+        """Clear any pixel-confirmation overlay drawn on the page."""
         return await self._send_prepared_command(command)
 
     async def _execute_upload_file(self, command: UploadFileCommand) -> CommandResponse:

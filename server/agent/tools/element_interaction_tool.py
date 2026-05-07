@@ -5,6 +5,9 @@ Click, keyboard input, and select use a two-phase commit (2PC) confirmation
 flow. Hover, scroll, and swipe execute directly.
 """
 
+# Legacy: kept for /ob-routines recording/replay; not exposed to the live agent
+# (which now uses PixelInteractionTool for pure pixel-level mouse/keyboard control).
+
 from collections.abc import Sequence
 from typing import List, Literal, Optional, Union
 

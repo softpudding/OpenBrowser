@@ -219,6 +219,10 @@ export class DebuggerSessionManager {
             console.log(
               `🔧 [DebuggerManager] Tab ${tabId} already attached in session ${conversationId}`,
             );
+            // Re-assert unthrottle: in-page navigation can drop the
+            // emulation flags, so refreshing them on every command is
+            // cheap insurance against a slow background tab.
+            this.unthrottleRenderer(tabId);
             return true;
           }
         }
@@ -313,9 +317,57 @@ export class DebuggerSessionManager {
           console.log(
             `✅ [DebuggerManager] Debugger attached to tab ${tabId} in session ${conversationId}`,
           );
+
+          // The agent's tab usually sits in the background while the user
+          // works in their own foreground tab. Chrome aggressively throttles
+          // background renderers (timers, rAF, transitions, focus-gated
+          // handlers) which makes mouse/keyboard CDP events feel sluggish
+          // even though the input is dispatched promptly. Tell the renderer
+          // it is focused and active so it runs at foreground priority —
+          // both calls are CDP-only and never change OS-level tab focus.
+          this.unthrottleRenderer(tabId);
+
           resolve(true);
         }
       });
+    });
+  }
+
+  /**
+   * Tell the renderer it is focused and active so Chrome doesn't throttle it
+   * while the tab sits in the background. Fire-and-forget — failures are
+   * logged but do not fail the attach.
+   */
+  private unthrottleRenderer(tabId: number): void {
+    const send = (
+      method: string,
+      params: Record<string, unknown>,
+    ): Promise<void> =>
+      new Promise((resolve) => {
+        try {
+          chrome.debugger.sendCommand({ tabId }, method, params, () => {
+            const err = chrome.runtime.lastError;
+            if (err) {
+              console.warn(
+                `⚠️ [DebuggerManager] ${method} on tab ${tabId} failed: ${err.message}`,
+              );
+            }
+            resolve();
+          });
+        } catch (err) {
+          console.warn(
+            `⚠️ [DebuggerManager] ${method} on tab ${tabId} threw:`,
+            err,
+          );
+          resolve();
+        }
+      });
+
+    Promise.all([
+      send('Emulation.setFocusEmulationEnabled', { enabled: true }),
+      send('Page.setWebLifecycleState', { state: 'active' }),
+    ]).catch(() => {
+      /* swallowed — individual calls already logged */
     });
   }
 

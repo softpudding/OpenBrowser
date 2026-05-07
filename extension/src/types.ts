@@ -21,6 +21,10 @@ export interface BaseCommand {
   timestamp?: number;
   tab_id?: number;
   conversation_id?: string; // For multi-session support
+  // When true, the live agent path is active: skip highlight injection and
+  // return a clean screenshot with the virtual cursor. Default false keeps
+  // routine-replay's highlight + element-id behavior.
+  live_mode?: boolean;
 }
 
 export interface MouseMoveCommand extends BaseCommand {
@@ -35,6 +39,21 @@ export interface MouseClickCommand extends BaseCommand {
   button?: MouseButton;
   double?: boolean;
   count?: number;
+  // Optional CSS-pixel target. When provided, the extension pre-moves the
+  // cursor to (x, y) before dispatching the click. When omitted, the click
+  // fires at the cursor's current position.
+  x?: number;
+  y?: number;
+}
+
+export interface MouseDragCommand extends BaseCommand {
+  type: 'mouse_drag';
+  start_x: number;
+  start_y: number;
+  end_x: number;
+  end_y: number;
+  button?: MouseButton;
+  steps?: number;
 }
 
 export interface MouseScrollCommand extends BaseCommand {
@@ -56,6 +75,20 @@ export interface KeyboardPressCommand extends BaseCommand {
   type: 'keyboard_press';
   key: string;
   modifiers?: string[];
+}
+
+export interface KeyboardClearCommand extends BaseCommand {
+  type: 'keyboard_clear';
+}
+
+export interface SelectOptionCommand extends BaseCommand {
+  type: 'select_option';
+  values: string[];
+}
+
+export interface UploadFilePendingCommand extends BaseCommand {
+  type: 'upload_file_pending';
+  paths: string[];
 }
 
 export interface ScreenshotCommand extends BaseCommand {
@@ -270,6 +303,44 @@ export interface HighlightDropPreviewCommand extends BaseCommand {
   tab_id?: number;
 }
 
+export interface AnalyzePixelTargetsCommand extends BaseCommand {
+  type: 'analyze_pixel_targets';
+  /** Click X in CSS pixels (viewport coord). */
+  x: number;
+  /** Click Y in CSS pixels (viewport coord). */
+  y: number;
+  /** Neighborhood radius in CSS pixels around (x, y). Default 30. */
+  radius?: number;
+  /** Max number of nearby candidates to return. Default 5. */
+  candidate_limit?: number;
+}
+
+export interface RenderPixelConfirmCommand extends BaseCommand {
+  type: 'render_pixel_confirm';
+  /** Visual mode for the preview crop. */
+  mode: 'pixel_hit' | 'pixel_miss';
+  /** Click X in CSS pixels. */
+  x: number;
+  /** Click Y in CSS pixels. */
+  y: number;
+  /** Bbox of the hit element in CSS pixels (required for pixel_hit). */
+  target_bbox?: { x: number; y: number; width: number; height: number };
+  /** Bboxes for nearby candidate outlines (used by pixel_miss). */
+  candidate_bboxes?: { x: number; y: number; width: number; height: number }[];
+  /** CSS selector for the hit element (drives in-page DOM overlay). */
+  target_selector?: string;
+  /** CSS selectors for nearby candidates (drive in-page DOM overlay). */
+  candidate_selectors?: string[];
+  /** Banner kind for the in-page confirmation prompt. */
+  banner_kind?: 'click' | 'drag';
+  /** Optional drag end-point in CSS pixels (renders an arrow). */
+  drag_end?: { x: number; y: number };
+}
+
+export interface ClearPixelOverlayCommand extends BaseCommand {
+  type: 'clear_pixel_overlay';
+}
+
 export interface RecordingControlCommand extends BaseCommand {
   type: 'recording_control';
   action: RecordingControlAction;
@@ -294,10 +365,14 @@ export interface GroundedElementsResponse {
 export type Command =
   | MouseMoveCommand
   | MouseClickCommand
+  | MouseDragCommand
   | MouseScrollCommand
   | ResetMouseCommand
   | KeyboardTypeCommand
   | KeyboardPressCommand
+  | KeyboardClearCommand
+  | SelectOptionCommand
+  | UploadFilePendingCommand
   | ScreenshotCommand
   | TabCommand
   | GetTabsCommand
@@ -320,6 +395,9 @@ export type Command =
   | GetElementHtmlCommand
   | HighlightSingleElementCommand
   | HighlightDropPreviewCommand
+  | AnalyzePixelTargetsCommand
+  | RenderPixelConfirmCommand
+  | ClearPixelOverlayCommand
   | RecordingControlCommand;
 
 export interface CommandResponse {

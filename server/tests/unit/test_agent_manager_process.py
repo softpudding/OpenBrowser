@@ -66,7 +66,7 @@ class TestAgentManagerMultiProcessMode:
         assert manager._ipc_router is not None
 
     def test_large_models_keep_core_browser_toolset(self) -> None:
-        """Large models should expose the four browser tools plus general tools."""
+        """Large models expose the pixel-paradigm browser tools plus general tools."""
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
             manager = OpenBrowserAgentManager()
             mock_llm_config.reload_config.return_value = MagicMock()
@@ -83,9 +83,11 @@ class TestAgentManagerMultiProcessMode:
 
         assert tool_names == [
             "tab",
-            "highlight",
-            "element_interaction",
+            "mouse",
+            "keyboard",
             "dialog",
+            "select_option",
+            "upload_file",
             "please_help_me",
             "terminal",
             "file_editor",
@@ -93,7 +95,7 @@ class TestAgentManagerMultiProcessMode:
         ]
 
     def test_small_models_keep_the_same_browser_toolset(self) -> None:
-        """Small models should use the same four browser tools."""
+        """Small models use the same pixel-paradigm browser tools as large models."""
         with patch("server.agent.manager.llm_config_manager") as mock_llm_config:
             manager = OpenBrowserAgentManager()
             mock_llm_config.reload_config.return_value = MagicMock()
@@ -110,9 +112,11 @@ class TestAgentManagerMultiProcessMode:
 
         assert tool_names == [
             "tab",
-            "highlight",
-            "element_interaction",
+            "mouse",
+            "keyboard",
             "dialog",
+            "select_option",
+            "upload_file",
             "please_help_me",
             "terminal",
             "file_editor",

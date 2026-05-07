@@ -9,8 +9,10 @@ from collections.abc import Sequence
 from typing import Any, Dict, List, Optional
 
 from openhands.sdk import Action, ImageContent, Observation, TextContent
+from openhands.sdk.utils.visualize import display_dict
 from pydantic import Field
 from pydantic.json_schema import SkipJsonSchema
+from rich.text import Text
 
 
 def _format_display_id(el: Dict[str, Any]) -> str:
@@ -204,6 +206,33 @@ class OpenBrowserAction(Action):
         exclude=True,
     )
 
+    @property
+    def visualize(self) -> Text:
+        """Render the action so only fields the agent actually set appear.
+
+        The base `Action.visualize` calls `model_dump()` which serializes
+        every field with its default — `text: null`, `key: null`,
+        `start_coordinate: null`, `count: 1`, etc. These pollute the
+        rendered ActionEvent text the SDK persists, condenses, and shows
+        to humans / the compiler agent. Use `model_fields_set` (only the
+        names the LLM emitted) plus `action` (always included so the verb
+        is visible even when defaulted).
+        """
+        content = Text()
+        content.append("Action: ", style="bold")
+        content.append(self.__class__.__name__)
+        content.append("\n\n")
+        content.append("Arguments:", style="bold")
+        include = set(self.model_fields_set)
+        if "action" in self.__class__.model_fields:
+            include.add("action")
+        rendered = self.model_dump(include=include) if include else {}
+        # `kind` is the discriminator the SDK adds — agent never sees or
+        # sets it, so don't display it either.
+        rendered.pop("kind", None)
+        content.append(display_dict(rendered))
+        return content
+
 
 class OpenBrowserObservation(Observation):
     """Base observation returned by OpenBrowser tools after each action.
@@ -286,6 +315,17 @@ class OpenBrowserObservation(Observation):
     small_model: Optional[bool] = Field(
         default=None,
         description="Whether the active conversation uses the small-model profile.",
+    )
+    # Viewport dimensions in CSS pixels at the time of the most recent screenshot.
+    # Surfaced to the model so it can self-correct if it ever drifts away from
+    # the [0,1000] normalized convention or the captured viewport changes.
+    viewport_width: Optional[int] = Field(
+        default=None,
+        description="CSS-pixel viewport width at screenshot time (None if unknown).",
+    )
+    viewport_height: Optional[int] = Field(
+        default=None,
+        description="CSS-pixel viewport height at screenshot time (None if unknown).",
     )
 
     def _pending_confirmation_llm_content(
@@ -397,6 +437,10 @@ class OpenBrowserObservation(Observation):
         # Operation Status Section
         text_parts.append("## Operation Status")
         text_parts.append("")
+        # Viewport size is intentionally not surfaced to the agent — the
+        # server denormalizes [0,1000] coords to real pixels automatically,
+        # so the agent never needs to reason about page dimensions. The
+        # cached vw/vh on the executor still drives that conversion.
         if not self.success:
             text_parts.append(f"**Status**: FAILED")
             text_parts.append(f"**Error**: {self.error}")

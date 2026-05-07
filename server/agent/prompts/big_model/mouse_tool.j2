@@ -1,0 +1,106 @@
+# Mouse Tool
+
+Drive a virtual mouse cursor: move, click, drag, scroll. Every action is a single JSON object passed as the `mouse` tool's arguments.
+
+## Coordinates
+
+Coordinates are 2-element arrays `[x, y]` where `x` and `y` are integers in **[0, 1000]** normalized space:
+
+- `[0, 0]` = top-left of the viewport.
+- `[1000, 1000]` = bottom-right.
+
+Estimate from the screenshot. Aim for the visual center of your target. The system rescales `[0, 1000]` to real pixels.
+
+## The Cursor
+
+A red dot with a pulsing red ring sits inside a white-and-black arrow on the page. **The red dot is the click point.** It appears in every screenshot.
+
+A `click` with `coordinate` moves the cursor there and clicks in one step. A `click` without `coordinate` clicks at the cursor's current position — use that after a `move` when you want a hover effect to fire first.
+
+## Actions
+
+`action` defaults to `"move"` when omitted, so `{ "coordinate": [500, 320] }` slides the cursor to that point.
+
+### move
+Slide the cursor to `coordinate`. The cursor traces an eased path so hover effects (CSS `:hover`, menus, tooltips) fire naturally along the way.
+
+```json
+{ "action": "move", "coordinate": [500, 320] }
+```
+
+### click
+Click on the page.
+
+```json
+{ "action": "click", "coordinate": [612, 318] }
+{ "action": "click" }
+{ "action": "click", "coordinate": [612, 318], "count": 2 }
+{ "action": "click", "coordinate": [612, 318], "button": "right" }
+```
+
+- With `coordinate`: cursor moves there and clicks. Default form for "click this thing".
+- Without `coordinate`: clicks at the cursor's current position. Use after a `move` for hover-then-click flows, or after a gated preview when re-aiming would be wrong.
+- `button`: `"left"` (default), `"right"` (context menu), `"middle"`.
+- `count`: `1` (default), `2` for double-click, `3` for triple-click (text selection).
+
+### drag
+Press at `start_coordinate`, drag to `end_coordinate`, release. One call.
+
+```json
+{ "action": "drag", "start_coordinate": [200, 400], "end_coordinate": [800, 400] }
+```
+
+Use for sliders, kanban moves, marquee selection, drag-and-drop. `steps` (optional, default 10) controls smoothness for DnD libraries that need many intermediate move events.
+
+### confirm
+Commit a pending click or drag that was previewed in the previous response.
+
+```json
+{ "action": "confirm" }
+```
+
+Only valid right after a preview-style observation (zoomed crop with a yellow box or red crosshair). See **Confirmation previews** below.
+
+### scroll
+Scroll at the cursor's current position by `amount` CSS pixels in `direction`. `amount` is always positive — `direction` carries the sign.
+
+```json
+{ "action": "scroll", "direction": "down", "amount": 600 }
+{ "action": "scroll", "direction": "up", "amount": 300 }
+```
+
+`direction`: `"down"`, `"up"`, `"left"`, `"right"`. To scroll inside a specific panel, `move` over it first so the wheel event lands in the right scroll target.
+
+### reset
+Return the cursor to the viewport center.
+
+```json
+{ "action": "reset" }
+```
+
+## Confirmation previews
+
+When `click` or `drag` lands in an area with several interactable controls close together, the next observation is a zoomed crop showing exactly what your coordinate selected. The same outlines are also painted onto the live page DOM, so the screenshot reflects what a human watching the browser would see.
+
+- A **yellow** outline marks the element the click would commit on.
+- **Orange dashed** outlines mark nearby candidates. The message lists each candidate's HTML and center coordinates in `[0, 1000]` space.
+
+Check the yellow-highlighted element. If it matches what you wanted to click (or drag), reply `{ "action": "confirm" }` to commit. If it does not, re-emit `click` (or `drag`) with one of the listed candidate centers as the `coordinate`.
+
+For a drag preview, the same rules apply at each endpoint. `confirm` commits the drag as previewed; otherwise re-emit `drag` with corrected `start_coordinate` and `end_coordinate`.
+
+## Patterns
+
+- **Click a button**: `{ "action": "click", "coordinate": [x, y] }` with the button's center.
+- **Hover-reveal menu**: `{ "action": "move", "coordinate": [x, y] }` over the trigger; the next screenshot shows the menu open. Then `{ "action": "click" }` (no coords) on the revealed item — or `click` with the item's coords directly.
+- **Scroll to find something**: `{ "action": "scroll", "direction": "down", "amount": 600 }`, then check the new screenshot. Repeat as needed.
+- **Drag a slider**: one `drag` from the handle's current position to the target.
+- **Right-click for context menu**: `{ "action": "click", "coordinate": [x, y], "button": "right" }`.
+- **Double-click**: `{ "action": "click", "coordinate": [x, y], "count": 2 }`.
+
+## Notes
+
+- One action per turn. The next observation reflects the post-action state.
+- The cursor position persists across actions — it stays where you last left it until the next `move` or coordinate-form `click`.
+- If a target isn't in the viewport, `scroll` to bring it in view before pointing at it.
+- If a confirm/prompt dialog opens, handle it with the dialog tool before the next mouse action.

@@ -210,7 +210,9 @@ class TestPromptContracts:
 
         assert "tab view" in description
         assert "clean screenshot" in description.lower()
-        assert 'default `highlight` `element_type: "any"` page 1' in description
+        # Pixel paradigm: tab actions return a clean screenshot with the
+        # virtual cursor visible — no highlight overlay step required.
+        assert "virtual cursor visible" in description
 
     def test_element_interaction_prompt_requires_click_before_keyboard_input(
         self,

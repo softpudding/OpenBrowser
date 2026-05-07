@@ -4,6 +4,8 @@
  * Inspired by MANUS Chrome Plugin design
  */
 
+import { clearCursorPosition } from './virtual-cursor';
+
 // Tab group constants
 const TAB_GROUP_NAME = 'OpenBrowser';
 const TAB_GROUP_COLOR = 'grey' as chrome.tabGroups.Color;
@@ -855,6 +857,10 @@ export class TabManager {
   private setupListeners(): void {
     // Listen for tab removal
     chrome.tabs.onRemoved.addListener((tabId) => {
+      // Drop any cached virtual-cursor position for this tab so the entry
+      // doesn't outlive the tab.
+      clearCursorPosition(tabId);
+
       // Find which session this tab belongs to
       for (const [conversationId, session] of this.sessions.entries()) {
         if (session.managedTabs.has(tabId)) {

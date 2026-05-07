@@ -93,11 +93,17 @@ class OpenBrowserAgentManager:
         else:
             logger.info("AgentManager initialized in single-process mode")
 
+        # The agent drives the browser like a human, with a virtual mouse,
+        # keyboard, and screenshots — same toolset for fresh tasks and routine
+        # replay. The legacy highlight + element_interaction tools live on
+        # disk for non-agent flows (recording tooling) but are not exposed.
         self.browser_tools = [
             Tool(name="tab"),  # Tab management
-            Tool(name="highlight"),  # Element discovery with visual overlays
-            Tool(name="element_interaction"),  # Click/input with 2PC, others direct
+            Tool(name="mouse"),  # Virtual mouse: move/click/drag/scroll/reset
+            Tool(name="keyboard"),  # Virtual keyboard: type/press
             Tool(name="dialog"),  # Browser dialog handling
+            Tool(name="select_option"),  # Pick from a native <select>
+            Tool(name="upload_file"),  # Attach files to <input type=file>
         ]
         self.general_tools = [
             Tool(name=PLEASE_HELP_ME_TOOL_NAME),
@@ -134,9 +140,17 @@ class OpenBrowserAgentManager:
         return model_to_use, base_url_to_use, selected_llm
 
     def _get_tools_for_model(
-        self, model: Optional[str] = None, model_alias: Optional[str] = None
+        self,
+        model: Optional[str] = None,
+        model_alias: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> list[Tool]:
-        """Return the tool list for a model tier."""
+        """Return the tool list for a model tier.
+
+        ``mode`` is accepted for back-compat but no longer changes the
+        toolset — every conversation, including routine replay, uses the
+        pixel paradigm.
+        """
         self._resolve_llm_settings(model=model, model_alias=model_alias)
         return list(self.browser_tools) + list(self.general_tools)
 
@@ -328,7 +342,7 @@ class OpenBrowserAgentManager:
         # Create agent with tools
         agent_context = self._build_agent_context()
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
-        tools = self._get_tools_for_model(model, model_alias)
+        tools = self._get_tools_for_model(model, model_alias, mode)
         tool_image_window = get_context_image_window(
             routine_replay=self._is_routine_replay_mode(mode)
         )
@@ -577,7 +591,7 @@ class OpenBrowserAgentManager:
         # Create agent with tools
         agent_context = self._build_agent_context()
         llm_instance = self._create_llm_from_config(model, base_url, model_alias)
-        tools = self._get_tools_for_model(model, model_alias)
+        tools = self._get_tools_for_model(model, model_alias, mode)
         tool_image_window = get_context_image_window(
             routine_replay=self._is_routine_replay_mode(mode)
         )

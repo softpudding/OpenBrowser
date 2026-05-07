@@ -96,7 +96,15 @@ async def execute_command(command_data: dict):
 
 @router.post("/mouse/move")
 async def mouse_move(x: int, y: int, browser_id: str, duration: float = 0.1):
-    """Move mouse to absolute position in preset coordinate system (0-1280, 0-720)"""
+    """Move mouse to an absolute CSS-pixel position in the live viewport.
+
+    `x` and `y` are CSS pixels with `x, y >= 0`. The extension clamps to the
+    live viewport before dispatch, so callers don't need to know the exact
+    viewport size — but values should be within plausible browser dimensions
+    (e.g. up to 4K). The legacy 0-1280/0-720 cap is no longer enforced now
+    that the live agent path uses Qwen-VL [0,1000] coords with server-side
+    denormalization (see `BrowserExecutor._denormalize_xy`).
+    """
     command = {
         "type": "mouse_move",
         "x": x,
