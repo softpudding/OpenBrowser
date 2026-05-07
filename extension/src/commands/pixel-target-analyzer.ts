@@ -171,8 +171,12 @@ export async function analyzePixelTargets(
   // center is hundreds of pixels away — useless guidance for course
   // correction. The hit element (smallest containing) is reported on its
   // own; everything else must be a true outside-but-close neighbor.
-  const isOutside = (b: { x: number; y: number; width: number; height: number }) =>
-    x < b.x || x > b.x + b.width || y < b.y || y > b.y + b.height;
+  const isOutside = (b: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => x < b.x || x > b.x + b.width || y < b.y || y > b.y + b.height;
 
   // Two distinct distance metrics, each with its own threshold:
   //

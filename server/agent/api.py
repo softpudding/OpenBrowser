@@ -508,6 +508,7 @@ def initialize_agent():
         from .tools.keyboard_tool import KeyboardTool
         from .tools.select_option_tool import SelectOptionTool  # noqa: F401
         from .tools.upload_file_tool import UploadFileTool  # noqa: F401
+
         # Imported for legacy tooling (routine recording) — not registered
         # for the live agent.
         from .tools.highlight_tool import HighlightTool  # noqa: F401

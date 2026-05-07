@@ -1869,21 +1869,17 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         await tabManager.ensureTabManaged(activeTabId, conversationId);
         tabManager.updateTabActivity(activeTabId, conversationId);
 
-        const rendered = await renderPixelConfirm(
-          activeTabId,
-          conversationId,
-          {
-            mode: command.mode,
-            x: command.x,
-            y: command.y,
-            target_bbox: command.target_bbox,
-            candidate_bboxes: command.candidate_bboxes,
-            target_selector: command.target_selector,
-            candidate_selectors: command.candidate_selectors,
-            banner_kind: command.banner_kind,
-            drag_end: command.drag_end,
-          },
-        );
+        const rendered = await renderPixelConfirm(activeTabId, conversationId, {
+          mode: command.mode,
+          x: command.x,
+          y: command.y,
+          target_bbox: command.target_bbox,
+          candidate_bboxes: command.candidate_bboxes,
+          target_selector: command.target_selector,
+          candidate_selectors: command.candidate_selectors,
+          banner_kind: command.banner_kind,
+          drag_end: command.drag_end,
+        });
 
         return {
           success: true,

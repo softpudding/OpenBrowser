@@ -98,9 +98,10 @@ function unionBbox(boxes: BBox[]): BBox {
   return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
 }
 
-function chooseCropCenter(
-  request: PixelConfirmRenderRequest,
-): { center: PointXY; focusBbox: BBox } {
+function chooseCropCenter(request: PixelConfirmRenderRequest): {
+  center: PointXY;
+  focusBbox: BBox;
+} {
   if (request.mode === 'pixel_hit' && request.target_bbox) {
     const focus = request.drag_end
       ? unionBbox([
@@ -461,22 +462,18 @@ export async function renderPixelConfirm(
       : 0;
 
   const [, base64] = screenshotDataUrl.split(',');
-  const header = screenshotDataUrl.slice(
-    0,
-    screenshotDataUrl.indexOf(','),
+  const header = screenshotDataUrl.slice(0, screenshotDataUrl.indexOf(','));
+  const mimeType = header.substring(
+    header.indexOf(':') + 1,
+    header.indexOf(';'),
   );
-  const mimeType = header.substring(header.indexOf(':') + 1, header.indexOf(';'));
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const bitmap = await createImageBitmap(
-    new Blob([bytes], { type: mimeType }),
-  );
+  const bitmap = await createImageBitmap(new Blob([bytes], { type: mimeType }));
 
-  const actualScaleX =
-    viewportWidth > 0 ? bitmap.width / viewportWidth : 1;
-  const actualScaleY =
-    viewportHeight > 0 ? bitmap.height / viewportHeight : 1;
+  const actualScaleX = viewportWidth > 0 ? bitmap.width / viewportWidth : 1;
+  const actualScaleY = viewportHeight > 0 ? bitmap.height / viewportHeight : 1;
   const scale = (actualScaleX + actualScaleY) / 2 || 1;
 
   const crop = calculateCrop(bitmap.width, bitmap.height, scale, request);
@@ -549,12 +546,12 @@ export async function renderPixelConfirm(
   const compressed =
     typeof compressedRaw === 'string'
       ? compressedRaw
-      : (compressedRaw &&
+      : compressedRaw &&
           typeof compressedRaw === 'object' &&
           'imageData' in compressedRaw &&
           typeof compressedRaw.imageData === 'string'
-          ? compressedRaw.imageData
-          : dataUrl);
+        ? compressedRaw.imageData
+        : dataUrl;
 
   return {
     screenshot_data_url: compressed,

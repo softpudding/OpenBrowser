@@ -45,17 +45,13 @@ class UploadFileAction(OpenBrowserAction):
     )
 
 
-class UploadFileTool(
-    ToolDefinition[UploadFileAction, OpenBrowserObservation]
-):
+class UploadFileTool(ToolDefinition[UploadFileAction, OpenBrowserObservation]):
     """Upload file(s) to a native file input after clicking it."""
 
     name = "upload_file"
 
     @classmethod
-    def create(
-        cls, conv_state, terminal_executor=None
-    ) -> Sequence["UploadFileTool"]:
+    def create(cls, conv_state, terminal_executor=None) -> Sequence["UploadFileTool"]:
         if terminal_executor is not None:
             executor = terminal_executor
         else:

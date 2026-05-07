@@ -91,7 +91,9 @@ class TestTabTool:
 
         assert "tab view" in description
         assert "clean screenshot" in description.lower()
-        assert 'default `highlight` `element_type: "any"` page 1' in description
+        # Pixel paradigm: tab actions return a clean screenshot with the
+        # virtual cursor visible — replaces the prior highlight pagination.
+        assert "virtual cursor visible" in description
         assert "tab back" in description
         assert "tab forward" in description
 

@@ -318,9 +318,7 @@ class CommandProcessor:
         response = await self._send_prepared_command(command)
         return response
 
-    async def _execute_mouse_drag(
-        self, command: MouseDragCommand
-    ) -> CommandResponse:
+    async def _execute_mouse_drag(self, command: MouseDragCommand) -> CommandResponse:
         """Execute mouse drag command"""
         response = await self._send_prepared_command(command)
         return response

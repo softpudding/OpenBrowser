@@ -50,17 +50,13 @@ class SelectOptionAction(OpenBrowserAction):
     )
 
 
-class SelectOptionTool(
-    ToolDefinition[SelectOptionAction, OpenBrowserObservation]
-):
+class SelectOptionTool(ToolDefinition[SelectOptionAction, OpenBrowserObservation]):
     """Pick from a native `<select>` after clicking it."""
 
     name = "select_option"
 
     @classmethod
-    def create(
-        cls, conv_state, terminal_executor=None
-    ) -> Sequence["SelectOptionTool"]:
+    def create(cls, conv_state, terminal_executor=None) -> Sequence["SelectOptionTool"]:
         if terminal_executor is not None:
             executor = terminal_executor
         else:

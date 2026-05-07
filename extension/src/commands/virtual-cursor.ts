@@ -190,9 +190,7 @@ export async function resolveCursorOrCenter(
       0,
     );
     const value = (probe as { result?: { value?: unknown } } | undefined)
-      ?.result?.value as
-      | { width?: number; height?: number }
-      | undefined;
+      ?.result?.value as { width?: number; height?: number } | undefined;
     const w =
       typeof value?.width === 'number' && value.width > 0 ? value.width : 1280;
     const h =

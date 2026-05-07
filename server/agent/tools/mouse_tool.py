@@ -31,9 +31,7 @@ def get_mouse_tool_description(conv_state=None) -> str:
     )
 
 
-MouseActionKind = Literal[
-    "move", "click", "drag", "scroll", "reset", "confirm"
-]
+MouseActionKind = Literal["move", "click", "drag", "scroll", "reset", "confirm"]
 
 
 def _validate_coordinate_pair(v: Optional[List[int]]) -> Optional[List[int]]:
@@ -55,9 +53,7 @@ def _validate_coordinate_pair(v: Optional[List[int]]) -> Optional[List[int]]:
             try:
                 n = int(n)
             except (TypeError, ValueError):
-                raise ValueError(
-                    f"coordinate[{i}] must be an integer in [0, 1000]"
-                )
+                raise ValueError(f"coordinate[{i}] must be an integer in [0, 1000]")
         if n < 0 or n > 1000:
             raise ValueError(
                 f"coordinate[{i}] = {n} is outside [0, 1000] normalized space"
@@ -84,7 +80,7 @@ class MouseAction(OpenBrowserAction):
             "cursor there and click in one step; omit `coordinate` to click "
             "at the cursor's current position (use this after a 'move' for a "
             "hover-then-click flow). `count: 2` double-clicks, `count: 3` "
-            "triple-clicks. `button: \"right\"` opens the context menu. "
+            'triple-clicks. `button: "right"` opens the context menu. '
             "'drag' — press at `start_coordinate`, drag to `end_coordinate`, "
             "release. "
             "'scroll' — scroll at the cursor position by `amount` in "
@@ -119,9 +115,7 @@ class MouseAction(OpenBrowserAction):
         ),
     )
 
-    @field_validator(
-        "coordinate", "start_coordinate", "end_coordinate", mode="before"
-    )
+    @field_validator("coordinate", "start_coordinate", "end_coordinate", mode="before")
     @classmethod
     def _check_coord(cls, v):
         return _validate_coordinate_pair(v)

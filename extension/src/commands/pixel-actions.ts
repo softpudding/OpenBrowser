@@ -79,12 +79,12 @@ async function getViewport(
       0,
     );
     const value = probe?.result?.value;
-    const w = typeof value?.width === 'number' && value.width > 0
-      ? value.width
-      : 1280;
-    const h = typeof value?.height === 'number' && value.height > 0
-      ? value.height
-      : 720;
+    const w =
+      typeof value?.width === 'number' && value.width > 0 ? value.width : 1280;
+    const h =
+      typeof value?.height === 'number' && value.height > 0
+        ? value.height
+        : 720;
     return { width: w, height: h };
   } catch {
     return { width: 1280, height: 720 };
@@ -515,10 +515,7 @@ async function detectNativeFormControl(
     );
     return res?.result?.value ?? null;
   } catch (err) {
-    console.warn(
-      '[PixelActions] Native form-control hit-test failed:',
-      err,
-    );
+    console.warn('[PixelActions] Native form-control hit-test failed:', err);
     return null;
   }
 }
@@ -788,7 +785,10 @@ export async function performMouseScroll(
 // a time — feels like a human typing and lets per-character JS handlers
 // (autocomplete, validation) react in order. Anything outside this map
 // (CJK, emoji, accented Latin, etc.) falls through to `Input.insertText`.
-const SHIFT_PUNCT: Record<string, { key: string; code: string; keyCode: number }> = {
+const SHIFT_PUNCT: Record<
+  string,
+  { key: string; code: string; keyCode: number }
+> = {
   '!': { key: '!', code: 'Digit1', keyCode: 49 },
   '@': { key: '@', code: 'Digit2', keyCode: 50 },
   '#': { key: '#', code: 'Digit3', keyCode: 51 },
@@ -811,7 +811,10 @@ const SHIFT_PUNCT: Record<string, { key: string; code: string; keyCode: number }
   '?': { key: '?', code: 'Slash', keyCode: 191 },
   '~': { key: '~', code: 'Backquote', keyCode: 192 },
 };
-const PLAIN_PUNCT: Record<string, { key: string; code: string; keyCode: number }> = {
+const PLAIN_PUNCT: Record<
+  string,
+  { key: string; code: string; keyCode: number }
+> = {
   '`': { key: '`', code: 'Backquote', keyCode: 192 },
   '-': { key: '-', code: 'Minus', keyCode: 189 },
   '=': { key: '=', code: 'Equal', keyCode: 187 },
@@ -1118,13 +1121,10 @@ export async function performKeyboardClear(
     return { cleared: false, reason: 'focused element is not editable: ' + describe() };
   })()`;
   const resp = await cdp.sendCommand<{
-    result?: { value?: { cleared?: boolean; target?: string; reason?: string } };
-  }>(
-    'Runtime.evaluate',
-    { expression: expr, returnByValue: true },
-    8000,
-    0,
-  );
+    result?: {
+      value?: { cleared?: boolean; target?: string; reason?: string };
+    };
+  }>('Runtime.evaluate', { expression: expr, returnByValue: true }, 8000, 0);
   const value = resp?.result?.value || {};
   return {
     cleared: !!value.cleared,
@@ -1234,12 +1234,9 @@ export async function performSelectOption(
     return { ok: true, selected: matched };
   })(${JSON.stringify(values)})`;
   try {
-    const r = await cdp.sendCommand<{ result?: { value?: SelectOptionResult } }>(
-      'Runtime.evaluate',
-      { expression: expr, returnByValue: true },
-      8000,
-      0,
-    );
+    const r = await cdp.sendCommand<{
+      result?: { value?: SelectOptionResult };
+    }>('Runtime.evaluate', { expression: expr, returnByValue: true }, 8000, 0);
     return r?.result?.value ?? { ok: false, error: 'no_result' };
   } catch (err) {
     return {

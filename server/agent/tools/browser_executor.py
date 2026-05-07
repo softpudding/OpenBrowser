@@ -342,10 +342,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             rejected_pixel_candidates: list = []
             if should_clear:
                 pending = self._get_pending_confirmation()
-                if (
-                    pending
-                    and pending.get("action_type")
-                    in ("mouse_click_pixel", "mouse_drag_pixel")
+                if pending and pending.get("action_type") in (
+                    "mouse_click_pixel",
+                    "mouse_drag_pixel",
                 ):
                     cands = (pending.get("extra_data") or {}).get("candidates")
                     if isinstance(cands, list):
@@ -379,10 +378,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             # agent has them fresh when course-correcting. Skip if the new
             # action triggered its own pixel gate (its message already
             # contains a fresh candidates block).
-            if (
-                rejected_pixel_candidates
-                and getattr(obs, "success", False)
-            ):
+            if rejected_pixel_candidates and getattr(obs, "success", False):
                 new_pending = self._get_pending_confirmation()
                 new_is_pixel_gate = bool(
                     new_pending
@@ -1127,9 +1123,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
     PIXEL_GATE_RADIUS_CSS = 30
     PIXEL_GATE_CANDIDATE_LIMIT = 5
 
-    def _gate_pixel_target(
-        self, x_css: int, y_css: int
-    ) -> Optional[Dict[str, Any]]:
+    def _gate_pixel_target(self, x_css: int, y_css: int) -> Optional[Dict[str, Any]]:
         """Probe (x, y) for the hit element + nearby interactables.
 
         Returns the analysis dict from the extension on success, or None if
@@ -1275,9 +1269,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             cx = cn.get("x")
             cy = cn.get("y")
             if cx is not None and cy is not None:
-                element_lines[0] = (
-                    f"{element_lines[0]}  → center=({cx}, {cy})"
-                )
+                element_lines[0] = f"{element_lines[0]}  → center=({cx}, {cy})"
             lines.extend(element_lines)
         return "\n".join(lines)
 
@@ -1419,14 +1411,16 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             c["bbox"] for c in neighborhood if isinstance(c.get("bbox"), dict)
         ]
         candidate_selectors = [
-            c.get("selector") for c in neighborhood
+            c.get("selector")
+            for c in neighborhood
             if isinstance(c.get("selector"), str)
         ]
         target_bbox = (
             hit.get("bbox") if hit and isinstance(hit.get("bbox"), dict) else None
         )
         target_selector = (
-            hit.get("selector") if hit and isinstance(hit.get("selector"), str)
+            hit.get("selector")
+            if hit and isinstance(hit.get("selector"), str)
             else None
         )
 
@@ -1507,12 +1501,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         focus_neighborhood = (focus_gate or {}).get("neighborhood") or []
         candidates = self._serialize_pixel_candidates(focus_neighborhood, vw, vh)
         candidate_bboxes = [
-            c["bbox"]
-            for c in focus_neighborhood
-            if isinstance(c.get("bbox"), dict)
+            c["bbox"] for c in focus_neighborhood if isinstance(c.get("bbox"), dict)
         ]
         candidate_selectors = [
-            c.get("selector") for c in focus_neighborhood
+            c.get("selector")
+            for c in focus_neighborhood
             if isinstance(c.get("selector"), str)
         ]
         target_bbox = (
@@ -1618,17 +1611,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     )
                 elif self._click_was_a_no_op(result_dict):
                     serialized = extra.get("candidates") or []
-                    message += self._format_no_op_warning_from_candidates(
-                        serialized
-                    )
+                    message += self._format_no_op_warning_from_candidates(serialized)
                     # Same overlay as the direct-click path so the live
                     # page visually surfaces the candidates the agent was
                     # given as alternatives.
                     px, py = extra.get("px"), extra.get("py")
                     if isinstance(px, int) and isinstance(py, int):
-                        self._draw_no_op_overlay_from_serialized(
-                            (px, py), serialized
-                        )
+                        self._draw_no_op_overlay_from_serialized((px, py), serialized)
                 return self._build_observation_from_result(result_dict, message)
 
             if action_type == "mouse_drag_pixel":
@@ -1639,9 +1628,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 button = extra.get("button", "left")
                 steps = int(extra.get("steps", 10))
                 if None in (sx, sy, ex, ey):
-                    raise ValueError(
-                        "Pending drag is missing endpoint coordinates."
-                    )
+                    raise ValueError("Pending drag is missing endpoint coordinates.")
                 command = MouseDragCommand(
                     start_x=int(sx),
                     start_y=int(sy),
@@ -1668,17 +1655,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 small_model=self._uses_small_model(),
             )
         except Exception as e:
-            logger.error(
-                "Failed to commit pending pixel action: %s", e, exc_info=True
-            )
+            logger.error("Failed to commit pending pixel action: %s", e, exc_info=True)
             self._clear_pending_confirmation()
             return OpenBrowserObservation(
                 success=False, error=str(e), small_model=self._uses_small_model()
             )
 
-    def _execute_mouse_action(
-        self, action: MouseAction
-    ) -> OpenBrowserObservation:
+    def _execute_mouse_action(self, action: MouseAction) -> OpenBrowserObservation:
         """Execute one mouse action (move/click/drag/scroll/reset).
 
         Coordinates from Qwen models are in [0, 1000] normalized space and are
@@ -1696,9 +1679,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         try:
             if kind == "move":
                 if not action.coordinate:
-                    raise ValueError(
-                        "mouse move requires `coordinate: [x, y]`"
-                    )
+                    raise ValueError("mouse move requires `coordinate: [x, y]`")
                 px, py = self._denormalize_xy(
                     action.coordinate[0], action.coordinate[1]
                 )
@@ -1734,11 +1715,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     if cursor is not None
                     else None
                 )
-                if (
-                    gate
-                    and gate.get("verdict") == "dense"
-                    and cursor is not None
-                ):
+                if gate and gate.get("verdict") == "dense" and cursor is not None:
                     return self._gate_pixel_click(action, cursor, gate)
 
                 command = MouseClickCommand(
@@ -1750,12 +1727,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 result_dict = self._execute_command_sync(command)
                 cx, cy = cursor or (None, None)
                 where = (
-                    f"({cx}, {cy})" if cx is not None and cy is not None
+                    f"({cx}, {cy})"
+                    if cx is not None and cy is not None
                     else "the cursor"
                 )
-                count_note = (
-                    f", count={action.count}" if action.count != 1 else ""
-                )
+                count_note = f", count={action.count}" if action.count != 1 else ""
                 message = f"Clicked {action.button} at {where}{count_note}."
                 intercepted = self._extract_intercepted_form_control(result_dict)
                 if intercepted:
@@ -1786,12 +1762,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
 
                 start_gate = self._gate_pixel_target(sx, sy)
                 end_gate = self._gate_pixel_target(ex, ey)
-                start_dense = bool(
-                    start_gate and start_gate.get("verdict") == "dense"
-                )
-                end_dense = bool(
-                    end_gate and end_gate.get("verdict") == "dense"
-                )
+                start_dense = bool(start_gate and start_gate.get("verdict") == "dense")
+                end_dense = bool(end_gate and end_gate.get("verdict") == "dense")
                 if start_dense or end_dense:
                     return self._gate_pixel_drag(
                         action,
@@ -1832,9 +1804,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
 
             if kind == "reset":
-                command = ResetMouseCommand(
-                    conversation_id=self.conversation_id
-                )
+                command = ResetMouseCommand(conversation_id=self.conversation_id)
                 result_dict = self._execute_command_sync(command)
                 viewport = self._get_viewport()
                 if viewport is not None:
@@ -1869,9 +1839,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
                 result_dict = self._execute_command_sync(command)
                 preview = (
-                    action.text
-                    if len(action.text) <= 32
-                    else action.text[:29] + "..."
+                    action.text if len(action.text) <= 32 else action.text[:29] + "..."
                 )
                 return self._build_observation_from_result(
                     result_dict, f"Typed text: {preview!r}"
@@ -1887,9 +1855,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
                 result_dict = self._execute_command_sync(command)
                 mod_text = (
-                    f" with {'+'.join(action.modifiers)}"
-                    if action.modifiers
-                    else ""
+                    f" with {'+'.join(action.modifiers)}" if action.modifiers else ""
                 )
                 return self._build_observation_from_result(
                     result_dict, f"Pressed {action.key}{mod_text}"
@@ -1924,9 +1890,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
 
             raise ValueError(f"Unknown keyboard action: {kind}")
         except Exception as e:
-            logger.error(
-                f"Keyboard action failed (kind={kind}): {e}", exc_info=True
-            )
+            logger.error(f"Keyboard action failed (kind={kind}): {e}", exc_info=True)
             return OpenBrowserObservation(
                 success=False, error=str(e), small_model=self._uses_small_model()
             )
@@ -2009,9 +1973,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         except Exception as e:
             logger.debug("no-op overlay render failed: %s", e)
 
-    def _format_no_op_warning(
-        self, gate: Optional[Dict[str, Any]]
-    ) -> str:
+    def _format_no_op_warning(self, gate: Optional[Dict[str, Any]]) -> str:
         """Warning text for a click that committed but produced no DOM change.
 
         When `gate` carries a neighborhood from the pixel-target probe, the
@@ -2032,9 +1994,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             candidates = self._serialize_pixel_candidates(neighborhood, vw, vh)
         return self._format_no_op_warning_from_candidates(candidates)
 
-    def _format_no_op_warning_from_candidates(
-        self, candidates: list
-    ) -> str:
+    def _format_no_op_warning_from_candidates(self, candidates: list) -> str:
         """Render the no-op warning + candidate block from pre-serialized data."""
         lines = [
             "",
@@ -2591,11 +2551,15 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     if raw_vw is None or raw_vh is None:
                         meta = data.get("metadata")
                         if isinstance(meta, dict):
-                            raw_vw = raw_vw if raw_vw is not None else meta.get(
-                                "viewportWidth"
+                            raw_vw = (
+                                raw_vw
+                                if raw_vw is not None
+                                else meta.get("viewportWidth")
                             )
-                            raw_vh = raw_vh if raw_vh is not None else meta.get(
-                                "viewportHeight"
+                            raw_vh = (
+                                raw_vh
+                                if raw_vh is not None
+                                else meta.get("viewportHeight")
                             )
                     if isinstance(raw_vw, (int, float)) and isinstance(
                         raw_vh, (int, float)
