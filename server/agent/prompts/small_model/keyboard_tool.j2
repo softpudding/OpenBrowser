@@ -28,7 +28,7 @@ Common keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `ArrowUp`/`Down`/`
 Modifiers: `Control`, `Shift`, `Alt`, `Meta` (Cmd on macOS).
 
 ### clear
-Select-all + delete the contents of the focused field. Use before overwriting a field that already has text.
+Empty the focused field. Works on `<input>`, `<textarea>`, and contenteditable widgets. The result tells you whether the field actually ended up empty — if not, click into the field first and try again.
 ```json
 { "action": "clear" }
 ```

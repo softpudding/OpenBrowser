@@ -48,6 +48,7 @@ from server.models.commands import (
     MouseScrollCommand,
     KeyboardTypeCommand,
     KeyboardPressCommand,
+    KeyboardClearCommand,
     ResetMouseCommand,
     SelectOptionCommand,
     UploadFilePendingCommand,
@@ -1894,26 +1895,31 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
 
             if kind == "clear":
-                # Clear == select-all then Backspace. Two press commands
-                # so each fires its own event sequence on the focused
-                # element. Done at the wire level via two
-                # KeyboardPressCommands so behavior matches what the
-                # agent would have manually scripted.
-                first = KeyboardPressCommand(
-                    key="a",
-                    modifiers=["Control"],
+                # JS-based clear on document.activeElement: set value /
+                # textContent to empty and dispatch input + change events.
+                # Reports SUCCESS only when the focused element actually
+                # ended up empty. The previous select-all + Backspace path
+                # used Ctrl+A which silently no-ops on macOS where Cmd is
+                # the select-all modifier, leaving stale text in the field.
+                command = KeyboardClearCommand(
                     conversation_id=self.conversation_id,
                 )
-                self._execute_command_sync(first)
-                second = KeyboardPressCommand(
-                    key="Backspace",
-                    modifiers=[],
-                    conversation_id=self.conversation_id,
-                )
-                result_dict = self._execute_command_sync(second)
-                return self._build_observation_from_result(
-                    result_dict, "Cleared focused field (select-all + Backspace)"
-                )
+                result_dict = self._execute_command_sync(command)
+                detail = (result_dict or {}).get("data", {}) or {}
+                cleared = bool(detail.get("cleared"))
+                target = detail.get("target") or "focused field"
+                if cleared:
+                    msg = f"Cleared {target}"
+                else:
+                    reason = detail.get("reason") or "no editable element focused"
+                    msg = (
+                        f"Clear had no effect ({reason}). "
+                        "Click into the field first, then clear."
+                    )
+                obs = self._build_observation_from_result(result_dict, msg)
+                if not cleared:
+                    obs.success = False
+                return obs
 
             raise ValueError(f"Unknown keyboard action: {kind}")
         except Exception as e:

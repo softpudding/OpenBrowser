@@ -109,14 +109,23 @@ function clampToViewport(
 }
 
 /**
- * No-op click detection via MutationObserver.
+ * No-op click detection.
  *
- * A snapshot/diff probe (URL, title, active-element, body-text length,
- * dialog count) misses common interactions that only flip a CSS class
- * or toggle an aria attribute — e.g. tapping a like-heart on Xiaohongshu
- * changes the SVG color and `aria-pressed` but no body text, no URL.
- * Counting DOM mutations during the click window catches those: any
- * non-cursor-sprite mutation means the click did *something*.
+ * A snapshot/diff probe (URL, title, body-text length, dialog count)
+ * misses common interactions that only flip a CSS class or toggle an
+ * aria attribute — e.g. tapping a like-heart on Xiaohongshu changes the
+ * SVG color and `aria-pressed` but no body text, no URL. So a
+ * MutationObserver counts DOM mutations during the click window.
+ *
+ * But pure-focus / scroll / selection changes are NOT DOM mutations:
+ *   - clicking into an `<input>` only flips `:focus` (a CSS state) and
+ *     updates `document.activeElement`, neither of which mutates the
+ *     tree
+ *   - clicking an anchor link can scroll the document without mutating
+ *   - clicking inside text moves the caret / selection
+ * The probe also captures activeElement / scrollY / selection at arm
+ * time and compares at read time so any of those changes counts as
+ * "the click did something."
  *
  * Mutations on the agent's injected cursor sprite are filtered out so
  * `refreshCursor` running between the click and the read does not
@@ -154,6 +163,28 @@ const ARM_MUTATION_OBSERVER_SCRIPT = `
         characterData: true,
       });
       w.__ob_click_obs__ = obs;
+      // Capture before-state for focus / scroll / selection so the read
+      // can detect changes that don't trip the MutationObserver.
+      w.__ob_click_active_before__ = document.activeElement;
+      const se = document.scrollingElement || document.documentElement;
+      w.__ob_click_scroll_before__ = {
+        x: (se && se.scrollLeft) || w.scrollX || 0,
+        y: (se && se.scrollTop) || w.scrollY || 0,
+      };
+      try {
+        const sel = w.getSelection && w.getSelection();
+        w.__ob_click_selection_before__ = sel
+          ? {
+              anchorNode: sel.anchorNode,
+              anchorOffset: sel.anchorOffset,
+              focusNode: sel.focusNode,
+              focusOffset: sel.focusOffset,
+              isCollapsed: sel.isCollapsed,
+            }
+          : null;
+      } catch (_) {
+        w.__ob_click_selection_before__ = null;
+      }
       return { armed: true };
     } catch (e) {
       return { armed: false, error: String(e) };
@@ -168,10 +199,46 @@ const READ_MUTATION_OBSERVER_SCRIPT = `
       const obs = w.__ob_click_obs__;
       if (!obs) return { mutations: -1 };
       try { obs.disconnect(); } catch (_) {}
-      const c = w.__ob_click_mutations__ || 0;
+      const mutations = w.__ob_click_mutations__ || 0;
+      const beforeActive = w.__ob_click_active_before__ || null;
+      const beforeScroll = w.__ob_click_scroll_before__ || { x: 0, y: 0 };
+      const beforeSel = w.__ob_click_selection_before__ || null;
+      const afterActive = document.activeElement;
+      // Treat <body>/null transitions as a no-op (they fire spuriously
+      // during page lifecycle); a real focus change is between two
+      // distinct elements where at least one isn't body/html/null.
+      const trivial = (n) => !n || n === document.body || n === document.documentElement;
+      const activeChanged = afterActive !== beforeActive
+        && !(trivial(beforeActive) && trivial(afterActive));
+      const se = document.scrollingElement || document.documentElement;
+      const ax = (se && se.scrollLeft) || w.scrollX || 0;
+      const ay = (se && se.scrollTop) || w.scrollY || 0;
+      const scrollChanged = ax !== beforeScroll.x || ay !== beforeScroll.y;
+      let selectionChanged = false;
+      try {
+        const sel = w.getSelection && w.getSelection();
+        if (sel && beforeSel) {
+          selectionChanged =
+            sel.anchorNode !== beforeSel.anchorNode ||
+            sel.anchorOffset !== beforeSel.anchorOffset ||
+            sel.focusNode !== beforeSel.focusNode ||
+            sel.focusOffset !== beforeSel.focusOffset ||
+            sel.isCollapsed !== beforeSel.isCollapsed;
+        } else if (sel && !beforeSel) {
+          selectionChanged = !sel.isCollapsed || !!sel.anchorNode;
+        }
+      } catch (_) {}
       delete w.__ob_click_obs__;
       delete w.__ob_click_mutations__;
-      return { mutations: c };
+      delete w.__ob_click_active_before__;
+      delete w.__ob_click_scroll_before__;
+      delete w.__ob_click_selection_before__;
+      return {
+        mutations,
+        active_changed: activeChanged,
+        scroll_changed: scrollChanged,
+        selection_changed: selectionChanged,
+      };
     } catch (e) {
       return { mutations: -1, error: String(e) };
     }
@@ -198,10 +265,17 @@ async function armClickMutationObserver(cdp: CdpCommander): Promise<boolean> {
   }
 }
 
-async function readClickMutationCount(cdp: CdpCommander): Promise<number> {
+interface ClickEffectsProbe {
+  mutations: number;
+  active_changed?: boolean;
+  scroll_changed?: boolean;
+  selection_changed?: boolean;
+}
+
+async function readClickEffects(cdp: CdpCommander): Promise<ClickEffectsProbe> {
   try {
     const probe = await cdp.sendCommand<{
-      result?: { value?: { mutations?: number } };
+      result?: { value?: ClickEffectsProbe };
     }>(
       'Runtime.evaluate',
       {
@@ -211,11 +285,14 @@ async function readClickMutationCount(cdp: CdpCommander): Promise<number> {
       4000,
       0,
     );
-    const n = probe?.result?.value?.mutations;
-    return typeof n === 'number' ? n : -1;
+    const v = probe?.result?.value;
+    if (!v || typeof v.mutations !== 'number') {
+      return { mutations: -1 };
+    }
+    return v;
   } catch (e) {
     console.warn('[PixelActions] read mutation observer failed', e);
-    return -1;
+    return { mutations: -1 };
   }
 }
 
@@ -542,13 +619,22 @@ export async function performMouseClick(
   await new Promise((r) => setTimeout(r, 250));
   let triggered: boolean | undefined;
   if (observerArmed) {
-    const mutations = await readClickMutationCount(cdp);
-    if (mutations >= 0) {
-      // 0 mutations = click did nothing the page reacted to. Anything
-      // positive means the page changed something — class toggle, aria
-      // flip, child append, navigation start. Read failure (-1) leaves
+    const effects = await readClickEffects(cdp);
+    if (effects.mutations >= 0) {
+      // The click "did something" if any of these signals fired:
+      //   - DOM mutations (class/attribute/child/text changes)
+      //   - active element changed (focus moved into an input/button)
+      //   - page scrolled (anchor link, scroll-into-view handler)
+      //   - selection / caret moved (clicked into editable text)
+      // Pure-focus clicks on inputs flip `:focus` (a CSS state) and
+      // update activeElement without mutating the tree, so we'd false-
+      // alarm without the activeElement check. Read failure (-1) leaves
       // `triggered` undefined so the agent gets no warning.
-      triggered = mutations > 0;
+      triggered =
+        effects.mutations > 0 ||
+        effects.active_changed === true ||
+        effects.scroll_changed === true ||
+        effects.selection_changed === true;
     }
   }
 
@@ -952,19 +1038,99 @@ export async function performKeyboardPress(
 }
 
 /**
- * Clear the currently focused input by selecting all then deleting.
- * Convenience wrapper so the agent doesn't have to chain Ctrl+A →
- * Backspace as two separate `press` calls.
+ * Clear the currently focused input. JS-based: targets
+ * `document.activeElement`, sets value/textContent empty, dispatches
+ * `input` + `change` so framework-controlled widgets (React, Lit, Gmail
+ * search, etc.) actually observe the reset. Returns `cleared: true` only
+ * when the field ended up empty; otherwise reports `cleared: false` with
+ * a reason so the caller can surface a real failure to the agent.
+ *
+ * Avoids the keyboard-shortcut path (Ctrl+A + Backspace) which silently
+ * no-ops on macOS — Cmd is the system select-all modifier there, and CDP
+ * `Input.dispatchKeyEvent` with Control doesn't trigger Chromium's
+ * built-in select-all binding.
  */
 export async function performKeyboardClear(
   tabId: number,
   conversationId: string,
-): Promise<{ cleared: true }> {
-  // Select all (Ctrl+A — works on macOS in browser inputs too).
-  await performKeyboardPress(tabId, conversationId, 'a', ['Control']);
-  await sleep(20);
-  await performKeyboardPress(tabId, conversationId, 'Backspace', undefined);
-  return { cleared: true };
+): Promise<{
+  cleared: boolean;
+  target?: string;
+  reason?: string;
+}> {
+  await attachWithDialogTracking(tabId, conversationId);
+  const cdp = new CdpCommander(tabId);
+  const expr = `(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) {
+      return { cleared: false, reason: 'no element focused' };
+    }
+    const tag = (el.tagName || '').toLowerCase();
+    const describe = () => {
+      const id = el.id ? '#' + el.id : '';
+      const name = el.getAttribute && el.getAttribute('name')
+        ? '[name=' + el.getAttribute('name') + ']' : '';
+      const role = el.getAttribute && el.getAttribute('role')
+        ? '[role=' + el.getAttribute('role') + ']' : '';
+      return tag + id + name + role;
+    };
+    const fire = (target) => {
+      try {
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (_) {}
+    };
+    // <input> / <textarea>
+    if (tag === 'input' || tag === 'textarea') {
+      const proto = tag === 'input'
+        ? window.HTMLInputElement && window.HTMLInputElement.prototype
+        : window.HTMLTextAreaElement && window.HTMLTextAreaElement.prototype;
+      const desc = proto && Object.getOwnPropertyDescriptor(proto, 'value');
+      if (desc && desc.set) {
+        desc.set.call(el, '');
+      } else {
+        el.value = '';
+      }
+      fire(el);
+      return { cleared: el.value === '', target: describe() };
+    }
+    // contenteditable (Gmail search, rich editors)
+    if (el.isContentEditable) {
+      el.textContent = '';
+      fire(el);
+      return { cleared: (el.textContent || '') === '', target: describe() };
+    }
+    // role=textbox / role=searchbox / role=combobox custom widgets
+    const role = el.getAttribute && el.getAttribute('role');
+    if (role === 'textbox' || role === 'searchbox' || role === 'combobox') {
+      // Try value first, then textContent.
+      let cleared = false;
+      if ('value' in el) {
+        try { el.value = ''; cleared = el.value === ''; } catch (_) {}
+      }
+      if (!cleared) {
+        el.textContent = '';
+        cleared = (el.textContent || '') === '';
+      }
+      fire(el);
+      return { cleared, target: describe() };
+    }
+    return { cleared: false, reason: 'focused element is not editable: ' + describe() };
+  })()`;
+  const resp = await cdp.sendCommand<{
+    result?: { value?: { cleared?: boolean; target?: string; reason?: string } };
+  }>(
+    'Runtime.evaluate',
+    { expression: expr, returnByValue: true },
+    8000,
+    0,
+  );
+  const value = resp?.result?.value || {};
+  return {
+    cleared: !!value.cleared,
+    target: value.target,
+    reason: value.reason,
+  };
 }
 
 export async function performResetMouse(

@@ -77,6 +77,10 @@ export interface KeyboardPressCommand extends BaseCommand {
   modifiers?: string[];
 }
 
+export interface KeyboardClearCommand extends BaseCommand {
+  type: 'keyboard_clear';
+}
+
 export interface SelectOptionCommand extends BaseCommand {
   type: 'select_option';
   values: string[];
@@ -366,6 +370,7 @@ export type Command =
   | ResetMouseCommand
   | KeyboardTypeCommand
   | KeyboardPressCommand
+  | KeyboardClearCommand
   | SelectOptionCommand
   | UploadFilePendingCommand
   | ScreenshotCommand

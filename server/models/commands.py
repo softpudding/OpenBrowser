@@ -178,6 +178,18 @@ class KeyboardPressCommand(BaseCommand):
     )
 
 
+class KeyboardClearCommand(BaseCommand):
+    """Clear the currently focused input/textarea/contenteditable.
+
+    Implemented in the extension as a JS-based reset on `document.activeElement`
+    (set value/textContent empty + dispatch input/change), not a keyboard
+    shortcut — Ctrl+A select-all is unreliable on macOS where Cmd is the
+    select-all modifier, so the keyboard path leaves stale text behind.
+    """
+
+    type: Literal["keyboard_clear"] = "keyboard_clear"
+
+
 class SelectOptionCommand(BaseCommand):
     """Choose option(s) on a `<select>` previously focused by `mouse_click`.
 
@@ -805,6 +817,7 @@ Command = Union[
     ResetMouseCommand,
     KeyboardTypeCommand,
     KeyboardPressCommand,
+    KeyboardClearCommand,
     SelectOptionCommand,
     UploadFilePendingCommand,
     ScreenshotCommand,
@@ -848,6 +861,7 @@ def parse_command(data: dict) -> Command:
         "reset_mouse": ResetMouseCommand,
         "keyboard_type": KeyboardTypeCommand,
         "keyboard_press": KeyboardPressCommand,
+        "keyboard_clear": KeyboardClearCommand,
         "select_option": SelectOptionCommand,
         "upload_file_pending": UploadFilePendingCommand,
         "screenshot": ScreenshotCommand,

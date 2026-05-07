@@ -31,6 +31,7 @@ import {
   performMouseScroll,
   performKeyboardType,
   performKeyboardPress,
+  performKeyboardClear,
   performResetMouse,
   performSelectOption,
   performUploadFilePending,
@@ -1272,6 +1273,7 @@ function isHeavyBrowserCommand(data: any): boolean {
     case 'mouse_scroll':
     case 'keyboard_type':
     case 'keyboard_press':
+    case 'keyboard_clear':
     case 'reset_mouse':
       return true;
     case 'tab':
@@ -1900,6 +1902,7 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
       case 'mouse_scroll':
       case 'keyboard_type':
       case 'keyboard_press':
+      case 'keyboard_clear':
       case 'reset_mouse':
       case 'select_option':
       case 'upload_file_pending': {
@@ -1996,6 +1999,11 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
                 command.key || '',
                 command.modifiers,
               );
+              actionDetail = r;
+              break;
+            }
+            case 'keyboard_clear': {
+              const r = await performKeyboardClear(activeTabId, conversationId);
               actionDetail = r;
               break;
             }

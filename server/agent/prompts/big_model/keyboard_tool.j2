@@ -36,7 +36,7 @@ Common keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `ArrowUp`, `ArrowD
 Modifiers: `Control`, `Shift`, `Alt`, `Meta` (Cmd on macOS).
 
 ### clear
-Select-all + delete the contents of the currently focused field. Use this to overwrite a field that already has text in it.
+Empty the currently focused field. Works on `<input>`, `<textarea>`, and contenteditable widgets (Gmail search, rich editors). The result reports whether the field actually ended up empty — if it didn't, click into the field first and try again.
 
 ```json
 { "action": "clear" }
@@ -48,7 +48,6 @@ Select-all + delete the contents of the currently focused field. Use this to ove
 - **Replace existing text**: `mouse move` to the field → `mouse click` → `keyboard clear` → `keyboard type`.
 - **Submit a form / trigger search**: `keyboard press` `key: "Enter"` after typing.
 - **Erase a single character**: `keyboard press` `key: "Backspace"`.
-- **Select all in a field**: `keyboard press` `key: "a"` with `modifiers: ["Control"]` (or `"Meta"` on macOS).
 - **Tab to next field**: `keyboard press` `key: "Tab"`.
 
 ## Notes
