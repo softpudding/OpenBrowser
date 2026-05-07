@@ -1695,9 +1695,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
 
         try:
             if kind == "move":
-                if action.x is None or action.y is None:
-                    raise ValueError("mouse move requires x and y")
-                px, py = self._denormalize_xy(action.x, action.y)
+                if not action.coordinate:
+                    raise ValueError(
+                        "mouse move requires `coordinate: [x, y]`"
+                    )
+                px, py = self._denormalize_xy(
+                    action.coordinate[0], action.coordinate[1]
+                )
                 command = MouseMoveCommand(
                     x=px, y=py, conversation_id=self.conversation_id
                 )
@@ -1709,20 +1713,15 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
 
             if kind == "click":
-                # `click {x, y}` is move-then-click in one call. With both
-                # coordinates supplied, slide the cursor to (x, y), cache it,
-                # and run the gate against that fresh position. With no
-                # coordinates, click at the cursor's current position
-                # (hover-then-click flows). Mixing — e.g. only x — is
-                # rejected so the agent re-emits cleanly.
-                has_x = action.x is not None
-                has_y = action.y is not None
-                if has_x ^ has_y:
-                    raise ValueError(
-                        "mouse click with explicit coordinates needs both x and y"
+                # `click coordinate=[x, y]` is move-then-click in one call.
+                # With `coordinate` supplied, slide the cursor there, cache
+                # it, and run the gate against that fresh position. Without
+                # `coordinate`, click at the cursor's current position
+                # (hover-then-click flows).
+                if action.coordinate is not None:
+                    px, py = self._denormalize_xy(
+                        action.coordinate[0], action.coordinate[1]
                     )
-                if has_x and has_y:
-                    px, py = self._denormalize_xy(action.x, action.y)
                     move_command = MouseMoveCommand(
                         x=px, y=py, conversation_id=self.conversation_id
                     )
@@ -1773,15 +1772,17 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 return self._build_observation_from_result(result_dict, message)
 
             if kind == "drag":
-                if (
-                    action.x is None
-                    or action.y is None
-                    or action.x2 is None
-                    or action.y2 is None
-                ):
-                    raise ValueError("mouse drag requires x, y, x2, y2")
-                sx, sy = self._denormalize_xy(action.x, action.y)
-                ex, ey = self._denormalize_xy(action.x2, action.y2)
+                if not action.start_coordinate or not action.end_coordinate:
+                    raise ValueError(
+                        "mouse drag requires `start_coordinate: [x, y]` "
+                        "and `end_coordinate: [x, y]`"
+                    )
+                sx, sy = self._denormalize_xy(
+                    action.start_coordinate[0], action.start_coordinate[1]
+                )
+                ex, ey = self._denormalize_xy(
+                    action.end_coordinate[0], action.end_coordinate[1]
+                )
 
                 start_gate = self._gate_pixel_target(sx, sy)
                 end_gate = self._gate_pixel_target(ex, ey)

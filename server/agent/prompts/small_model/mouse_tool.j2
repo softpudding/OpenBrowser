@@ -1,48 +1,51 @@
 # Mouse Tool
 
-Move, click, drag, and scroll a virtual mouse cursor.
+Move, click, drag, and scroll a virtual mouse cursor. Every call is a single JSON object passed as the `mouse` tool's arguments.
 
 ## Coordinates
 
-`(x, y)` and `(x2, y2)` are integers in **[0, 1000]**: `(0, 0)` is viewport top-left, `(1000, 1000)` is bottom-right. Estimate from the screenshot.
+Coordinates are 2-element arrays `[x, y]` of integers in **[0, 1000]**: `[0, 0]` is viewport top-left, `[1000, 1000]` is bottom-right. Estimate from the screenshot.
 
 ## Cursor
 
 A red dot with a pulsing red ring sits inside a white-and-black arrow on the page. **The red dot is the click point.** It appears in every screenshot.
 
-`click {x, y}` moves the cursor to `(x, y)` and clicks in one step. `click` with no coords clicks at the cursor's current position — use that after a `move` when you want a hover effect to fire first.
+A `click` with `coordinate` moves the cursor there and clicks in one step. A `click` without `coordinate` clicks at the cursor's current position — use that after a `move` when you want a hover effect to fire first.
 
 ## Actions
 
+`action` defaults to `"move"`, so `{ "coordinate": [500, 320] }` slides the cursor to that point.
+
 ### move
-Slide the cursor to `(x, y)`.
+Slide the cursor to `coordinate`.
 ```json
-{ "action": "move", "x": 500, "y": 320 }
+{ "action": "move", "coordinate": [500, 320] }
 ```
 
 ### click
 Click on the page.
 ```json
-{ "action": "click", "x": 612, "y": 318 }
+{ "action": "click", "coordinate": [612, 318] }
 { "action": "click" }
-{ "action": "click", "x": 612, "y": 318, "count": 2 }
-{ "action": "click", "button": "right" }
+{ "action": "click", "coordinate": [612, 318], "count": 2 }
+{ "action": "click", "coordinate": [612, 318], "button": "right" }
 ```
-- With `x, y`: cursor moves to `(x, y)` and clicks. Default form.
-- Without `x, y`: clicks at the cursor's current position. Use after a `move` for hover-then-click flows.
-- `button`: `"left"` (default), `"right"`, `"middle"`.
-- `count`: 1 (default), 2 for double-click.
+- With `coordinate`: cursor moves there and clicks. Default form.
+- Without `coordinate`: clicks at the cursor's current position. Use after a `move` for hover-then-click flows.
+- `button`: `"left"` (default), `"right"` (context menu), `"middle"`.
+- `count`: 1 (default), 2 for double-click, 3 for triple-click.
 
 ### drag
-Press at `(x, y)`, drag to `(x2, y2)`, release.
+Press at `start_coordinate`, drag to `end_coordinate`, release.
 ```json
-{ "action": "drag", "x": 200, "y": 400, "x2": 800, "y2": 400 }
+{ "action": "drag", "start_coordinate": [200, 400], "end_coordinate": [800, 400] }
 ```
 
 ### scroll
-Scroll at the cursor by `amount` CSS pixels. The wheel event lands on whatever container is under the cursor — to scroll inside a panel, sidebar, or modal, `move` over it first.
+Scroll at the cursor by `amount` CSS pixels. `amount` is always positive — `direction` carries the sign. To scroll inside a panel, sidebar, or modal, `move` over it first so the wheel event lands there.
 ```json
 { "action": "scroll", "direction": "down", "amount": 600 }
+{ "action": "scroll", "direction": "up", "amount": 300 }
 ```
 `direction`: `"down"`, `"up"`, `"left"`, `"right"`.
 
@@ -66,12 +69,14 @@ If `click` or `drag` falls in a crowded area, the next observation is a zoomed c
 - A **yellow** outline marks the element the click would commit on.
 - **Orange dashed** outlines mark nearby candidates, listed in the message with HTML and center coordinates in `[0, 1000]` space.
 
-Check the yellow-highlighted element. If it matches your intent, reply `{"action": "confirm"}` to commit. Otherwise, re-emit `click` (or `drag`) with one of the listed candidate centers as `x, y`.
+Check the yellow-highlighted element. If it matches your intent, reply `{ "action": "confirm" }` to commit. Otherwise, re-emit `click` (or `drag`) with one of the listed candidate centers as the `coordinate`.
 
 ## Patterns
 
-- **Click a button**: `click` with the button's center coordinates.
-- **Hover**: `move` over the trigger; next screenshot shows the result, then `click` to commit.
-- **Scroll to find**: `scroll` then check the new screenshot.
-- **Drag**: one `drag` with start and end coordinates.
-- **Type into a field**: `click {x, y}` on the field to focus it → `keyboard type` the text.
+- **Click a button**: `{ "action": "click", "coordinate": [x, y] }`.
+- **Hover**: `{ "action": "move", "coordinate": [x, y] }` over the trigger; the next screenshot shows the result, then `{ "action": "click" }` to commit.
+- **Scroll to find**: `{ "action": "scroll", "direction": "down", "amount": 600 }`, then check the new screenshot.
+- **Drag**: one `drag` with `start_coordinate` and `end_coordinate`.
+- **Right-click**: `{ "action": "click", "coordinate": [x, y], "button": "right" }`.
+- **Double-click**: `{ "action": "click", "coordinate": [x, y], "count": 2 }`.
+- **Type into a field**: `{ "action": "click", "coordinate": [x, y] }` to focus → `keyboard type` the text.

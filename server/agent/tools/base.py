@@ -9,8 +9,10 @@ from collections.abc import Sequence
 from typing import Any, Dict, List, Optional
 
 from openhands.sdk import Action, ImageContent, Observation, TextContent
+from openhands.sdk.utils.visualize import display_dict
 from pydantic import Field
 from pydantic.json_schema import SkipJsonSchema
+from rich.text import Text
 
 
 def _format_display_id(el: Dict[str, Any]) -> str:
@@ -203,6 +205,33 @@ class OpenBrowserAction(Action):
         description="Internal: LLM self-annotation; accepted but ignored.",
         exclude=True,
     )
+
+    @property
+    def visualize(self) -> Text:
+        """Render the action so only fields the agent actually set appear.
+
+        The base `Action.visualize` calls `model_dump()` which serializes
+        every field with its default — `text: null`, `key: null`,
+        `start_coordinate: null`, `count: 1`, etc. These pollute the
+        rendered ActionEvent text the SDK persists, condenses, and shows
+        to humans / the compiler agent. Use `model_fields_set` (only the
+        names the LLM emitted) plus `action` (always included so the verb
+        is visible even when defaulted).
+        """
+        content = Text()
+        content.append("Action: ", style="bold")
+        content.append(self.__class__.__name__)
+        content.append("\n\n")
+        content.append("Arguments:", style="bold")
+        include = set(self.model_fields_set)
+        if "action" in self.__class__.model_fields:
+            include.add("action")
+        rendered = self.model_dump(include=include) if include else {}
+        # `kind` is the discriminator the SDK adds — agent never sees or
+        # sets it, so don't display it either.
+        rendered.pop("kind", None)
+        content.append(display_dict(rendered))
+        return content
 
 
 class OpenBrowserObservation(Observation):
