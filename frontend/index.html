@@ -416,6 +416,29 @@
             opacity: 0.7;
         }
 
+        .event-reasoning {
+            color: #888888;
+            font-size: 11px;
+            font-family: monospace;
+            margin: 4px 0 6px 0;
+            border-left: 2px solid #444444;
+            padding-left: 8px;
+        }
+
+        .event-reasoning summary {
+            cursor: pointer;
+            color: #aaaaaa;
+            opacity: 0.85;
+            user-select: none;
+        }
+
+        .event-reasoning pre {
+            margin: 4px 0 0 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #888888;
+        }
+
         .prompt-line {
             color: #cccccc;
         }
@@ -6017,7 +6040,9 @@
                 tool_name: data.tool_name || fallback.tool_name || null,
                 tool_call_id: data.tool_call_id || fallback.tool_call_id || null,
                 help_request: data.help_request || fallback.help_request || null,
-                awaiting_user_help: Boolean(data.awaiting_user_help || fallback.awaiting_user_help)
+                awaiting_user_help: Boolean(data.awaiting_user_help || fallback.awaiting_user_help),
+                reasoning_content: data.reasoning_content || fallback.reasoning_content || null,
+                thinking_blocks: data.thinking_blocks || fallback.thinking_blocks || null
             };
         }
 
@@ -11176,6 +11201,16 @@
                 if (event.sender) {
                     metadataHtml += `<div class="event-meta"><small>Sender: ${escapeHtml(event.sender)}</small></div>`;
                 }
+            }
+            // Reasoning / thinking — surfaced for both MessageEvent and ActionEvent
+            if (event.reasoning_content) {
+                metadataHtml += `<details class="event-reasoning"><summary>Reasoning</summary><pre>${escapeHtml(event.reasoning_content)}</pre></details>`;
+            }
+            if (event.thinking_blocks && event.thinking_blocks.length > 0) {
+                const tbText = event.thinking_blocks
+                    .map(tb => tb.thinking || tb.text || JSON.stringify(tb))
+                    .join('\n\n');
+                metadataHtml += `<details class="event-reasoning"><summary>Thinking</summary><pre>${escapeHtml(tbText)}</pre></details>`;
             }
             
             // Create HTML
