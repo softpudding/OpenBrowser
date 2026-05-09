@@ -60,16 +60,16 @@ Commit a previewed click or drag.
 ```json
 { "action": "confirm" }
 ```
-Only valid after a preview observation (zoomed crop with a yellow box or red crosshair). See **Confirmation previews** below.
+Use this right after a confirmation preview. See **Confirmation previews** below.
 
 ## Confirmation previews
 
-If `click` or `drag` falls in a crowded area, the next observation is a zoomed crop. The same outlines are also painted on the live page DOM.
+When `click` or `drag` falls in a crowded area, the next observation is the page at its normal size with the target marked.
 
 - A **yellow** outline marks the element the click would commit on.
 - **Orange dashed** outlines mark nearby candidates, listed in the message with HTML and center coordinates in `[0, 1000]` space.
 
-Check the yellow-highlighted element. If it matches your intent, reply `{ "action": "confirm" }` to commit. Otherwise, re-emit `click` (or `drag`) with one of the listed candidate centers as the `coordinate`.
+If the yellow-highlighted element matches your intent, reply `{ "action": "confirm" }` to commit. To retarget, emit `click` (or `drag`) again with a new `coordinate` — pick a center from the candidate list, or estimate a fresh pixel from the screenshot.
 
 ## Patterns
 

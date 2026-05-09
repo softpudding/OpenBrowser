@@ -1,17 +1,19 @@
 /**
  * Pixel-Confirmation Render Module
  *
- * Produces a zoomed confirmation screenshot for a pending pixel mouse action
- * (click or drag). Two visual modes:
+ * Produces a confirmation screenshot for a pending pixel mouse action
+ * (click or drag) at the page's original viewport size, so the agent's
+ * coordinate system matches what it sees in every other screenshot. Two
+ * visual modes:
  *
- *   - 'pixel_hit'  → YELLOW box around the hit element + zoom-crop centered on it.
- *   - 'pixel_miss' → red crosshair at the click coord + thin grey outlines on
- *                    nearby candidate elements + zoom-crop centered on the click.
+ *   - 'pixel_hit'  → YELLOW box around the hit element.
+ *   - 'pixel_miss' → orange dashed outlines on nearby candidate elements;
+ *                    no crosshair (the candidates already tell the agent
+ *                    where to re-aim).
  *
- * Both modes capture a fresh viewport screenshot (no virtual cursor — we draw
- * our own crosshair / box so the cursor sprite would be redundant) and return
- * a base64 PNG data URL keyed under `screenshot_data_url` to match the shape
- * used by other 2PC previews.
+ * Both modes capture a fresh viewport screenshot (no virtual cursor) and
+ * return a base64 PNG data URL keyed under `screenshot_data_url` to match
+ * the shape used by other 2PC previews.
  */
 
 import { captureScreenshot, compressIfNeeded } from './screenshot';
@@ -32,12 +34,6 @@ const CANDIDATE_LINE_WIDTH = 3;
 const DRAG_LINE_COLOR = 'rgba(255, 212, 0, 0.85)';
 const DRAG_LINE_WIDTH = 3;
 const DRAG_ARROW_HEAD = 14;
-
-const BASE_CONTEXT_PADDING_X = 96;
-const BASE_CONTEXT_PADDING_Y = 112;
-const BASE_MIN_CROP_WIDTH = 520;
-const BASE_MIN_CROP_HEIGHT = 320;
-const MIN_CROP_RATIO = 0.58;
 
 interface BBox {
   x: number;
@@ -67,11 +63,6 @@ export interface PixelConfirmRenderResult {
   screenshot_data_url: string;
   viewport: { width: number; height: number };
   scale: number;
-  crop: BBox;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }
 
 function expandBbox(b: BBox, padding: number): BBox {
@@ -81,115 +72,6 @@ function expandBbox(b: BBox, padding: number): BBox {
     width: b.width + padding * 2,
     height: b.height + padding * 2,
   };
-}
-
-function unionBbox(boxes: BBox[]): BBox {
-  if (boxes.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
-  let x1 = Infinity;
-  let y1 = Infinity;
-  let x2 = -Infinity;
-  let y2 = -Infinity;
-  for (const b of boxes) {
-    x1 = Math.min(x1, b.x);
-    y1 = Math.min(y1, b.y);
-    x2 = Math.max(x2, b.x + b.width);
-    y2 = Math.max(y2, b.y + b.height);
-  }
-  return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
-}
-
-function chooseCropCenter(request: PixelConfirmRenderRequest): {
-  center: PointXY;
-  focusBbox: BBox;
-} {
-  if (request.mode === 'pixel_hit' && request.target_bbox) {
-    const focus = request.drag_end
-      ? unionBbox([
-          request.target_bbox,
-          {
-            x: request.drag_end.x,
-            y: request.drag_end.y,
-            width: 1,
-            height: 1,
-          },
-        ])
-      : request.target_bbox;
-    return {
-      center: {
-        x: focus.x + focus.width / 2,
-        y: focus.y + focus.height / 2,
-      },
-      focusBbox: focus,
-    };
-  }
-  // pixel_miss or hit without bbox → center on the click point.
-  const focus: BBox = request.drag_end
-    ? unionBbox([
-        { x: request.x, y: request.y, width: 1, height: 1 },
-        {
-          x: request.drag_end.x,
-          y: request.drag_end.y,
-          width: 1,
-          height: 1,
-        },
-      ])
-    : { x: request.x - 1, y: request.y - 1, width: 2, height: 2 };
-  return {
-    center: {
-      x: focus.x + focus.width / 2,
-      y: focus.y + focus.height / 2,
-    },
-    focusBbox: focus,
-  };
-}
-
-function calculateCrop(
-  imageWidth: number,
-  imageHeight: number,
-  scale: number,
-  request: PixelConfirmRenderRequest,
-): BBox {
-  const { focusBbox } = chooseCropCenter(request);
-
-  const focusDevice = {
-    x: focusBbox.x * scale,
-    y: focusBbox.y * scale,
-    width: Math.max(1, focusBbox.width * scale),
-    height: Math.max(1, focusBbox.height * scale),
-  };
-
-  const contextX = BASE_CONTEXT_PADDING_X * scale;
-  const contextY = BASE_CONTEXT_PADDING_Y * scale;
-  const minCropW = Math.min(
-    imageWidth,
-    Math.max(BASE_MIN_CROP_WIDTH * scale, imageWidth * MIN_CROP_RATIO),
-  );
-  const minCropH = Math.min(
-    imageHeight,
-    Math.max(BASE_MIN_CROP_HEIGHT * scale, imageHeight * MIN_CROP_RATIO),
-  );
-
-  const desiredW = Math.max(minCropW, focusDevice.width + contextX * 2);
-  const desiredH = Math.max(minCropH, focusDevice.height + contextY * 2);
-
-  const cropW = Math.min(imageWidth, Math.round(desiredW));
-  const cropH = Math.min(imageHeight, Math.round(desiredH));
-
-  const centerX = focusDevice.x + focusDevice.width / 2;
-  const centerY = focusDevice.y + focusDevice.height / 2;
-
-  const cropX = clamp(
-    Math.round(centerX - cropW / 2),
-    0,
-    Math.max(0, imageWidth - cropW),
-  );
-  const cropY = clamp(
-    Math.round(centerY - cropH / 2),
-    0,
-    Math.max(0, imageHeight - cropH),
-  );
-
-  return { x: cropX, y: cropY, width: cropW, height: cropH };
 }
 
 function drawCandidateOutline(
@@ -476,38 +358,26 @@ export async function renderPixelConfirm(
   const actualScaleY = viewportHeight > 0 ? bitmap.height / viewportHeight : 1;
   const scale = (actualScaleX + actualScaleY) / 2 || 1;
 
-  const crop = calculateCrop(bitmap.width, bitmap.height, scale, request);
-
-  const canvas = new OffscreenCanvas(crop.width, crop.height);
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     bitmap.close();
     throw new Error('[PixelConfirmRender] Failed to acquire 2d context');
   }
 
-  ctx.drawImage(
-    bitmap,
-    crop.x,
-    crop.y,
-    crop.width,
-    crop.height,
-    0,
-    0,
-    crop.width,
-    crop.height,
-  );
+  ctx.drawImage(bitmap, 0, 0);
   bitmap.close();
 
   const toDeviceRect = (b: BBox): BBox => ({
-    x: Math.round(b.x * scale - crop.x),
-    y: Math.round(b.y * scale - crop.y),
+    x: Math.round(b.x * scale),
+    y: Math.round(b.y * scale),
     width: Math.max(1, Math.round(b.width * scale)),
     height: Math.max(1, Math.round(b.height * scale)),
   });
 
   const toDevicePoint = (p: PointXY): PointXY => ({
-    x: Math.round(p.x * scale - crop.x),
-    y: Math.round(p.y * scale - crop.y),
+    x: Math.round(p.x * scale),
+    y: Math.round(p.y * scale),
   });
 
   // Candidate outlines first (so the hit box / crosshair sits on top).
@@ -557,6 +427,5 @@ export async function renderPixelConfirm(
     screenshot_data_url: compressed,
     viewport: { width: viewportWidth, height: viewportHeight },
     scale,
-    crop,
   };
 }

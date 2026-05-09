@@ -1355,9 +1355,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
     ) -> str:
         """Compose the human-readable confirmation message for the agent.
 
-        Kept terse on purpose: the zoomed crop already shows the yellow
-        target and orange neighbors visually, so the message contributes
-        only the candidate list (HTML + centers) and one-line guidance.
+        Kept terse on purpose: the preview screenshot already shows the
+        yellow target and orange neighbors visually at original size, so
+        the message contributes only the candidate list (HTML + centers)
+        and one-line guidance.
         """
         lines: list[str] = []
         if kind == "click":

@@ -59,7 +59,7 @@ Commit a pending click or drag that was previewed in the previous response.
 { "action": "confirm" }
 ```
 
-Only valid right after a preview-style observation (zoomed crop with a yellow box or red crosshair). See **Confirmation previews** below.
+Use this right after a confirmation preview. See **Confirmation previews** below.
 
 ### scroll
 Scroll at the cursor's current position by `amount` CSS pixels in `direction`. `amount` is always positive — `direction` carries the sign.
@@ -80,12 +80,12 @@ Return the cursor to the viewport center.
 
 ## Confirmation previews
 
-When `click` or `drag` lands in an area with several interactable controls close together, the next observation is a zoomed crop showing exactly what your coordinate selected. The same outlines are also painted onto the live page DOM, so the screenshot reflects what a human watching the browser would see.
+When `click` or `drag` lands in an area with several interactable controls close together, the next observation is the page at its normal size with the target marked. The outlines are painted onto the live page DOM, so the screenshot reflects what a human watching the browser would see.
 
 - A **yellow** outline marks the element the click would commit on.
 - **Orange dashed** outlines mark nearby candidates. The message lists each candidate's HTML and center coordinates in `[0, 1000]` space.
 
-Check the yellow-highlighted element. If it matches what you wanted to click (or drag), reply `{ "action": "confirm" }` to commit. If it does not, re-emit `click` (or `drag`) with one of the listed candidate centers as the `coordinate`.
+If the yellow-highlighted element matches what you wanted to click (or drag), reply `{ "action": "confirm" }` to commit. To retarget, emit `click` (or `drag`) again with a new `coordinate` — pick a center from the candidate list, or estimate a fresh pixel from the screenshot.
 
 For a drag preview, the same rules apply at each endpoint. `confirm` commits the drag as previewed; otherwise re-emit `drag` with corrected `start_coordinate` and `end_coordinate`.
 
