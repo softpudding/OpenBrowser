@@ -2056,7 +2056,14 @@ async function handleCommand(command: Command): Promise<CommandResponse> {
         // somewhere mid-glide. `reset_mouse` jumps to viewport center via
         // the same sprite path and needs the same wait.
         let settleMs = 0;
-        if (
+        if (command.type === 'mouse_scroll') {
+          // `performMouseScroll` actively polls `window.scrollY` until it
+          // stabilizes before returning, so the smooth-scroll animation is
+          // already done by the time we get here. A small additional wait
+          // lets any post-settle paint / IntersectionObserver-triggered
+          // content (lazy images, virtualized rows) reach the screen.
+          settleMs = 200;
+        } else if (
           command.type === 'mouse_click' ||
           command.type === 'mouse_drag' ||
           command.type === 'keyboard_press' ||

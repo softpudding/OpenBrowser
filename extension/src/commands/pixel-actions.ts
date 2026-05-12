@@ -776,8 +776,64 @@ export async function performMouseScroll(
     8000,
     0,
   );
+
+  // Wait for the scroll position to stop changing. Real pages frequently
+  // set `html { scroll-behavior: smooth }`, which turns the wheel event
+  // into a multi-frame animation lasting 500–900ms for a 1000px delta;
+  // capturing the screenshot during the animation shows the page mid-
+  // glide (blank destination region, lazy content not yet hydrated) and
+  // makes the agent think the scroll did nothing.
+  //
+  // Active polling beats a fixed sleep: short scrolls return in ~150ms,
+  // long smooth-scrolls get the full window, and we don't pay 1.2s on
+  // every scroll regardless of size.
+  await waitForScrollSettle(cdp);
+
   await refreshCursor(cdp, tabId, cursor.x, cursor.y);
   return { x: cursor.x, y: cursor.y, deltaX, deltaY };
+}
+
+async function waitForScrollSettle(
+  cdp: CdpCommander,
+  pollIntervalMs: number = 80,
+  maxWaitMs: number = 1500,
+  stableSamples: number = 2,
+): Promise<void> {
+  const readScroll = async (): Promise<[number, number] | null> => {
+    try {
+      const resp = await cdp.sendCommand<{
+        result?: { value?: { x?: number; y?: number } };
+      }>(
+        'Runtime.evaluate',
+        {
+          expression: '({x: window.scrollX, y: window.scrollY})',
+          returnByValue: true,
+        },
+        4000,
+        0,
+      );
+      const v = resp?.result?.value;
+      if (!v || typeof v.x !== 'number' || typeof v.y !== 'number') return null;
+      return [v.x, v.y];
+    } catch {
+      return null;
+    }
+  };
+
+  const start = Date.now();
+  let last = await readScroll();
+  let stable = 0;
+  while (Date.now() - start < maxWaitMs) {
+    await sleep(pollIntervalMs);
+    const cur = await readScroll();
+    if (cur && last && cur[0] === last[0] && cur[1] === last[1]) {
+      stable += 1;
+      if (stable >= stableSamples) return;
+    } else {
+      stable = 0;
+    }
+    last = cur;
+  }
 }
 
 // Per-character US-keyboard mapping for plain ASCII printables. Used by

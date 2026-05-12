@@ -1404,6 +1404,41 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             return url
         return None
 
+    def _format_pixel_target_line(
+        self,
+        hit: Optional[Dict[str, Any]],
+        vw: int,
+        vh: int,
+    ) -> str:
+        """Render the previewed-target element on a single line.
+
+        Same descriptor-first shape as `_format_pixel_candidates_block`,
+        labeled `Target` instead of a numeric id. Lets the agent read what
+        the yellow rectangle actually is before deciding whether to confirm
+        or re-aim.
+        """
+        if not hit or vw <= 0 or vh <= 0:
+            return ""
+        from server.agent.tools.base import _format_highlighted_element_lines
+
+        serialized = self._serialize_pixel_candidates([hit], vw, vh)
+        if not serialized:
+            return ""
+        el = serialized[0]
+        element_lines = _format_highlighted_element_lines("Target", el)
+        if not element_lines:
+            return ""
+        if element_lines[0].rstrip().endswith(">"):
+            snippet = self._html_snippet_for_candidate(el)
+            if snippet:
+                element_lines[0] = f"{element_lines[0]} · {snippet}"
+        cn = el.get("center_norm") or {}
+        cx = cn.get("x")
+        cy = cn.get("y")
+        if cx is not None and cy is not None:
+            element_lines[0] = f"{element_lines[0]}  → center=({cx}, {cy})"
+        return "\n".join(element_lines)
+
     def _build_pixel_gate_message(
         self,
         kind: str,
@@ -1411,6 +1446,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         hit: Optional[Dict[str, Any]],
         candidates: list,
         drag_endpoints: Optional[Dict[str, str]] = None,
+        target_line: str = "",
     ) -> str:
         """Compose the human-readable confirmation message for the agent.
 
@@ -1427,6 +1463,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     "commit, or re-emit `click` with one of the candidate "
                     "centers below."
                 )
+                if target_line:
+                    lines.append(target_line)
             else:
                 lines.append(
                     "No element under the cursor — re-emit `click` with one "
@@ -1443,6 +1481,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 "Drag previewed" + note + ". Confirm to commit, or re-emit "
                 "`drag` with corrected endpoints."
             )
+            if target_line:
+                lines.append(target_line)
         block = self._format_pixel_candidates_block(
             candidates,
             header="Nearby candidates (centers in [0,1000] space)",
@@ -1495,11 +1535,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             banner_kind="click",
         )
 
+        target_line = self._format_pixel_target_line(hit, vw, vh)
         message = self._build_pixel_gate_message(
             kind="click",
             verdict="dense",
             hit=hit,
             candidates=candidates,
+            target_line=target_line,
         )
 
         self._set_pending_confirmation(
@@ -1595,12 +1637,14 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             "start": "dense" if start_dense else "sparse",
             "end": "dense" if end_dense else "sparse",
         }
+        target_line = self._format_pixel_target_line(focus_hit, vw, vh)
         message = self._build_pixel_gate_message(
             kind="drag",
             verdict="dense",
             hit=focus_hit,
             candidates=candidates,
             drag_endpoints=endpoints,
+            target_line=target_line,
         )
 
         self._set_pending_confirmation(
