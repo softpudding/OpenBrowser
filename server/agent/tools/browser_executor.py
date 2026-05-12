@@ -1942,10 +1942,24 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     conversation_id=self.conversation_id,
                 )
                 result_dict = self._execute_command_sync(command)
-                return self._build_observation_from_result(
-                    result_dict,
-                    f"Scrolled {action.direction} by {action.amount}",
-                )
+                detail = (result_dict or {}).get("data", {}) or {}
+                # Older extension builds don't report `moved`; treat missing
+                # as success so we don't false-warn during a rolling upgrade.
+                moved = detail.get("moved")
+                if moved is False:
+                    reason = (
+                        detail.get("reason")
+                        or "the wheel event did not move the viewport"
+                    )
+                    msg = (
+                        f"Scroll {action.direction} by {action.amount} had "
+                        f"no effect — {reason}. Try a different region (move "
+                        f"the cursor over the inner scroll area first), the "
+                        f"opposite direction, or a different navigation."
+                    )
+                else:
+                    msg = f"Scrolled {action.direction} by {action.amount}"
+                return self._build_observation_from_result(result_dict, msg)
 
             if kind == "reset":
                 command = ResetMouseCommand(conversation_id=self.conversation_id)

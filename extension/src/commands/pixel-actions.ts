@@ -741,7 +741,14 @@ export async function performMouseScroll(
   conversationId: string,
   direction: 'up' | 'down' | 'left' | 'right',
   amount: number,
-): Promise<{ x: number; y: number; deltaX: number; deltaY: number }> {
+): Promise<{
+  x: number;
+  y: number;
+  deltaX: number;
+  deltaY: number;
+  moved: boolean;
+  reason?: string;
+}> {
   await attachWithDialogTracking(tabId, conversationId);
   const cdp = new CdpCommander(tabId);
   const cursor =
@@ -764,6 +771,14 @@ export async function performMouseScroll(
       deltaX = -safeAmount;
       break;
   }
+
+  // Capture pre-scroll position so we can tell whether the wheel event
+  // moved the viewport at all. Scrolling at the bottom of a page, on a
+  // non-scrollable container, or in a direction the page can't move
+  // dispatches successfully but produces no visible change — the agent
+  // would otherwise see "Scrolled down by N" and assume progress.
+  const before = await readScroll(cdp);
+
   await cdp.sendCommand(
     'Input.dispatchMouseEvent',
     {
@@ -789,8 +804,121 @@ export async function performMouseScroll(
   // every scroll regardless of size.
   await waitForScrollSettle(cdp);
 
+  const after = await readScroll(cdp);
+  const movedX =
+    before && after ? Math.abs(after[0] - before[0]) >= 1 : true;
+  const movedY =
+    before && after ? Math.abs(after[1] - before[1]) >= 1 : true;
+  const moved = movedX || movedY;
+
+  let reason: string | undefined;
+  if (!moved && before && after) {
+    if (direction === 'down' || direction === 'up') {
+      // Detect end-of-page so the agent gets a specific hint, not just
+      // a generic no-op message.
+      const atEdge = await detectVerticalEdge(cdp, direction);
+      if (atEdge === 'top') {
+        reason = 'already at the top of the page';
+      } else if (atEdge === 'bottom') {
+        reason = 'already at the bottom of the page';
+      } else {
+        reason = 'the wheel event did not move the viewport';
+      }
+    } else {
+      const atEdge = await detectHorizontalEdge(cdp, direction);
+      if (atEdge === 'left') {
+        reason = 'already at the left edge';
+      } else if (atEdge === 'right') {
+        reason = 'already at the right edge';
+      } else {
+        reason = 'the wheel event did not move the viewport';
+      }
+    }
+  }
+
   await refreshCursor(cdp, tabId, cursor.x, cursor.y);
-  return { x: cursor.x, y: cursor.y, deltaX, deltaY };
+  return { x: cursor.x, y: cursor.y, deltaX, deltaY, moved, reason };
+}
+
+async function readScroll(
+  cdp: CdpCommander,
+): Promise<[number, number] | null> {
+  try {
+    const resp = await cdp.sendCommand<{
+      result?: { value?: { x?: number; y?: number } };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression: '({x: window.scrollX, y: window.scrollY})',
+        returnByValue: true,
+      },
+      4000,
+      0,
+    );
+    const v = resp?.result?.value;
+    if (!v || typeof v.x !== 'number' || typeof v.y !== 'number') return null;
+    return [v.x, v.y];
+  } catch {
+    return null;
+  }
+}
+
+async function detectVerticalEdge(
+  cdp: CdpCommander,
+  direction: 'up' | 'down',
+): Promise<'top' | 'bottom' | null> {
+  try {
+    const resp = await cdp.sendCommand<{
+      result?: {
+        value?: { y: number; max: number };
+      };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression:
+          '({y: window.scrollY, max: Math.max(0, document.documentElement.scrollHeight - window.innerHeight)})',
+        returnByValue: true,
+      },
+      4000,
+      0,
+    );
+    const v = resp?.result?.value;
+    if (!v) return null;
+    if (direction === 'up' && v.y <= 1) return 'top';
+    if (direction === 'down' && v.y >= v.max - 1) return 'bottom';
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function detectHorizontalEdge(
+  cdp: CdpCommander,
+  direction: 'left' | 'right',
+): Promise<'left' | 'right' | null> {
+  try {
+    const resp = await cdp.sendCommand<{
+      result?: {
+        value?: { x: number; max: number };
+      };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression:
+          '({x: window.scrollX, max: Math.max(0, document.documentElement.scrollWidth - window.innerWidth)})',
+        returnByValue: true,
+      },
+      4000,
+      0,
+    );
+    const v = resp?.result?.value;
+    if (!v) return null;
+    if (direction === 'left' && v.x <= 1) return 'left';
+    if (direction === 'right' && v.x >= v.max - 1) return 'right';
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 async function waitForScrollSettle(
@@ -799,33 +927,12 @@ async function waitForScrollSettle(
   maxWaitMs: number = 1500,
   stableSamples: number = 2,
 ): Promise<void> {
-  const readScroll = async (): Promise<[number, number] | null> => {
-    try {
-      const resp = await cdp.sendCommand<{
-        result?: { value?: { x?: number; y?: number } };
-      }>(
-        'Runtime.evaluate',
-        {
-          expression: '({x: window.scrollX, y: window.scrollY})',
-          returnByValue: true,
-        },
-        4000,
-        0,
-      );
-      const v = resp?.result?.value;
-      if (!v || typeof v.x !== 'number' || typeof v.y !== 'number') return null;
-      return [v.x, v.y];
-    } catch {
-      return null;
-    }
-  };
-
   const start = Date.now();
-  let last = await readScroll();
+  let last = await readScroll(cdp);
   let stable = 0;
   while (Date.now() - start < maxWaitMs) {
     await sleep(pollIntervalMs);
-    const cur = await readScroll();
+    const cur = await readScroll(cdp);
     if (cur && last && cur[0] === last[0] && cur[1] === last[1]) {
       stable += 1;
       if (stable >= stableSamples) return;
