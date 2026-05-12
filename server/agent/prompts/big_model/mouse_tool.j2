@@ -62,7 +62,7 @@ Commit a pending click or drag that was previewed in the previous response.
 Use this right after a confirmation preview. See **Confirmation previews** below.
 
 ### scroll
-Scroll at the cursor's current position by `amount` CSS pixels in `direction`. `amount` is always positive — `direction` carries the sign.
+Scroll at the cursor's current position by `amount` in the same [0, 1000] space as coordinates: `amount: 1000` is one full viewport in the chosen direction, `amount: 500` is half. `amount` is always positive — `direction` carries the sign.
 
 ```json
 { "action": "scroll", "direction": "down", "amount": 600 }

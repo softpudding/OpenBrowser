@@ -1119,6 +1119,31 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         py = round(y * vh / 1000) if y is not None else None
         return (px, py)
 
+    def _denormalize_scroll_amount(
+        self, amount: int, direction: str
+    ) -> int:
+        """Convert a Qwen-normalized scroll amount to CSS pixels.
+
+        Qwen emits scroll deltas in [0, 1000] (same space as click coords),
+        so `amount=800, direction=down` means "scroll 80% of the viewport
+        height down." Vertical scrolls scale against viewport height;
+        horizontal against width. Non-Qwen models already pass CSS pixels.
+        """
+        try:
+            amt = int(amount)
+        except (TypeError, ValueError):
+            return amount
+        if amt <= 0 or not self._is_qwen_model():
+            return amt
+        viewport = self._get_viewport()
+        if viewport is None:
+            return amt
+        vw, vh = viewport
+        axis = vh if direction in ("up", "down") else vw
+        if axis <= 0:
+            return amt
+        return max(1, round(amt * axis / 1000))
+
     def _format_action_xy(
         self, x_css: Optional[int], y_css: Optional[int]
     ) -> str:
@@ -1902,15 +1927,24 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 )
 
             if kind == "scroll":
+                # Qwen emits scroll amounts in the same [0,1000] normalized
+                # space it uses for click/move coords — `amount: 800` means
+                # "scroll 80% of the viewport," not 800 CSS pixels. Convert
+                # against the axis-relevant viewport dimension before the
+                # extension dispatches the wheel event. Non-Qwen models pass
+                # through unchanged (amount is already CSS pixels).
+                amount_css = self._denormalize_scroll_amount(
+                    action.amount, action.direction
+                )
                 command = MouseScrollCommand(
                     direction=ScrollDirection(action.direction),
-                    amount=action.amount,
+                    amount=amount_css,
                     conversation_id=self.conversation_id,
                 )
                 result_dict = self._execute_command_sync(command)
                 return self._build_observation_from_result(
                     result_dict,
-                    f"Scrolled {action.direction} by {action.amount}px",
+                    f"Scrolled {action.direction} by {action.amount}",
                 )
 
             if kind == "reset":

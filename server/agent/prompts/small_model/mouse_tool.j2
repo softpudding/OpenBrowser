@@ -42,7 +42,7 @@ Press at `start_coordinate`, drag to `end_coordinate`, release.
 ```
 
 ### scroll
-Scroll at the cursor by `amount` CSS pixels. `amount` is always positive — `direction` carries the sign. To scroll inside a panel, sidebar, or modal, `move` over it first so the wheel event lands there.
+Scroll at the cursor by `amount` in the same [0, 1000] space as coordinates: `amount: 1000` is one full viewport in the chosen direction, `amount: 500` is half. `amount` is always positive — `direction` carries the sign. To scroll inside a panel, sidebar, or modal, `move` over it first so the wheel event lands there.
 ```json
 { "action": "scroll", "direction": "down", "amount": 600 }
 { "action": "scroll", "direction": "up", "amount": 300 }
