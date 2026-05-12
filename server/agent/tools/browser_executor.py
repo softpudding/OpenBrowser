@@ -1119,12 +1119,41 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         py = round(y * vh / 1000) if y is not None else None
         return (px, py)
 
+    def _format_action_xy(
+        self, x_css: Optional[int], y_css: Optional[int]
+    ) -> str:
+        """Render an (x, y) pair in the coordinate space the agent uses.
+
+        For Qwen models the agent emits and reads coordinates in [0, 1000]
+        normalized space, so the observation must echo back the same space
+        — otherwise the agent sees a CSS-pixel value it can't reconcile with
+        the input it just sent. Non-Qwen models work in CSS pixels and get
+        the values unchanged.
+        """
+        if x_css is None or y_css is None:
+            return "(?, ?)"
+        if self._is_qwen_model():
+            viewport = self._get_viewport()
+            if viewport is not None:
+                vw, vh = viewport
+                if vw > 0 and vh > 0:
+                    nx = round(x_css / vw * 1000)
+                    ny = round(y_css / vh * 1000)
+                    return f"({nx}, {ny})"
+        return f"({int(x_css)}, {int(y_css)})"
+
     # ========== Pixel-action density gate ==========
 
     PIXEL_GATE_RADIUS_CSS = 30
     PIXEL_GATE_CANDIDATE_LIMIT = 5
+    PIXEL_GATE_FALLBACK_RADII_CSS = (30, 100, 300)
 
-    def _gate_pixel_target(self, x_css: int, y_css: int) -> Optional[Dict[str, Any]]:
+    def _gate_pixel_target(
+        self,
+        x_css: int,
+        y_css: int,
+        radius: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Probe (x, y) for the hit element + nearby interactables.
 
         Returns the analysis dict from the extension on success, or None if
@@ -1136,7 +1165,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             cmd = AnalyzePixelTargetsCommand(
                 x=int(x_css),
                 y=int(y_css),
-                radius=self.PIXEL_GATE_RADIUS_CSS,
+                radius=int(radius) if radius is not None else self.PIXEL_GATE_RADIUS_CSS,
                 candidate_limit=self.PIXEL_GATE_CANDIDATE_LIMIT,
                 conversation_id=self.conversation_id,
             )
@@ -1161,6 +1190,32 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         if not isinstance(data, dict):
             return None
         return data
+
+    def _expand_gate_for_warning(
+        self,
+        cursor: Optional[tuple[int, int]],
+        initial_gate: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """Re-probe with progressively larger radii so the no-op warning
+        always carries at least one interactable hint when the page has any.
+
+        The pre-click density gate uses a tight 30px radius (sized for the
+        dense/sparse verdict). After a click no-op, a completely empty
+        neighborhood is unhelpful — the agent learns nothing about where
+        the nearest clickable target actually is. Expand to 100, then 300,
+        and return the first probe that surfaces candidates.
+        """
+        if cursor is None:
+            return initial_gate
+        if initial_gate and (initial_gate.get("neighborhood") or []):
+            return initial_gate
+        for radius in self.PIXEL_GATE_FALLBACK_RADII_CSS:
+            if radius == self.PIXEL_GATE_RADIUS_CSS and initial_gate is not None:
+                continue
+            probe = self._gate_pixel_target(cursor[0], cursor[1], radius=radius)
+            if probe and (probe.get("neighborhood") or []):
+                return probe
+        return initial_gate
 
     def _serialize_pixel_candidates(
         self,
@@ -1271,6 +1326,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             cy = cn.get("y")
             if cx is not None and cy is not None:
                 element_lines[0] = f"{element_lines[0]}  → center=({cx}, {cy})"
+            dist = c.get("distance_css")
+            if isinstance(dist, (int, float)):
+                element_lines[0] = f"{element_lines[0]}  · dist={int(round(dist))}px"
             lines.extend(element_lines)
         return "\n".join(lines)
 
@@ -1604,7 +1662,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 self._clear_pending_confirmation()
                 message = (
                     f"Confirmed click {button} at "
-                    f"({extra.get('px')}, {extra.get('py')}) (count={count})"
+                    f"{self._format_action_xy(extra.get('px'), extra.get('py'))} "
+                    f"(count={count})"
                 )
                 intercepted = self._extract_intercepted_form_control(result_dict)
                 if intercepted:
@@ -1644,7 +1703,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 self._clear_pending_confirmation()
                 self._cache_cursor(int(ex), int(ey))
                 return self._build_observation_from_result(
-                    result_dict, f"Confirmed drag from ({sx}, {sy}) to ({ex}, {ey})"
+                    result_dict,
+                    f"Confirmed drag from {self._format_action_xy(sx, sy)} "
+                    f"to {self._format_action_xy(ex, ey)}",
                 )
 
             self._clear_pending_confirmation()
@@ -1692,7 +1753,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 if px is not None and py is not None:
                     self._cache_cursor(px, py)
                 return self._build_observation_from_result(
-                    result_dict, f"Mouse moved to ({px}, {py})"
+                    result_dict, f"Mouse moved to {self._format_action_xy(px, py)}"
                 )
 
             if kind == "click":
@@ -1729,7 +1790,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 result_dict = self._execute_command_sync(command)
                 cx, cy = cursor or (None, None)
                 where = (
-                    f"({cx}, {cy})"
+                    self._format_action_xy(cx, cy)
                     if cx is not None and cy is not None
                     else "the cursor"
                 )
@@ -1741,6 +1802,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                         intercepted, action.button, action.count
                     )
                 elif self._click_was_a_no_op(result_dict):
+                    gate = self._expand_gate_for_warning(cursor, gate)
                     message += self._format_no_op_warning(gate)
                     # Draw orange-dashed candidates on the live page so a
                     # human watching the browser sees what the agent is
@@ -1789,8 +1851,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 result_dict = self._execute_command_sync(command)
                 if ex is not None and ey is not None:
                     self._cache_cursor(ex, ey)
+                start_str = self._format_action_xy(sx, sy)
+                end_str = self._format_action_xy(ex, ey)
                 return self._build_observation_from_result(
-                    result_dict, f"Dragged from ({sx}, {sy}) to ({ex}, {ey})"
+                    result_dict, f"Dragged from {start_str} to {end_str}"
                 )
 
             if kind == "scroll":
@@ -1873,8 +1937,22 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 preview = (
                     action.text if len(action.text) <= 32 else action.text[:29] + "..."
                 )
+                detail = (result_dict or {}).get("data", {}) or {}
+                # Older extension builds don't emit `typed`; treat missing as
+                # success so we don't false-warn during a rolling upgrade.
+                typed = detail.get("typed")
+                if typed is False:
+                    reason = detail.get("reason") or "no editable element focused"
+                    msg = (
+                        f"Type had no effect ({reason}). Click into the "
+                        f"target input field first, then type."
+                    )
+                    obs = self._build_observation_from_result(result_dict, msg)
+                    return obs.model_copy(update={"success": False})
+                target = detail.get("target")
+                target_note = f" into {target}" if isinstance(target, str) and target else ""
                 return self._build_observation_from_result(
-                    result_dict, f"Typed text: {preview!r}"
+                    result_dict, f"Typed text: {preview!r}{target_note}"
                 )
 
             if kind == "press":

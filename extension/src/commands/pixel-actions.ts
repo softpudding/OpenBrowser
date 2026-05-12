@@ -868,9 +868,75 @@ export async function performKeyboardType(
   tabId: number,
   conversationId: string,
   text: string,
-): Promise<{ length: number }> {
+): Promise<{
+  length: number;
+  typed: boolean;
+  target?: string;
+  reason?: string;
+}> {
   await attachWithDialogTracking(tabId, conversationId);
   const cdp = new CdpCommander(tabId);
+
+  // Refuse to dispatch when nothing editable is focused. Without this
+  // the CDP keystrokes still fire (against the body / a focused button
+  // / nothing), the page never receives an `input` event, and the agent
+  // sees a generic "Typed text" success — wasting a turn and producing
+  // a stale screenshot. Mirrors the focused-element check used by
+  // `keyboard clear`.
+  const focusProbeExpr = `(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) {
+      return { editable: false, reason: 'no element focused' };
+    }
+    const tag = (el.tagName || '').toLowerCase();
+    const role = el.getAttribute && el.getAttribute('role');
+    const describe = () => {
+      const id = el.id ? '#' + el.id : '';
+      const name = el.getAttribute && el.getAttribute('name')
+        ? '[name=' + el.getAttribute('name') + ']' : '';
+      const r = role ? '[role=' + role + ']' : '';
+      return tag + id + name + r;
+    };
+    if (tag === 'input') {
+      const t = (el.getAttribute('type') || 'text').toLowerCase();
+      const nonText = new Set([
+        'button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'image',
+        'hidden', 'range', 'color',
+      ]);
+      if (nonText.has(t)) {
+        return {
+          editable: false,
+          target: describe(),
+          reason: 'focused <input type=' + t + '> does not accept typed text',
+        };
+      }
+      return { editable: true, target: describe() };
+    }
+    if (tag === 'textarea') return { editable: true, target: describe() };
+    if (el.isContentEditable) return { editable: true, target: describe() };
+    if (role === 'textbox' || role === 'searchbox' || role === 'combobox') {
+      return { editable: true, target: describe() };
+    }
+    return {
+      editable: false,
+      target: describe(),
+      reason: 'focused element is not an editable field',
+    };
+  })()`;
+  const focusResp = await cdp.sendCommand<{
+    result?: {
+      value?: { editable?: boolean; target?: string; reason?: string };
+    };
+  }>('Runtime.evaluate', { expression: focusProbeExpr, returnByValue: true }, 8000, 0);
+  const focus = focusResp?.result?.value || {};
+  if (!focus.editable) {
+    return {
+      length: 0,
+      typed: false,
+      target: focus.target,
+      reason: focus.reason || 'no editable element focused',
+    };
+  }
 
   // Type one character at a time so the page sees real `keydown` →
   // `keypress` → `input` → `keyup` events for each char. This matches
@@ -921,7 +987,7 @@ export async function performKeyboardType(
       await sleep(PER_CHAR_DELAY_MS);
     }
   }
-  return { length: text.length };
+  return { length: text.length, typed: true, target: focus.target };
 }
 
 const NAMED_KEY_MAP: Record<
