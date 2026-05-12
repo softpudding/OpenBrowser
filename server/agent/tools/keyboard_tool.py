@@ -69,6 +69,14 @@ class KeyboardAction(OpenBrowserAction):
             "Use 'Meta' for Cmd on macOS."
         ),
     )
+    literal: bool = Field(
+        default=False,
+        description=(
+            "Skip OS-aware modifier translation and send the exact "
+            "key+modifiers as written. Set true when you need the literal "
+            "Control behavior (e.g. an Emacs-style cursor binding on macOS)."
+        ),
+    )
 
 
 class KeyboardTool(ToolDefinition[KeyboardAction, OpenBrowserObservation]):

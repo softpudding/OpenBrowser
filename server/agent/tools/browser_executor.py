@@ -13,8 +13,9 @@ This executor provides consistent command execution and pending confirmation sta
 
 import asyncio
 import logging
+import sys
 import threading
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from openhands.sdk.tool import ToolExecutor
 import requests
@@ -1824,6 +1825,36 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 success=False, error=str(e), small_model=self._uses_small_model()
             )
 
+    # Keys where Control on Windows/Linux maps to Cmd (Meta) on macOS.
+    # Excludes navigation/cursor combos (arrows, Home/End) since those have
+    # different semantics on macOS that can't be remapped 1:1.
+    _MAC_REMAP_KEYS = {
+        "a", "c", "v", "x", "z", "y", "s", "f", "g",
+        "p", "n", "t", "w", "r", "l", "+", "-", "0",
+    }
+
+    @classmethod
+    def _maybe_remap_for_host(
+        cls, key: str, modifiers: List[str]
+    ) -> Tuple[List[str], Optional[str]]:
+        """Translate Control+<shortcut-key> → Meta+<shortcut-key> on macOS.
+
+        Returns (modifiers, note). `note` is a short human-readable string
+        describing what swapped, suitable for appending to the observation
+        message so the agent learns the actual keys that hit the page.
+        """
+        if sys.platform != "darwin" or not modifiers or not key:
+            return modifiers, None
+        if key.lower() not in cls._MAC_REMAP_KEYS:
+            return modifiers, None
+        if "Control" not in modifiers:
+            return modifiers, None
+        new_mods = ["Meta" if m == "Control" else m for m in modifiers]
+        before = "+".join(modifiers + [key])
+        after = "+".join(new_mods + [key])
+        note = f"(remapped {before} to {after} on macOS)"
+        return new_mods, note
+
     def _execute_keyboard_action(
         self, action: KeyboardAction
     ) -> OpenBrowserObservation:
@@ -1849,18 +1880,25 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if kind == "press":
                 if not action.key:
                     raise ValueError("keyboard press requires key")
+                modifiers = list(action.modifiers or [])
+                remap_note: Optional[str] = None
+                if not action.literal:
+                    modifiers, remap_note = self._maybe_remap_for_host(
+                        action.key, modifiers
+                    )
+                if remap_note:
+                    logger.info("Keyboard press %s", remap_note)
                 command = KeyboardPressCommand(
                     key=action.key,
-                    modifiers=list(action.modifiers or []),
+                    modifiers=modifiers,
                     conversation_id=self.conversation_id,
                 )
                 result_dict = self._execute_command_sync(command)
-                mod_text = (
-                    f" with {'+'.join(action.modifiers)}" if action.modifiers else ""
-                )
-                return self._build_observation_from_result(
-                    result_dict, f"Pressed {action.key}{mod_text}"
-                )
+                mod_text = f" with {'+'.join(modifiers)}" if modifiers else ""
+                msg = f"Pressed {action.key}{mod_text}"
+                if remap_note:
+                    msg = f"{msg} {remap_note}"
+                return self._build_observation_from_result(result_dict, msg)
 
             if kind == "clear":
                 # JS-based clear on document.activeElement: set value /
@@ -1886,7 +1924,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     )
                 obs = self._build_observation_from_result(result_dict, msg)
                 if not cleared:
-                    obs.success = False
+                    obs = obs.model_copy(update={"success": False})
                 return obs
 
             raise ValueError(f"Unknown keyboard action: {kind}")

@@ -987,6 +987,48 @@ const KEY_TEXT: Record<string, string> = {
   Space: ' ',
 };
 
+// Selection-all on the focused element via JS. Chromium's accelerator
+// bindings for Meta+A / Control+A are not triggered by CDP
+// `Input.dispatchKeyEvent`, so the dispatched key combination fires
+// keyboard listeners but leaves the field unselected. After the key
+// event, we run a small JS snippet that calls `.select()` on inputs /
+// textareas and `Selection.selectNodeContents` on contenteditables, so
+// the visual selection actually exists for a following `type` or
+// `Backspace`.
+async function ensureSelectAllOnActive(cdp: CdpCommander): Promise<void> {
+  const expr = `(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    try {
+      if (tag === 'input' || tag === 'textarea') {
+        if (typeof el.select === 'function') { el.select(); return true; }
+      }
+      if (el.isContentEditable) {
+        const sel = window.getSelection && window.getSelection();
+        if (sel && document.createRange) {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  })()`;
+  try {
+    await cdp.sendCommand(
+      'Runtime.evaluate',
+      { expression: expr, returnByValue: true },
+      4000,
+      0,
+    );
+  } catch (_) {
+    // best-effort; the CDP key event still fired
+  }
+}
+
 export async function performKeyboardPress(
   tabId: number,
   conversationId: string,
@@ -1037,6 +1079,19 @@ export async function performKeyboardPress(
     8000,
     0,
   );
+
+  // Select-all accelerator (Meta+A / Control+A) doesn't fire via CDP key
+  // events. After listeners have observed the keydown/keyup pair, force
+  // the visual selection so a subsequent `type` or `Backspace` replaces
+  // the contents instead of appending to them.
+  const isSelectAll =
+    resolved.key.toLowerCase() === 'a' &&
+    (mod & 0x4 || mod & 0x2) &&
+    !(mod & 0x1);
+  if (isSelectAll) {
+    await ensureSelectAllOnActive(cdp);
+  }
+
   return { key: resolved.key, modifiers: mod };
 }
 

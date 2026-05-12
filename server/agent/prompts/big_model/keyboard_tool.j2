@@ -35,6 +35,8 @@ Common keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `ArrowUp`, `ArrowD
 
 Modifiers: `Control`, `Shift`, `Alt`, `Meta` (Cmd on macOS).
 
+On macOS, use `Meta` for command shortcuts: `Meta+a` selects all, `Meta+c`/`v`/`x` are copy/paste/cut, `Meta+z` is undo, `Meta+f` opens find. If you pass `Control` with one of these shortcut keys (`a`, `c`, `v`, `x`, `z`, `y`, `s`, `f`, `g`, `p`, `n`, `t`, `w`, `r`, `l`), the server translates it to `Meta` and the observation reports the actual press. Set `literal: true` on the action to send the exact `Control` combination without translation — useful when you need the literal `Control` binding (e.g. Emacs-style cursor moves).
+
 ### clear
 Empty the currently focused field. Works on `<input>`, `<textarea>`, and contenteditable widgets (Gmail search, rich editors). The result reports whether the field actually ended up empty — if it didn't, click into the field first and try again.
 
