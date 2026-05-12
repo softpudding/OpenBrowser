@@ -370,24 +370,46 @@ window.tracker = new AgentTracker("drive.google.com", "hard");
     `;
   }
 
-  function getAllDestinationFolders(state) {
-    return state.items.filter((item) => item.type === "folder");
+  function getChildFolders(state, parentId) {
+    return state.items.filter(
+      (item) => item.type === "folder" && item.parentId === parentId && item.section === "my-drive",
+    );
   }
 
   function renderDestinationPicker(state, activeDestinationId) {
-    return `
-      <div class="drive-destination-picker">
-        ${getAllDestinationFolders(state)
+    const trail = getFolderPath(state, activeDestinationId);
+    const children = getChildFolders(state, activeDestinationId || null);
+
+    const breadcrumb = `
+      <div class="drive-destination-breadcrumb">
+        <button class="drive-destination-crumb ${!activeDestinationId ? "active" : ""}" data-action="set-modal-destination" data-destination-id="">My Drive</button>
+        ${trail
+          .map((folder, idx) => {
+            const isLast = idx === trail.length - 1;
+            return `<span class="drive-destination-sep">/</span><button class="drive-destination-crumb ${isLast ? "active" : ""}" data-action="set-modal-destination" data-destination-id="${folder.id}">${escapeHtml(folder.name)}</button>`;
+          })
+          .join("")}
+      </div>
+    `;
+
+    const list = children.length
+      ? children
           .map((folder) => {
-            const path = getFolderPath(state, folder.parentId).map((item) => item.name).join(" / ");
+            const hasSub = getChildFolders(state, folder.id).length > 0;
             return `
-              <button class="drive-destination-item ${activeDestinationId === folder.id ? "active" : ""}" data-action="set-modal-destination" data-destination-id="${folder.id}">
+              <button class="drive-destination-item" data-action="set-modal-destination" data-destination-id="${folder.id}">
                 <span>${escapeHtml(folder.name)}</span>
-                <span class="mock-subtle">${escapeHtml(path || folder.section)}</span>
+                <span class="mock-subtle">${hasSub ? "Open ▸" : "Select"}</span>
               </button>
             `;
           })
-          .join("")}
+          .join("")
+      : `<p class="mock-subtle" style="padding: 12px;">No subfolders. The current folder is selected as the destination.</p>`;
+
+    return `
+      <div class="drive-destination-picker">
+        ${breadcrumb}
+        <div class="drive-destination-list">${list}</div>
       </div>
     `;
   }
@@ -439,7 +461,7 @@ window.tracker = new AgentTracker("drive.google.com", "hard");
               ${renderDestinationPicker(state, modal.destinationId || null)}
             </div>
             <div class="mock-modal-footer">
-              <span class="mock-subtle">The destination picker is intentionally scrollable and nested.</span>
+              <span class="mock-subtle">Click a folder to drill in. Click a breadcrumb segment to navigate up.</span>
               <button class="mock-btn" data-action="${modal.type === "move" ? "commit-move" : "commit-shortcut"}">
                 ${modal.type === "move" ? "Move items" : "Create shortcut"}
               </button>
