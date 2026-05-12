@@ -1747,7 +1747,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     # given as alternatives.
                     px, py = extra.get("px"), extra.get("py")
                     if isinstance(px, int) and isinstance(py, int):
-                        self._draw_no_op_overlay_from_serialized((px, py), serialized)
+                        overlay_url = self._draw_no_op_overlay_from_serialized(
+                            (px, py), serialized
+                        )
+                        self._overlay_screenshot_into_result(result_dict, overlay_url)
                 return self._build_observation_from_result(result_dict, message)
 
             if action_type == "mouse_drag_pixel":
@@ -1877,7 +1880,11 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     # human watching the browser sees what the agent is
                     # told to re-aim at. Cleared on the agent's next
                     # mouse action via clear_pixel_overlay.
-                    self._draw_no_op_overlay(cursor, gate)
+                    overlay_url = self._draw_no_op_overlay(cursor, gate)
+                    # Swap the agent's screenshot for the post-overlay one
+                    # so the candidate highlights show up in the image the
+                    # model reads — text coords plus a visual cue.
+                    self._overlay_screenshot_into_result(result_dict, overlay_url)
                 return self._build_observation_from_result(result_dict, message)
 
             if kind == "drag":
@@ -2108,17 +2115,22 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         self,
         cursor: Optional[tuple[int, int]],
         gate: Optional[Dict[str, Any]],
-    ) -> None:
+    ) -> Optional[str]:
         """Inject orange-dashed candidate boxes onto the live page for the
         no-op case. Mirrors the gated-preview overlay so a human watching
         the browser sees the same alternatives the agent is told to re-aim
         at. Best-effort: failures are logged and swallowed.
+
+        Returns the data URL of the post-overlay screenshot when the
+        extension produced one, so the caller can swap it into the agent's
+        observation; the agent then sees the highlighted candidates
+        visually, not just as a list of coordinates.
         """
         if cursor is None or not gate:
-            return
+            return None
         neighborhood = gate.get("neighborhood") or []
         if not neighborhood:
-            return
+            return None
         candidate_selectors: list = []
         candidate_bboxes: list = []
         for c in neighborhood:
@@ -2131,9 +2143,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if bbox:
                 candidate_bboxes.append(bbox)
         if not candidate_selectors and not candidate_bboxes:
-            return
+            return None
         try:
-            self._render_pixel_preview(
+            return self._render_pixel_preview(
                 mode="pixel_miss",
                 x_css=cursor[0],
                 y_css=cursor[1],
@@ -2145,16 +2157,17 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             )
         except Exception as e:
             logger.debug("no-op overlay render failed: %s", e)
+            return None
 
     def _draw_no_op_overlay_from_serialized(
         self,
         cursor: Optional[tuple[int, int]],
         candidates: list,
-    ) -> None:
+    ) -> Optional[str]:
         """Same as `_draw_no_op_overlay` but takes pre-serialized candidates
         (the form stashed in `extra_data` for confirm-path commits)."""
         if cursor is None or not candidates:
-            return
+            return None
         candidate_selectors: list = []
         candidate_bboxes: list = []
         for c in candidates:
@@ -2167,9 +2180,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if isinstance(bbox, dict):
                 candidate_bboxes.append(bbox)
         if not candidate_selectors and not candidate_bboxes:
-            return
+            return None
         try:
-            self._render_pixel_preview(
+            return self._render_pixel_preview(
                 mode="pixel_miss",
                 x_css=cursor[0],
                 y_css=cursor[1],
@@ -2181,6 +2194,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             )
         except Exception as e:
             logger.debug("no-op overlay render failed: %s", e)
+            return None
 
     def _format_no_op_warning(self, gate: Optional[Dict[str, Any]]) -> str:
         """Warning text for a click that committed but produced no DOM change.
@@ -2226,6 +2240,42 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 "into view or pick a different region of the screen."
             )
         return "\n".join(lines)
+
+    @staticmethod
+    def _overlay_screenshot_into_result(
+        result_dict: Optional[Dict[str, Any]],
+        overlay_url: Optional[str],
+    ) -> None:
+        """Replace the post-click screenshot in `result_dict` with one that
+        already has the no-op candidate overlay painted on it.
+
+        The original click screenshot was captured inside the extension
+        dispatcher before the server-side overlay decision ran, so the
+        agent would otherwise see no visual hint of the highlighted
+        candidates — only their text coordinates. `_render_pixel_preview`
+        repaints the live page with the orange-dashed boxes and returns a
+        fresh capture; swapping it in puts the visual cue into the image
+        the model reads. No-op if the overlay render didn't produce a URL
+        (e.g. zero candidates or extension error).
+        """
+        if not overlay_url or not isinstance(overlay_url, str):
+            return
+        if not overlay_url.startswith("data:"):
+            return
+        if not isinstance(result_dict, dict):
+            return
+        data = result_dict.get("data")
+        if not isinstance(data, dict):
+            return
+        # `_build_observation_from_result` reads `data["screenshot"]` first,
+        # then `data["imageData"]` as a fallback. Replace whichever key
+        # was originally set so the new image wins.
+        if "screenshot" in data:
+            data["screenshot"] = overlay_url
+        elif "imageData" in data:
+            data["imageData"] = overlay_url
+        else:
+            data["screenshot"] = overlay_url
 
     @staticmethod
     def _click_was_a_no_op(result_dict: Optional[Dict[str, Any]]) -> bool:

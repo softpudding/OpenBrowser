@@ -147,6 +147,25 @@ const ARM_MUTATION_OBSERVER_SCRIPT = `
       const skipIds = new Set([cursorId, overlayId]);
       const obs = new MutationObserver((muts) => {
         for (const m of muts) {
+          // Idempotent style/attribute assignments (e.g. a doc-level click
+          // handler that does \`sortMenu.style.display = 'none'\` on every
+          // click when it's already none) still produce MutationRecords —
+          // the browser fires the record on every setter, regardless of
+          // whether the value actually changed. Skip those so the agent
+          // doesn't see a false "click did something" signal on pages
+          // with such handlers.
+          if (m.type === 'attributes') {
+            let oldVal = m.oldValue;
+            let newVal = null;
+            try {
+              newVal = m.target.getAttribute
+                ? m.target.getAttribute(m.attributeName)
+                : null;
+            } catch (_) { newVal = null; }
+            if ((oldVal == null ? '' : oldVal) === (newVal == null ? '' : newVal)) {
+              continue;
+            }
+          }
           let t = m.target;
           let skip = false;
           while (t && t.nodeType === 1) {
@@ -160,6 +179,7 @@ const ARM_MUTATION_OBSERVER_SCRIPT = `
         childList: true,
         subtree: true,
         attributes: true,
+        attributeOldValue: true,
         characterData: true,
       });
       w.__ob_click_obs__ = obs;
@@ -217,15 +237,27 @@ const READ_MUTATION_OBSERVER_SCRIPT = `
       let selectionChanged = false;
       try {
         const sel = w.getSelection && w.getSelection();
-        if (sel && beforeSel) {
-          selectionChanged =
-            sel.anchorNode !== beforeSel.anchorNode ||
-            sel.anchorOffset !== beforeSel.anchorOffset ||
-            sel.focusNode !== beforeSel.focusNode ||
-            sel.focusOffset !== beforeSel.focusOffset ||
-            sel.isCollapsed !== beforeSel.isCollapsed;
-        } else if (sel && !beforeSel) {
-          selectionChanged = !sel.isCollapsed || !!sel.anchorNode;
+        // The only "selection change" worth flagging is one that signals
+        // a real interaction: caret landed inside an editable field
+        // (<input>, <textarea>, or contenteditable), or the user dragged
+        // out a non-collapsed range. A click in empty space resolves the
+        // caret to a text node somewhere in the page, but that's a
+        // browser default — no agent-meaningful state changed.
+        const editableContext = (node) => {
+          if (!node) return false;
+          let el = node.nodeType === 1 ? node : node.parentElement;
+          while (el) {
+            if (el.isContentEditable) return true;
+            const tag = (el.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea') return true;
+            el = el.parentElement;
+          }
+          return false;
+        };
+        if (sel) {
+          const rangeSelected = !sel.isCollapsed && !!sel.anchorNode;
+          const caretInEditable = sel.isCollapsed && editableContext(sel.anchorNode);
+          selectionChanged = rangeSelected || caretInEditable;
         }
       } catch (_) {}
       delete w.__ob_click_obs__;
@@ -615,8 +647,10 @@ export async function performMouseClick(
   // passes without perceptibly slowing the action loop.
   await new Promise((r) => setTimeout(r, 250));
   let triggered: boolean | undefined;
+  let effectsOut: ClickEffectsProbe | null = null;
   if (observerArmed) {
     const effects = await readClickEffects(cdp);
+    effectsOut = effects;
     if (effects.mutations >= 0) {
       // The click "did something" if any of these signals fired:
       //   - DOM mutations (class/attribute/child/text changes)
@@ -641,6 +675,10 @@ export async function performMouseClick(
     button,
     warning: clamped.warning,
     triggered_anything: triggered,
+    mutations: effectsOut?.mutations,
+    active_changed: effectsOut?.active_changed,
+    scroll_changed: effectsOut?.scroll_changed,
+    selection_changed: effectsOut?.selection_changed,
   };
 }
 
