@@ -843,10 +843,8 @@ export async function performMouseScroll(
   await waitForScrollSettle(cdp);
 
   const after = await readScroll(cdp);
-  const movedX =
-    before && after ? Math.abs(after[0] - before[0]) >= 1 : true;
-  const movedY =
-    before && after ? Math.abs(after[1] - before[1]) >= 1 : true;
+  const movedX = before && after ? Math.abs(after[0] - before[0]) >= 1 : true;
+  const movedY = before && after ? Math.abs(after[1] - before[1]) >= 1 : true;
   const moved = movedX || movedY;
 
   let reason: string | undefined;
@@ -878,9 +876,7 @@ export async function performMouseScroll(
   return { x: cursor.x, y: cursor.y, deltaX, deltaY, moved, reason };
 }
 
-async function readScroll(
-  cdp: CdpCommander,
-): Promise<[number, number] | null> {
+async function readScroll(cdp: CdpCommander): Promise<[number, number] | null> {
   try {
     const resp = await cdp.sendCommand<{
       result?: { value?: { x?: number; y?: number } };
@@ -1128,7 +1124,12 @@ export async function performKeyboardType(
     result?: {
       value?: { editable?: boolean; target?: string; reason?: string };
     };
-  }>('Runtime.evaluate', { expression: focusProbeExpr, returnByValue: true }, 8000, 0);
+  }>(
+    'Runtime.evaluate',
+    { expression: focusProbeExpr, returnByValue: true },
+    8000,
+    0,
+  );
   const focus = focusResp?.result?.value || {};
   if (!focus.editable) {
     return {

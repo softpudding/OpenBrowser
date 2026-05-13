@@ -111,9 +111,7 @@ class QueueVisualizer(ConversationVisualizerBase):
                     sse_data["reasoning_content"] = rc
                 tbs = getattr(event, "thinking_blocks", None)
                 if tbs:
-                    sse_data["thinking_blocks"] = [
-                        tb.model_dump() for tb in tbs
-                    ]
+                    sse_data["thinking_blocks"] = [tb.model_dump() for tb in tbs]
                 if event.tool_name == PLEASE_HELP_ME_TOOL_NAME and event.action:
                     help_request = getattr(event.action, "message", None)
                     if isinstance(help_request, str) and help_request.strip():
@@ -159,9 +157,7 @@ class QueueVisualizer(ConversationVisualizerBase):
                     sse_data["reasoning_content"] = rc
                 tbs = getattr(event.llm_message, "thinking_blocks", None)
                 if tbs:
-                    sse_data["thinking_blocks"] = [
-                        tb.model_dump() for tb in tbs
-                    ]
+                    sse_data["thinking_blocks"] = [tb.model_dump() for tb in tbs]
                 # Also include activated_skills if present
                 if event.activated_skills:
                     sse_data["activated_skills"] = event.activated_skills

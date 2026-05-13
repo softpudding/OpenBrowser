@@ -1119,9 +1119,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         py = round(y * vh / 1000) if y is not None else None
         return (px, py)
 
-    def _denormalize_scroll_amount(
-        self, amount: int, direction: str
-    ) -> int:
+    def _denormalize_scroll_amount(self, amount: int, direction: str) -> int:
         """Convert a Qwen-normalized scroll amount to CSS pixels.
 
         Qwen emits scroll deltas in [0, 1000] (same space as click coords),
@@ -1144,9 +1142,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             return amt
         return max(1, round(amt * axis / 1000))
 
-    def _format_action_xy(
-        self, x_css: Optional[int], y_css: Optional[int]
-    ) -> str:
+    def _format_action_xy(self, x_css: Optional[int], y_css: Optional[int]) -> str:
         """Render an (x, y) pair in the coordinate space the agent uses.
 
         For Qwen models the agent emits and reads coordinates in [0, 1000]
@@ -1190,7 +1186,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             cmd = AnalyzePixelTargetsCommand(
                 x=int(x_css),
                 y=int(y_css),
-                radius=int(radius) if radius is not None else self.PIXEL_GATE_RADIUS_CSS,
+                radius=(
+                    int(radius) if radius is not None else self.PIXEL_GATE_RADIUS_CSS
+                ),
                 candidate_limit=self.PIXEL_GATE_CANDIDATE_LIMIT,
                 conversation_id=self.conversation_id,
             )
@@ -1992,8 +1990,24 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
     # Excludes navigation/cursor combos (arrows, Home/End) since those have
     # different semantics on macOS that can't be remapped 1:1.
     _MAC_REMAP_KEYS = {
-        "a", "c", "v", "x", "z", "y", "s", "f", "g",
-        "p", "n", "t", "w", "r", "l", "+", "-", "0",
+        "a",
+        "c",
+        "v",
+        "x",
+        "z",
+        "y",
+        "s",
+        "f",
+        "g",
+        "p",
+        "n",
+        "t",
+        "w",
+        "r",
+        "l",
+        "+",
+        "-",
+        "0",
     }
 
     @classmethod
@@ -2049,7 +2063,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     obs = self._build_observation_from_result(result_dict, msg)
                     return obs.model_copy(update={"success": False})
                 target = detail.get("target")
-                target_note = f" into {target}" if isinstance(target, str) and target else ""
+                target_note = (
+                    f" into {target}" if isinstance(target, str) and target else ""
+                )
                 return self._build_observation_from_result(
                     result_dict, f"Typed text: {preview!r}{target_note}"
                 )
