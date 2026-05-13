@@ -443,7 +443,10 @@ class OpenBrowserObservation(Observation):
         # cached vw/vh on the executor still drives that conversion.
         if not self.success:
             text_parts.append(f"**Status**: FAILED")
-            text_parts.append(f"**Error**: {self.error}")
+            if self.error:
+                text_parts.append(f"**Error**: {self.error}")
+            if self.message:
+                text_parts.append(f"**Action**: {self.message}")
         else:
             text_parts.append(f"**Status**: SUCCESS")
             # For JavaScript operations, show minimal confirmation

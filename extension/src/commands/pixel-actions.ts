@@ -147,6 +147,25 @@ const ARM_MUTATION_OBSERVER_SCRIPT = `
       const skipIds = new Set([cursorId, overlayId]);
       const obs = new MutationObserver((muts) => {
         for (const m of muts) {
+          // Idempotent style/attribute assignments (e.g. a doc-level click
+          // handler that does \`sortMenu.style.display = 'none'\` on every
+          // click when it's already none) still produce MutationRecords —
+          // the browser fires the record on every setter, regardless of
+          // whether the value actually changed. Skip those so the agent
+          // doesn't see a false "click did something" signal on pages
+          // with such handlers.
+          if (m.type === 'attributes') {
+            let oldVal = m.oldValue;
+            let newVal = null;
+            try {
+              newVal = m.target.getAttribute
+                ? m.target.getAttribute(m.attributeName)
+                : null;
+            } catch (_) { newVal = null; }
+            if ((oldVal == null ? '' : oldVal) === (newVal == null ? '' : newVal)) {
+              continue;
+            }
+          }
           let t = m.target;
           let skip = false;
           while (t && t.nodeType === 1) {
@@ -160,6 +179,7 @@ const ARM_MUTATION_OBSERVER_SCRIPT = `
         childList: true,
         subtree: true,
         attributes: true,
+        attributeOldValue: true,
         characterData: true,
       });
       w.__ob_click_obs__ = obs;
@@ -217,15 +237,27 @@ const READ_MUTATION_OBSERVER_SCRIPT = `
       let selectionChanged = false;
       try {
         const sel = w.getSelection && w.getSelection();
-        if (sel && beforeSel) {
-          selectionChanged =
-            sel.anchorNode !== beforeSel.anchorNode ||
-            sel.anchorOffset !== beforeSel.anchorOffset ||
-            sel.focusNode !== beforeSel.focusNode ||
-            sel.focusOffset !== beforeSel.focusOffset ||
-            sel.isCollapsed !== beforeSel.isCollapsed;
-        } else if (sel && !beforeSel) {
-          selectionChanged = !sel.isCollapsed || !!sel.anchorNode;
+        // The only "selection change" worth flagging is one that signals
+        // a real interaction: caret landed inside an editable field
+        // (<input>, <textarea>, or contenteditable), or the user dragged
+        // out a non-collapsed range. A click in empty space resolves the
+        // caret to a text node somewhere in the page, but that's a
+        // browser default — no agent-meaningful state changed.
+        const editableContext = (node) => {
+          if (!node) return false;
+          let el = node.nodeType === 1 ? node : node.parentElement;
+          while (el) {
+            if (el.isContentEditable) return true;
+            const tag = (el.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea') return true;
+            el = el.parentElement;
+          }
+          return false;
+        };
+        if (sel) {
+          const rangeSelected = !sel.isCollapsed && !!sel.anchorNode;
+          const caretInEditable = sel.isCollapsed && editableContext(sel.anchorNode);
+          selectionChanged = rangeSelected || caretInEditable;
         }
       } catch (_) {}
       delete w.__ob_click_obs__;
@@ -615,8 +647,10 @@ export async function performMouseClick(
   // passes without perceptibly slowing the action loop.
   await new Promise((r) => setTimeout(r, 250));
   let triggered: boolean | undefined;
+  let effectsOut: ClickEffectsProbe | null = null;
   if (observerArmed) {
     const effects = await readClickEffects(cdp);
+    effectsOut = effects;
     if (effects.mutations >= 0) {
       // The click "did something" if any of these signals fired:
       //   - DOM mutations (class/attribute/child/text changes)
@@ -641,6 +675,10 @@ export async function performMouseClick(
     button,
     warning: clamped.warning,
     triggered_anything: triggered,
+    mutations: effectsOut?.mutations,
+    active_changed: effectsOut?.active_changed,
+    scroll_changed: effectsOut?.scroll_changed,
+    selection_changed: effectsOut?.selection_changed,
   };
 }
 
@@ -741,7 +779,14 @@ export async function performMouseScroll(
   conversationId: string,
   direction: 'up' | 'down' | 'left' | 'right',
   amount: number,
-): Promise<{ x: number; y: number; deltaX: number; deltaY: number }> {
+): Promise<{
+  x: number;
+  y: number;
+  deltaX: number;
+  deltaY: number;
+  moved: boolean;
+  reason?: string;
+}> {
   await attachWithDialogTracking(tabId, conversationId);
   const cdp = new CdpCommander(tabId);
   const cursor =
@@ -764,6 +809,14 @@ export async function performMouseScroll(
       deltaX = -safeAmount;
       break;
   }
+
+  // Capture pre-scroll position so we can tell whether the wheel event
+  // moved the viewport at all. Scrolling at the bottom of a page, on a
+  // non-scrollable container, or in a direction the page can't move
+  // dispatches successfully but produces no visible change — the agent
+  // would otherwise see "Scrolled down by N" and assume progress.
+  const before = await readScroll(cdp);
+
   await cdp.sendCommand(
     'Input.dispatchMouseEvent',
     {
@@ -776,8 +829,152 @@ export async function performMouseScroll(
     8000,
     0,
   );
+
+  // Wait for the scroll position to stop changing. Real pages frequently
+  // set `html { scroll-behavior: smooth }`, which turns the wheel event
+  // into a multi-frame animation lasting 500–900ms for a 1000px delta;
+  // capturing the screenshot during the animation shows the page mid-
+  // glide (blank destination region, lazy content not yet hydrated) and
+  // makes the agent think the scroll did nothing.
+  //
+  // Active polling beats a fixed sleep: short scrolls return in ~150ms,
+  // long smooth-scrolls get the full window, and we don't pay 1.2s on
+  // every scroll regardless of size.
+  await waitForScrollSettle(cdp);
+
+  const after = await readScroll(cdp);
+  const movedX = before && after ? Math.abs(after[0] - before[0]) >= 1 : true;
+  const movedY = before && after ? Math.abs(after[1] - before[1]) >= 1 : true;
+  const moved = movedX || movedY;
+
+  let reason: string | undefined;
+  if (!moved && before && after) {
+    if (direction === 'down' || direction === 'up') {
+      // Detect end-of-page so the agent gets a specific hint, not just
+      // a generic no-op message.
+      const atEdge = await detectVerticalEdge(cdp, direction);
+      if (atEdge === 'top') {
+        reason = 'already at the top of the page';
+      } else if (atEdge === 'bottom') {
+        reason = 'already at the bottom of the page';
+      } else {
+        reason = 'the wheel event did not move the viewport';
+      }
+    } else {
+      const atEdge = await detectHorizontalEdge(cdp, direction);
+      if (atEdge === 'left') {
+        reason = 'already at the left edge';
+      } else if (atEdge === 'right') {
+        reason = 'already at the right edge';
+      } else {
+        reason = 'the wheel event did not move the viewport';
+      }
+    }
+  }
+
   await refreshCursor(cdp, tabId, cursor.x, cursor.y);
-  return { x: cursor.x, y: cursor.y, deltaX, deltaY };
+  return { x: cursor.x, y: cursor.y, deltaX, deltaY, moved, reason };
+}
+
+async function readScroll(cdp: CdpCommander): Promise<[number, number] | null> {
+  try {
+    const resp = await cdp.sendCommand<{
+      result?: { value?: { x?: number; y?: number } };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression: '({x: window.scrollX, y: window.scrollY})',
+        returnByValue: true,
+      },
+      4000,
+      0,
+    );
+    const v = resp?.result?.value;
+    if (!v || typeof v.x !== 'number' || typeof v.y !== 'number') return null;
+    return [v.x, v.y];
+  } catch {
+    return null;
+  }
+}
+
+async function detectVerticalEdge(
+  cdp: CdpCommander,
+  direction: 'up' | 'down',
+): Promise<'top' | 'bottom' | null> {
+  try {
+    const resp = await cdp.sendCommand<{
+      result?: {
+        value?: { y: number; max: number };
+      };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression:
+          '({y: window.scrollY, max: Math.max(0, document.documentElement.scrollHeight - window.innerHeight)})',
+        returnByValue: true,
+      },
+      4000,
+      0,
+    );
+    const v = resp?.result?.value;
+    if (!v) return null;
+    if (direction === 'up' && v.y <= 1) return 'top';
+    if (direction === 'down' && v.y >= v.max - 1) return 'bottom';
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function detectHorizontalEdge(
+  cdp: CdpCommander,
+  direction: 'left' | 'right',
+): Promise<'left' | 'right' | null> {
+  try {
+    const resp = await cdp.sendCommand<{
+      result?: {
+        value?: { x: number; max: number };
+      };
+    }>(
+      'Runtime.evaluate',
+      {
+        expression:
+          '({x: window.scrollX, max: Math.max(0, document.documentElement.scrollWidth - window.innerWidth)})',
+        returnByValue: true,
+      },
+      4000,
+      0,
+    );
+    const v = resp?.result?.value;
+    if (!v) return null;
+    if (direction === 'left' && v.x <= 1) return 'left';
+    if (direction === 'right' && v.x >= v.max - 1) return 'right';
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function waitForScrollSettle(
+  cdp: CdpCommander,
+  pollIntervalMs: number = 80,
+  maxWaitMs: number = 1500,
+  stableSamples: number = 2,
+): Promise<void> {
+  const start = Date.now();
+  let last = await readScroll(cdp);
+  let stable = 0;
+  while (Date.now() - start < maxWaitMs) {
+    await sleep(pollIntervalMs);
+    const cur = await readScroll(cdp);
+    if (cur && last && cur[0] === last[0] && cur[1] === last[1]) {
+      stable += 1;
+      if (stable >= stableSamples) return;
+    } else {
+      stable = 0;
+    }
+    last = cur;
+  }
 }
 
 // Per-character US-keyboard mapping for plain ASCII printables. Used by
@@ -868,9 +1065,80 @@ export async function performKeyboardType(
   tabId: number,
   conversationId: string,
   text: string,
-): Promise<{ length: number }> {
+): Promise<{
+  length: number;
+  typed: boolean;
+  target?: string;
+  reason?: string;
+}> {
   await attachWithDialogTracking(tabId, conversationId);
   const cdp = new CdpCommander(tabId);
+
+  // Refuse to dispatch when nothing editable is focused. Without this
+  // the CDP keystrokes still fire (against the body / a focused button
+  // / nothing), the page never receives an `input` event, and the agent
+  // sees a generic "Typed text" success — wasting a turn and producing
+  // a stale screenshot. Mirrors the focused-element check used by
+  // `keyboard clear`.
+  const focusProbeExpr = `(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) {
+      return { editable: false, reason: 'no element focused' };
+    }
+    const tag = (el.tagName || '').toLowerCase();
+    const role = el.getAttribute && el.getAttribute('role');
+    const describe = () => {
+      const id = el.id ? '#' + el.id : '';
+      const name = el.getAttribute && el.getAttribute('name')
+        ? '[name=' + el.getAttribute('name') + ']' : '';
+      const r = role ? '[role=' + role + ']' : '';
+      return tag + id + name + r;
+    };
+    if (tag === 'input') {
+      const t = (el.getAttribute('type') || 'text').toLowerCase();
+      const nonText = new Set([
+        'button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'image',
+        'hidden', 'range', 'color',
+      ]);
+      if (nonText.has(t)) {
+        return {
+          editable: false,
+          target: describe(),
+          reason: 'focused <input type=' + t + '> does not accept typed text',
+        };
+      }
+      return { editable: true, target: describe() };
+    }
+    if (tag === 'textarea') return { editable: true, target: describe() };
+    if (el.isContentEditable) return { editable: true, target: describe() };
+    if (role === 'textbox' || role === 'searchbox' || role === 'combobox') {
+      return { editable: true, target: describe() };
+    }
+    return {
+      editable: false,
+      target: describe(),
+      reason: 'focused element is not an editable field',
+    };
+  })()`;
+  const focusResp = await cdp.sendCommand<{
+    result?: {
+      value?: { editable?: boolean; target?: string; reason?: string };
+    };
+  }>(
+    'Runtime.evaluate',
+    { expression: focusProbeExpr, returnByValue: true },
+    8000,
+    0,
+  );
+  const focus = focusResp?.result?.value || {};
+  if (!focus.editable) {
+    return {
+      length: 0,
+      typed: false,
+      target: focus.target,
+      reason: focus.reason || 'no editable element focused',
+    };
+  }
 
   // Type one character at a time so the page sees real `keydown` →
   // `keypress` → `input` → `keyup` events for each char. This matches
@@ -921,7 +1189,7 @@ export async function performKeyboardType(
       await sleep(PER_CHAR_DELAY_MS);
     }
   }
-  return { length: text.length };
+  return { length: text.length, typed: true, target: focus.target };
 }
 
 const NAMED_KEY_MAP: Record<
@@ -987,6 +1255,48 @@ const KEY_TEXT: Record<string, string> = {
   Space: ' ',
 };
 
+// Selection-all on the focused element via JS. Chromium's accelerator
+// bindings for Meta+A / Control+A are not triggered by CDP
+// `Input.dispatchKeyEvent`, so the dispatched key combination fires
+// keyboard listeners but leaves the field unselected. After the key
+// event, we run a small JS snippet that calls `.select()` on inputs /
+// textareas and `Selection.selectNodeContents` on contenteditables, so
+// the visual selection actually exists for a following `type` or
+// `Backspace`.
+async function ensureSelectAllOnActive(cdp: CdpCommander): Promise<void> {
+  const expr = `(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    try {
+      if (tag === 'input' || tag === 'textarea') {
+        if (typeof el.select === 'function') { el.select(); return true; }
+      }
+      if (el.isContentEditable) {
+        const sel = window.getSelection && window.getSelection();
+        if (sel && document.createRange) {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  })()`;
+  try {
+    await cdp.sendCommand(
+      'Runtime.evaluate',
+      { expression: expr, returnByValue: true },
+      4000,
+      0,
+    );
+  } catch (_) {
+    // best-effort; the CDP key event still fired
+  }
+}
+
 export async function performKeyboardPress(
   tabId: number,
   conversationId: string,
@@ -1037,6 +1347,19 @@ export async function performKeyboardPress(
     8000,
     0,
   );
+
+  // Select-all accelerator (Meta+A / Control+A) doesn't fire via CDP key
+  // events. After listeners have observed the keydown/keyup pair, force
+  // the visual selection so a subsequent `type` or `Backspace` replaces
+  // the contents instead of appending to them.
+  const isSelectAll =
+    resolved.key.toLowerCase() === 'a' &&
+    (mod & 0x4 || mod & 0x2) &&
+    !(mod & 0x1);
+  if (isSelectAll) {
+    await ensureSelectAllOnActive(cdp);
+  }
+
   return { key: resolved.key, modifiers: mod };
 }
 

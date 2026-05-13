@@ -2485,6 +2485,7 @@ class Evaluator:
         manual: bool = False,
         parallel: int = 1,
         single_model_parallel: int = 1,
+        tests_filter: Optional[List[str]] = None,
     ):
         """Run all test cases for specified LLM targets."""
         if not self.ensure_services(skip_services=skip_services, manual=manual):
@@ -2504,6 +2505,19 @@ class Evaluator:
         if not test_cases:
             logger.warning("No test cases found")
             return False
+
+        if tests_filter:
+            wanted = set(tests_filter)
+            test_cases = [tc for tc in test_cases if tc.id in wanted]
+            missing = wanted - {tc.id for tc in test_cases}
+            if missing:
+                logger.error(f"Tests not found: {sorted(missing)}")
+                return False
+            logger.info(
+                "Filtered to %d test(s): %s",
+                len(test_cases),
+                [tc.id for tc in test_cases],
+            )
 
         scheduled_results = self._run_scheduled_jobs(
             test_cases=test_cases,
@@ -3224,6 +3238,12 @@ def main():
     )
     parser.add_argument("--test", help="Run specific test by ID")
     parser.add_argument(
+        "--tests",
+        nargs="+",
+        help="Run a subset of tests by ID (space-separated). Routed through the "
+        "all-tests scheduler so --parallel / --single-model-parallel apply.",
+    )
+    parser.add_argument(
         "--repair-output",
         help="Repair one saved evaluation output directory using persisted usage data.",
     )
@@ -3502,6 +3522,7 @@ def main():
                     manual=False,
                     parallel=args.parallel,
                     single_model_parallel=args.single_model_parallel,
+                    tests_filter=args.tests,
                 )
                 if not success:
                     sys.exit(1)

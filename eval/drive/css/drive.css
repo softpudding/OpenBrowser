@@ -196,12 +196,56 @@
 }
 
 .drive-destination-picker {
-  max-height: 320px;
-  overflow: auto;
   border: 1px solid var(--mock-border);
   border-radius: 18px;
-  padding: 12px;
   background: rgba(15, 23, 34, 0.03);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.drive-destination-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--mock-border);
+  background: rgba(15, 23, 34, 0.04);
+}
+
+.drive-destination-crumb {
+  background: transparent;
+  border: 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: var(--mock-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.drive-destination-crumb:hover {
+  background: rgba(15, 23, 34, 0.06);
+}
+
+.drive-destination-crumb.active {
+  background: rgba(15, 157, 88, 0.12);
+  color: rgba(15, 157, 88, 0.95);
+  font-weight: 600;
+}
+
+.drive-destination-sep {
+  color: rgba(15, 23, 34, 0.35);
+  font-size: 13px;
+}
+
+.drive-destination-list {
+  max-height: 280px;
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .drive-destination-item {
@@ -216,9 +260,8 @@
   color: var(--mock-text);
 }
 
-.drive-destination-item.active {
-  border-color: rgba(15, 157, 88, 0.24);
-  background: rgba(15, 157, 88, 0.08);
+.drive-destination-item:hover {
+  background: rgba(15, 23, 34, 0.05);
 }
 
 .drive-upload-option {

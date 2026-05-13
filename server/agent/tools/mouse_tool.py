@@ -139,7 +139,11 @@ class MouseAction(OpenBrowserAction):
         default=300,
         ge=1,
         le=2000,
-        description="Scroll amount in CSS pixels for 'scroll'.",
+        description=(
+            "Scroll distance for 'scroll', in the same [0, 1000] space as "
+            "coordinates: 1000 is one full viewport in the chosen direction, "
+            "500 is half."
+        ),
     )
 
     steps: int = Field(

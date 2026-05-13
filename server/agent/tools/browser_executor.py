@@ -13,8 +13,9 @@ This executor provides consistent command execution and pending confirmation sta
 
 import asyncio
 import logging
+import sys
 import threading
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from openhands.sdk.tool import ToolExecutor
 import requests
@@ -1118,12 +1119,62 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         py = round(y * vh / 1000) if y is not None else None
         return (px, py)
 
+    def _denormalize_scroll_amount(self, amount: int, direction: str) -> int:
+        """Convert a Qwen-normalized scroll amount to CSS pixels.
+
+        Qwen emits scroll deltas in [0, 1000] (same space as click coords),
+        so `amount=800, direction=down` means "scroll 80% of the viewport
+        height down." Vertical scrolls scale against viewport height;
+        horizontal against width. Non-Qwen models already pass CSS pixels.
+        """
+        try:
+            amt = int(amount)
+        except (TypeError, ValueError):
+            return amount
+        if amt <= 0 or not self._is_qwen_model():
+            return amt
+        viewport = self._get_viewport()
+        if viewport is None:
+            return amt
+        vw, vh = viewport
+        axis = vh if direction in ("up", "down") else vw
+        if axis <= 0:
+            return amt
+        return max(1, round(amt * axis / 1000))
+
+    def _format_action_xy(self, x_css: Optional[int], y_css: Optional[int]) -> str:
+        """Render an (x, y) pair in the coordinate space the agent uses.
+
+        For Qwen models the agent emits and reads coordinates in [0, 1000]
+        normalized space, so the observation must echo back the same space
+        — otherwise the agent sees a CSS-pixel value it can't reconcile with
+        the input it just sent. Non-Qwen models work in CSS pixels and get
+        the values unchanged.
+        """
+        if x_css is None or y_css is None:
+            return "(?, ?)"
+        if self._is_qwen_model():
+            viewport = self._get_viewport()
+            if viewport is not None:
+                vw, vh = viewport
+                if vw > 0 and vh > 0:
+                    nx = round(x_css / vw * 1000)
+                    ny = round(y_css / vh * 1000)
+                    return f"({nx}, {ny})"
+        return f"({int(x_css)}, {int(y_css)})"
+
     # ========== Pixel-action density gate ==========
 
     PIXEL_GATE_RADIUS_CSS = 30
     PIXEL_GATE_CANDIDATE_LIMIT = 5
+    PIXEL_GATE_FALLBACK_RADII_CSS = (30, 100, 300)
 
-    def _gate_pixel_target(self, x_css: int, y_css: int) -> Optional[Dict[str, Any]]:
+    def _gate_pixel_target(
+        self,
+        x_css: int,
+        y_css: int,
+        radius: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Probe (x, y) for the hit element + nearby interactables.
 
         Returns the analysis dict from the extension on success, or None if
@@ -1135,7 +1186,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             cmd = AnalyzePixelTargetsCommand(
                 x=int(x_css),
                 y=int(y_css),
-                radius=self.PIXEL_GATE_RADIUS_CSS,
+                radius=(
+                    int(radius) if radius is not None else self.PIXEL_GATE_RADIUS_CSS
+                ),
                 candidate_limit=self.PIXEL_GATE_CANDIDATE_LIMIT,
                 conversation_id=self.conversation_id,
             )
@@ -1160,6 +1213,32 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         if not isinstance(data, dict):
             return None
         return data
+
+    def _expand_gate_for_warning(
+        self,
+        cursor: Optional[tuple[int, int]],
+        initial_gate: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """Re-probe with progressively larger radii so the no-op warning
+        always carries at least one interactable hint when the page has any.
+
+        The pre-click density gate uses a tight 30px radius (sized for the
+        dense/sparse verdict). After a click no-op, a completely empty
+        neighborhood is unhelpful — the agent learns nothing about where
+        the nearest clickable target actually is. Expand to 100, then 300,
+        and return the first probe that surfaces candidates.
+        """
+        if cursor is None:
+            return initial_gate
+        if initial_gate and (initial_gate.get("neighborhood") or []):
+            return initial_gate
+        for radius in self.PIXEL_GATE_FALLBACK_RADII_CSS:
+            if radius == self.PIXEL_GATE_RADIUS_CSS and initial_gate is not None:
+                continue
+            probe = self._gate_pixel_target(cursor[0], cursor[1], radius=radius)
+            if probe and (probe.get("neighborhood") or []):
+                return probe
+        return initial_gate
 
     def _serialize_pixel_candidates(
         self,
@@ -1270,6 +1349,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             cy = cn.get("y")
             if cx is not None and cy is not None:
                 element_lines[0] = f"{element_lines[0]}  → center=({cx}, {cy})"
+            dist = c.get("distance_css")
+            if isinstance(dist, (int, float)):
+                element_lines[0] = f"{element_lines[0]}  · dist={int(round(dist))}px"
             lines.extend(element_lines)
         return "\n".join(lines)
 
@@ -1345,6 +1427,41 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             return url
         return None
 
+    def _format_pixel_target_line(
+        self,
+        hit: Optional[Dict[str, Any]],
+        vw: int,
+        vh: int,
+    ) -> str:
+        """Render the previewed-target element on a single line.
+
+        Same descriptor-first shape as `_format_pixel_candidates_block`,
+        labeled `Target` instead of a numeric id. Lets the agent read what
+        the yellow rectangle actually is before deciding whether to confirm
+        or re-aim.
+        """
+        if not hit or vw <= 0 or vh <= 0:
+            return ""
+        from server.agent.tools.base import _format_highlighted_element_lines
+
+        serialized = self._serialize_pixel_candidates([hit], vw, vh)
+        if not serialized:
+            return ""
+        el = serialized[0]
+        element_lines = _format_highlighted_element_lines("Target", el)
+        if not element_lines:
+            return ""
+        if element_lines[0].rstrip().endswith(">"):
+            snippet = self._html_snippet_for_candidate(el)
+            if snippet:
+                element_lines[0] = f"{element_lines[0]} · {snippet}"
+        cn = el.get("center_norm") or {}
+        cx = cn.get("x")
+        cy = cn.get("y")
+        if cx is not None and cy is not None:
+            element_lines[0] = f"{element_lines[0]}  → center=({cx}, {cy})"
+        return "\n".join(element_lines)
+
     def _build_pixel_gate_message(
         self,
         kind: str,
@@ -1352,12 +1469,14 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         hit: Optional[Dict[str, Any]],
         candidates: list,
         drag_endpoints: Optional[Dict[str, str]] = None,
+        target_line: str = "",
     ) -> str:
         """Compose the human-readable confirmation message for the agent.
 
-        Kept terse on purpose: the zoomed crop already shows the yellow
-        target and orange neighbors visually, so the message contributes
-        only the candidate list (HTML + centers) and one-line guidance.
+        Kept terse on purpose: the preview screenshot already shows the
+        yellow target and orange neighbors visually at original size, so
+        the message contributes only the candidate list (HTML + centers)
+        and one-line guidance.
         """
         lines: list[str] = []
         if kind == "click":
@@ -1367,6 +1486,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     "commit, or re-emit `click` with one of the candidate "
                     "centers below."
                 )
+                if target_line:
+                    lines.append(target_line)
             else:
                 lines.append(
                     "No element under the cursor — re-emit `click` with one "
@@ -1383,6 +1504,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 "Drag previewed" + note + ". Confirm to commit, or re-emit "
                 "`drag` with corrected endpoints."
             )
+            if target_line:
+                lines.append(target_line)
         block = self._format_pixel_candidates_block(
             candidates,
             header="Nearby candidates (centers in [0,1000] space)",
@@ -1435,11 +1558,13 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             banner_kind="click",
         )
 
+        target_line = self._format_pixel_target_line(hit, vw, vh)
         message = self._build_pixel_gate_message(
             kind="click",
             verdict="dense",
             hit=hit,
             candidates=candidates,
+            target_line=target_line,
         )
 
         self._set_pending_confirmation(
@@ -1535,12 +1660,14 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             "start": "dense" if start_dense else "sparse",
             "end": "dense" if end_dense else "sparse",
         }
+        target_line = self._format_pixel_target_line(focus_hit, vw, vh)
         message = self._build_pixel_gate_message(
             kind="drag",
             verdict="dense",
             hit=focus_hit,
             candidates=candidates,
             drag_endpoints=endpoints,
+            target_line=target_line,
         )
 
         self._set_pending_confirmation(
@@ -1602,7 +1729,8 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 self._clear_pending_confirmation()
                 message = (
                     f"Confirmed click {button} at "
-                    f"({extra.get('px')}, {extra.get('py')}) (count={count})"
+                    f"{self._format_action_xy(extra.get('px'), extra.get('py'))} "
+                    f"(count={count})"
                 )
                 intercepted = self._extract_intercepted_form_control(result_dict)
                 if intercepted:
@@ -1617,7 +1745,10 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     # given as alternatives.
                     px, py = extra.get("px"), extra.get("py")
                     if isinstance(px, int) and isinstance(py, int):
-                        self._draw_no_op_overlay_from_serialized((px, py), serialized)
+                        overlay_url = self._draw_no_op_overlay_from_serialized(
+                            (px, py), serialized
+                        )
+                        self._overlay_screenshot_into_result(result_dict, overlay_url)
                 return self._build_observation_from_result(result_dict, message)
 
             if action_type == "mouse_drag_pixel":
@@ -1642,7 +1773,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 self._clear_pending_confirmation()
                 self._cache_cursor(int(ex), int(ey))
                 return self._build_observation_from_result(
-                    result_dict, f"Confirmed drag from ({sx}, {sy}) to ({ex}, {ey})"
+                    result_dict,
+                    f"Confirmed drag from {self._format_action_xy(sx, sy)} "
+                    f"to {self._format_action_xy(ex, ey)}",
                 )
 
             self._clear_pending_confirmation()
@@ -1690,7 +1823,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 if px is not None and py is not None:
                     self._cache_cursor(px, py)
                 return self._build_observation_from_result(
-                    result_dict, f"Mouse moved to ({px}, {py})"
+                    result_dict, f"Mouse moved to {self._format_action_xy(px, py)}"
                 )
 
             if kind == "click":
@@ -1727,7 +1860,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 result_dict = self._execute_command_sync(command)
                 cx, cy = cursor or (None, None)
                 where = (
-                    f"({cx}, {cy})"
+                    self._format_action_xy(cx, cy)
                     if cx is not None and cy is not None
                     else "the cursor"
                 )
@@ -1739,12 +1872,17 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                         intercepted, action.button, action.count
                     )
                 elif self._click_was_a_no_op(result_dict):
+                    gate = self._expand_gate_for_warning(cursor, gate)
                     message += self._format_no_op_warning(gate)
                     # Draw orange-dashed candidates on the live page so a
                     # human watching the browser sees what the agent is
                     # told to re-aim at. Cleared on the agent's next
                     # mouse action via clear_pixel_overlay.
-                    self._draw_no_op_overlay(cursor, gate)
+                    overlay_url = self._draw_no_op_overlay(cursor, gate)
+                    # Swap the agent's screenshot for the post-overlay one
+                    # so the candidate highlights show up in the image the
+                    # model reads — text coords plus a visual cue.
+                    self._overlay_screenshot_into_result(result_dict, overlay_url)
                 return self._build_observation_from_result(result_dict, message)
 
             if kind == "drag":
@@ -1787,21 +1925,46 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 result_dict = self._execute_command_sync(command)
                 if ex is not None and ey is not None:
                     self._cache_cursor(ex, ey)
+                start_str = self._format_action_xy(sx, sy)
+                end_str = self._format_action_xy(ex, ey)
                 return self._build_observation_from_result(
-                    result_dict, f"Dragged from ({sx}, {sy}) to ({ex}, {ey})"
+                    result_dict, f"Dragged from {start_str} to {end_str}"
                 )
 
             if kind == "scroll":
+                # Qwen emits scroll amounts in the same [0,1000] normalized
+                # space it uses for click/move coords — `amount: 800` means
+                # "scroll 80% of the viewport," not 800 CSS pixels. Convert
+                # against the axis-relevant viewport dimension before the
+                # extension dispatches the wheel event. Non-Qwen models pass
+                # through unchanged (amount is already CSS pixels).
+                amount_css = self._denormalize_scroll_amount(
+                    action.amount, action.direction
+                )
                 command = MouseScrollCommand(
                     direction=ScrollDirection(action.direction),
-                    amount=action.amount,
+                    amount=amount_css,
                     conversation_id=self.conversation_id,
                 )
                 result_dict = self._execute_command_sync(command)
-                return self._build_observation_from_result(
-                    result_dict,
-                    f"Scrolled {action.direction} by {action.amount}px",
-                )
+                detail = (result_dict or {}).get("data", {}) or {}
+                # Older extension builds don't report `moved`; treat missing
+                # as success so we don't false-warn during a rolling upgrade.
+                moved = detail.get("moved")
+                if moved is False:
+                    reason = (
+                        detail.get("reason")
+                        or "the wheel event did not move the viewport"
+                    )
+                    msg = (
+                        f"Scroll {action.direction} by {action.amount} had "
+                        f"no effect — {reason}. Try a different region (move "
+                        f"the cursor over the inner scroll area first), the "
+                        f"opposite direction, or a different navigation."
+                    )
+                else:
+                    msg = f"Scrolled {action.direction} by {action.amount}"
+                return self._build_observation_from_result(result_dict, msg)
 
             if kind == "reset":
                 command = ResetMouseCommand(conversation_id=self.conversation_id)
@@ -1823,6 +1986,52 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 success=False, error=str(e), small_model=self._uses_small_model()
             )
 
+    # Keys where Control on Windows/Linux maps to Cmd (Meta) on macOS.
+    # Excludes navigation/cursor combos (arrows, Home/End) since those have
+    # different semantics on macOS that can't be remapped 1:1.
+    _MAC_REMAP_KEYS = {
+        "a",
+        "c",
+        "v",
+        "x",
+        "z",
+        "y",
+        "s",
+        "f",
+        "g",
+        "p",
+        "n",
+        "t",
+        "w",
+        "r",
+        "l",
+        "+",
+        "-",
+        "0",
+    }
+
+    @classmethod
+    def _maybe_remap_for_host(
+        cls, key: str, modifiers: List[str]
+    ) -> Tuple[List[str], Optional[str]]:
+        """Translate Control+<shortcut-key> → Meta+<shortcut-key> on macOS.
+
+        Returns (modifiers, note). `note` is a short human-readable string
+        describing what swapped, suitable for appending to the observation
+        message so the agent learns the actual keys that hit the page.
+        """
+        if sys.platform != "darwin" or not modifiers or not key:
+            return modifiers, None
+        if key.lower() not in cls._MAC_REMAP_KEYS:
+            return modifiers, None
+        if "Control" not in modifiers:
+            return modifiers, None
+        new_mods = ["Meta" if m == "Control" else m for m in modifiers]
+        before = "+".join(modifiers + [key])
+        after = "+".join(new_mods + [key])
+        note = f"(remapped {before} to {after} on macOS)"
+        return new_mods, note
+
     def _execute_keyboard_action(
         self, action: KeyboardAction
     ) -> OpenBrowserObservation:
@@ -1841,25 +2050,48 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 preview = (
                     action.text if len(action.text) <= 32 else action.text[:29] + "..."
                 )
+                detail = (result_dict or {}).get("data", {}) or {}
+                # Older extension builds don't emit `typed`; treat missing as
+                # success so we don't false-warn during a rolling upgrade.
+                typed = detail.get("typed")
+                if typed is False:
+                    reason = detail.get("reason") or "no editable element focused"
+                    msg = (
+                        f"Type had no effect ({reason}). Click into the "
+                        f"target input field first, then type."
+                    )
+                    obs = self._build_observation_from_result(result_dict, msg)
+                    return obs.model_copy(update={"success": False})
+                target = detail.get("target")
+                target_note = (
+                    f" into {target}" if isinstance(target, str) and target else ""
+                )
                 return self._build_observation_from_result(
-                    result_dict, f"Typed text: {preview!r}"
+                    result_dict, f"Typed text: {preview!r}{target_note}"
                 )
 
             if kind == "press":
                 if not action.key:
                     raise ValueError("keyboard press requires key")
+                modifiers = list(action.modifiers or [])
+                remap_note: Optional[str] = None
+                if not action.literal:
+                    modifiers, remap_note = self._maybe_remap_for_host(
+                        action.key, modifiers
+                    )
+                if remap_note:
+                    logger.info("Keyboard press %s", remap_note)
                 command = KeyboardPressCommand(
                     key=action.key,
-                    modifiers=list(action.modifiers or []),
+                    modifiers=modifiers,
                     conversation_id=self.conversation_id,
                 )
                 result_dict = self._execute_command_sync(command)
-                mod_text = (
-                    f" with {'+'.join(action.modifiers)}" if action.modifiers else ""
-                )
-                return self._build_observation_from_result(
-                    result_dict, f"Pressed {action.key}{mod_text}"
-                )
+                mod_text = f" with {'+'.join(modifiers)}" if modifiers else ""
+                msg = f"Pressed {action.key}{mod_text}"
+                if remap_note:
+                    msg = f"{msg} {remap_note}"
+                return self._build_observation_from_result(result_dict, msg)
 
             if kind == "clear":
                 # JS-based clear on document.activeElement: set value /
@@ -1885,7 +2117,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                     )
                 obs = self._build_observation_from_result(result_dict, msg)
                 if not cleared:
-                    obs.success = False
+                    obs = obs.model_copy(update={"success": False})
                 return obs
 
             raise ValueError(f"Unknown keyboard action: {kind}")
@@ -1899,17 +2131,22 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
         self,
         cursor: Optional[tuple[int, int]],
         gate: Optional[Dict[str, Any]],
-    ) -> None:
+    ) -> Optional[str]:
         """Inject orange-dashed candidate boxes onto the live page for the
         no-op case. Mirrors the gated-preview overlay so a human watching
         the browser sees the same alternatives the agent is told to re-aim
         at. Best-effort: failures are logged and swallowed.
+
+        Returns the data URL of the post-overlay screenshot when the
+        extension produced one, so the caller can swap it into the agent's
+        observation; the agent then sees the highlighted candidates
+        visually, not just as a list of coordinates.
         """
         if cursor is None or not gate:
-            return
+            return None
         neighborhood = gate.get("neighborhood") or []
         if not neighborhood:
-            return
+            return None
         candidate_selectors: list = []
         candidate_bboxes: list = []
         for c in neighborhood:
@@ -1922,9 +2159,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if bbox:
                 candidate_bboxes.append(bbox)
         if not candidate_selectors and not candidate_bboxes:
-            return
+            return None
         try:
-            self._render_pixel_preview(
+            return self._render_pixel_preview(
                 mode="pixel_miss",
                 x_css=cursor[0],
                 y_css=cursor[1],
@@ -1936,16 +2173,17 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             )
         except Exception as e:
             logger.debug("no-op overlay render failed: %s", e)
+            return None
 
     def _draw_no_op_overlay_from_serialized(
         self,
         cursor: Optional[tuple[int, int]],
         candidates: list,
-    ) -> None:
+    ) -> Optional[str]:
         """Same as `_draw_no_op_overlay` but takes pre-serialized candidates
         (the form stashed in `extra_data` for confirm-path commits)."""
         if cursor is None or not candidates:
-            return
+            return None
         candidate_selectors: list = []
         candidate_bboxes: list = []
         for c in candidates:
@@ -1958,9 +2196,9 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             if isinstance(bbox, dict):
                 candidate_bboxes.append(bbox)
         if not candidate_selectors and not candidate_bboxes:
-            return
+            return None
         try:
-            self._render_pixel_preview(
+            return self._render_pixel_preview(
                 mode="pixel_miss",
                 x_css=cursor[0],
                 y_css=cursor[1],
@@ -1972,6 +2210,7 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
             )
         except Exception as e:
             logger.debug("no-op overlay render failed: %s", e)
+            return None
 
     def _format_no_op_warning(self, gate: Optional[Dict[str, Any]]) -> str:
         """Warning text for a click that committed but produced no DOM change.
@@ -2017,6 +2256,42 @@ class BrowserExecutor(ToolExecutor[OpenBrowserAction, OpenBrowserObservation]):
                 "into view or pick a different region of the screen."
             )
         return "\n".join(lines)
+
+    @staticmethod
+    def _overlay_screenshot_into_result(
+        result_dict: Optional[Dict[str, Any]],
+        overlay_url: Optional[str],
+    ) -> None:
+        """Replace the post-click screenshot in `result_dict` with one that
+        already has the no-op candidate overlay painted on it.
+
+        The original click screenshot was captured inside the extension
+        dispatcher before the server-side overlay decision ran, so the
+        agent would otherwise see no visual hint of the highlighted
+        candidates — only their text coordinates. `_render_pixel_preview`
+        repaints the live page with the orange-dashed boxes and returns a
+        fresh capture; swapping it in puts the visual cue into the image
+        the model reads. No-op if the overlay render didn't produce a URL
+        (e.g. zero candidates or extension error).
+        """
+        if not overlay_url or not isinstance(overlay_url, str):
+            return
+        if not overlay_url.startswith("data:"):
+            return
+        if not isinstance(result_dict, dict):
+            return
+        data = result_dict.get("data")
+        if not isinstance(data, dict):
+            return
+        # `_build_observation_from_result` reads `data["screenshot"]` first,
+        # then `data["imageData"]` as a fallback. Replace whichever key
+        # was originally set so the new image wins.
+        if "screenshot" in data:
+            data["screenshot"] = overlay_url
+        elif "imageData" in data:
+            data["imageData"] = overlay_url
+        else:
+            data["screenshot"] = overlay_url
 
     @staticmethod
     def _click_was_a_no_op(result_dict: Optional[Dict[str, Any]]) -> bool:

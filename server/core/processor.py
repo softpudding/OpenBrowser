@@ -16,6 +16,7 @@ from server.models.commands import (
     ResetMouseCommand,
     KeyboardTypeCommand,
     KeyboardPressCommand,
+    KeyboardClearCommand,
     SelectOptionCommand,
     UploadFilePendingCommand,
     ScreenshotCommand,
@@ -243,6 +244,8 @@ class CommandProcessor:
                 return await self._execute_keyboard_type(command)
             elif isinstance(command, KeyboardPressCommand):
                 return await self._execute_keyboard_press(command)
+            elif isinstance(command, KeyboardClearCommand):
+                return await self._execute_keyboard_clear(command)
             elif isinstance(command, SelectOptionCommand):
                 return await self._execute_select_option(command)
             elif isinstance(command, UploadFilePendingCommand):
@@ -341,6 +344,13 @@ class CommandProcessor:
         self, command: KeyboardPressCommand
     ) -> CommandResponse:
         """Execute keyboard press command"""
+        response = await self._send_prepared_command(command)
+        return response
+
+    async def _execute_keyboard_clear(
+        self, command: KeyboardClearCommand
+    ) -> CommandResponse:
+        """Execute keyboard clear command — JS-based reset of the focused field."""
         response = await self._send_prepared_command(command)
         return response
 

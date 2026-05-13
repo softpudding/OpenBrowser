@@ -137,13 +137,17 @@ class MouseDragCommand(BaseCommand):
 
 
 class MouseScrollCommand(BaseCommand):
-    """Scroll at current mouse position"""
+    """Scroll at current mouse position. Internal wire type — `amount` is
+    in CSS pixels here, but the agent never sees this field directly; the
+    agent's `mouse.scroll` tool takes a normalized [0, 1000] amount and
+    the server denormalizes before constructing this command. The upper
+    bound is intentionally permissive so denormalization on tall viewports
+    (4K, vertical monitors) never overflows back into a validation error
+    that would leak pixel numbers into agent observations."""
 
     type: Literal["mouse_scroll"] = "mouse_scroll"
     direction: ScrollDirection = Field(default=ScrollDirection.DOWN)
-    amount: int = Field(
-        default=100, ge=1, le=1000, description="Scroll amount in pixels"
-    )
+    amount: int = Field(default=100, ge=1, le=20000)
 
 
 class ResetMouseCommand(BaseCommand):

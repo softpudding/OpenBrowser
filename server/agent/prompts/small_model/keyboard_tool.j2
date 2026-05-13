@@ -27,6 +27,8 @@ Common keys: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `ArrowUp`/`Down`/`
 
 Modifiers: `Control`, `Shift`, `Alt`, `Meta` (Cmd on macOS).
 
+On macOS, use `Meta` for command shortcuts: `Meta+a` selects all, `Meta+c`/`v`/`x` are copy/paste/cut, `Meta+z` is undo. If you pass `Control` with one of these shortcut keys (`a`, `c`, `v`, `x`, `z`, `y`, `s`, `f`, `g`, `p`, `n`, `t`, `w`, `r`, `l`), the server translates it to `Meta` and the observation reports the actual press. Set `literal: true` to send the exact `Control` combination without translation.
+
 ### clear
 Empty the focused field. Works on `<input>`, `<textarea>`, and contenteditable widgets. The result tells you whether the field actually ended up empty — if not, click into the field first and try again.
 ```json
